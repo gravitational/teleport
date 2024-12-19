@@ -226,48 +226,11 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	}, nil
 }
 
-func generateCertSerial() (*big.Int, error) {
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	return rand.Int(rand.Reader, serialNumberLimit)
-}
-
-func x509Template(
-	serialNumber *big.Int,
-	notBefore time.Time,
-	notAfter time.Time,
-	spiffeID spiffeid.ID,
-) *x509.Certificate {
-	return &x509.Certificate{
-		SerialNumber: serialNumber,
-		NotBefore:    notBefore,
-		NotAfter:     notAfter,
-		// SPEC(X509-SVID) 4.3. Key Usage:
-		// - Leaf SVIDs MUST NOT set keyCertSign or cRLSign.
-		// - Leaf SVIDs MUST set digitalSignature
-		// - They MAY set keyEncipherment and/or keyAgreement;
-		KeyUsage: x509.KeyUsageDigitalSignature |
-			x509.KeyUsageKeyEncipherment |
-			x509.KeyUsageKeyAgreement,
-		// SPEC(X509-SVID) 4.4. Extended Key Usage:
-		// - Leaf SVIDs SHOULD include this extension, and it MAY be marked as critical.
-		// - When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth,
-		},
-		// SPEC(X509-SVID) 4.1. Basic Constraints:
-		// - leaf certificates MUST set the cA field to false
-		BasicConstraintsValid: true,
-		IsCA:                  false,
-
-		// SPEC(X509-SVID) 2. SPIFFE ID:
-		// - The corresponding SPIFFE ID is set as a URI type in the Subject Alternative Name extension
-		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
-		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
-		URIs: []*url.URL{spiffeID.URL()},
-	}
-}
-
-var maxWorkloadIdentitiesIssued = 10 // TODO: maybe make this configurable.
+// maxWorkloadIdentitiesIssued is the maximum number of workload identities that
+// can be issued in a single request.
+// TODO(noah): We'll want to make this tunable via env var or similar to make
+// sure we can adjust it as needed.
+var maxWorkloadIdentitiesIssued = 10
 
 func (s *IssuanceService) IssueWorkloadIdentities(
 	ctx context.Context,
@@ -319,7 +282,10 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		}
 		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
 			// If we're now above the limit, then we want to exit out...
-			return nil, trace.BadParameter("too many workload identities to issue") // TODO: better error lol.
+			return nil, trace.BadParameter(
+				"number of identities that would be issued exceeds maximum %d",
+				maxWorkloadIdentitiesIssued,
+			)
 		}
 	}
 
@@ -339,7 +305,11 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 				req.RequestedTtl.AsDuration(),
 			)
 			if err != nil {
-				return nil, trace.Wrap(err, "issuing X509 SVID for workload identity %q", wi.GetMetadata().GetName())
+				return nil, trace.Wrap(
+					err,
+					"issuing X509 SVID for workload identity %q",
+					wi.GetMetadata().GetName(),
+				)
 			}
 			creds = append(creds, cred)
 		}
@@ -358,7 +328,11 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 				req.RequestedTtl.AsDuration(),
 			)
 			if err != nil {
-				return nil, trace.Wrap(err, "issuing JWT SVID for workload identity %q", wi.GetMetadata().GetName())
+				return nil, trace.Wrap(
+					err,
+					"issuing JWT SVID for workload identity %q",
+					wi.GetMetadata().GetName(),
+				)
 			}
 			creds = append(creds, cred)
 		}
@@ -369,6 +343,47 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	return &workloadidentityv1pb.IssueWorkloadIdentitiesResponse{
 		Credentials: creds,
 	}, nil
+}
+
+func generateCertSerial() (*big.Int, error) {
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	return rand.Int(rand.Reader, serialNumberLimit)
+}
+
+func x509Template(
+	serialNumber *big.Int,
+	notBefore time.Time,
+	notAfter time.Time,
+	spiffeID spiffeid.ID,
+) *x509.Certificate {
+	return &x509.Certificate{
+		SerialNumber: serialNumber,
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+		// SPEC(X509-SVID) 4.3. Key Usage:
+		// - Leaf SVIDs MUST NOT set keyCertSign or cRLSign.
+		// - Leaf SVIDs MUST set digitalSignature
+		// - They MAY set keyEncipherment and/or keyAgreement;
+		KeyUsage: x509.KeyUsageDigitalSignature |
+			x509.KeyUsageKeyEncipherment |
+			x509.KeyUsageKeyAgreement,
+		// SPEC(X509-SVID) 4.4. Extended Key Usage:
+		// - Leaf SVIDs SHOULD include this extension, and it MAY be marked as critical.
+		// - When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth,
+		},
+		// SPEC(X509-SVID) 4.1. Basic Constraints:
+		// - leaf certificates MUST set the cA field to false
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+
+		// SPEC(X509-SVID) 2. SPIFFE ID:
+		// - The corresponding SPIFFE ID is set as a URI type in the Subject Alternative Name extension
+		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
+		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
+		URIs: []*url.URL{spiffeID.URL()},
+	}
 }
 
 func (s *IssuanceService) getX509CA(
