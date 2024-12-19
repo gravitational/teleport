@@ -30,12 +30,12 @@ the database, follow these instructions on your workstation:
    ```
 
 1. Export Teleport's certificate authority and a generate certificate/key pair.
-   This example generates a certificate with a 1-year validity period.
+   This example generates a certificate with a 90-day validity period.
    `db.example.com` is the hostname where the Teleport Database Service can
    reach the {{ dbname }} server.
 
    ```code
-   $ tctl auth sign --format={{ format }} --host=db.example.com --out=server --ttl=2190h
+   $ tctl auth sign --format={{ format }} --host=db.example.com --out=server --ttl=2160h
    ```
 
    (!docs/pages/includes/database-access/ttl-note.mdx!)
