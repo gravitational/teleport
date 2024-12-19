@@ -149,7 +149,12 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		tp.srv.Auth(),
 		"dog",
 		[]string{},
-		[]types.Rule{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindWorkloadIdentity,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
 		auth.WithRoleMutator(func(role types.Role) {
 			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{
 				types.Wildcard: []string{types.Wildcard},
@@ -164,7 +169,12 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		tp.srv.Auth(),
 		"cat",
 		[]string{},
-		[]types.Rule{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindWorkloadIdentity,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
 		auth.WithRoleMutator(func(role types.Role) {
 			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{
 				"foo": []string{"bar"},
@@ -510,7 +520,12 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		tp.srv.Auth(),
 		"cat",
 		[]string{},
-		[]types.Rule{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindWorkloadIdentity,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
 		auth.WithRoleMutator(func(role types.Role) {
 			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{
 				"access": []string{"yes"},
