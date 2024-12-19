@@ -330,9 +330,11 @@ loop:
 			case svc.Interrogate:
 				status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 			case svc.Stop, svc.Shutdown:
+				slog.InfoContext(ctx, "Shutting down service, received command", "cmd", request.Cmd)
 				break loop
 			}
 		case <-s.done:
+			slog.InfoContext(ctx, "Shutting down service, context was canceled")
 			break loop
 		case err := <-errCh:
 			slog.ErrorContext(ctx, "Running Windows VNet service", "error", err)

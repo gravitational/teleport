@@ -20,11 +20,13 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"os/user"
 
 	"github.com/Microsoft/go-winio"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -87,9 +89,11 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 
 	pm, processCtx := newProcessManager()
 
-	// Security descriptor to allow only the SYSTEM account to dial the pipe,
-	// the VNet Windows service runs as the system user.
-	sd := "D:P(A;;GA;;;SY)" // "D:P" -> Discretionary ACL, "(A;;GA;;;SY)" -> Allow Generic All (GA) to SYSTEM (SY)
+	sd, err := pipeSecurityDescriptor()
+	if err != nil {
+		return nil, trace.Wrap(err, "building security descriptor for named pipe")
+	}
+	log.DebugContext(ctx, "Built pipe security descriptor", "sd", sd)
 	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{
 		SecurityDescriptor: sd,
 	})
@@ -128,4 +132,56 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 	})
 
 	return pm, nil
+}
+
+func pipeSecurityDescriptor() (string, error) {
+	user, err := user.Current()
+	if err != nil {
+		return "", trace.Wrap(err, "getting current user SID")
+	}
+	userSID, err := windows.StringToSid(user.Uid)
+	if err != nil {
+		return "", trace.Wrap(err, "converting user SID from string")
+	}
+	userTrustee := windows.TRUSTEE{
+		TrusteeForm:  windows.TRUSTEE_IS_SID,
+		TrusteeType:  windows.TRUSTEE_IS_USER,
+		TrusteeValue: windows.TrusteeValueFromSID(userSID),
+	}
+
+	serviceSecurityDescriptor, err := windows.GetNamedSecurityInfo(
+		serviceName, windows.SE_SERVICE, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return "", trace.Wrap(err, "getting current security descriptor for %s", serviceName)
+	}
+	serviceSID, _, err := serviceSecurityDescriptor.Owner()
+	if err != nil {
+		return "", trace.Wrap(err, "getting owner SID from service security descriptor")
+	}
+	serviceTrustee := windows.TRUSTEE{
+		TrusteeForm:  windows.TRUSTEE_IS_SID,
+		TrusteeType:  windows.TRUSTEE_IS_USER,
+		TrusteeValue: windows.TrusteeValueFromSID(serviceSID),
+	}
+
+	sd, err := windows.BuildSecurityDescriptor(
+		nil, // owner
+		nil, // group
+		[]windows.EXPLICIT_ACCESS{
+			{
+				Trustee:           userTrustee,
+				AccessPermissions: windows.SYNCHRONIZE | windows.GENERIC_READ,
+			},
+			{
+				Trustee:           serviceTrustee,
+				AccessPermissions: windows.SYNCHRONIZE | windows.GENERIC_WRITE,
+			},
+		},
+		nil, // auditEntries
+		nil, // mergedSecurityDescriptor
+	)
+	if err != nil {
+		return "", trace.Wrap(err, "building security descriptor")
+	}
+	return sd.String(), nil
 }
