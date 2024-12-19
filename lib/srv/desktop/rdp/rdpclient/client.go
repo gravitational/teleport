@@ -73,6 +73,7 @@ import "C"
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -81,7 +82,6 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -98,14 +98,15 @@ func init() {
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
 	if rl == "" {
-		switch l := logrus.GetLevel(); l {
-		case logrus.TraceLevel:
+		ctx := context.Background()
+		switch {
+		case slog.Default().Enabled(ctx, logutils.TraceLevel):
 			rustLogLevel = "trace"
-		case logrus.DebugLevel:
+		case slog.Default().Enabled(ctx, slog.LevelDebug):
 			rustLogLevel = "debug"
-		case logrus.InfoLevel:
+		case slog.Default().Enabled(ctx, slog.LevelInfo):
 			rustLogLevel = "info"
-		case logrus.WarnLevel:
+		case slog.Default().Enabled(ctx, slog.LevelWarn):
 			rustLogLevel = "warn"
 		default:
 			rustLogLevel = "error"
