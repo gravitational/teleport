@@ -254,13 +254,6 @@ func (s *TerraformSuiteOSS) TestRoleLoginsSplitBrain() {
 }
 
 func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
-	// TODO(hugoShaka) Re-enable this test when we fix the role defaults in v16
-	// We had a bug in v14 and below that caused the defaults to be badly computed.
-	// We tried to fix this bug in v15 but it was too aggressive (forcing replacement is too destructive).
-	// In v16 we'll push a new plan modifier to fix this issue, this might be a
-	// breaking change for users who relied on the bug.
-	s.T().Skip("Test temporarily disabled until v16")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
