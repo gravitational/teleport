@@ -25,34 +25,66 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeAppGateway } from 'teleterm/services/tshd/testHelpers';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { Meta } from '@storybook/react';
+import { Flex } from 'design';
 
-export default {
+type StoryProps = {
+  appType: 'web' | 'tcp';
+  online: boolean;
+  changePort: 'succeed' | 'throw-error';
+  disconnect: 'succeed' | 'throw-error';
+};
+
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/DocumentGatewayApp',
+  component: Story,
+  argTypes: {
+    appType: {
+      control: { type: 'radio' },
+      options: ['web', 'tcp'],
+    },
+    changePort: {
+      if: { arg: 'online' },
+      control: { type: 'radio' },
+      options: ['succeed', 'throw-error'],
+    },
+    disconnect: {
+      if: { arg: 'online' },
+      control: { type: 'radio' },
+      options: ['succeed', 'throw-error'],
+    },
+  },
+  args: {
+    appType: 'web',
+    online: true,
+    changePort: 'succeed',
+    disconnect: 'succeed',
+  },
 };
+export default meta;
 
-const gateway = makeAppGateway();
+export function Story(props: StoryProps) {
+  const rootClusterUri = '/clusters/bar';
+  const gateway = makeAppGateway();
+  if (props.appType === 'tcp') {
+    gateway.protocol = 'TCP';
+  }
+  const documentGateway: types.DocumentGateway = {
+    kind: 'doc.gateway',
+    targetUri: '/clusters/bar/apps/quux',
+    origin: 'resource_table',
+    gatewayUri: gateway.uri,
+    uri: '/docs/123',
+    title: 'quux',
+    targetUser: '',
+    status: '',
+    targetName: 'quux',
+  };
+  if (!props.online) {
+    documentGateway.gatewayUri = undefined;
+  }
 
-const documentGateway: types.DocumentGateway = {
-  kind: 'doc.gateway',
-  targetUri: '/clusters/bar/apps/quux',
-  origin: 'resource_table',
-  gatewayUri: gateway.uri,
-  uri: '/docs/123',
-  title: 'quux',
-  targetUser: '',
-  status: '',
-  targetName: 'quux',
-};
-
-const rootClusterUri = '/clusters/bar';
-
-export function Online() {
   const appContext = new MockAppContext();
-  appContext.clustersService.createGateway = () => Promise.resolve(gateway);
-  appContext.clustersService.setState(draftState => {
-    draftState.gateways.set(gateway.uri, gateway);
-  });
-
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = rootClusterUri;
     draftState.workspaces[rootClusterUri] = {
@@ -62,39 +94,58 @@ export function Online() {
       accessRequests: undefined,
     };
   });
+  if (props.online) {
+    appContext.clustersService.createGateway = () => Promise.resolve(gateway);
+    appContext.clustersService.setState(draftState => {
+      draftState.gateways.set(gateway.uri, gateway);
+    });
 
-  appContext.tshd.setGatewayLocalPort = ({ localPort }) =>
-    wait(800).then(() => new MockedUnaryCall({ ...gateway, localPort }));
+    appContext.tshd.setGatewayLocalPort = ({ localPort }) =>
+      wait(1000).then(
+        () =>
+          new MockedUnaryCall(
+            { ...gateway, localPort },
+            props.changePort === 'throw-error'
+              ? new Error('something went wrong')
+              : undefined
+          )
+      );
+    appContext.tshd.removeGateway = () =>
+      wait(50).then(
+        () =>
+          new MockedUnaryCall(
+            {},
+            props.disconnect === 'throw-error'
+              ? new Error('something went wrong')
+              : undefined
+          )
+      );
+  } else {
+    appContext.clustersService.createGateway = () =>
+      Promise.reject(new Error('failed to create gateway'));
+  }
 
   return (
-    <MockAppContextProvider appContext={appContext}>
+    <MockAppContextProvider
+      appContext={appContext}
+      // Completely re-mount everything when controls change.
+      // This ensures that effects are fired again.
+      key={JSON.stringify(props)}
+    >
       <MockWorkspaceContextProvider>
-        <DocumentGatewayApp doc={documentGateway} visible={true} />
-      </MockWorkspaceContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-export function Offline() {
-  const offlineDocumentGateway = { ...documentGateway, gatewayUri: undefined };
-  const appContext = new MockAppContext();
-  appContext.clustersService.createGateway = () =>
-    Promise.reject(new Error('failed to create gateway'));
-
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [offlineDocumentGateway],
-      location: offlineDocumentGateway.uri,
-      accessRequests: undefined,
-    };
-  });
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <MockWorkspaceContextProvider>
-        <DocumentGatewayApp doc={offlineDocumentGateway} visible={true} />
+        <Flex
+          flexDirection="column"
+          // Simulate TabHost from the real app.
+          css={`
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+          `}
+        >
+          <DocumentGatewayApp doc={documentGateway} visible={true} />
+        </Flex>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );
