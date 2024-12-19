@@ -49,15 +49,15 @@ func newVnetCommands(app *kingpin.Application) *vnetCommands {
 
 type vnetInstallServiceCommand struct {
 	*kingpin.CmdClause
-	username string
-	home     string
+	userSID string
+	home    string
 }
 
 func newVnetInstallServiceCommand(app *kingpin.Application) *vnetInstallServiceCommand {
 	cmd := &vnetInstallServiceCommand{
 		CmdClause: app.Command("vnet-install-service", "Install the VNet Windows service.").Hidden(),
 	}
-	cmd.Flag("username", "username of the user that the service should be installed for.").Required().StringVar(&cmd.username)
+	cmd.Flag("userSID", "SID of the user that the service should be installed for.").Required().StringVar(&cmd.userSID)
 	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
 	return cmd
 }
@@ -66,7 +66,7 @@ func (c *vnetInstallServiceCommand) tryRun(_ *CLIConf, command string) (bool, er
 	if c.FullCommand() != command {
 		return false, nil
 	}
-	return true, trace.Wrap(vnet.InstallService(c.username, c.home))
+	return true, trace.Wrap(vnet.InstallService(c.userSID, c.home))
 }
 
 // vnetServiceCommand is the command that runs the Windows service.

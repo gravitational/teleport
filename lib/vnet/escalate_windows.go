@@ -102,12 +102,12 @@ func escalateAndInstallService(cfg AdminProcessConfig) error {
 	}
 	user, err := user.Current()
 	if err != nil {
-		return trace.Wrap(err, "getting current username")
+		return trace.Wrap(err, "getting current user")
 	}
 	args, err := ptrsFromStrings(
 		"runas",
 		shsprintf.EscapeDefaultContext(tshPath),
-		escapeAndJoinArgs("vnet-install-service", "--username", user.Name, "--home", cfg.HomePath),
+		escapeAndJoinArgs("vnet-install-service", "--userSID", user.Uid, "--home", cfg.HomePath),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -153,7 +153,7 @@ func serviceArgs(cfg AdminProcessConfig) []string {
 	}
 }
 
-func InstallService(username, home string) error {
+func InstallService(userSID, home string) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return trace.Wrap(err, "connecting to Windows service manager")
@@ -163,7 +163,7 @@ func InstallService(username, home string) error {
 	if err != nil {
 		return trace.Wrap(err, "installing Windows service")
 	}
-	if err := configureServicePermissions(service, username); err != nil {
+	if err := configureServicePermissions(service, userSID); err != nil {
 		return trace.Wrap(err, "configuring Windows service permissions")
 	}
 	return nil
@@ -197,10 +197,10 @@ func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
 	return service, nil
 }
 
-func configureServicePermissions(service *mgr.Service, username string) error {
-	userSid, _, _, err := windows.LookupSID("" /*system*/, username)
+func configureServicePermissions(service *mgr.Service, userSIDStr string) error {
+	userSID, err := windows.StringToSid(userSIDStr)
 	if err != nil {
-		return trace.Wrap(err, "looking up SID for user %s", username)
+		return trace.Wrap(err, "converting SID from string")
 	}
 	securityDescriptor, err := windows.GetNamedSecurityInfo(
 		service.Name, windows.SE_SERVICE, windows.DACL_SECURITY_INFORMATION)
@@ -219,7 +219,7 @@ func configureServicePermissions(service *mgr.Service, username string) error {
 		Trustee: windows.TRUSTEE{
 			TrusteeForm:  windows.TRUSTEE_IS_SID,
 			TrusteeType:  windows.TRUSTEE_IS_USER,
-			TrusteeValue: windows.TrusteeValueFromSID(userSid),
+			TrusteeValue: windows.TrusteeValueFromSID(userSID),
 		},
 	}}
 	newDACL, err := windows.ACLFromEntries(explicitAccess, currentDACL)
