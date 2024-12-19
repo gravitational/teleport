@@ -1701,7 +1701,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 	switch {
 	case req.Host != "":
 		if len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0 {
-			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and label information - ignoring labels")
+			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and a resource matcher - ignoring resource matcher")
 		}
 
 		resp, err := a.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
@@ -1753,7 +1753,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 
 		}
 	default:
-		return nil, trace.NotFound("no matching hosts")
+		return nil, trace.BadParameter("request did not contain any host information or resource matcher")
 	}
 
 	switch len(servers) {
