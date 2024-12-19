@@ -20,9 +20,9 @@ package azure_sync
 
 import (
 	"context"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"slices"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore" //nolint:unused // used in a dependent PR
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,11 +30,11 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-const groupType = "#microsoft.graph.group"
-const defaultGraphScope = "https://graph.microsoft.com/.default"
+const groupType = "#microsoft.graph.group"                       //nolint:unused // used in a dependent PR
+const defaultGraphScope = "https://graph.microsoft.com/.default" //nolint:unused // used in a dependent PR
 
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
-func fetchPrincipals(ctx context.Context, subscriptionID string, cred azcore.TokenCredential) ([]*accessgraphv1alpha.AzurePrincipal, error) {
+func fetchPrincipals(ctx context.Context, subscriptionID string, cred azcore.TokenCredential) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint:unused // used in a dependent PR
 	// Get the graph client
 	scopes := []string{defaultGraphScope}
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: scopes})

@@ -20,22 +20,22 @@ package azure_sync
 
 import (
 	"context"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-const allResourceGroups = "*"
+const allResourceGroups = "*" //nolint:unused // used in a dependent PR
 
 // VirtualMachinesClient specifies the methods used to fetch virtual machines from Azure
 type VirtualMachinesClient interface {
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
 }
 
-func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli VirtualMachinesClient) ([]*accessgraphv1alpha.AzureVirtualMachine, error) {
+func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli VirtualMachinesClient) ([]*accessgraphv1alpha.AzureVirtualMachine, error) { //nolint:unused // invoked in a dependent PR
 	vms, err := cli.ListVirtualMachines(ctx, allResourceGroups)
 	if err != nil {
 		return nil, trace.Wrap(err)

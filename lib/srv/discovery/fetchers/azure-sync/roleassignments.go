@@ -20,9 +20,9 @@ package azure_sync
 
 import (
 	"context"
-	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"fmt" //nolint:unused // used in a dependent PR
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -35,11 +35,7 @@ type RoleAssignmentsClient interface {
 }
 
 // fetchRoleAssignments fetches Azure role assignments using the Azure role assignments API
-func fetchRoleAssignments(
-	ctx context.Context,
-	subscriptionID string,
-	cli RoleAssignmentsClient,
-) ([]*accessgraphv1alpha.AzureRoleAssignment, error) {
+func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAssignmentsClient) ([]*accessgraphv1alpha.AzureRoleAssignment, error) { //nolint:unused // invoked in a dependent PR
 	// List the role definitions
 	roleAssigns, err := cli.ListRoleAssignments(ctx, fmt.Sprintf("/subscriptions/%s", subscriptionID))
 	if err != nil {
