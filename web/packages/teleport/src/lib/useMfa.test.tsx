@@ -62,7 +62,13 @@ const mockChallengeReq: CreateAuthenticateChallengeRequest = {
 };
 
 describe('useMfa', () => {
-  beforeEach(() => jest.spyOn(console, 'error').mockImplementation());
+  beforeEach(() => {
+    jest.spyOn(console, 'error').mockImplementation();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
   test('mfa required', async () => {
     jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
@@ -184,7 +190,11 @@ describe('useMfa', () => {
       throw err;
     });
 
-    const { result: mfa } = renderHook(() => useMfa({}));
+    const { result: mfa } = renderHook(() =>
+      useMfa({
+        req: mockChallengeReq,
+      })
+    );
 
     const respPromise = mfa.current.getChallengeResponse();
     await waitFor(() => {
@@ -192,7 +202,6 @@ describe('useMfa', () => {
     });
     await mfa.current.submit('webauthn');
 
-    await expect(respPromise).rejects.toThrow(err);
     await waitFor(() => {
       expect(mfa.current.attempt).toEqual({
         status: 'error',
@@ -200,6 +209,38 @@ describe('useMfa', () => {
         error: err,
         data: null,
       });
+    });
+
+    // After an error, the mfa response promise remains in an unresolved state,
+    // allowing for retries.
+    jest
+      .spyOn(auth, 'getMfaChallengeResponse')
+      .mockResolvedValueOnce(mockResponse);
+    await mfa.current.submit('webauthn');
+    expect(await respPromise).toEqual(mockResponse);
+  });
+
+  test('reset mfa attempt', async () => {
+    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue(mockChallenge);
+    const { result: mfa } = renderHook(() =>
+      useMfa({
+        req: mockChallengeReq,
+      })
+    );
+
+    const respPromise = mfa.current.getChallengeResponse();
+    await waitFor(() => {
+      expect(auth.getMfaChallenge).toHaveBeenCalled();
+    });
+
+    mfa.current.resetAttempt();
+
+    await expect(respPromise).rejects.toThrow(
+      new Error('MFA attempt cancelled by user')
+    );
+
+    await waitFor(() => {
+      expect(mfa.current.attempt.status).toEqual('error');
     });
   });
 });
