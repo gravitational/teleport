@@ -75,15 +75,7 @@ func (s *Server) startDatabaseWatchers() error {
 			Origin:         types.OriginCloud,
 			Clock:          s.clock,
 			PreFetchHookFn: func() {
-				discoveryConfigs := slices.FilterMapUnique(
-					s.getAllDatabaseFetchers(),
-					func(f common.Fetcher) (s string, include bool) {
-						return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
-					},
-				)
-				s.updateDiscoveryConfigStatus(discoveryConfigs...)
-
-				s.awsRDSResourcesStatus.reset()
+				s.databaseWatcherIterationStarted()
 			},
 		},
 	)
@@ -151,6 +143,38 @@ func (s *Server) startDatabaseWatchers() error {
 	return nil
 }
 
+func (s *Server) databaseWatcherIterationStarted() {
+	allFetchers := s.getAllDatabaseFetchers()
+	if len(allFetchers) == 0 {
+		return
+	}
+
+	s.submitFetchersEvent(allFetchers)
+
+	awsResultGroups := slices.FilterMapUnique(
+		allFetchers,
+		func(f common.Fetcher) (awsResourceGroup, bool) {
+			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
+			resourceGroup := awsResourceGroup{
+				discoveryConfigName: f.GetDiscoveryConfigName(),
+				integration:         f.IntegrationName(),
+			}
+			return resourceGroup, include
+		},
+	)
+
+	for _, g := range awsResultGroups {
+		s.awsRDSResourcesStatus.iterationStarted(g)
+	}
+
+	discoveryConfigs := slices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
+		return g.discoveryConfigName, true
+	})
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
+	s.awsRDSResourcesStatus.reset()
+}
+
 func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 	allFetchers := make([]common.Fetcher, 0, len(s.databaseFetchers))
 
@@ -161,8 +185,6 @@ func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 	s.muDynamicDatabaseFetchers.RUnlock()
 
 	allFetchers = append(allFetchers, s.databaseFetchers...)
-
-	s.submitFetchersEvent(allFetchers)
 
 	return allFetchers
 }
