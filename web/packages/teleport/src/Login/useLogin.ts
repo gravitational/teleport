@@ -167,6 +167,11 @@ function loginSuccess() {
   history.push(redirect, withPageRefresh);
 }
 
+/**
+ * getEntryRoute returns a base ensured redirect URL value that is safe
+ * for redirect.
+ * @returns base ensured URL string.
+ */
 function getEntryRoute() {
   let entryUrl = history.getRedirectParam();
   if (entryUrl) {

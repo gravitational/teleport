@@ -45,7 +45,7 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
-it('should not redirect on non-matching SAML SSO path', () => {
+it('redirect to root on path not matching "/enterprise/saml-idp/sso"', () => {
   jest.spyOn(history, 'getRedirectParam').mockReturnValue('http://localhost');
   renderHook(() => useLogin());
   expect(history.replace).toHaveBeenCalledWith('/web');
@@ -57,7 +57,7 @@ it('should not redirect on non-matching SAML SSO path', () => {
   expect(history.replace).toHaveBeenCalledWith('/web');
 });
 
-it('should redirect on matching SAML SSO path', () => {
+it('redirect to SAML SSO path on matching "/enterprise/saml-idp/sso"', () => {
   const samlIdPPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
   cfg.baseUrl = 'http://localhost';
   jest
@@ -67,7 +67,7 @@ it('should redirect on matching SAML SSO path', () => {
   expect(history.push).toHaveBeenCalledWith(samlIdPPath, true);
 });
 
-it('non-base domain redirects with base domain for a matching SAML SSO path', async () => {
+it('non-base domain redirects with base domain for a matching "/enterprise/saml-idp/sso"', async () => {
   const samlIdPPath = new URL('http://different-base' + cfg.routes.samlIdpSso);
   jest
     .spyOn(history, 'getRedirectParam')
