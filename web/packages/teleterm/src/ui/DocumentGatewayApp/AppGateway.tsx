@@ -32,10 +32,8 @@ import {
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
-
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
-
-import { Gateway } from 'teleterm/services/tshd/types';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { PortFieldInput } from '../components/FieldInputs';
 
@@ -46,6 +44,7 @@ export function AppGateway(props: {
   changePortAttempt: Attempt<void>;
   disconnect(): void;
 }) {
+  const { gateway } = props;
   const formRef = useRef<HTMLFormElement>();
 
   const { changePort } = props;
@@ -57,7 +56,10 @@ export function AppGateway(props: {
     }, 1000);
   }, [changePort]);
 
-  const link = `${props.gateway.protocol.toLowerCase()}://${props.gateway.localAddress}:${props.gateway.localPort}`;
+  let address = `${gateway.localAddress}:${gateway.localPort}`;
+  if (gateway.protocol === 'HTTP') {
+    address = `http://${address}`;
+  }
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
@@ -76,7 +78,7 @@ export function AppGateway(props: {
         <Validation>
           <PortFieldInput
             label="Port"
-            defaultValue={props.gateway.localPort}
+            defaultValue={gateway.localPort}
             onChange={e => handleChangePort(e.target.value)}
             mb={2}
           />
@@ -92,7 +94,7 @@ export function AppGateway(props: {
         )}
       </Flex>
       <Text>Access the app at:</Text>
-      <TextSelectCopy my={1} text={link} bash={false} />
+      <TextSelectCopy my={1} text={address} bash={false} />
       {props.changePortAttempt.status === 'error' && (
         <Alert details={props.changePortAttempt.statusText}>
           Could not change the port number
