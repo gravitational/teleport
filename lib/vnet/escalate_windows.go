@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/safetext/shsprintf"
@@ -54,9 +55,22 @@ func execAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 		return trace.Wrap(err)
 	}
 	defer service.Close()
-	<-ctx.Done()
-	if _, err := service.Control(svc.Stop); err != nil {
-		return trace.Wrap(err, "sending stop request to Windows service %s", serviceName)
+	for {
+		select {
+		case <-ctx.Done():
+			if _, err := service.Control(svc.Stop); err != nil {
+				return trace.Wrap(err, "sending stop request to Windows service %s", serviceName)
+			}
+			return nil
+		case <-time.After(time.Second):
+			if status, err := service.Query(); err != nil {
+				log.ErrorContext(ctx, "Error querying admin service", "error", err)
+			} else {
+				if status.State != svc.Running && status.State != svc.StartPending {
+					return trace.Errorf("service stopped running prematurely, status: %v", status)
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -174,11 +188,11 @@ func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
 		return service, nil
 	}
 	serviceCfg := mgr.Config{
-		ServiceType:      windows.SERVICE_WIN32_OWN_PROCESS,
-		StartType:        mgr.StartManual,
-		ErrorControl:     mgr.ErrorNormal,
-		DisplayName:      serviceName,
-		Description:      serviceDescription,
+		ServiceType:  windows.SERVICE_WIN32_OWN_PROCESS,
+		StartType:    mgr.StartManual,
+		ErrorControl: mgr.ErrorNormal,
+		DisplayName:  serviceName,
+		Description:  serviceDescription,
 	}
 	tshPath, err := os.Executable()
 	if err != nil {
