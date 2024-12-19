@@ -3021,7 +3021,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(ctx, req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3417,14 +3417,14 @@ func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context,
 // is not paramount to the access system itself, but it stops bad attempts from
 // progressing further and provides better feedback than other protocol-specific
 // failures.
-func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
+func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(ctx context.Context, usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
 	// Ignore App or WindowsDeskop requests, they do not support device trust.
 	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop {
 		return nil
 	}
 
 	identity := a.context.Identity.GetIdentity()
-	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
+	return trace.Wrap(dtauthz.VerifyTLSUser(ctx, dt, identity))
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
@@ -6813,7 +6813,7 @@ func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) er
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(ctx, readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 
