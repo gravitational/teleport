@@ -21,6 +21,7 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
@@ -91,7 +91,7 @@ type clusterDetailsConfig struct {
 	// cluster is the cluster to create a proxied cluster for.
 	cluster types.KubeCluster
 	// log is the logger to use.
-	log *logrus.Entry
+	log *slog.Logger
 	// checker is the permissions checker to use.
 	checker servicecfg.ImpersonationPermissionsChecker
 	// resourceMatchers is the list of resource matchers to match the cluster against
@@ -135,7 +135,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 	// Create the codec factory and the list of supported types for RBAC.
 	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 	if err != nil {
-		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
+		cfg.log.WarnContext(ctx, "Failed to create cluster schema, the cluster may be offline", "error", err)
 		// If the cluster is offline, we will not be able to create the codec factory
 		// and the list of supported types for RBAC.
 		// We mark the cluster as offline and continue to create the kubeDetails but
@@ -145,7 +145,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 
 	kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
 	if err != nil {
-		cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
+		cfg.log.WarnContext(ctx, "Failed to get Kubernetes cluster version, the cluster may be offline", "error", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -198,13 +198,13 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 					} else {
 						refreshDelay.Inc()
 					}
-					cfg.log.WithError(err).Error("Failed to update cluster schema")
+					cfg.log.ErrorContext(ctx, "Failed to update cluster schema", "error", err)
 					continue
 				}
 
 				kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
 				if err != nil {
-					cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
+					cfg.log.WarnContext(ctx, "Failed to get Kubernetes cluster version, the cluster may be offline", "error", err)
 				}
 
 				// Restore details refresh delay to the default value, in case previously cluster was offline.
@@ -389,7 +389,7 @@ func getAWSClientRestConfig(cloudClients cloud.Clients, clock clockwork.Clock, r
 
 // getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
 // If the config defines multiple contexts, it will pick one (the order is not guaranteed).
-func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, cluster types.KubeCluster, log *slog.Logger, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	config, err := clientcmd.Load(cluster.GetKubeconfig())
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "unable to parse kubeconfig for cluster %q", cluster.GetName())
