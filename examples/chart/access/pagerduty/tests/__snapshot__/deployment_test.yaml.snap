@@ -7,7 +7,7 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-pagerduty
-        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-13
+        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-14
         helm.sh/chart: teleport-plugin-pagerduty-17.0.0-dev.fred-env-var-migration-1-1
       name: RELEASE-NAME-teleport-plugin-pagerduty
     spec:
@@ -22,7 +22,7 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-pagerduty
-            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-13
+            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-14
             helm.sh/chart: teleport-plugin-pagerduty-17.0.0-dev.fred-env-var-migration-1-1
         spec:
           containers:
