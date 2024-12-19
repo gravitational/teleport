@@ -19,17 +19,18 @@
 package native
 
 import (
-	"bytes"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
+	"strconv"
 	"time"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"github.com/yusufpapurcu/wmi"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -78,106 +79,69 @@ func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret 
 	return windowsDevice.handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret)
 }
 
-// getDeviceSerial returns the serial number of the device using PowerShell to
-// grab the correct WMI objects. Getting it without calling into PS is possible,
-// but requires interfacing with the ancient Win32 COM APIs.
+// getDeviceSerial returns the serial number of the device.
 func getDeviceSerial() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_BIOS | Select -ExpandProperty SerialNumber",
-	)
-	// ThinkPad P P14s:
-	// PS > Get-WmiObject Win32_BIOS | Select -ExpandProperty SerialNumber
-	// PF47WND6
-	out, err := cmd.Output()
-	if err != nil {
+	type Win32_BIOS struct {
+		SerialNumber string
+	}
+
+	var bios Win32_BIOS
+	query := wmi.CreateQuery(&bios, "")
+	if err := wmi.Query(query, &bios); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(bytes.TrimSpace(out)), nil
+
+	return bios.SerialNumber, nil
 }
 
 func getReportedAssetTag() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_SystemEnclosure | Select -ExpandProperty SMBIOSAssetTag",
-	)
-	// ThinkPad P P14s:
-	// PS > Get-WmiObject Win32_SystemEnclosure | Select -ExpandProperty SMBIOSAssetTag
-	// winaia_1337
-	out, err := cmd.Output()
-	if err != nil {
+	type Win32_SystemEnclosure struct {
+		SMBIOSAssetTag string
+	}
+
+	var system Win32_SystemEnclosure
+	query := wmi.CreateQuery(&system, "")
+	if err := wmi.Query(query, &system); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(bytes.TrimSpace(out)), nil
+
+	return system.SMBIOSAssetTag, nil
 }
 
 func getDeviceModel() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_ComputerSystem | Select -ExpandProperty Model",
-	)
-	// ThinkPad P P14s:
-	// PS> Get-WmiObject Win32_ComputerSystem | Select -ExpandProperty Model
-	// 21J50013US
-	out, err := cmd.Output()
-	if err != nil {
+	type Win32_ComputerSystem struct {
+		Model string
+	}
+	var cs Win32_ComputerSystem
+	query := wmi.CreateQuery(&cs, "")
+	if err := wmi.Query(query, &cs); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(bytes.TrimSpace(out)), nil
+
+	return cs.Model, nil
 }
 
 func getDeviceBaseBoardSerial() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_BaseBoard | Select -ExpandProperty SerialNumber",
-	)
-	// ThinkPad P P14s:
-	// PS> Get-WmiObject Win32_BaseBoard | Select -ExpandProperty SerialNumber
-	// L1HF2CM03ZT
-	out, err := cmd.Output()
-	if err != nil {
+	type Win32_BaseBoard struct {
+		SerialNumber string
+	}
+	var bb Win32_BaseBoard
+	query := wmi.CreateQuery(&bb, "")
+	if err := wmi.Query(query, &bb); err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return string(bytes.TrimSpace(out)), nil
+	return bb.SerialNumber, nil
 }
 
 func getOSVersion() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty Version",
-	)
-	// ThinkPad P P14s:
-	// PS>  Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty Version
-	// 10.0.22621
-	out, err := cmd.Output()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return string(bytes.TrimSpace(out)), nil
+	ver := windows.RtlGetVersion()
+	return fmt.Sprintf("%v.%v.%v", ver.MajorVersion, ver.MinorVersion, ver.BuildNumber), nil
 }
 
 func getOSBuildNumber() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty BuildNumber",
-	)
-	// ThinkPad P P14s:
-	// PS>  Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty BuildNumber
-	// 22621
-	out, err := cmd.Output()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return string(bytes.TrimSpace(out)), nil
+	ver := windows.RtlGetVersion()
+	return strconv.FormatInt(int64(ver.BuildNumber), 10), nil
 }
 
 func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
