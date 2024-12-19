@@ -718,7 +718,10 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 			}
 
 			// Periodically check if the access graph supports HTTP.
-			for range retry.After() {
+			for {
+				<-retry.After()
+
+				p.Logger.DebugContext(context.Background(), "Checking if access graph supports HTTP", "addr", p.Config.AccessGraph.Addr)
 				retry.Inc()
 				if p.accessGraphSupportsHTTP() {
 					accessGraphForwarder, err := buildAccessGraphForwarder(tlsConfig)
