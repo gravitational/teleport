@@ -187,8 +187,13 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	var cred *workloadidentityv1pb.Credential
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams:
+		ca, err := s.getX509CA(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
+		}
 		cred, err = s.issueX509SVID(
 			ctx,
+			ca,
 			decision.templatedWorkloadIdentity,
 			v.X509SvidParams,
 			req.RequestedTtl.AsDuration(),
@@ -197,8 +202,14 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 			return nil, trace.Wrap(err, "issuing X509 SVID")
 		}
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams:
+		key, issuer, err := s.getJWTIssuerKey(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting JWT issuer key")
+		}
 		cred, err = s.issueJWTSVID(
 			ctx,
+			key,
+			issuer,
 			decision.templatedWorkloadIdentity,
 			v.JwtSvidParams,
 			req.RequestedTtl.AsDuration(),
@@ -254,6 +265,110 @@ func x509Template(
 		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
 		URIs: []*url.URL{spiffeID.URL()},
 	}
+}
+
+var maxWorkloadIdentitiesIssued = 10 // TODO: maybe make this configurable.
+
+func (s *IssuanceService) IssueWorkloadIdentities(
+	ctx context.Context,
+	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
+) (*workloadidentityv1pb.IssueWorkloadIdentitiesResponse, error) {
+	if !experiment.Enabled() {
+		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
+	}
+
+	switch {
+	case len(req.LabelSelectors) == 0:
+		return nil, trace.BadParameter("label_selectors: at least one label selector must be specified")
+	case req.GetCredential() == nil:
+		return nil, trace.BadParameter("at least one credential type must be requested")
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: It'd be nice to record our decisions in some way that we can later
+	// inspect. Perhaps we need to abstract away the issuing from the "eval
+	// engine" which returns the templated values and the decision of whether
+	// or not to issue.
+
+	// Ok now we have a filtered list of workload identities that the user can
+	// access and match the labels that they've specified. We now need to test
+	// how many actually pass rules/template eval.
+	workloadIdentities, err := s.getWorkloadIdentities(
+		ctx,
+		authCtx,
+		convertLabels(req.LabelSelectors),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	if err != nil {
+		return nil, trace.Wrap(err, "deriving attributes")
+	}
+
+	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
+	for _, wi := range workloadIdentities {
+		decision := decide(ctx, wi, attrs)
+		if decision.shouldIssue {
+			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
+		}
+		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
+			// If we're now above the limit, then we want to exit out...
+			return nil, trace.BadParameter("too many workload identities to issue") // TODO: better error lol.
+		}
+	}
+
+	var creds = make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
+	switch v := req.GetCredential().(type) {
+	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
+		ca, err := s.getX509CA(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
+		}
+		for _, wi := range shouldIssue {
+			cred, err := s.issueX509SVID(
+				ctx,
+				ca,
+				wi,
+				v.X509SvidParams,
+				req.RequestedTtl.AsDuration(),
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "issuing X509 SVID for workload identity %q", wi.GetMetadata().GetName())
+			}
+			creds = append(creds, cred)
+		}
+	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams:
+		key, issuer, err := s.getJWTIssuerKey(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting JWT issuer key")
+		}
+		for _, wi := range shouldIssue {
+			cred, err := s.issueJWTSVID(
+				ctx,
+				key,
+				issuer,
+				wi,
+				v.JwtSvidParams,
+				req.RequestedTtl.AsDuration(),
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "issuing JWT SVID for workload identity %q", wi.GetMetadata().GetName())
+			}
+			creds = append(creds, cred)
+		}
+	default:
+		return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
+	}
+
+	return &workloadidentityv1pb.IssueWorkloadIdentitiesResponse{
+		Credentials: creds,
+	}, nil
 }
 
 func (s *IssuanceService) getX509CA(
@@ -315,6 +430,7 @@ func calculateTTL(
 
 func (s *IssuanceService) issueX509SVID(
 	ctx context.Context,
+	ca *tlsca.CertAuthority,
 	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.X509SVIDParams,
 	requestedTTL time.Duration,
@@ -350,10 +466,6 @@ func (s *IssuanceService) issueX509SVID(
 	}
 	serialString := serialString(certSerial)
 
-	ca, err := s.getX509CA(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
-	}
 	certBytes, err := x509.CreateCertificate(
 		rand.Reader,
 		x509Template(certSerial, notBefore, notAfter, spiffeID),
@@ -400,7 +512,7 @@ const jtiLength = 16
 
 func (s *IssuanceService) getJWTIssuerKey(
 	ctx context.Context,
-) (_ *jwt.Key, err error) {
+) (_ *jwt.Key, _ string, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/getJWTIssuerKey")
 	defer func() { tracing.EndSpan(span, err) }()
 
@@ -409,25 +521,35 @@ func (s *IssuanceService) getJWTIssuerKey(
 		DomainName: s.clusterName,
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting SPIFFE CA")
+		return nil, "", trace.Wrap(err, "getting SPIFFE CA")
 	}
 
 	jwtSigner, err := s.keyStore.GetJWTSigner(ctx, ca)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting JWT signer")
+		return nil, "", trace.Wrap(err, "getting JWT signer")
 	}
 
 	jwtKey, err := services.GetJWTSigner(
 		jwtSigner, s.clusterName, s.clock,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating JWT signer")
+		return nil, "", trace.Wrap(err, "creating JWT signer")
 	}
-	return jwtKey, nil
+
+	// Determine the public address of the proxy for inclusion in the JWT as
+	// the issuer for purposes of OIDC compatibility.
+	issuer, err := oidc.IssuerForCluster(ctx, s.cache, "/workload-identity")
+	if err != nil {
+		return nil, "", trace.Wrap(err, "determining issuer URI")
+	}
+
+	return jwtKey, issuer, nil
 }
 
 func (s *IssuanceService) issueJWTSVID(
 	ctx context.Context,
+	issuerKey *jwt.Key,
+	issuerURI string,
 	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.JWTSVIDParams,
 	requestedTTL time.Duration,
@@ -457,23 +579,11 @@ func (s *IssuanceService) issueJWTSVID(
 		return nil, trace.Wrap(err, "generating JTI")
 	}
 
-	key, err := s.getJWTIssuerKey(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting JWT issuer key")
-	}
-
-	// Determine the public address of the proxy for inclusion in the JWT as
-	// the issuer for purposes of OIDC compatibility.
-	issuer, err := oidc.IssuerForCluster(ctx, s.cache, "/workload-identity")
-	if err != nil {
-		return nil, trace.Wrap(err, "determining issuer URI")
-	}
-
-	signed, err := key.SignJWTSVID(jwt.SignParamsJWTSVID{
+	signed, err := issuerKey.SignJWTSVID(jwt.SignParamsJWTSVID{
 		Audiences: params.Audiences,
 		SPIFFEID:  spiffeID,
 		JTI:       jti,
-		Issuer:    issuer,
+		Issuer:    issuerURI,
 
 		SetIssuedAt: now,
 		SetExpiry:   notAfter,
@@ -568,98 +678,6 @@ func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels
 		labels[selector.Key] = selector.Values
 	}
 	return labels
-}
-
-var maxWorkloadIdentitiesIssued = 10 // TODO: maybe make this configurable.
-
-func (s *IssuanceService) IssueWorkloadIdentities(
-	ctx context.Context,
-	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
-) (*workloadidentityv1pb.IssueWorkloadIdentitiesResponse, error) {
-	if !experiment.Enabled() {
-		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
-	}
-
-	switch {
-	case len(req.LabelSelectors) == 0:
-		return nil, trace.BadParameter("label_selectors: at least one label selector must be specified")
-	case req.GetCredential() == nil:
-		return nil, trace.BadParameter("at least one credential type must be requested")
-	}
-
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO: It'd be nice to record our decisions in some way that we can later
-	// inspect. Perhaps we need to abstract away the issuing from the "eval
-	// engine" which returns the templated values and the decision of whether
-	// or not to issue.
-
-	// Ok now we have a filtered list of workload identities that the user can
-	// access and match the labels that they've specified. We now need to test
-	// how many actually pass rules/template eval.
-	workloadIdentities, err := s.getWorkloadIdentities(
-		ctx,
-		authCtx,
-		convertLabels(req.LabelSelectors),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
-	if err != nil {
-		return nil, trace.Wrap(err, "deriving attributes")
-	}
-
-	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
-	for _, wi := range workloadIdentities {
-		decision := decide(ctx, wi, attrs)
-		if decision.shouldIssue {
-			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
-		}
-		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
-			// If we're now above the limit, then we want to exit out...
-			return nil, trace.BadParameter("too many workload identities to issue") // TODO: better error lol.
-		}
-	}
-
-	// TODO: Cache X509 CA/Signer and JWT CA/Signer when issuing multiple innit.
-	creds := []*workloadidentityv1pb.Credential{}
-	for _, wi := range shouldIssue {
-		switch v := req.GetCredential().(type) {
-		case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
-			cred, err := s.issueX509SVID(
-				ctx,
-				wi,
-				v.X509SvidParams,
-				req.RequestedTtl.AsDuration(),
-			)
-			if err != nil {
-				return nil, trace.Wrap(err, "issuing X509 SVID for workload identity %q", wi.GetMetadata().GetName())
-			}
-			creds = append(creds, cred)
-		case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams:
-			cred, err := s.issueJWTSVID(
-				ctx,
-				wi,
-				v.JwtSvidParams,
-				req.RequestedTtl.AsDuration(),
-			)
-			if err != nil {
-				return nil, trace.Wrap(err, "issuing JWT SVID for workload identity %q", wi.GetMetadata().GetName())
-			}
-			creds = append(creds, cred)
-		default:
-			return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
-		}
-	}
-
-	return &workloadidentityv1pb.IssueWorkloadIdentitiesResponse{
-		Credentials: creds,
-	}, nil
 }
 
 func serialString(serial *big.Int) string {
