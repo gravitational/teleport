@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"testing"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -115,7 +115,7 @@ func TestProxyConnCancel(t *testing.T) {
 
 type echoServer struct {
 	listener net.Listener
-	log      logrus.FieldLogger
+	log      *slog.Logger
 }
 
 func newEchoServer() (*echoServer, error) {
@@ -125,7 +125,7 @@ func newEchoServer() (*echoServer, error) {
 	}
 	return &echoServer{
 		listener: listener,
-		log:      logrus.WithField(teleport.ComponentKey, "echo"),
+		log:      slog.With(teleport.ComponentKey, "echo"),
 	}, nil
 }
 
@@ -154,7 +154,7 @@ func (s *echoServer) handleConn(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("Received message: %s.", b)
+	s.log.InfoContext(context.Background(), "Received message", "receieved_message", string(b))
 
 	_, err = conn.Write(b)
 	if err != nil {

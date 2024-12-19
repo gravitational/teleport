@@ -117,7 +117,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -947,10 +946,6 @@ func TestWebSessionsCRUD(t *testing.T) {
 func TestCSRF(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	type input struct {
-		reqToken    string
-		cookieToken string
-	}
 
 	// create a valid user
 	user := "csrfuser"
@@ -958,39 +953,25 @@ func TestCSRF(t *testing.T) {
 	otpSecret := newOTPSharedSecret()
 	s.createUser(t, user, user, pass, otpSecret)
 
-	encodedToken1 := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	encodedToken2 := "bf355921bbf3ef3672a03e410d4194077dfa5fe863c652521763b3e7f81e7b11"
-	invalid := []input{
-		{reqToken: encodedToken2, cookieToken: encodedToken1},
-		{reqToken: "", cookieToken: encodedToken1},
-		{reqToken: "", cookieToken: ""},
-		{reqToken: encodedToken1, cookieToken: ""},
-	}
-
 	clt := s.client(t)
 	ctx := context.Background()
 
 	// valid
 	validReq := loginWebOTPParams{
-		webClient:  clt,
-		clock:      s.clock,
-		user:       user,
-		password:   pass,
-		otpSecret:  otpSecret,
-		cookieCSRF: &encodedToken1,
-		headerCSRF: &encodedToken1,
+		webClient: clt,
+		clock:     s.clock,
+		user:      user,
+		password:  pass,
+		otpSecret: otpSecret,
 	}
 	loginWebOTP(t, ctx, validReq)
 
-	// invalid
-	for i := range invalid {
-		req := validReq
-		req.cookieCSRF = &invalid[i].cookieToken
-		req.headerCSRF = &invalid[i].reqToken
-		httpResp, _, err := rawLoginWebOTP(ctx, req)
-		require.NoError(t, err, "Login via /webapi/sessions/new failed unexpectedly")
-		assert.Equal(t, http.StatusForbidden, httpResp.StatusCode, "HTTP status code mismatch")
-	}
+	// invalid - wrong content-type header
+	invalidReq := validReq
+	invalidReq.overrideContentType = "multipart/form-data"
+	httpResp, _, err := rawLoginWebOTP(ctx, invalidReq)
+	require.NoError(t, err, "Login via /webapi/sessions/new failed unexpectedly")
+	require.Equal(t, http.StatusBadRequest, httpResp.StatusCode, "HTTP status code mismatch")
 }
 
 func TestPasswordChange(t *testing.T) {
@@ -1795,7 +1776,7 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.Term, term.term)
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
-	require.NotNil(t, term.log)
+	require.NotNil(t, term.logger)
 }
 
 func TestUIConfig(t *testing.T) {
@@ -5953,13 +5934,9 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	httpReqData, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	// CSRF protected endpoint.
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 	httpReq, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(httpReqData))
 	require.NoError(t, err)
-	addCSRFCookieToReq(httpReq, csrfToken)
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set(csrf.HeaderName, csrfToken)
 	httpRes, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		return clt.HTTPClient().Do(httpReq)
 	}))
@@ -6104,10 +6081,6 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 			req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
 			require.NoError(t, err)
 
-			csrfToken, err := csrf.GenerateToken()
-			require.NoError(t, err)
-			addCSRFCookieToReq(req, csrfToken)
-			req.Header.Set(csrf.HeaderName, csrfToken)
 			req.Header.Set("Content-Type", "application/json")
 
 			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
@@ -6129,8 +6102,6 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 func TestParseSSORequestParams(t *testing.T) {
 	t.Parallel()
 
-	token := "someMeaninglessTokenString"
-
 	tests := []struct {
 		name, url string
 		wantErr   bool
@@ -6142,7 +6113,6 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
 				ConnectorID:       "oidc",
-				CSRFToken:         token,
 			},
 		},
 		{
@@ -6151,7 +6121,6 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
 				ConnectorID:       "github",
-				CSRFToken:         token,
 			},
 		},
 		{
@@ -6160,7 +6129,6 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
 				ConnectorID:       "saml",
-				CSRFToken:         token,
 			},
 		},
 		{
@@ -6179,7 +6147,6 @@ func TestParseSSORequestParams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
-			addCSRFCookieToReq(req, token)
 
 			params, err := ParseSSORequestParams(req)
 
@@ -7932,15 +7899,6 @@ func (s *WebSuite) url() *url.URL {
 	return u
 }
 
-func addCSRFCookieToReq(req *http.Request, token string) {
-	cookie := &http.Cookie{
-		Name:  csrf.CookieName,
-		Value: token,
-	}
-
-	req.AddCookie(cookie)
-}
-
 func removeSpace(in string) string {
 	for _, c := range []string{"\n", "\r", "\t"} {
 		in = strings.Replace(in, c, " ", -1)
@@ -8251,7 +8209,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("Mux encountered err serving")
+			slog.ErrorContext(context.Background(), "Mux encountered error serving", "error", err)
 		}
 	}()
 
@@ -8325,7 +8283,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := sshGRPCServer.Serve(mux.TLS()); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("gRPC proxy server terminated unexpectedly")
+			slog.ErrorContext(context.Background(), "gRPC proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
@@ -8400,7 +8358,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(webServer.Close)
 	go func() {
 		if err := proxyServer.Serve(mux.SSH()); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("SSH proxy server terminated unexpectedly")
+			slog.ErrorContext(context.Background(), "SSH proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
@@ -10719,7 +10677,7 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	// not yet established.
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:     ws,
-		Logger: utils.NewLogger(),
+		Logger: utils.NewSlogLoggerForTests(),
 		Handlers: map[string]terminal.WSHandlerFunc{
 			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope terminal.Envelope) {
 				if envelope.Type != defaults.WebsocketSessionMetadata {
