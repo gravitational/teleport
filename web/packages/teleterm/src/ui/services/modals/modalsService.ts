@@ -167,6 +167,8 @@ export interface DialogDocumentsReopen {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
   onConfirm?(): void;
+  onDiscard?(): void;
+  /** Cancels the dialog, without discarding documents. */
   onCancel?(): void;
 }
 

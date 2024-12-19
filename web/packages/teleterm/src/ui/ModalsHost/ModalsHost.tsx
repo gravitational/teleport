@@ -120,9 +120,9 @@ function renderDialog({
           hidden={hidden}
           rootClusterUri={dialog.rootClusterUri}
           numberOfDocuments={dialog.numberOfDocuments}
-          onCancel={() => {
+          onDiscard={() => {
             handleClose();
-            dialog.onCancel();
+            dialog.onDiscard();
           }}
           onConfirm={() => {
             handleClose();
