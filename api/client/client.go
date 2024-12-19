@@ -5101,6 +5101,7 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, req *notifi
 	return rsp, trace.Wrap(err)
 }
 
+// GetWorkloadIdentity returns a workload identity by name.
 func (c *Client) GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	resp, err := c.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
 		Name: name,
@@ -5111,6 +5112,8 @@ func (c *Client) GetWorkloadIdentity(ctx context.Context, name string) (*workloa
 	return resp, nil
 }
 
+// DeleteWorkloadIdentity deletes a workload identity by name. It will throw an
+// error if the workload identity does not exist.
 func (c *Client) DeleteWorkloadIdentity(ctx context.Context, name string) error {
 	_, err := c.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 		Name: name,
@@ -5121,6 +5124,8 @@ func (c *Client) DeleteWorkloadIdentity(ctx context.Context, name string) error 
 	return nil
 }
 
+// CreateWorkloadIdentity creates a new workload identity, it will not overwrite
+// an existing workload identity with the same name.
 func (c *Client) CreateWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	resp, err := c.WorkloadIdentityResourceServiceClient().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
 		WorkloadIdentity: r,
@@ -5131,6 +5136,7 @@ func (c *Client) CreateWorkloadIdentity(ctx context.Context, r *workloadidentity
 	return resp, nil
 }
 
+// UpsertWorkloadIdentity creates or updates a workload identity.
 func (c *Client) UpsertWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	resp, err := c.WorkloadIdentityResourceServiceClient().UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
 		WorkloadIdentity: r,
