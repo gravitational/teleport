@@ -19,17 +19,19 @@
 package native
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/user"
 	"strconv"
 	"time"
 
 	"github.com/google/go-attestation/attest"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/yusufpapurcu/wmi"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
@@ -166,7 +168,10 @@ func getDeviceBaseBoardSerial() (string, error) {
 }
 
 func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	log.Debug("TPM: Collecting device data.")
+	ctx := context.Background()
+	logger := slog.With(teleport.ComponentKey, "TPM")
+
+	logger.DebugContext(ctx, "Collecting device data")
 
 	var g errgroup.Group
 	const groupLimit = 4 // arbitrary
@@ -188,7 +193,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		g.Go(func() error {
 			val, err := spec.fn()
 			if err != nil {
-				log.WithError(err).Debugf("TPM: Failed to fetch %v", spec.desc)
+				logger.DebugContext(ctx, "Failed to fetch device details", "details", spec.desc, "error", err)
 				return nil // Swallowed on purpose.
 			}
 
@@ -224,9 +229,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		BaseBoardSerialNumber: baseBoardSerial,
 		ReportedAssetTag:      reportedAssetTag,
 	}
-	log.WithField(
-		"device_collected_data", dcd,
-	).Debug("TPM: Device data collected.")
+	logger.DebugContext(ctx, "Device data collected", "device_collected_data", dcd)
 	return dcd, nil
 }
 
@@ -270,7 +273,7 @@ func activateCredentialInElevatedChild(
 		params = append(params, "--debug")
 	}
 
-	log.Debug("Starting elevated process.")
+	slog.DebugContext(context.Background(), "Starting elevated process.")
 	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
 	err = windowsexec.RunAsAndWait(
 		exe,
@@ -286,7 +289,7 @@ func activateCredentialInElevatedChild(
 	// it.
 	defer func() {
 		if err := os.Remove(credActivationPath); err != nil {
-			log.WithError(err).Debug("Failed to clean up credential activation result")
+			slog.DebugContext(context.Background(), "Failed to clean up credential activation result", "error", err)
 		}
 	}()
 
