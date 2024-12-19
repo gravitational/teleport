@@ -27,7 +27,6 @@ import (
 func newProcessManager() (*ProcessManager, context.Context) {
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-
 	return &ProcessManager{
 		g:      g,
 		cancel: cancel,

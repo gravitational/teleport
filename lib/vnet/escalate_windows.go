@@ -52,8 +52,6 @@ var (
 func execAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 	service, err := startService(cfg)
 	if err != nil {
-		// TODO(nklaassen): try to install service here, escalate with runas ->
-		// UAC prompt.
 		return trace.Wrap(err)
 	}
 	defer service.Close()
@@ -77,7 +75,15 @@ func startService(cfg AdminProcessConfig) (*mgr.Service, error) {
 	}
 	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, windows.SERVICE_START)
 	if err != nil {
-		return nil, trace.Wrap(err, "opening Windows service %s", serviceName)
+		if installErr := escalateAndInstallService(cfg); installErr != nil {
+			return nil, trace.NewAggregate(
+				trace.Wrap(err, "opening Windows service %s", serviceName),
+				trace.Wrap(installErr, "installing Windows service"))
+		}
+		serviceHandle, err = windows.OpenService(scManager, serviceNamePtr, windows.SERVICE_START)
+		if err != nil {
+			return nil, trace.Wrap(err, "opening Windows service immediately after installation")
+		}
 	}
 	service := &mgr.Service{
 		Name:   serviceName,

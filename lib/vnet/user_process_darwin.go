@@ -62,7 +62,7 @@ func (c *UserProcessConfig) CheckAndSetDefaults() error {
 // ctx is used to wait for setup steps that happen before RunUserProcess hands out the
 // control to the process manager. If ctx gets canceled during RunUserProcess, the process
 // manager gets closed along with its background tasks.
-func RunUserProcess(ctx context.Context, config *UserProcessConfig) (*ProcessManager, error) {
+func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,9 +74,8 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (*ProcessMan
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
 	pm, processCtx := newProcessManager()
-	success := false
 	defer func() {
-		if !success {
+		if err != nil {
 			// Closes the socket and background tasks.
 			pm.Close()
 		}
@@ -161,6 +160,5 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (*ProcessMan
 		return trace.Wrap(ns.run(processCtx))
 	})
 
-	success = true
 	return pm, nil
 }
