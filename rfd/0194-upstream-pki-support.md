@@ -47,6 +47,13 @@ The project is largely divided into two phases:
 
 ### Phase 1: Intermediate Support
 
+TODO:
+- Pre init phase.
+- CSR generation.
+- Signed cert import.
+- Tctl commands.
+- Commentary on whether this should extend to JWT.
+- Importing and storing the root CA as part of the certificate_authority.
 
 #### Teleport Workload Identity
 
@@ -68,5 +75,9 @@ Therefore, we will proceed with the unisolated option whereby:
   for X509 SVIDs written to disk.
 - The upstream root CA will be distributed in any trust bundle in place of the
   intermediate CA.
+
+TODO:
+- We should note here the compromises that using an external PKI hierarchy has 
+  on the security model of Teleport Workload Identity.
 
 ### Phase 2: Integrations
