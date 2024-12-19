@@ -84,6 +84,30 @@ func TestPuller(t *testing.T) {
 	}
 }
 
+func TestPullerClose(t *testing.T) {
+	cfg := PullerConfig{
+		Addr:      "dummy.addr",
+		TLSConfig: &tls.Config{InsecureSkipVerify: true},
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	p, err := NewPuller(cfg)
+	require.NoError(t, err)
+
+	done := make(chan error)
+
+	go func() {
+		done <- p.Close()
+	}()
+
+	select {
+	case errClose := <-done:
+		require.NoError(t, errClose)
+	case <-time.After(time.Second):
+		require.Fail(t, "Close() has blocked")
+	}
+}
+
 type mockOracleConnector struct {
 	fetchCallCount     atomic.Uint32
 	initFunc           func(serviceName, sessionID, addr string, conf *tls.Config) (string, error)

@@ -115,8 +115,14 @@ func (a *Puller) Run(ctx context.Context) error {
 func (a *Puller) Close() error {
 	// indicate that fetch call should be triggered immediately.
 	close(a.close)
-	// Block and wait for the last audit logs fetch call.
-	<-a.done
+
+	select {
+	case <-a.running:
+		// Block and wait for the last audit logs fetch call.
+		<-a.done
+	default:
+	}
+
 	return nil
 }
 
