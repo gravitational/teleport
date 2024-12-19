@@ -8,19 +8,19 @@ AWS Identity Center integration now allows users to request short or long term a
 
 ### Database access for PostgreSQL via web UI
 
-Database access users will be able to connect to PostgreSQL databases connected to Teleport right from the web UI and use psql-style interface to query the database.
+Database access users can now connect to PostgreSQL databases connected to Teleport right from the web UI and use psql-style interface to query the database.
 
 ### Hosted email plugin for access requests
 
-Users will be able to setup Mailgun or generic SMTP server for access request notifications using Teleport web UI without needing to self-host the email plugin.
+Users now have the ability to setup Mailgun or generic SMTP server for access request notifications using Teleport web UI without needing to self-host the email plugin.
 
 ### Multi-port support for VNet
 
-Users will be able to support multiple ports (or a range of ports) with a single TCP application, and Teleport VNet will make all of the application's ports accessible on the virtual network.
+Users now supports multiple ports (or a range of ports) with a single TCP application, and Teleport VNet will make all of the application's ports accessible on the virtual network.
 
 ### Graphical Role Editor
 
-Teleport's web UI will include a new role editor that allows users to create and modify roles without resorting to a raw YAML editor.
+Teleport's web UI includes a new role editor that allows users to create and modify roles without resorting to a raw YAML editor.
 
 ### Granular SSH port forwarding controls
 
