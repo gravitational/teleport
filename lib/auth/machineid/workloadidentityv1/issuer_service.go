@@ -251,16 +251,14 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	if err != nil {
+		return nil, trace.Wrap(err, "deriving attributes")
+	}
 
-	// TODO: It'd be nice to record our decisions in some way that we can later
-	// inspect. Perhaps we need to abstract away the issuing from the "eval
-	// engine" which returns the templated values and the decision of whether
-	// or not to issue.
-
-	// Ok now we have a filtered list of workload identities that the user can
-	// access and match the labels that they've specified. We now need to test
-	// how many actually pass rules/template eval.
-	workloadIdentities, err := s.getWorkloadIdentities(
+	// Fetch all workload identities that match the label selectors AND the
+	// principal can access.
+	workloadIdentities, err := s.matchingAndAuthorizedWorkloadIdentities(
 		ctx,
 		authCtx,
 		convertLabels(req.LabelSelectors),
@@ -269,11 +267,8 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		return nil, trace.Wrap(err)
 	}
 
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
-	if err != nil {
-		return nil, trace.Wrap(err, "deriving attributes")
-	}
-
+	// Evaluate rules/templating for each worklaod identity, filtering out those
+	// that should not be issued.
 	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
 	for _, wi := range workloadIdentities {
 		decision := decide(ctx, wi, attrs)
@@ -638,10 +633,8 @@ func (s *IssuanceService) issueJWTSVID(
 	}, nil
 }
 
-func (s *IssuanceService) getWorkloadIdentities(
+func (s *IssuanceService) getAllWorkloadIdentities(
 	ctx context.Context,
-	authCtx *authz.Context,
-	labels types.Labels,
 ) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
 	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
 	page := ""
@@ -656,12 +649,24 @@ func (s *IssuanceService) getWorkloadIdentities(
 		}
 		page = nextPage
 	}
+	return workloadIdentities, nil
+}
 
-	// TODO: Filter by access or search first? Caching??
+// matchingAndAuthorizedWorkloadIdentities returns the workload identities that
+// match the provided labels and the principal has access to.
+func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
+	ctx context.Context,
+	authCtx *authz.Context,
+	labels types.Labels,
+) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
+	allWorkloadIdentities, err := s.getAllWorkloadIdentities(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	canAccess := []*workloadidentityv1pb.WorkloadIdentity{}
 	// Filter out identities user cannot access.
-	for _, wid := range workloadIdentities {
+	for _, wid := range allWorkloadIdentities {
 		if err := authCtx.Checker.CheckAccess(
 			types.Resource153ToResourceWithLabels(wid),
 			services.AccessState{},
