@@ -20,7 +20,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -56,8 +54,8 @@ type fileTransferRequest struct {
 	remoteLocation string
 	// filename is a file name
 	filename string
-	// webauthn is an optional parameter that contains a webauthn response string used to issue single use certs
-	webauthn string
+	// mfaResponse is an optional parameter that contains an mfa response string used to issue single use certs
+	mfaResponse string
 	// fileTransferRequestID is used to find a FileTransferRequest on a session
 	fileTransferRequestID string
 	// moderatedSessonID is an ID of a moderated session that has completed a
@@ -74,9 +72,23 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		remoteLocation:        query.Get("location"),
 		filename:              query.Get("filename"),
 		namespace:             defaults.Namespace,
-		webauthn:              query.Get("webauthn"),
+		mfaResponse:           query.Get("mfaResponse"),
 		fileTransferRequestID: query.Get("fileTransferRequestId"),
 		moderatedSessionID:    query.Get("moderatedSessionId"),
+	}
+
+	// Check for old query parameter, uses the same data structure.
+	// TODO(Joerger): DELETE IN v19.0.0
+	if req.mfaResponse == "" {
+		req.mfaResponse = query.Get("webauthn")
+	}
+
+	var mfaResponse *proto.MFAAuthenticateResponse
+	if req.mfaResponse != "" {
+		var err error
+		if mfaResponse, err = client.ParseMFAChallengeResponse([]byte(req.mfaResponse)); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Send an error if only one of these params has been sent. Both should exist or not exist together
@@ -107,7 +119,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	if mfaReq.Required && query.Get("webauthn") == "" {
+	if mfaReq.Required && mfaResponse == nil {
 		return nil, trace.AccessDenied("MFA required for file transfer")
 	}
 
@@ -135,8 +147,8 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	if req.webauthn != "" {
-		err = ft.issueSingleUseCert(req.webauthn, r, tc)
+	if req.mfaResponse != "" {
+		err = ft.issueSingleUseCert(mfaResponse, r, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -216,21 +228,10 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	return tc, nil
 }
 
-type mfaResponse struct {
-	// WebauthnResponse is the response from authenticators.
-	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
-}
-
 // issueSingleUseCert will take an assertion response sent from a solved challenge in the web UI
 // and use that to generate a cert. This cert is added to the Teleport Client as an authmethod that
 // can be used to connect to a node.
-func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request, tc *client.TeleportClient) error {
-	var mfaResp mfaResponse
-	err := json.Unmarshal([]byte(webauthn), &mfaResp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func (f *fileTransfer) issueSingleUseCert(mfaResponse *proto.MFAAuthenticateResponse, httpReq *http.Request, tc *client.TeleportClient) error {
 	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetSSHPriv())
 	if err != nil {
 		return trace.Wrap(err)
@@ -241,11 +242,7 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		SSHPublicKey: pk.MarshalSSHPublicKey(),
 		Username:     f.sctx.GetUser(),
 		Expires:      time.Now().Add(time.Minute).UTC(),
-		MFAResponse: &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaResp.WebauthnAssertionResponse),
-			},
-		},
+		MFAResponse:  mfaResponse,
 	})
 	if err != nil {
 		return trace.Wrap(err)
