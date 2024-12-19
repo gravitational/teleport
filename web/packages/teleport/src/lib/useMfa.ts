@@ -120,12 +120,9 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   const submit = useCallback(
     async (mfaType?: DeviceType, totpCode?: string) => {
       try {
-        const resp = await auth.getMfaChallengeResponse(
-          challenge,
-          mfaType,
-          totpCode
+        await mfaResponsePromise.current.resolve(
+          auth.getMfaChallengeResponse(challenge, mfaType, totpCode)
         );
-        mfaResponsePromise.current.resolve(resp);
       } catch (err) {
         setMfaAttempt({
           data: null,
