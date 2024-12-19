@@ -197,12 +197,12 @@ describe('test MOTD', () => {
   });
 });
 
-test('redirect to root if session is valid and path is not "/enterprise/saml-idp/sso', () => {
+test('redirect to root if session is valid and path is not "/enterprise/saml-idp/sso"', () => {
   jest.spyOn(session, 'isValid').mockImplementation(() => true);
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(
-      'http://localhost/web/login?redirect_url=https://example.com'
+      'http://localhost/web/login?redirect_url=http://localhost/web/cluster/localhost/resources'
     );
   render(<Login />);
 

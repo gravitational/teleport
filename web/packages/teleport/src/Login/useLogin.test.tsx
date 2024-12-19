@@ -78,7 +78,7 @@ it('non-base domain redirects with base domain for a matching "/enterprise/saml-
 });
 
 it('non-base domnain with different path is redirected to root', async () => {
-  const samlIdPPath = new URL('http://different-base');
+  const samlIdPPath = new URL('http://localhost/web/cluster/name/resources');
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdPPath.toString());
