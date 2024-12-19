@@ -257,14 +257,11 @@ func resolveTargetHostWithClient(
 				return nil, trace.BadParameter("found multiple matching SSH hosts %v", resources[:2])
 			}
 
-			// Sort the resource by expiry so we can identify the most "recent".
-			slices.SortFunc(resources, func(a, b *types.EnrichedResource) int {
+			// Get the most recent version of the resource.
+			enrichedResource := slices.MaxFunc(resources, func(a, b *types.EnrichedResource) int {
 				return a.Expiry().Compare(b.Expiry())
 			})
-
-			// Sorting above is oldest expiry to newest expiry, so proceed
-			// with the last item server in the slice.
-			server, ok := resources[len(resources)-1].ResourceWithLabels.(types.Server)
+			server, ok := enrichedResource.ResourceWithLabels.(types.Server)
 			if !ok {
 				return nil, trace.BadParameter("received unexpected resource type %T", resources[0].ResourceWithLabels)
 			}

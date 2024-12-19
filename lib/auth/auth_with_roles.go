@@ -1759,14 +1759,11 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 			return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous)
 		}
 
-		// Sort the resource by expiry so we can identify the most "recent" server.
-		slices.SortFunc(servers, func(a, b *types.ServerV2) int {
+		// Return the most recent version of the resource.
+		server := slices.MaxFunc(servers, func(a, b *types.ServerV2) int {
 			return a.Expiry().Compare(b.Expiry())
 		})
-
-		// Sorting above is oldest expiry to newest expiry, so proceed
-		// with the last server in the slice.
-		return &proto.ResolveSSHTargetResponse{Server: servers[len(servers)-1]}, nil
+		return &proto.ResolveSSHTargetResponse{Server: server}, nil
 	}
 }
 
