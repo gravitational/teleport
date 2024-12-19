@@ -19,11 +19,12 @@
 package apiserver
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -70,7 +71,7 @@ func New(cfg Config) (*APIServer, error) {
 	}
 
 	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
-		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)),
+		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Logger)),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
@@ -96,7 +97,7 @@ func (s *APIServer) Stop() {
 	// immediate. Closing the VNet service before the gRPC server gives some time for the VNet admin
 	// process to notice that the client is gone and shut down as well.
 	if err := s.vnetService.Close(); err != nil {
-		log.WithError(err).Error("Error while closing VNet service")
+		slog.ErrorContext(context.Background(), "Error while closing VNet service", "error", err)
 	}
 
 	s.grpcServer.GracefulStop()
@@ -120,7 +121,7 @@ func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener
 		listeningC <- addr
 	}
 
-	log.Infof("tsh daemon is listening on %v.", addr.FullAddress())
+	slog.InfoContext(context.Background(), "tsh daemon listener created", "listen_addr", addr.FullAddress())
 
 	return lis, nil
 }
