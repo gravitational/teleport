@@ -1,6 +1,6 @@
 # Changelog
 
-## 17.1.0 (12/18/24)
+## 17.1.0 (12/19/24)
 
 ### Access requests support for AWS Identity Center
 
