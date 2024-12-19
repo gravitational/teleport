@@ -5260,19 +5260,6 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 	return databases, nil
 }
 
-// getDesktopEventWebURL returns the web UI URL users can access to
-// watch a desktop session recording in the browser
-func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, events []events.EventFields) string {
-	if len(events) < 1 {
-		return ""
-	}
-	start := events[0].GetTimestamp()
-	end := events[len(events)-1].GetTimestamp()
-	duration := end.Sub(start)
-
-	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
-}
-
 // SearchSessionEvents allows searching for session events with a full pagination support.
 func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int) ([]apievents.AuditEvent, error) {
 	ctx, span := tc.Tracer.Start(

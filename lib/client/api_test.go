@@ -27,7 +27,6 @@ import (
 	"math"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -44,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -895,78 +893,6 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 				require.True(t, isTraceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
-		})
-	}
-}
-
-func TestGetDesktopEventWebURL(t *testing.T) {
-	initDate := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	tt := []struct {
-		name      string
-		proxyHost string
-		cluster   string
-		sid       session.ID
-		events    []events.EventFields
-		expected  string
-	}{
-		{
-			name:     "nil events",
-			events:   nil,
-			expected: "",
-		},
-		{
-			name:     "empty events",
-			events:   make([]events.EventFields, 0),
-			expected: "",
-		},
-		{
-			name:      "two events, 1000 ms duration",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(1000 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=1000",
-		},
-		{
-			name:      "multiple events",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(10 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(20 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(30 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(40 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(50 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=50",
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, getDesktopEventWebURL(tc.proxyHost, tc.cluster, &tc.sid, tc.events))
 		})
 	}
 }

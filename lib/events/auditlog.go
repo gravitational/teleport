@@ -1024,6 +1024,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		}
 
 		protoReader := NewProtoReader(rawSession)
+		defer protoReader.Close()
 
 		for {
 			if ctx.Err() != nil {

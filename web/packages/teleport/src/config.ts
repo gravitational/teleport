@@ -19,9 +19,7 @@
 import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
 
-import generateResourcePath from './generateResourcePath';
-
-import type {
+import {
   Auth2faType,
   AuthProvider,
   AuthType,
@@ -29,10 +27,12 @@ import type {
   PrimaryAuthType,
 } from 'shared/services';
 
+import generateResourcePath from './generateResourcePath';
+
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
-import type { Regions } from './services/integrations';
+import type { WebauthnAssertionResponse } from 'teleport/services/auth';
+import type { Regions } from 'teleport/services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
@@ -236,6 +236,7 @@ const cfg = {
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sessionDurationPath: '/v1/webapi/sites/:clusterId/sessionlength/:sid',
 
     // TODO(zmb3): remove this for v15
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
@@ -699,6 +700,10 @@ const cfg = {
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
+  },
+
+  getSessionDurationUrl(clusterId: string, sid: string) {
+    return generatePath(cfg.api.sessionDurationPath, { clusterId, sid });
   },
 
   getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
