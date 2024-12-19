@@ -27,6 +27,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	pipePath = `\\.\pipe\vnet`
+)
+
 // UserProcessConfig provides the necessary configuration to run VNet.
 type UserProcessConfig struct {
 	// AppProvider is a required field providing an interface implementation for [AppProvider].
@@ -75,7 +79,6 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 	}
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
-	pipePath := `\\.\pipe\vnet`
 	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err, "listening on named pipe")

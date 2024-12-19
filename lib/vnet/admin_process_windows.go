@@ -67,9 +67,9 @@ func RunAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 	log.InfoContext(ctx, "Running VNet admin process", "cfg", cfg)
 
 	dialTimeout := 200 * time.Millisecond
-	conn, err := winio.DialPipe(cfg.NamedPipe, &dialTimeout)
+	conn, err := winio.DialPipe(pipePath, &dialTimeout)
 	if err != nil {
-		return trace.Wrap(err, "dialing named pipe %s", cfg.NamedPipe)
+		return trace.Wrap(err, "dialing named pipe %s", pipePath)
 	}
 	defer conn.Close()
 
@@ -88,7 +88,7 @@ func RunAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 	for {
 		select {
 		case <-ticker.C:
-			if _, err := os.Stat(cfg.NamedPipe); err != nil {
+			if _, err := os.Stat(pipePath); err != nil {
 				log.DebugContext(ctx, "failed to stat pipe path, assuming parent exited")
 				return nil
 			}
