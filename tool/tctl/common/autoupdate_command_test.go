@@ -23,6 +23,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,31 +43,37 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
 	authClient := testenv.MakeDefaultAuthClient(t, process)
 
-	// Enable mode to check that resources were modified.
-	_, err := runAutoUpdateCommand(t, authClient, []string{"client-tools", "set", "--mode=on"})
+	// Check that AutoUpdateConfig and AutoUpdateVersion are not created.
+	_, err := authClient.GetAutoUpdateConfig(ctx)
+	require.True(t, trace.IsNotFound(err))
+	_, err = authClient.GetAutoUpdateVersion(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	// Enable client tools auto updates to check that AutoUpdateConfig resource is modified.
+	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "enable"})
 	require.NoError(t, err)
 
 	config, err := authClient.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "enabled", config.Spec.Tools.Mode)
 
-	// Disable mode to check that resources were modified.
-	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "set", "--mode=off"})
+	// Disable client tools auto updates to check that AutoUpdateConfig resource is modified.
+	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "disable"})
 	require.NoError(t, err)
 
 	config, err = authClient.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "disabled", config.Spec.Tools.Mode)
 
-	// Set target version for auto update.
-	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "set", "--target-version=1.2.3"})
+	// Set target version for client tools auto updates.
+	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "target", "1.2.3"})
 	require.NoError(t, err)
 
 	version, err := authClient.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "1.2.3", version.Spec.Tools.TargetVersion)
 
-	getBuf, err := runAutoUpdateCommand(t, authClient, []string{"client-tools", "get", "--format=json"})
+	getBuf, err := runAutoUpdateCommand(t, authClient, []string{"client-tools", "status", "--format=json"})
 	require.NoError(t, err)
 	response := mustDecodeJSON[getResponse](t, getBuf)
 	assert.Equal(t, "1.2.3", response.TargetVersion)
@@ -76,11 +83,18 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	// response from `webapi/find` endpoint.
 	proxy, err := process.ProxyWebAddr()
 	require.NoError(t, err)
-	getProxyBuf, err := runAutoUpdateCommand(t, authClient, []string{"client-tools", "get", "--proxy=" + proxy.Addr, "--format=json"})
+	getProxyBuf, err := runAutoUpdateCommand(t, authClient, []string{"client-tools", "status", "--proxy=" + proxy.Addr, "--format=json"})
 	require.NoError(t, err)
 	response = mustDecodeJSON[getResponse](t, getProxyBuf)
 	assert.Equal(t, "1.2.3", response.TargetVersion)
 	assert.Equal(t, "disabled", response.Mode)
+
+	// Set clear flag for the target version update to check that it is going to be reset.
+	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "target", "--clear"})
+	require.NoError(t, err)
+	version, err = authClient.GetAutoUpdateVersion(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, version.Spec.Tools)
 }
 
 func runAutoUpdateCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
