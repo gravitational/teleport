@@ -7,7 +7,7 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-mattermost
-        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-15
+        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-16
         helm.sh/chart: teleport-plugin-mattermost-17.0.0-dev.fred-env-var-migration-1
       name: RELEASE-NAME-teleport-plugin-mattermost
     spec:
@@ -22,7 +22,7 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-mattermost
-            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-15
+            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-16
             helm.sh/chart: teleport-plugin-mattermost-17.0.0-dev.fred-env-var-migration-1
         spec:
           containers:
@@ -75,7 +75,7 @@ should mount external secret:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-mattermost
-        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-15
+        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-16
         helm.sh/chart: teleport-plugin-mattermost-17.0.0-dev.fred-env-var-migration-1
       name: RELEASE-NAME-teleport-plugin-mattermost
     spec:
@@ -90,7 +90,7 @@ should mount external secret:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-mattermost
-            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-15
+            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-16
             helm.sh/chart: teleport-plugin-mattermost-17.0.0-dev.fred-env-var-migration-1
         spec:
           containers:
@@ -102,7 +102,7 @@ should mount external secret:
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.0.0-dev.fred-env-var-migration-1-15
+            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.0.0-dev.fred-env-var-migration-1-16
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-mattermost
             ports:
@@ -143,7 +143,7 @@ should override volume name:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-mattermost
-        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-15
+        app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-16
         helm.sh/chart: teleport-plugin-mattermost-17.0.0-dev.fred-env-var-migration-1
       name: RELEASE-NAME-teleport-plugin-mattermost
     spec:
@@ -158,7 +158,7 @@ should override volume name:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-mattermost
-            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-15
+            app.kubernetes.io/version: 17.0.0-dev.fred-env-var-migration-1-16
             helm.sh/chart: teleport-plugin-mattermost-17.0.0-dev.fred-env-var-migration-1
         spec:
           containers:
@@ -170,7 +170,7 @@ should override volume name:
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.0.0-dev.fred-env-var-migration-1-15
+            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.0.0-dev.fred-env-var-migration-1-16
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-mattermost
             ports:
