@@ -1012,6 +1012,7 @@ type AutoUpdateAgentRolloutStatus struct {
 	// For example, a group updates every day between 13:00 and 14:00. If the target version changes to 13:30, the group
 	// will not start updating to the new version directly. The controller sees that the group theoretical start time is
 	// before the rollout start time and the maintenance window belongs to the previous rollout.
+	// When the timestamp is nil, the controller will ignore the start time and check and allow groups to activate.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 }
 

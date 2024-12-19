@@ -33,13 +33,14 @@ const (
 	// Common update reasons
 	updateReasonCreated         = "created"
 	updateReasonReconcilerError = "reconciler_error"
+	updateReasonRolloutChanged  = "rollout_changed_during_window"
 )
 
 // rolloutStrategy is responsible for rolling out the update across groups.
 // This interface allows us to inject dummy strategies for simpler testing.
 type rolloutStrategy interface {
 	name() string
-	progressRollout(context.Context, []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error
+	progressRollout(context.Context, *autoupdate.AutoUpdateAgentRolloutStatus) error
 }
 
 func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
@@ -51,6 +52,16 @@ func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time
 		return false, nil
 	}
 	return int(group.ConfigStartHour) == now.Hour(), nil
+}
+
+// rolloutChangedInWindow checks if the rollout got created after the theoretical group start time
+func rolloutChangedInWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now, rolloutStart time.Time) (bool, error) {
+	// If the rollout is older than 24h, we know it did not change during the window
+	if now.Sub(rolloutStart) > 24*time.Hour {
+		return false, nil
+	}
+	// Else we check if the rollout happened in the group window.
+	return inWindow(group, rolloutStart)
 }
 
 func canUpdateToday(allowedDays []string, now time.Time) (bool, error) {
