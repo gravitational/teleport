@@ -65,3 +65,44 @@ After you save and exit the editor, `tctl` will update the resource:
 cluster networking configuration has been updated
 ```
 
+## Starting a database session
+
+Starting from version `17.1`, users can establish database sessions using the
+Teleport WebUI.
+
+To start a new session, locate your database in the resources list and click
+"Connect".
+
+![Resources list](../../img/connect-your-client/webui-db-sessions/resources-list.png)
+
+For supported databases, the dialog will present the option to start
+the session in your browser.
+
+![Resources list database connect dialog](../../img/connect-your-client/webui-db-sessions/resources-connect-dialog.png)
+
+After clicking on the "Connect in the browser" button, a new tab will open with
+a form. Teleport will pre-fill this form based on your permissions, but you can
+adjust the options as needed.
+
+![New database session connect dialog](../../img/connect-your-client/webui-db-sessions/connect-dialog.png)
+
+If your user has wildcard permissions (*), you can type custom values into the
+form fields. This allows flexibility in selecting specific databases or
+credentials.
+
+![New database session connect dialog with custom values](../../img/connect-your-client/webui-db-sessions/connect-dialog-custom.png)
+
+Once you've filled in the session details, click the "Connect" button. Your
+session will start, and a terminal interface will appear in the browser.
+
+The browser-based terminal allows you to execute queries and interact with your
+database. Follow the on-screen instructions to see available commands and
+limitations.
+
+![Database session terminal](../../img/connect-your-client/webui-db-sessions/session-terminal.png)
+
+<Admonition type="note" title="Databases CLI compatibility">
+  While the terminal interface looks similar to database CLIs like `psql`, it is
+  a custom implementation provided by Teleport. As a result, it may have
+  different behaviors and lack some features available in database CLI tools.
+</Admonition>
