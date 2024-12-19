@@ -124,7 +124,10 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 }
 
 func timestampToGoTime(t *timestamppb.Timestamp) time.Time {
-	if t == nil {
+	// nil or "zero" Timestamps are mapped to Go's zero time (0-0-0 0:0.0) instead
+	// of unix epoch. The latter avoids problems with tooling (eg, Terraform) that
+	// sets structs to their defaults instead of using nil.
+	if t == nil || (t.Seconds == 0 && t.Nanos == 0) {
 		return time.Time{}
 	}
 	return t.AsTime()

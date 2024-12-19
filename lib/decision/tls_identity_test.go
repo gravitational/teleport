@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -30,6 +31,8 @@ import (
 )
 
 func TestTLSIdentity_roundtrip(t *testing.T) {
+	t.Parallel()
+
 	minimalTLSIdentity := &decisionpb.TLSIdentity{
 		// tlsca.Identity has no pointer fields, so these are always non-nil after
 		// copying.
@@ -154,4 +157,15 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			t.Errorf("TLSIdentity conversion mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+func TestTLSIdentityToTLSCA_zeroTimestamp(t *testing.T) {
+	t.Parallel()
+
+	id := decision.TLSIdentityToTLSCA(&decisionpb.TLSIdentity{
+		Expires:                 &timestamppb.Timestamp{},
+		PreviousIdentityExpires: &timestamppb.Timestamp{},
+	})
+	assert.Zero(t, id.Expires, "id.Expires")
+	assert.Zero(t, id.PreviousIdentityExpires, "id.PreviousIdentityExpires")
 }
