@@ -83,6 +83,14 @@ type IdentityCenterAccountGetter interface {
 type IdentityCenterAccounts interface {
 	IdentityCenterAccountGetter
 
+	// ListIdentityCenterAccountsWithFilter lists Identity Center Accounts in the backend store
+	ListIdentityCenterAccountsWithFilter(
+		context.Context,
+		int,
+		*pagination.PageRequestToken,
+		func(IdentityCenterAccount) bool,
+	) ([]IdentityCenterAccount, pagination.NextPageToken, error)
+
 	// CreateIdentityCenterAccount creates a new Identity Center Account record
 	CreateIdentityCenterAccount(context.Context, IdentityCenterAccount) (IdentityCenterAccount, error)
 
