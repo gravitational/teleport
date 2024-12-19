@@ -87,7 +87,7 @@ export default function useUsers({
   }
 
   async function onCreate(u: User) {
-    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+    const mfaResponse = await auth.getAdminActionMfaResponse(true);
     return ctx.userService
       .createUser(u, ExcludeUserField.Traits, mfaResponse)
       .then(result => setUsers([result, ...users]))

@@ -16,19 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
+
+import auth from '../auth/auth';
 
 import JoinTokenService from './joinToken';
 
 import type { JoinTokenRequest } from './types';
-
-test('fetchJoinToken with an empty request properly sets defaults', () => {
+test('fetchJoinToken with an empty request properly sets defaults', async () => {
   const svc = new JoinTokenService();
   jest.spyOn(api, 'post').mockResolvedValue(null);
+  jest.spyOn(auth, 'getAdminActionMfaResponse').mockResolvedValue(null);
 
   // Test with all empty fields.
-  svc.fetchJoinToken({} as any);
+  await svc.fetchJoinToken({} as any);
   expect(api.post).toHaveBeenCalledWith(
     cfg.getJoinTokenUrl(),
     {
@@ -37,13 +39,15 @@ test('fetchJoinToken with an empty request properly sets defaults', () => {
       allow: [],
       suggested_agent_matcher_labels: {},
     },
+    null,
     null
   );
 });
 
-test('fetchJoinToken request fields are set as requested', () => {
+test('fetchJoinToken request fields are set as requested', async () => {
   const svc = new JoinTokenService();
   jest.spyOn(api, 'post').mockResolvedValue(null);
+  jest.spyOn(auth, 'getAdminActionMfaResponse').mockResolvedValue(null);
 
   const mock: JoinTokenRequest = {
     roles: ['Node'],
@@ -51,7 +55,8 @@ test('fetchJoinToken request fields are set as requested', () => {
     method: 'iam',
     suggestedAgentMatcherLabels: [{ name: 'env', value: 'dev' }],
   };
-  svc.fetchJoinToken(mock);
+  await svc.fetchJoinToken(mock);
+
   expect(api.post).toHaveBeenCalledWith(
     cfg.getJoinTokenUrl(),
     {
@@ -60,6 +65,7 @@ test('fetchJoinToken request fields are set as requested', () => {
       allow: [{ aws_account: '1234', aws_arn: 'xxxx' }],
       suggested_agent_matcher_labels: { env: ['dev'] },
     },
+    null,
     null
   );
 });

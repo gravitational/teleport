@@ -102,7 +102,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   );
 
   const resetAttempt = () => {
-    if (mfaResponsePromise.current) mfaResponsePromise.current.reject();
+    if (mfaResponsePromise.current) mfaResponsePromise.current.resolve(null);
     mfaResponsePromise.current = null;
     setMfaChallenge(null);
     setMfaAttempt(makeEmptyAttempt());

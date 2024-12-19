@@ -16,34 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-import { useEffect, useState } from 'react';
-import { isAfter, addHours } from 'date-fns';
+import { addHours, isAfter } from 'date-fns';
 import {
+  Alert,
   Box,
-  Text,
+  Button,
+  ButtonSecondary,
+  ButtonWarning,
   Flex,
   Indicator,
   Label,
-  Alert,
   Link,
   MenuItem,
-  ButtonWarning,
-  ButtonSecondary,
-  Button,
+  Text,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { Warning } from 'design/Icon';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { MenuButton } from 'shared/components/MenuAction';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { Warning } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { useEffect, useState } from 'react';
+import { MenuButton } from 'shared/components/MenuAction';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import styled from 'styled-components';
 
 import { useTeleport } from 'teleport';
 import useResources from 'teleport/components/useResources';
@@ -53,9 +53,9 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { JoinToken } from 'teleport/services/joinToken';
-import { Resource, KindJoinToken } from 'teleport/services/resources';
 import ResourceEditor from 'teleport/components/ResourceEditor';
+import { JoinToken } from 'teleport/services/joinToken';
+import { KindJoinToken, Resource } from 'teleport/services/resources';
 
 import { UpsertJoinTokenDialog } from './UpsertJoinTokenDialog';
 
@@ -70,11 +70,14 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
+
   const [creatingToken, setCreatingToken] = useState(false);
   const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
-    useAsync(async () => await ctx.joinTokenService.fetchJoinTokens());
+    useAsync(async () => {
+      return ctx.joinTokenService.fetchJoinTokens(null);
+    });
 
   const resources = useResources(
     joinTokensAttempt.data?.items.map(makeTokenResource) || [],

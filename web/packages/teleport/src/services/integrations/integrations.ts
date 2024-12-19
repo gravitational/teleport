@@ -16,50 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
-import makeNode from '../nodes/makeNode';
-import auth, { MfaChallengeScope } from '../auth/auth';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
+import auth from '../auth/auth';
+import makeNode from '../nodes/makeNode';
 
 import {
-  Integration,
-  IntegrationCreateRequest,
-  IntegrationUpdateRequest,
-  IntegrationStatusCode,
-  IntegrationListResponse,
-  AwsOidcListDatabasesRequest,
-  AwsRdsDatabase,
-  ListAwsRdsDatabaseResponse,
-  RdsEngineIdentifier,
+  AwsDatabaseVpcsResponse,
+  AwsOidcDeployDatabaseServicesRequest,
   AwsOidcDeployServiceRequest,
-  ListEc2InstancesRequest,
-  ListEc2InstancesResponse,
-  Ec2InstanceConnectEndpoint,
-  ListEc2InstanceConnectEndpointsRequest,
-  ListEc2InstanceConnectEndpointsResponse,
-  ListAwsSecurityGroupsRequest,
-  ListAwsSecurityGroupsResponse,
+  AwsOidcListDatabasesRequest,
+  AwsOidcPingRequest,
+  AwsOidcPingResponse,
+  AwsRdsDatabase,
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
-  SecurityGroup,
-  SecurityGroupRule,
-  ListEksClustersResponse,
-  EnrollEksClustersResponse,
+  Ec2InstanceConnectEndpoint,
   EnrollEksClustersRequest,
-  ListEksClustersRequest,
-  AwsOidcDeployDatabaseServicesRequest,
-  Regions,
+  EnrollEksClustersResponse,
+  Integration,
+  IntegrationCreateRequest,
+  IntegrationListResponse,
+  IntegrationStatusCode,
+  IntegrationUpdateRequest,
+  IntegrationWithSummary,
+  ListAwsRdsDatabaseResponse,
   ListAwsRdsFromAllEnginesResponse,
+  ListAwsSecurityGroupsRequest,
+  ListAwsSecurityGroupsResponse,
   ListAwsSubnetsRequest,
   ListAwsSubnetsResponse,
+  ListEc2InstanceConnectEndpointsRequest,
+  ListEc2InstanceConnectEndpointsResponse,
+  ListEc2InstancesRequest,
+  ListEc2InstancesResponse,
+  ListEksClustersRequest,
+  ListEksClustersResponse,
+  RdsEngineIdentifier,
+  Regions,
+  SecurityGroup,
+  SecurityGroupRule,
   Subnet,
-  AwsDatabaseVpcsResponse,
-  AwsOidcPingResponse,
-  AwsOidcPingRequest,
-  IntegrationWithSummary,
 } from './types';
 
 export const integrationService = {
@@ -272,16 +272,7 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<string> {
-    const challenge = await auth.getMfaChallenge({
-      scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse: true,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
-    });
-
-    const response = await auth.getMfaChallengeResponse(challenge);
-
+    const response = await auth.getAdminActionMfaResponse(true);
     return api
       .post(
         cfg.getAwsDeployTeleportServiceUrl(integrationName),
@@ -302,8 +293,7 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployDatabaseServicesRequest
   ): Promise<string> {
-    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
-
+    const mfaResponse = await auth.getAdminActionMfaResponse(true);
     return api
       .post(
         cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
@@ -318,7 +308,7 @@ export const integrationService = {
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
-    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+    const mfaResponse = await auth.getAdminActionMfaResponse(true);
 
     return api.post(
       cfg.getEnrollEksClusterUrl(integrationName),
