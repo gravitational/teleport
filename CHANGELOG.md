@@ -10,9 +10,9 @@ AWS Identity Center integration now allows users to request short or long term a
 
 Database access users can now connect to PostgreSQL databases connected to Teleport right from the web UI and use psql-style interface to query the database.
 
-### Hosted email plugin for access requests
+### Hosted email plugin for Access Requests
 
-Users now have the ability to setup Mailgun or generic SMTP server for access request notifications using Teleport web UI without needing to self-host the email plugin.
+Users now have the ability to setup Mailgun or generic SMTP server for Access Request notifications using Teleport web UI without needing to self-host the email plugin.
 
 ### Multi-port support for VNet
 
@@ -30,7 +30,7 @@ Teleport now allows cluster administrators to enable local and remote port forwa
 
 * Updated golang.org/x/net to v0.33.0 (addresses CVE-2024-45338). [#50397](https://github.com/gravitational/teleport/pull/50397)
 * Fixed an issue causing panics in SAML app or OIDC integration deletion relating to AWS Identity Center integration. [#50360](https://github.com/gravitational/teleport/pull/50360)
-* Fix missing roles in access lists causing users to be locked out of their account. [#50298](https://github.com/gravitational/teleport/pull/50298)
+* Fix missing roles in Access Lists causing users to be locked out of their account. [#50298](https://github.com/gravitational/teleport/pull/50298)
 * Added support for connecting to PostgreSQL databases using WebUI. [#50287](https://github.com/gravitational/teleport/pull/50287)
 * Improved the performance of Teleport agents serving a large number of resources in Kubernetes. [#50279](https://github.com/gravitational/teleport/pull/50279)
 * Improve performance of Kubernetes App Auto Discover. [#50269](https://github.com/gravitational/teleport/pull/50269)
