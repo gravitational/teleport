@@ -168,6 +168,39 @@ func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ct
 	return web.OK(), nil
 }
 
+func (p *Plugin) getClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+	contacts, err := cloudClient.GetContacts(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return contacts, nil
+}
+
+func (p *Plugin) createClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+	var req cloudapi.CreateContactRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := cloudClient.CreateContact(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.Contact, nil
+}
+
+func (p *Plugin) deleteClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+	var req cloudapi.RemoveContactRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := cloudClient.RemoveContact(r.Context(), &req); err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return web.OK(), nil
+}
+
 // readProtoJSON reads a protojson-encoded request and unmarshals it
 // into val.
 func (p *Plugin) readProtoJSON(r *http.Request, val googleproto.Message) error {

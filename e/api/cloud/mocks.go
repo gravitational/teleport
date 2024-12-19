@@ -44,6 +44,13 @@ type MockedClient struct {
 	// MockGetUpdatedLicense returns the customer's license if it is different from the license
 	// provided as the mTLS peer certificate.
 	MockGetUpdatedLicense func(ctx context.Context, req *v1.GetUpdatedLicenseRequest, opts ...grpc.CallOption) (*v1.GetUpdatedLicenseResponse, error)
+	// MockGetContacts returns the customer's contacts
+	MockGetContacts func(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetContactsResponse, error)
+	// MockCreateContact creates a new contact
+	MockCreateContact func(ctx context.Context, req *v1.CreateContactRequest, opts ...grpc.CallOption) (*v1.CreateContactResponse, error)
+	// MockRemoveContact removes a contact type from a contact. If the contact has no other
+	// flags set, the contact itself will be removed.
+	MockRemoveContact func(ctx context.Context, in *v1.RemoveContactRequest, opts ...grpc.CallOption) (*v1.RemoveContactResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -156,4 +163,31 @@ func (m *MockedClient) GetUpdatedLicense(ctx context.Context, req *v1.GetUpdated
 	}
 
 	return nil, trace.NotImplemented("GetUpdatedLicense is not implemented")
+}
+
+// CreateContact calls MockCreateContact if it exists and returns trace.NotImplemented otherwise.
+func (m *MockedClient) CreateContact(ctx context.Context, req *v1.CreateContactRequest, _ ...grpc.CallOption) (*v1.CreateContactResponse, error) {
+	if m.MockCreateContact != nil {
+		return m.MockCreateContact(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("CreateContact is not implemented")
+}
+
+// RemoveContact calls MockRemoveContact if it exists and returns trace.NotImplemented otherwise.
+func (m *MockedClient) RemoveContact(ctx context.Context, req *v1.RemoveContactRequest, _ ...grpc.CallOption) (*v1.RemoveContactResponse, error) {
+	if m.MockRemoveContact != nil {
+		return m.MockRemoveContact(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("RemoveContact is not implemented")
+}
+
+// GetContacts calls MockGetContacts if it exists and returns trace.NotImplemented otherwise.
+func (m *MockedClient) GetContacts(ctx context.Context, req *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetContactsResponse, error) {
+	if m.MockGetContacts != nil {
+		return m.MockGetContacts(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("GetContacts is not implemented")
 }

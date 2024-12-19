@@ -2,13 +2,16 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/authz"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -153,6 +156,65 @@ func (ac *cloudWithRoles) ClusterAlertInfo(ctx context.Context, req *v1.EmptyReq
 	return ac.plugin.cloudClient.ClusterAlertInfo(ctx, req)
 }
 
+// GetUpdatedLicense returns the customer's license if it is different from the license
+// provided as the mTLS peer certificate.
+func (ac *cloudWithRoles) GetUpdatedLicense(ctx context.Context, in *v1.GetUpdatedLicenseRequest) (*v1.GetUpdatedLicenseResponse, error) {
+	if _, err := ac.plugin.authServer.Authorizer.Authorize(ctx); err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.GetUpdatedLicense(ctx, in)
+}
+
+// GetContacts returns a list of the business and security contacts.
+func (ac *cloudWithRoles) GetContacts(ctx context.Context, in *v1.EmptyRequest) (*v1.GetContactsResponse, error) {
+	if err := ac.action(ctx, types.KindContact, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.GetContacts(ctx, in)
+}
+
+// RemoveContact removes a contact.
+func (ac *cloudWithRoles) RemoveContact(ctx context.Context, in *v1.RemoveContactRequest) (*v1.RemoveContactResponse, error) {
+	if err := ac.action(ctx, types.KindContact, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := ac.plugin.cloudClient.RemoveContact(ctx, in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var eventEmail string
+	if res.Contact != nil {
+		eventEmail = res.Contact.Email
+	}
+	if err := ac.emitContactAuditEvent(ctx, contactEventTypeDelete, eventEmail, apievents.ContactType(in.ContactType)); err != nil {
+		slog.WarnContext(ctx, "failed to emit contact delete event", "error", err)
+	}
+
+	return res, nil
+}
+
+// CreateContact creates a contact
+func (ac *cloudWithRoles) CreateContact(ctx context.Context, in *v1.CreateContactRequest) (*v1.CreateContactResponse, error) {
+	if err := ac.action(ctx, types.KindContact, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := ac.plugin.cloudClient.CreateContact(ctx, in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := ac.emitContactAuditEvent(ctx, contactEventTypeCreate, in.Email, apievents.ContactType(in.ContactType)); err != nil {
+		slog.WarnContext(ctx, "failed to emit contact create event", "error", err)
+	}
+
+	return res, nil
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")
@@ -184,13 +246,55 @@ func (ac *cloudWithRoles) hasBuiltinProxyRole(ctx context.Context) error {
 	return nil
 }
 
-// GetUpdatedLicense returns the customer's license if it is different from the license
-// provided as the mTLS peer certificate.
-func (ac *cloudWithRoles) GetUpdatedLicense(ctx context.Context, in *v1.GetUpdatedLicenseRequest) (*v1.GetUpdatedLicenseResponse, error) {
-	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.AccessDenied("access denied")
-	}
+type contactEventType uint8
 
-	return ac.plugin.cloudClient.GetUpdatedLicense(ctx, in)
+const (
+	contactEventTypeCreate = iota
+	contactEventTypeDelete
+)
+
+// emitContactAuditEvent emits a contact audit event event with metadata from the context.
+// Returns an error if emitting the event failed, or if it can't read the user information auth context.
+func (ac *cloudWithRoles) emitContactAuditEvent(ctx context.Context, event contactEventType, email string, contactType apievents.ContactType) error {
+	authCtx, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return err
+	}
+	status := apievents.Status{
+		Success: true,
+	}
+	resourceMetadata := apievents.ResourceMetadata{
+		Name:      types.KindContact,
+		UpdatedBy: authCtx.Identity.GetIdentity().Username,
+	}
+	switch event {
+	case contactEventTypeCreate:
+		return ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, &apievents.ContactCreate{
+			Metadata: apievents.Metadata{
+				Type: libevents.ContactCreateEvent,
+				Code: libevents.ContactCreateCode,
+			},
+			UserMetadata:       authCtx.GetUserMetadata(),
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status:             status,
+			ResourceMetadata:   resourceMetadata,
+			Email:              email,
+			ContactType:        contactType,
+		})
+	case contactEventTypeDelete:
+		return ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, &apievents.ContactDelete{
+			Metadata: apievents.Metadata{
+				Type: libevents.ContactDeleteEvent,
+				Code: libevents.ContactDeleteCode,
+			},
+			UserMetadata:       authCtx.GetUserMetadata(),
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status:             status,
+			ResourceMetadata:   resourceMetadata,
+			Email:              email,
+			ContactType:        contactType,
+		})
+	default:
+		return trace.BadParameter("unknown contact audit event type %d", event)
+	}
 }

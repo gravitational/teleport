@@ -390,6 +390,11 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/sites/:site/upgradewindowstart", p.withClusterCloudAuth(p.getClusterUpgradeWindowStartHourHandle))
 	h.POST("/enterprise/sites/:site/upgradewindowstart", p.withClusterCloudAuth(p.updateClusterUpgradeWindowStartHourHandle))
 
+	// contact endpoints
+	h.GET("/enterprise/sites/:site/contact", p.withClusterCloudAuth(p.getClusterContactHandle))
+	h.POST("/enterprise/sites/:site/contact", p.withClusterCloudAuth(p.createClusterContactHandle))
+	h.DELETE("/enterprise/sites/:site/contact", p.withClusterCloudAuth(p.deleteClusterContactHandle))
+
 	// Recovery related endpoints.
 	if features.GetRecoveryCodes() {
 		p.Logger.InfoContext(context.Background(), "enabling recovery endpoints")

@@ -167,6 +167,8 @@ const cfg = {
       previewPermissionSets:
         '/v1/enterprise/pluginconfig/aws-ic/preview/permission-sets',
     },
+
+    contacts: '/v1/enterprise/sites/:clusterId/contact',
   },
 
   getNonExactRoutes() {
@@ -405,6 +407,12 @@ const cfg = {
 
   getAwsIcPluginPreviewPermissionSetsUrl() {
     return generatePath(cfg.api.awsIdentityCenter.previewPermissionSets);
+  },
+
+  getContactsUrl(clusterId: string) {
+    return generatePath(cfg.api.contacts, {
+      clusterId,
+    });
   },
 
   init(json: object) {

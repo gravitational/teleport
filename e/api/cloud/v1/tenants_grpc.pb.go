@@ -53,6 +53,13 @@ type TenantsServiceClient interface {
 	// GetUpdatedLicense returns the customer's license if it is different from the license
 	// provided as the mTLS peer certificate.
 	GetUpdatedLicense(ctx context.Context, in *GetUpdatedLicenseRequest, opts ...grpc.CallOption) (*GetUpdatedLicenseResponse, error)
+	// GetContacts returns the customer's contacts
+	GetContacts(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetContactsResponse, error)
+	// CreateContact creates a new contact
+	CreateContact(ctx context.Context, in *CreateContactRequest, opts ...grpc.CallOption) (*CreateContactResponse, error)
+	// RemoveContact removes a contact type from a contact. If the contact has no other
+	// flags set, the contact itself will be removed.
+	RemoveContact(ctx context.Context, in *RemoveContactRequest, opts ...grpc.CallOption) (*RemoveContactResponse, error)
 	// Deprecated: Do not use.
 	// CreateSetupIntent creates an intent in stripe and returns the client secret
 	CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error)
@@ -219,6 +226,33 @@ func (c *tenantsServiceClient) GetUpdatedLicense(ctx context.Context, in *GetUpd
 	return out, nil
 }
 
+func (c *tenantsServiceClient) GetContacts(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetContactsResponse, error) {
+	out := new(GetContactsResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetContacts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) CreateContact(ctx context.Context, in *CreateContactRequest, opts ...grpc.CallOption) (*CreateContactResponse, error) {
+	out := new(CreateContactResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/CreateContact", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) RemoveContact(ctx context.Context, in *RemoveContactRequest, opts ...grpc.CallOption) (*RemoveContactResponse, error) {
+	out := new(RemoveContactResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/RemoveContact", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Deprecated: Do not use.
 func (c *tenantsServiceClient) CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error) {
 	out := new(CreateSetupIntentResponse)
@@ -354,6 +388,13 @@ type TenantsServiceServer interface {
 	// GetUpdatedLicense returns the customer's license if it is different from the license
 	// provided as the mTLS peer certificate.
 	GetUpdatedLicense(context.Context, *GetUpdatedLicenseRequest) (*GetUpdatedLicenseResponse, error)
+	// GetContacts returns the customer's contacts
+	GetContacts(context.Context, *EmptyRequest) (*GetContactsResponse, error)
+	// CreateContact creates a new contact
+	CreateContact(context.Context, *CreateContactRequest) (*CreateContactResponse, error)
+	// RemoveContact removes a contact type from a contact. If the contact has no other
+	// flags set, the contact itself will be removed.
+	RemoveContact(context.Context, *RemoveContactRequest) (*RemoveContactResponse, error)
 	// Deprecated: Do not use.
 	// CreateSetupIntent creates an intent in stripe and returns the client secret
 	CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error)
@@ -432,6 +473,15 @@ func (UnimplementedTenantsServiceServer) ClusterAlertInfo(context.Context, *Empt
 }
 func (UnimplementedTenantsServiceServer) GetUpdatedLicense(context.Context, *GetUpdatedLicenseRequest) (*GetUpdatedLicenseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUpdatedLicense not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetContacts(context.Context, *EmptyRequest) (*GetContactsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetContacts not implemented")
+}
+func (UnimplementedTenantsServiceServer) CreateContact(context.Context, *CreateContactRequest) (*CreateContactResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateContact not implemented")
+}
+func (UnimplementedTenantsServiceServer) RemoveContact(context.Context, *RemoveContactRequest) (*RemoveContactResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveContact not implemented")
 }
 func (UnimplementedTenantsServiceServer) CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSetupIntent not implemented")
@@ -728,6 +778,60 @@ func _TenantsService_GetUpdatedLicense_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_GetContacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmptyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetContacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetContacts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetContacts(ctx, req.(*EmptyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_CreateContact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateContactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).CreateContact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/CreateContact",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).CreateContact(ctx, req.(*CreateContactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_RemoveContact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveContactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).RemoveContact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/RemoveContact",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).RemoveContact(ctx, req.(*RemoveContactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TenantsService_CreateSetupIntent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EmptyRequest)
 	if err := dec(in); err != nil {
@@ -970,6 +1074,18 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUpdatedLicense",
 			Handler:    _TenantsService_GetUpdatedLicense_Handler,
+		},
+		{
+			MethodName: "GetContacts",
+			Handler:    _TenantsService_GetContacts_Handler,
+		},
+		{
+			MethodName: "CreateContact",
+			Handler:    _TenantsService_CreateContact_Handler,
+		},
+		{
+			MethodName: "RemoveContact",
+			Handler:    _TenantsService_RemoveContact_Handler,
 		},
 		{
 			MethodName: "CreateSetupIntent",

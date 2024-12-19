@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
@@ -172,4 +173,105 @@ func TestPlugin_surveyResultsHandler(t *testing.T) {
 	require.Equal(t, "35", calledWith.EmployeeCount)
 	require.Equal(t, "eng", calledWith.Role)
 	require.Equal(t, []string(nil), calledWith.Resources)
+}
+
+func TestPlugin_getClusterContactHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/enterprise/sites/survey/localhost/contact", nil)
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	now := time.Now()
+	expected := &cloudapi.GetContactsResponse{
+		Contacts: []*cloudapi.Contact{
+			{
+				Name:            "contact1",
+				AccountId:       "accid",
+				VerifyToken:     "verifytoken2",
+				Email:           "email1@goteleport.com",
+				ContactType:     int32(3),
+				Verified:        true,
+				VerifyExpiresAt: now.Unix(),
+				State:           cloudapi.ContactState_CONTACT_STATE_ACTIVE,
+			},
+			{
+				Name:            "contact2",
+				AccountId:       "accid",
+				VerifyToken:     "verifytoken2",
+				Email:           "email2@goteleport.com",
+				ContactType:     int32(1),
+				Verified:        false,
+				VerifyExpiresAt: now.AddDate(1, 0, 0).Unix(),
+				State:           cloudapi.ContactState_CONTACT_STATE_PENDING,
+			},
+		},
+	}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockGetContacts: func(ctx context.Context, in *cloudapi.EmptyRequest, opts ...grpc.CallOption) (*cloudapi.GetContactsResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.getClusterContactHandle(w, r, wCtx, nil, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_createClusterContactHandle(t *testing.T) {
+	t.Parallel()
+	jsonReq := `{ "email": "example@goteleport.com", "contact_type": 1 }`
+	var calledWith *cloudapi.CreateContactRequest
+
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/sites/survey/localhost/contact", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockCreateContact: func(ctx context.Context, in *cloudapi.CreateContactRequest, opts ...grpc.CallOption) (*cloudapi.CreateContactResponse, error) {
+				calledWith = in
+				return &cloudapi.CreateContactResponse{}, nil
+			},
+		},
+	}
+
+	_, err := s.webPlugin.createClusterContactHandle(w, r, wCtx, nil, client)
+	require.NoError(t, err)
+	require.Equal(t, "example@goteleport.com", calledWith.Email)
+	require.Equal(t, int32(1), calledWith.ContactType)
+}
+
+func TestPlugin_deleteClusterContactHandle(t *testing.T) {
+	t.Parallel()
+	jsonReq := `{ "verify_token": "tokenid", "contact_type": 2 }`
+	var calledWith *cloudapi.RemoveContactRequest
+
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/sites/survey/localhost/contact", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockRemoveContact: func(ctx context.Context, in *cloudapi.RemoveContactRequest, opts ...grpc.CallOption) (*cloudapi.RemoveContactResponse, error) {
+				calledWith = in
+				return &cloudapi.RemoveContactResponse{}, nil
+			},
+		},
+	}
+
+	_, err := s.webPlugin.deleteClusterContactHandle(w, r, wCtx, nil, client)
+	require.NoError(t, err)
+	require.Equal(t, "tokenid", calledWith.VerifyToken)
+	require.Equal(t, int32(2), calledWith.ContactType)
 }

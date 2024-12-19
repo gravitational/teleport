@@ -27,6 +27,7 @@ import { accessManagementService } from './services/accessmanagement';
 import { StoreNotificationsE } from './stores/storeNotificationsE';
 import { externalAuditStorageService } from './services/externalauditstorage';
 import { notificationContentFactoryE } from './Notifications';
+import { contactsService } from './services/contacts';
 
 class TeleportEContext extends TeleportContext {
   // stores
@@ -45,6 +46,7 @@ class TeleportEContext extends TeleportContext {
   idpService = new IdpService();
   externalAuditStorageService = externalAuditStorageService;
   redirectUrl: string | null = null;
+  contactService = contactsService;
 
   notificationContentFactory = notificationContentFactoryE;
 
