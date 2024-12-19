@@ -56,7 +56,7 @@ func makeAppGateway(cfg Config) (Gateway, error) {
 	}
 
 	middleware := &appMiddleware{
-		log: a.cfg.Log,
+		logger: a.cfg.Logger,
 		onExpiredCert: func(ctx context.Context) (tls.Certificate, error) {
 			cert, err := a.cfg.OnExpiredCert(ctx, a)
 			return cert, trace.Wrap(err)

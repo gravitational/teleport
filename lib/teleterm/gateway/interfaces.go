@@ -19,8 +19,9 @@
 package gateway
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -41,7 +42,7 @@ type Gateway interface {
 	TargetUser() string
 	TargetSubresourceName() string
 	SetTargetSubresourceName(value string)
-	Log() *logrus.Entry
+	Log() *slog.Logger
 	LocalAddress() string
 	LocalPort() string
 	LocalPortInt() int

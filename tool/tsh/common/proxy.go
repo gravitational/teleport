@@ -233,7 +233,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		opts := []dbcmd.ConnectCommandFunc{
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
-			dbcmd.WithLogger(log),
+			dbcmd.WithLogger(logger),
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
 			dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
