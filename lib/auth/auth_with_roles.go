@@ -1690,6 +1690,13 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 
 // ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
 func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	// try to detect case-insensitive routing setting, but default to false if we can't load
+	// networking config (equivalent to proxy routing behavior).
+	var routeToMostRecent bool
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
+		routeToMostRecent = cfg.GetRoutingStrategy() == types.RoutingStrategy_MOST_RECENT
+	}
+
 	var servers []*types.ServerV2
 	switch {
 	case req.Host != "":
@@ -1732,11 +1739,18 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 				servers = append(servers, srv)
 			}
 
+			// If the routing strategy doesn't permit ambiguous matches, then abort
+			// early if more than one server has been found already
+			if !routeToMostRecent && len(servers) > 1 {
+				break
+			}
+
 			if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
 				break
 			}
 
 			lreq.StartKey = lrsp.NextKey
+
 		}
 	default:
 		return nil, trace.NotFound("no matching hosts")
@@ -1748,13 +1762,6 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 	case 0:
 		return nil, trace.NotFound("no matching hosts")
 	default:
-		// try to detect case-insensitive routing setting, but default to false if we can't load
-		// networking config (equivalent to proxy routing behavior).
-		var routeToMostRecent bool
-		if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
-			routeToMostRecent = cfg.GetRoutingStrategy() == types.RoutingStrategy_MOST_RECENT
-		}
-
 		if !routeToMostRecent {
 			return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous)
 		}
