@@ -53,42 +53,42 @@ TCTL_SKELETON = $(TCTL_SKELETON_$(CLEAN_ENV_NAME))
 
 # --- prod/build environment (promote is the old name and will be removed)
 # Key names can be found on https://goteleport.com/security
-TEAMID_build_prod = QH8AA5B8UP
-DEVELOPER_KEY_NAME_build_prod = Developer ID Application: Gravitational Inc.
-INSTALLER_KEY_NAME_build_prod = Developer ID Installer: Gravitational Inc.
-TELEPORT_BUNDLEID_build_prod = com.gravitational.teleport
-TSH_BUNDLEID_build_prod = $(TEAMID).com.gravitational.teleport.tsh
-TSH_SKELETON_build_prod = tsh
-TCTL_BUNDLEID_build_prod = $(TEAMID).com.gravitational.teleport.tctl
-TCTL_SKELETON_build_prod = tctl
+TEAMID_prod_build = QH8AA5B8UP
+DEVELOPER_KEY_NAME_prod_build = Developer ID Application: Gravitational Inc.
+INSTALLER_KEY_NAME_prod_build = Developer ID Installer: Gravitational Inc.
+TELEPORT_BUNDLEID_prod_build = com.gravitational.teleport
+TSH_BUNDLEID_prod_build = $(TEAMID).com.gravitational.teleport.tsh
+TSH_SKELETON_prod_build = tsh
+TCTL_BUNDLEID_prod_build = $(TEAMID).com.gravitational.teleport.tctl
+TCTL_SKELETON_prod_build = tctl
 
-TEAMID_promote = $(TEAMID_build_prod)
-DEVELOPER_KEY_NAME_promote = $(DEVELOPER_KEY_NAME_build_prod)
-INSTALLER_KEY_NAME_promote = $(INSTALLER_KEY_NAME_build_prod)
-TELEPORT_BUNDLEID_promote = $(TELEPORT_BUNDLEID_build_prod)
-TSH_BUNDLEID_promote = $(TSH_BUNDLEID_build_prod)
-TSH_SKELETON_promote = $(TSH_SKELETON_build_prod)
-TCTL_BUNDLEID_promote = $(TCTL_BUNDLEID_build_prod)
-TCTL_SKELETON_promote = $(TCTL_SKELETON_build_prod)
+TEAMID_promote = $(TEAMID_prod_build)
+DEVELOPER_KEY_NAME_promote = $(DEVELOPER_KEY_NAME_prod_build)
+INSTALLER_KEY_NAME_promote = $(INSTALLER_KEY_NAME_prod_build)
+TELEPORT_BUNDLEID_promote = $(TELEPORT_BUNDLEID_prod_build)
+TSH_BUNDLEID_promote = $(TSH_BUNDLEID_prod_build)
+TSH_SKELETON_promote = $(TSH_SKELETON_prod_build)
+TCTL_BUNDLEID_promote = $(TCTL_BUNDLEID_prod_build)
+TCTL_SKELETON_promote = $(TCTL_SKELETON_prod_build)
 
 # --- stage/build environment (build is the old name and will be removed)
-TEAMID_build_stage = K497G57PDJ
-DEVELOPER_KEY_NAME_build_stage = Developer ID Application: Ada Lin
-INSTALLER_KEY_NAME_build_stage = Developer ID Installer: Ada Lin
-TELEPORT_BUNDLEID_build_stage = com.goteleport.dev
-TSH_BUNDLEID_build_stage = $(TEAMID).com.goteleport.tshdev
-TSH_SKELETON_build_stage = tshdev
-TCTL_BUNDLEID_build_stage = $(TEAMID).com.goteleport.tctldev
-TCTL_SKELETON_build_stage = tctldev
+TEAMID_stage_build = K497G57PDJ
+DEVELOPER_KEY_NAME_stage_build = Developer ID Application: Ada Lin
+INSTALLER_KEY_NAME_stage_build = Developer ID Installer: Ada Lin
+TELEPORT_BUNDLEID_stage_build = com.goteleport.dev
+TSH_BUNDLEID_stage_build = $(TEAMID).com.goteleport.tshdev
+TSH_SKELETON_stage_build = tshdev
+TCTL_BUNDLEID_stage_build = $(TEAMID).com.goteleport.tctldev
+TCTL_SKELETON_stage_build = tctldev
 
-TEAMID_build = $(TEAMID_build_stage)
-DEVELOPER_KEY_NAME_build = $(DEVELOPER_KEY_NAME_build_stage)
-INSTALLER_KEY_NAME_build = $(INSTALLER_KEY_NAME_build_stage)
-TELEPORT_BUNDLEID_build = $(TELEPORT_BUNDLEID_build_stage)
-TSH_BUNDLEID_build = $(TSH_BUNDLEID_build_stage)
-TSH_SKELETON_build = $(TSH_SKELETON_build_stage)
-TCTL_BUNDLEID_build = $(TCTL_BUNDLEID_build_stage)
-TCTL_SKELETON_build = $(TCTL_SKELETON_build_stage)
+TEAMID_build = $(TEAMID_stage_build)
+DEVELOPER_KEY_NAME_build = $(DEVELOPER_KEY_NAME_stage_build)
+INSTALLER_KEY_NAME_build = $(INSTALLER_KEY_NAME_stage_build)
+TELEPORT_BUNDLEID_build = $(TELEPORT_BUNDLEID_stage_build)
+TSH_BUNDLEID_build = $(TSH_BUNDLEID_stage_build)
+TSH_SKELETON_build = $(TSH_SKELETON_stage_build)
+TCTL_BUNDLEID_build = $(TCTL_BUNDLEID_stage_build)
+TCTL_SKELETON_build = $(TCTL_SKELETON_stage_build)
 
 # SHOULD_NOTARIZE evalutes to "true" if we should sign and notarize binaries,
 # and the empty string if not. We only notarize if APPLE_USERNAME and

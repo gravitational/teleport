@@ -140,10 +140,6 @@ darwin-signed-build: build-darwin-universal
 else
 darwin-signed-build: build
 endif
-	echo "$(ENVIRONMENT_NAME)"
-	echo "$(CLEAN_ENV_NAME)"
-	echo "$(DEVELOPER_ID_APPLICATION)"
-	echo "$(DEVELOPER_KEY_NAME_build_stage)"
 	$(NOTARIZE_BINARIES)
 
 .PHONY: release
