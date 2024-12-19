@@ -1,7 +1,7 @@
-resource "teleport_workload_identity" "test" {
+resource "teleport_workload_identity" "example" {
   version = "v1"
   metadata = {
-    name = "test"
+    name = "example"
   }
   spec = {
     rules = {
@@ -9,13 +9,14 @@ resource "teleport_workload_identity" "test" {
         {
           conditions = [{
             attribute = "user.name"
-            equals    = "foo"
+            equals    = "noah"
           }]
         }
       ]
     }
     spiffe = {
-      id = "/test"
+      id   = "/my/spiffe/id/path"
+      hint = "my-hint"
     }
   }
 }
