@@ -64,7 +64,7 @@ func execAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 			return nil
 		case <-time.After(time.Second):
 			if status, err := service.Query(); err != nil {
-				log.ErrorContext(ctx, "Error querying admin service", "error", err)
+				return trace.Wrap(err, "querying admin service")
 			} else {
 				if status.State != svc.Running && status.State != svc.StartPending {
 					return trace.Errorf("service stopped running prematurely, status: %v", status)

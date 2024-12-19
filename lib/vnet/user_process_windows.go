@@ -18,8 +18,8 @@ package vnet
 
 import (
 	"context"
+	"log/slog"
 	"os"
-	"time"
 
 	"github.com/Microsoft/go-winio"
 	"github.com/gravitational/teleport/api/profile"
@@ -79,17 +79,21 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 	}
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
-	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{})
-	if err != nil {
-		return nil, trace.Wrap(err, "listening on named pipe")
-	}
-
 	pm, processCtx := newProcessManager()
 	defer func() {
 		if err != nil {
 			pm.Close()
 		}
 	}()
+
+	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err, "listening on named pipe")
+	}
+	pm.AddCriticalBackgroundTask("pipe closer", func() error {
+		<-processCtx.Done()
+		return trace.Wrap(pipe.Close())
+	})
 
 	pm.AddCriticalBackgroundTask("admin process", func() error {
 		adminConfig := AdminProcessConfig{
@@ -102,14 +106,18 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 	})
 
 	pm.AddCriticalBackgroundTask("ipc service", func() error {
-		defer pipe.Close()
 		// TODO(nklaassen): wrap [config.AppProvider] with a gRPC service to expose
 		// the necessary methods to the admin process over [pipe].
-		select {
-		case <-processCtx.Done():
-			return processCtx.Err()
-		case <-time.After(30 * time.Second):
-			return nil
+
+		// For now just accept and drop any connections to prove the admin
+		// process can dial the pipe. The pipe will be closed when the process
+		// context completes and any blocked Accept call will return with an error.
+		slog.InfoContext(processCtx, "Listening on named pipe", "pipe", pipe.Addr().String())
+		for {
+			_, err := pipe.Accept()
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	})
 
