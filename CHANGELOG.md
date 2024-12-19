@@ -24,7 +24,7 @@ Teleport's web UI will include a new role editor that allows users to create and
 
 ### Granular SSH port forwarding controls
 
-Teleport will allow cluster administrators to enable local and remote port forwarding separately rather than grouping both types of port forwarding behind a single option.
+Teleport now allows cluster administrators to enable local and remote port forwarding separately rather than grouping both types of port forwarding behind a single option.
 
 ### Other improvements and fixes
 
