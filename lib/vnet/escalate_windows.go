@@ -39,7 +39,6 @@ import (
 const (
 	serviceName        = "TeleportVNet"
 	serviceDescription = "This service manages networking and OS configuration for Teleport VNet."
-	serviceAccountName = `NT AUTHORITY\NetworkService`
 )
 
 var (
@@ -178,7 +177,6 @@ func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
 		ServiceType:      windows.SERVICE_WIN32_OWN_PROCESS,
 		StartType:        mgr.StartManual,
 		ErrorControl:     mgr.ErrorNormal,
-		ServiceStartName: serviceAccountName,
 		DisplayName:      serviceName,
 		Description:      serviceDescription,
 	}
