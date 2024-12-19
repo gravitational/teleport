@@ -86,6 +86,7 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 		}
 	}()
 
+	// TODO(nklaassen): make sure only the admin service can dial the pipe.
 	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err, "listening on named pipe")
