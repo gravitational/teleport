@@ -77,16 +77,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		PreFetchHookFn: func() {
-			discoveryConfigs := libslices.FilterMapUnique(
-				s.getKubeIntegrationFetchers(),
-				func(f common.Fetcher) (s string, include bool) {
-					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
-				},
-			)
-			s.updateDiscoveryConfigStatus(discoveryConfigs...)
-
-			s.awsEKSResourcesStatus.reset()
-			s.awsEKSTasks.reset()
+			s.kubernetesIntegrationWatcherIterationStarted()
 		},
 	})
 	if err != nil {
@@ -192,6 +183,38 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		}
 	}()
 	return nil
+}
+
+func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
+	allFetchers := s.getKubeIntegrationFetchers()
+	if len(allFetchers) == 0 {
+		return
+	}
+
+	s.submitFetchersEvent(allFetchers)
+
+	awsResultGroups := libslices.FilterMapUnique(
+		allFetchers,
+		func(f common.Fetcher) (awsResourceGroup, bool) {
+			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
+			resourceGroup := awsResourceGroup{
+				discoveryConfigName: f.GetDiscoveryConfigName(),
+				integration:         f.IntegrationName(),
+			}
+			return resourceGroup, include
+		},
+	)
+	for _, g := range awsResultGroups {
+		s.awsEKSResourcesStatus.iterationStarted(g)
+	}
+
+	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
+		return g.discoveryConfigName, true
+	})
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
+	s.awsEKSResourcesStatus.reset()
+	s.awsEKSTasks.reset()
 }
 
 func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
