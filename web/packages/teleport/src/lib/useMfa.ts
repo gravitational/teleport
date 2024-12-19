@@ -121,7 +121,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
     async (mfaType?: DeviceType, totpCode?: string) => {
       try {
         await mfaResponsePromise.current.resolve(
-          auth.getMfaChallengeResponse(challenge, mfaType, totpCode)
+          await auth.getMfaChallengeResponse(challenge, mfaType, totpCode)
         );
       } catch (err) {
         setMfaAttempt({

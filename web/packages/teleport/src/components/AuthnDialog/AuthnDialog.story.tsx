@@ -26,25 +26,27 @@ export default {
 
 export const LoadedWithMultipleOptions = () => {
   const props: Props = {
-    ...defaultProps,
-    attempt: {
-      status: 'processing',
-      statusText: '',
-      data: null,
-    },
-    challenge: {
-      ssoChallenge: {
-        redirectUrl: 'hi',
-        requestId: '123',
-        channelId: '123',
-        device: {
-          connectorId: '123',
-          connectorType: 'saml',
-          displayName: 'Okta',
-        },
+    mfaState: {
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
       },
-      webauthnPublicKey: {
-        challenge: new ArrayBuffer(1),
+      challenge: {
+        ssoChallenge: {
+          redirectUrl: 'hi',
+          requestId: '123',
+          channelId: '123',
+          device: {
+            connectorId: '123',
+            connectorType: 'saml',
+            displayName: 'Okta',
+          },
+        },
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
       },
     },
   };
@@ -53,15 +55,17 @@ export const LoadedWithMultipleOptions = () => {
 
 export const LoadedWithSingleOption = () => {
   const props: Props = {
-    ...defaultProps,
-    attempt: {
-      status: 'processing',
-      statusText: '',
-      data: null,
-    },
-    challenge: {
-      webauthnPublicKey: {
-        challenge: new ArrayBuffer(1),
+    mfaState: {
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+      challenge: {
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
       },
     },
   };
@@ -71,15 +75,15 @@ export const LoadedWithSingleOption = () => {
 export const LoadedWithError = () => {
   const err = new Error('Something went wrong');
   const props: Props = {
-    ...defaultProps,
-    attempt: {
-      status: 'error',
-      statusText: err.message,
-      error: err,
-      data: null,
+    mfaState: {
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'error',
+        statusText: err.message,
+        error: err,
+        data: null,
+      },
     },
   };
   return <AuthnDialog {...props} />;
 };
-
-const defaultProps: Props = makeDefaultMfaState();
