@@ -87,8 +87,12 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 
 	pm, processCtx := newProcessManager()
 
-	// TODO(nklaassen): make sure only the admin service can dial the pipe.
-	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{})
+	// Security descriptor to allow only the SYSTEM account to dial the pipe,
+	// the VNet Windows service runs as the system user.
+	sd := "D:P(A;;GA;;;SY)" // "D:P" -> Discretionary ACL, "(A;;GA;;;SY)" -> Allow Generic All (GA) to SYSTEM (SY)
+	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{
+		SecurityDescriptor: sd,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "listening on named pipe")
 	}
