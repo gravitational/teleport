@@ -2156,23 +2156,23 @@ message ListResourcesRequest {
 // will not perform any resolution based on labels. In order to resolve via
 // labels the Host must not be populated.
 message ResolveSSHTargetRequest {
-  // Host is the target host as would be sent to the proxy during a dial request.
-  string Host = 1;
-  // Port is the ssh port. This value is optional, and both empty string and "0" are typically
+  // The target host as would be sent to the proxy during a dial request.
+  string host = 1;
+  // The ssh port. This value is optional, and both empty string and "0" are typically
   // treated as meaning that any port should match.
-  string Port = 2;
-  // Labels is a label-based matcher if non-empty.
-  map<string, string> Labels = 3 [(gogoproto.jsontag) = "labels,omitempty"];
-  // PredicateExpression defines boolean conditions that will be matched against the resource.
-  string PredicateExpression = 4 [(gogoproto.jsontag) = "predicate_expression,omitempty"];
-  // SearchKeywords is a list of search keywords to match against resource field values.
-  repeated string SearchKeywords = 5 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  string port = 2;
+  // If not empty, a label-based matcher.
+  map<string, string> labels = 3;
+  // Boolean conditions that will be matched against the resource.
+  string predicate_expression = 4;
+  // A list of search keywords to match against resource field values.
+  repeated string search_keywords = 5;
 }
 
 // GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
 message ResolveSSHTargetResponse {
-  // Server is the target matching the supplied request.
-  types.ServerV2 Server = 1;
+  // The target matching the supplied request.
+  types.ServerV2 server = 1;
 }
 
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
