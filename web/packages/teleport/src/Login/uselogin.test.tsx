@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { renderHook } from '@testing-library/react';
+
 import history from 'teleport/services/history';
 import session from 'teleport/services/websession';
 import cfg from 'teleport/config';
-
-import { renderHook } from '@testing-library/react';
 
 import useLogin from './useLogin';
 
