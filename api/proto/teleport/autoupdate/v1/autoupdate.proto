@@ -180,6 +180,7 @@ message AutoUpdateAgentRolloutStatus {
   // For example, a group updates every day between 13:00 and 14:00. If the target version changes to 13:30, the group
   // will not start updating to the new version directly. The controller sees that the group theoretical start time is
   // before the rollout start time and the maintenance window belongs to the previous rollout.
+  // When the timestamp is nil, the controller will ignore the start time and check and allow groups to activate.
   google.protobuf.Timestamp start_time = 3;
 }
 
