@@ -71,6 +71,7 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 		reconciler: reconciler{
 			clt:               client,
 			log:               log,
+			clock:             clock,
 			rolloutStrategies: []rolloutStrategy{
 				// TODO(hugoShaka): add the strategies here as we implement them
 			},

@@ -153,7 +153,7 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 		return trace.Wrap(err, "computing rollout status")
 	}
 
-	// there was an existing rollout, we must figure if something changed
+	// We compute if something changed.
 	specChanged := !proto.Equal(existingRollout.GetSpec(), newSpec)
 	statusChanged := !proto.Equal(existingRollout.GetStatus(), newStatus)
 	rolloutChanged := specChanged || statusChanged
@@ -273,6 +273,8 @@ func (r *reconciler) computeStatus(
 	// We create a new status if the rollout should be reset or the previous status was nil
 	if shouldResetRollout || existingRollout.GetStatus() == nil {
 		status = new(autoupdate.AutoUpdateAgentRolloutStatus)
+		// We set the start time if this is a new rollout
+		status.StartTime = timestamppb.New(r.clock.Now())
 	} else {
 		status = utils.CloneProtoMsg(existingRollout.GetStatus())
 	}
@@ -302,8 +304,9 @@ func (r *reconciler) computeStatus(
 			return nil, trace.Wrap(err, "creating groups status")
 		}
 	}
+	status.Groups = groups
 
-	err = r.progressRollout(ctx, newSpec.GetStrategy(), groups)
+	err = r.progressRollout(ctx, newSpec.GetStrategy(), status)
 	// Failing to progress the update is not a hard failure.
 	// We want to update the status even if something went wrong to surface the failed reconciliation and potential errors to the user.
 	if err != nil {
@@ -311,7 +314,6 @@ func (r *reconciler) computeStatus(
 			"error", err)
 	}
 
-	status.Groups = groups
 	status.State = computeRolloutState(groups)
 	return status, nil
 }
@@ -320,10 +322,10 @@ func (r *reconciler) computeStatus(
 // groups are updated in place.
 // If an error is returned, the groups should still be upserted, depending on the strategy,
 // failing to update a group might not be fatal (other groups can still progress independently).
-func (r *reconciler) progressRollout(ctx context.Context, strategyName string, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+func (r *reconciler) progressRollout(ctx context.Context, strategyName string, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
 	for _, strategy := range r.rolloutStrategies {
 		if strategy.name() == strategyName {
-			return strategy.progressRollout(ctx, groups)
+			return strategy.progressRollout(ctx, status)
 		}
 	}
 	return trace.NotImplemented("rollout strategy %q not implemented", strategyName)
