@@ -18,11 +18,9 @@ package vnet
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 	"github.com/gravitational/trace"
 	"golang.zx2c4.com/wireguard/tun"
 )
@@ -71,7 +69,7 @@ func RunAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 	if err != nil {
 		return trace.Wrap(err, "dialing named pipe %s", pipePath)
 	}
-	defer conn.Close()
+	conn.Close()
 
 	device, err := tun.CreateTUN("TeleportVNet", mtu)
 	if err != nil {
@@ -83,15 +81,16 @@ func RunAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 	}
 	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
 
-	// Stay alive until the pipe is deleted, indicating that the user process exited.
-	ticker := time.NewTicker(daemon.CheckUnprivilegedProcessInterval)
+	// TODO(nklaassen): actually run the networking stack and OS configuration.
+	// For now, stay alive as long as we can dial the pipe.
 	for {
 		select {
-		case <-ticker.C:
-			if _, err := os.Stat(pipePath); err != nil {
-				log.DebugContext(ctx, "failed to stat pipe path, assuming parent exited")
-				return nil
+		case <-time.After(time.Second):
+			conn, err := winio.DialPipe(pipePath, &dialTimeout)
+			if err != nil {
+				return trace.Wrap(err)
 			}
+			conn.Close()
 		case <-ctx.Done():
 			return ctx.Err()
 		}

@@ -72,7 +72,6 @@ func execAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 			}
 		}
 	}
-	return nil
 }
 
 func startService(cfg AdminProcessConfig) (*mgr.Service, error) {
