@@ -33,6 +33,7 @@ import (
 
 // TLSIdentityToTLSCA transforms a [decisionpb.TLSIdentity] into its
 // equivalent [tlsca.Identity].
+// Note that certain types, like slices, are not deep-copied.
 func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 	if id == nil {
 		return nil
@@ -79,6 +80,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 
 // TLSIdentityFromTLSCA transforms a [tlsca.Identity] into its equivalent
 // [decisionpb.TLSIdentity].
+// Note that certain types, like slices, are not deep-copied.
 func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 	if id == nil {
 		return nil
