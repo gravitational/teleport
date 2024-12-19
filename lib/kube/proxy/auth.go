@@ -23,12 +23,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
@@ -77,11 +77,11 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 	kubeClusterName := f.cfg.KubeClusterName
 	tpClusterName := f.cfg.ClusterName
 
-	f.log.
-		WithField("kubeconfigPath", kubeconfigPath).
-		WithField("kubeClusterName", kubeClusterName).
-		WithField("serviceType", serviceType).
-		Debug("Reading Kubernetes details.")
+	f.log.DebugContext(ctx, "Reading Kubernetes details",
+		"kubeconfig_path", kubeconfigPath,
+		"kube_cluster_name", kubeClusterName,
+		"service_type", serviceType,
+	)
 
 	// Proxy service should never have creds, forwards to kube service
 	if serviceType == ProxyService {
@@ -100,7 +100,7 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 		case KubeService:
 			return trace.BadParameter("no Kubernetes credentials found; Kubernetes_service requires either a valid kubeconfig_file or to run inside of a Kubernetes pod")
 		case LegacyProxyService:
-			f.log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
+			f.log.DebugContext(ctx, "Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
 		}
 		return nil
 	}
@@ -124,14 +124,20 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 	for cluster, clientCfg := range cfg.Contexts {
 		clusterCreds, err := extractKubeCreds(ctx, serviceType, cluster, clientCfg, f.log, f.cfg.CheckImpersonationPermissions)
 		if err != nil {
-			f.log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
+			f.log.WarnContext(ctx, "failed to load credentials for cluster",
+				"cluster", cluster,
+				"error", err,
+			)
 			continue
 		}
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
 			Name: cluster,
 		}, types.KubernetesClusterSpecV3{})
 		if err != nil {
-			f.log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
+			f.log.WarnContext(ctx, "failed to create KubernetesClusterV3 from credentials for cluster",
+				"cluster", cluster,
+				"error", err,
+			)
 			continue
 		}
 
@@ -139,13 +145,16 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			clusterDetailsConfig{
 				cluster:   kubeCluster,
 				kubeCreds: clusterCreds,
-				log:       f.log.WithField("cluster", kubeCluster.GetName()),
+				log:       f.log.With("cluster", kubeCluster.GetName()),
 				checker:   f.cfg.CheckImpersonationPermissions,
 				component: serviceType,
 				clock:     f.cfg.Clock,
 			})
 		if err != nil {
-			f.log.WithError(err).Warnf("Failed to create cluster details for cluster %q.", cluster)
+			f.log.WarnContext(ctx, "Failed to create cluster details for cluster",
+				"cluster", cluster,
+				"error", err,
+			)
 			return trace.Wrap(err)
 		}
 		f.clusterDetails[cluster] = details
@@ -153,10 +162,10 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 	return nil
 }
 
-func extractKubeCreds(ctx context.Context, component string, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
-	log = log.WithField("cluster", cluster)
+func extractKubeCreds(ctx context.Context, component string, cluster string, clientCfg *rest.Config, log *slog.Logger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+	log = log.With("cluster", cluster)
 
-	log.Debug("Checking Kubernetes impersonation permissions.")
+	log.DebugContext(ctx, "Checking Kubernetes impersonation permissions")
 	client, err := kubernetes.NewForConfig(clientCfg)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate Kubernetes client for cluster %q", cluster)
@@ -165,9 +174,11 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 	// For each loaded cluster, check impersonation permissions. This
 	// check only logs when permissions are not configured, but does not fail startup.
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.")
+		log.WarnContext(ctx, "Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.",
+			"error", err,
+		)
 	} else {
-		log.Debug("Have all necessary Kubernetes impersonation permissions.")
+		log.DebugContext(ctx, "Have all necessary Kubernetes impersonation permissions")
 	}
 
 	targetAddr, err := parseKubeHost(clientCfg.Host)
@@ -192,7 +203,7 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 		return nil, trace.Wrap(err, "failed to generate transport from kubeconfig: %v", err)
 	}
 
-	log.Debug("Initialized Kubernetes credentials")
+	log.DebugContext(ctx, "Initialized Kubernetes credentials")
 	return &staticKubeCreds{
 		tlsConfig:       tlsConfig,
 		transportConfig: transportConfig,

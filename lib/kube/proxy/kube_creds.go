@@ -21,13 +21,13 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
@@ -151,7 +151,7 @@ type dynamicKubeCreds struct {
 	ctx         context.Context
 	renewTicker clockwork.Ticker
 	staticCreds *staticKubeCreds
-	log         logrus.FieldLogger
+	log         *slog.Logger
 	closeC      chan struct{}
 	client      dynamicCredsClient
 	checker     servicecfg.ImpersonationPermissionsChecker
@@ -164,7 +164,7 @@ type dynamicKubeCreds struct {
 // dynamicCredsConfig contains configuration for dynamicKubeCreds.
 type dynamicCredsConfig struct {
 	kubeCluster          types.KubeCluster
-	log                  logrus.FieldLogger
+	log                  *slog.Logger
 	client               dynamicCredsClient
 	checker              servicecfg.ImpersonationPermissionsChecker
 	clock                clockwork.Clock
@@ -224,7 +224,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 				return
 			case <-dyn.renewTicker.Chan():
 				if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
-					logrus.WithError(err).Warnf("Unable to renew cluster %q credentials.", cfg.kubeCluster.GetName())
+					cfg.log.WarnContext(ctx, "Unable to renew cluster credentials", "cluster", cfg.kubeCluster.GetName(), "error", err)
 				}
 			}
 		}

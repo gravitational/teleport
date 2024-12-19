@@ -240,7 +240,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
-		Log:                  process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		Log:                  process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 		InventoryHandle:      process.inventoryHandle,
 	})

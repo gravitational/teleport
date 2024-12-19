@@ -30,19 +30,19 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Test_DynamicKubeCreds tests the dynamic kube credrentials generator for
@@ -54,7 +54,6 @@ func Test_DynamicKubeCreds(t *testing.T) {
 	t.Parallel()
 	var (
 		fakeClock = clockwork.NewFakeClock()
-		log       = logrus.New()
 		notify    = make(chan struct{}, 1)
 		ttl       = 14 * time.Minute
 	)
@@ -303,7 +302,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 					) error {
 						return nil
 					},
-					log:                  log,
+					log:                  utils.NewSlogLoggerForTests(),
 					kubeCluster:          tt.args.cluster,
 					client:               tt.args.client,
 					initialRenewInterval: ttl / 2,
@@ -332,8 +331,8 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			}
 			require.NoError(t, got.close())
 
-			require.Equal(t, tt.wantAssumedRole, utils.Deduplicate(sts.GetAssumedRoleARNs()))
-			require.Equal(t, tt.wantExternalIds, utils.Deduplicate(sts.GetAssumedRoleExternalIDs()))
+			require.Equal(t, tt.wantAssumedRole, apiutils.Deduplicate(sts.GetAssumedRoleARNs()))
+			require.Equal(t, tt.wantExternalIds, apiutils.Deduplicate(sts.GetAssumedRoleExternalIDs()))
 			sts.ResetAssumeRoleHistory()
 		})
 	}

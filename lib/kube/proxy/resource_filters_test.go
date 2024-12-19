@@ -30,7 +30,6 @@ import (
 	"text/template"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -42,10 +41,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func Test_filterBuffer(t *testing.T) {
-	log := logrus.New()
 	type objectAndAPI struct {
 		obj string
 		api string
@@ -175,7 +174,7 @@ func Test_filterBuffer(t *testing.T) {
 
 				buf, decompress := newMemoryResponseWriter(t, data.Bytes(), tt.args.contentEncoding)
 
-				err = filterBuffer(newResourceFilterer(r, types.KubeVerbList, &globalKubeCodecs, allowedResources, nil, log), buf)
+				err = filterBuffer(newResourceFilterer(r, types.KubeVerbList, &globalKubeCodecs, allowedResources, nil, utils.NewSlogLoggerForTests()), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.

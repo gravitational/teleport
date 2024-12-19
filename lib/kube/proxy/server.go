@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
@@ -68,7 +67,7 @@ type TLSServerConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// Log is the logger.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Selectors is a list of resource monitor selectors.
 	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile is called after each kube_cluster resource reconciliation.
@@ -134,7 +133,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = slog.Default()
 	}
 	if c.CloudClients == nil {
 		cloudClients, err := cloud.NewClients()
@@ -180,7 +179,7 @@ type TLSServer struct {
 	monitoredKubeClusters monitoredKubeClusters
 	// reconcileCh triggers reconciliation of proxied kube_clusters.
 	reconcileCh chan struct{}
-	log         *logrus.Entry
+	log         *slog.Logger
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -188,9 +187,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := cfg.Log.WithFields(logrus.Fields{
-		teleport.ComponentKey: cfg.Component,
-	})
+	log := cfg.Log.With(teleport.ComponentKey, cfg.Component)
 	// limiter limits requests by frequency and amount of simultaneous
 	// connections per client
 	limiter, err := limiter.NewLimiter(cfg.LimiterConfig)
@@ -422,8 +419,7 @@ func (t *TLSServer) close(ctx context.Context) error {
 // and server's GetConfigForClient reloads the list of trusted
 // local and remote certificate authorities
 func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	// TODO(tross): remove slog.Default once the TLSServer is updated to use a slog.Logger
-	return authclient.WithClusterCAs(t.TLS, t.AccessPoint, t.ClusterName, slog.Default())(info)
+	return authclient.WithClusterCAs(t.TLS, t.AccessPoint, t.ClusterName, t.log)(info)
 }
 
 // GetServerInfo returns a services.Server object for heartbeats (aka
@@ -523,7 +519,7 @@ func (t *TLSServer) startHeartbeat(name string) error {
 func (t *TLSServer) getRotationState() types.Rotation {
 	rotation, err := t.TLSServerConfig.GetRotation(types.RoleKube)
 	if err != nil && !trace.IsNotFound(err) {
-		t.log.WithError(err).Warn("Failed to get rotation state.")
+		t.log.WarnContext(t.closeContext, "Failed to get rotation state", "error", err)
 	}
 	if rotation != nil {
 		return *rotation
@@ -539,14 +535,14 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 	// proxy_service will pretend to also be kube_server.
 	if t.KubeServiceType == KubeService ||
 		t.KubeServiceType == LegacyProxyService {
-		t.log.Debugf("Starting kubernetes_service heartbeats for %q", t.Component)
+		t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats")
 		for _, cluster := range t.fwd.kubeClusters() {
 			if err := t.startHeartbeat(cluster.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	} else {
-		t.log.Debug("No local kube credentials on proxy, will not start kubernetes_service heartbeats")
+		t.log.DebugContext(t.closeContext, "No local kube credentials on proxy, will not start kubernetes_service heartbeats")
 	}
 
 	return nil
