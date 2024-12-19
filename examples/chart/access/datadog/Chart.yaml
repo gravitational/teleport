@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev.fred-env-var-migration-1-19"
+.version: &version "17.0.0-dev.fred-env-var-migration-1-20"
 
 apiVersion: v2
 name: teleport-plugin-datadog
