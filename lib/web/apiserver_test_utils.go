@@ -19,6 +19,8 @@
 package web
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -38,7 +40,7 @@ func newDebugFileSystem() (http.FileSystem, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	log.Infof("Using filesystem for serving web assets: %s.", assetsPath)
+	slog.InfoContext(context.TODO(), "Using filesystem for serving web assets", "assets_path", assetsPath)
 
 	return http.Dir(assetsPath), nil
 }

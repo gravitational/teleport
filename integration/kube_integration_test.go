@@ -1768,7 +1768,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1789,7 +1789,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
