@@ -28,6 +28,9 @@ Teleport now allows cluster administrators to enable local and remote port forwa
 
 ### Other improvements and fixes
 
+* Fixed an issue that could cause some antivirus tools to block Teleport's Device Trust feature on Windows machines. [#50453](https://github.com/gravitational/teleport/pull/50453)
+* Updates the UI login redirection service to honor redirection to `enterprise/saml-idp/sso` path even if user is already authenticated with Teleport. [#50442](https://github.com/gravitational/teleport/pull/50442)
+* Reduced cluster state storage load in clusters with a large amount of resources. [#50430](https://github.com/gravitational/teleport/pull/50430)
 * Updated golang.org/x/net to v0.33.0 (addresses CVE-2024-45338). [#50397](https://github.com/gravitational/teleport/pull/50397)
 * Fixed an issue causing panics in SAML app or OIDC integration deletion relating to AWS Identity Center integration. [#50360](https://github.com/gravitational/teleport/pull/50360)
 * Fix missing roles in Access Lists causing users to be locked out of their account. [#50298](https://github.com/gravitational/teleport/pull/50298)
