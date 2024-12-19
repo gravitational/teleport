@@ -111,6 +111,7 @@ type gcpFetcherConfig struct {
 	GCPClient           gcp.InstancesClient
 	projectsClient      gcp.ProjectsClient
 	DiscoveryConfigName string
+	Integration         string
 }
 
 type gcpInstanceFetcher struct {
@@ -123,16 +124,19 @@ type gcpInstanceFetcher struct {
 	Parameters          map[string]string
 	projectsClient      gcp.ProjectsClient
 	DiscoveryConfigName string
+	Integration         string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 	fetcher := &gcpInstanceFetcher{
-		GCP:             cfg.GCPClient,
-		Zones:           cfg.Matcher.Locations,
-		ProjectIDs:      cfg.Matcher.ProjectIDs,
-		ServiceAccounts: cfg.Matcher.ServiceAccounts,
-		Labels:          cfg.Matcher.GetLabels(),
-		projectsClient:  cfg.projectsClient,
+		GCP:                 cfg.GCPClient,
+		Zones:               cfg.Matcher.Locations,
+		ProjectIDs:          cfg.Matcher.ProjectIDs,
+		ServiceAccounts:     cfg.Matcher.ServiceAccounts,
+		Labels:              cfg.Matcher.GetLabels(),
+		projectsClient:      cfg.projectsClient,
+		Integration:         cfg.Integration,
+		DiscoveryConfigName: cfg.DiscoveryConfigName,
 	}
 	if cfg.Matcher.Params != nil {
 		fetcher.Parameters = map[string]string{
@@ -150,6 +154,12 @@ func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Ins
 
 func (f *gcpInstanceFetcher) GetDiscoveryConfigName() string {
 	return f.DiscoveryConfigName
+}
+
+// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+// Might be empty when the fetcher is using ambient credentials.
+func (f *gcpInstanceFetcher) IntegrationName() string {
+	return f.Integration
 }
 
 // GetInstances fetches all GCP virtual machines matching configured filters.
