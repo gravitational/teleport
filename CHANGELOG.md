@@ -42,14 +42,11 @@ Teleport now allows cluster administrators to enable local and remote port forwa
 * Switched to a new role editor UI. [#50030](https://github.com/gravitational/teleport/pull/50030)
 * Added support for multiple ports to TCP applications. [#49711](https://github.com/gravitational/teleport/pull/49711)
 * Allow multiple consecutive occurrences of `-` and `.` in SSH server hostnames.  [#50410](https://github.com/gravitational/teleport/pull/50410)
+* Fixed bug causing users to see notifications for their own access requests in some cases. [#50076](https://github.com/gravitational/teleport/pull/50076)
+* Improved the cluster initialization process's ability to recovery from errors. [#49966](https://github.com/gravitational/teleport/pull/49966)
 
 Enterprise:
 * Adds AWS Account name to Identity Center Roles and resources. Some manual cleanup may be required where users and Access Lists have been assigned the obsolete roles.
-
-## 17.0.6 (12/12/24)
-
-* Fixed bug causing users to see notifications for their own access requests in some cases. [#50076](https://github.com/gravitational/teleport/pull/50076)
-* Improved the cluster initialization process's ability to recovery from errors. [#49966](https://github.com/gravitational/teleport/pull/49966)
 
 ## 17.0.5 (12/11/24)
 
