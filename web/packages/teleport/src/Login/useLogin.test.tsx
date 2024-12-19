@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-
 import history from 'teleport/services/history';
 import session from 'teleport/services/websession';
 import cfg from 'teleport/config';
@@ -29,14 +27,8 @@ import useLogin from './useLogin';
 beforeEach(() => {
   jest.restoreAllMocks();
   jest.spyOn(session, 'isValid').mockImplementation(() => true);
-  jest.spyOn(history, 'getRedirectParam').mockReturnValue('http://localhost');
-  jest.spyOn(history, 'push');
+  jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'replace').mockImplementation();
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    enumerable: true,
-    value: new URL(window.location.href),
-  });
   jest.mock('shared/hooks', () => ({
     useAttempt: () => {
       return [
@@ -53,17 +45,54 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
-it('should not redirect to saml sso page', () => {
+it('should not redirect on non-matching SAML SSO path', () => {
   jest.spyOn(history, 'getRedirectParam').mockReturnValue('http://localhost');
+  renderHook(() => useLogin());
+  expect(history.replace).toHaveBeenCalledWith('/web');
+
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue('http://localhost/web/cluster/name/resources');
   renderHook(() => useLogin());
   expect(history.replace).toHaveBeenCalledWith('/web');
 });
 
-it('should redirect to saml sso page', () => {
-  const samlIdPUrl = 'http://localhost' + cfg.routes.samlIdpSso;
-  jest.spyOn(history, 'getRedirectParam').mockReturnValue(samlIdPUrl);
-  const wrapper = ({ children }) => <MemoryRouter>{children}</MemoryRouter>;
-  renderHook(() => useLogin(), { wrapper });
+it('should redirect on matching SAML SSO path', () => {
+  const samlIdPPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
+  cfg.baseUrl = 'http://localhost';
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(samlIdPPath.toString());
+  renderHook(() => useLogin());
+  expect(history.push).toHaveBeenCalledWith(samlIdPPath, true);
+});
 
-  expect(history.push).toHaveBeenLastCalledWith(samlIdPUrl, true);
+it('non-base domain redirects with base domain for a matching SAML SSO path', async () => {
+  const samlIdPPath = new URL('http://different-base' + cfg.routes.samlIdpSso);
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(samlIdPPath.toString());
+  renderHook(() => useLogin());
+  const expectedPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
+  expect(history.push).toHaveBeenCalledWith(expectedPath, true);
+});
+
+it('non-base domnain with different path is redirected to root', async () => {
+  const samlIdPPath = new URL('http://different-base');
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(samlIdPPath.toString());
+  renderHook(() => useLogin());
+  expect(history.replace).toHaveBeenCalledWith('/web');
+});
+
+it('invalid session does nothing', async () => {
+  const samlIdPPath = new URL('http://different-base' + cfg.routes.samlIdpSso);
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(samlIdPPath.toString());
+  jest.spyOn(session, 'isValid').mockImplementation(() => false);
+  renderHook(() => useLogin());
+  expect(history.replace).not.toHaveBeenCalled();
+  expect(history.push).not.toHaveBeenCalled();
 });
