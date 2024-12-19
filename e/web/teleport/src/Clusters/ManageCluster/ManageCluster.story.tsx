@@ -7,22 +7,37 @@ import { Route } from 'teleport/components/Router';
 import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { Contact } from 'e-teleport/services/contacts/types';
+import { upgradeWindowService } from 'e-teleport/services/upgradeWindow';
+import { contactsService } from 'e-teleport/services/contacts';
 
 import { ManageCluster } from './ManageCluster';
+import { contacts } from './Contacts/fixtures';
 
 export default {
   title: 'TeleportE/Clusters/ManageCluster',
 };
 
 function render(
-  fetchClusterDetails: (clusterId: string) => Promise<any>,
-  getUpgradeWindowStartHour?: (clusterId: string) => Promise<any>
+  fetchClusterDetails: (clusterId: string) => Promise<ClusterInfo>,
+  getUpgradeWindowStartHour?: (clusterId: string) => Promise<8 | 16 | 23>,
+  fetchContacts?: (clusterId: string) => Promise<Contact[]>
 ) {
-  const ctx = createTeleportContextE();
+  let ctx = createTeleportContextE();
+  ctx.storeUser.getContactsAccess = () => ({
+    list: true,
+    create: true,
+    remove: true,
+    edit: true,
+    read: true,
+  });
 
   ctx.clusterService.fetchClusterDetails = fetchClusterDetails;
-  ctx.upgradeWindowService.getUpgradeWindowStartHour =
-    getUpgradeWindowStartHour;
+  ctx.upgradeWindowService = {
+    ...upgradeWindowService,
+    getUpgradeWindowStartHour,
+  };
+  ctx.contactService = { ...contactsService, fetchContacts };
 
   return (
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
@@ -38,19 +53,23 @@ function render(
 }
 
 export function Loading() {
-  const fetchClusterDetails = () => {
-    // promise never resolves to simulate loading state
-    return new Promise(() => {});
-  };
-  return render(fetchClusterDetails);
+  return render(mockLoading);
 }
 
 export function LoadingCloud() {
-  const getUpgradeWindowStartHour = () => {
-    // promise never resolves to simulate loading state
-    return new Promise(() => {});
-  };
-  return render(mockFetchClusterDetailsCloudSuccess, getUpgradeWindowStartHour);
+  return render(
+    mockFetchClusterDetailsCloudSuccess,
+    mockLoading,
+    mockFetchContactsSuccess
+  );
+}
+
+export function LoadingContacts() {
+  return render(
+    mockFetchClusterDetailsCloudSuccess,
+    mockGetUpgradeWindowStartHourSuccess,
+    mockLoading
+  );
 }
 
 export function Failed() {
@@ -64,33 +83,46 @@ export function UpgradeWindowFailed() {
     Promise.reject(new Error('Failed to load upgrade window start time'));
   return render(
     mockFetchClusterDetailsCloudSuccess,
-    mockGetUpgradeWindowStartHour
+    mockGetUpgradeWindowStartHour,
+    mockFetchContactsSuccess
   );
 }
 
 export function SuccessCloud() {
   return render(
     mockFetchClusterDetailsCloudSuccess,
-    mockGetUpgradeWindowStartHourSuccess
+    mockGetUpgradeWindowStartHourSuccess,
+    mockFetchContactsSuccess
   );
 }
 
 export function SuccessSelfHosted() {
-  const mockFetchClusterDetails = () =>
+  const mockFetchClusterDetails = (): Promise<ClusterInfo> =>
     new Promise(resolve => {
       resolve({ ...clusterInfoFixture, isCloud: false } as ClusterInfo);
     });
-  return render(mockFetchClusterDetails);
+  return render(mockFetchClusterDetails, null, mockFetchContactsSuccess);
 }
 
-const mockFetchClusterDetailsCloudSuccess = () => {
+const mockFetchClusterDetailsCloudSuccess = (): Promise<ClusterInfo> => {
   return new Promise(resolve => {
     resolve({ ...clusterInfoFixture, isCloud: true });
   });
 };
 
-const mockGetUpgradeWindowStartHourSuccess = () => {
+const mockGetUpgradeWindowStartHourSuccess = (): Promise<8> => {
   return new Promise(resolve => {
     resolve(8);
   });
+};
+
+const mockFetchContactsSuccess = (): Promise<Contact[]> => {
+  return new Promise(resolve => {
+    resolve(contacts);
+  });
+};
+
+const mockLoading = (): Promise<any> => {
+  // promise never resolves to simulate loading state
+  return new Promise(() => {});
 };

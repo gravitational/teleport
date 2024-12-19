@@ -20,7 +20,7 @@ import {
 } from 'teleport/Clusters/ManageCluster/ManageCluster';
 import { FeatureBox } from 'teleport/components/Layout';
 import { useNoMinWidth } from 'teleport/Main';
-
+import cfg from 'teleport/config';
 import { ClusterInfo } from 'teleport/services/clusters';
 
 import { Alert } from 'design/Alert';
@@ -28,6 +28,7 @@ import { Alert } from 'design/Alert';
 import { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
 import useTeleportE from 'e-teleport/useTeleportE';
 
+import { Contacts } from './Contacts';
 import { useUpgradeWindowStart } from './useUpgradeWindowStart';
 import { ScheduleUpgrades } from './ScheduleUpgrades/ScheduleUpgrades';
 
@@ -67,6 +68,7 @@ export function ManageCluster() {
   useNoMinWidth();
 
   const showUpgradeWindow = cluster?.isCloud;
+  const showContacts = cfg.isDashboard || cluster?.isCloud;
 
   return (
     <FeatureBox>
@@ -76,27 +78,30 @@ export function ManageCluster() {
           <Indicator />
         </Box>
       ) : (
-        <FlexRow gap="3">
-          <ClusterInformation
-            cluster={cluster}
-            style={{ flexBasis: '100%' }}
-            maxWidth={showUpgradeWindow ? '500px' : '100%'}
-            attempt={clusterAttempt}
-          />
-          {showUpgradeWindow && (
-            <ScheduledUpgrades
-              showScheduleUpgrade={scheduleUpgradesVisible}
-              selectedUpgradeWindowStart={selectedUpgradeWindowStart}
-              onShow={showScheduleUpgrade}
-              onUpdate={onUpdate}
-              fetchWindowAttempt={fetchWindowAttempt}
-              updateWindowAttempt={updateWindowAttempt}
-              onClose={closeScheduleUpgrade}
-              onSelectedWindowChange={setSelectedUpgradeWindowStart}
-              selectedWindow={selectedUpgradeWindowStart}
+        <>
+          <FlexRow gap="3">
+            <ClusterInformation
+              cluster={cluster}
+              style={{ flexBasis: '100%' }}
+              maxWidth={showUpgradeWindow ? '500px' : '100%'}
+              attempt={clusterAttempt}
             />
-          )}
-        </FlexRow>
+            {showUpgradeWindow && (
+              <ScheduledUpgrades
+                showScheduleUpgrade={scheduleUpgradesVisible}
+                selectedUpgradeWindowStart={selectedUpgradeWindowStart}
+                onShow={showScheduleUpgrade}
+                onUpdate={onUpdate}
+                fetchWindowAttempt={fetchWindowAttempt}
+                updateWindowAttempt={updateWindowAttempt}
+                onClose={closeScheduleUpgrade}
+                onSelectedWindowChange={setSelectedUpgradeWindowStart}
+                selectedWindow={selectedUpgradeWindowStart}
+              />
+            )}
+          </FlexRow>
+          {showContacts && <Contacts />}
+        </>
       )}
     </FeatureBox>
   );
