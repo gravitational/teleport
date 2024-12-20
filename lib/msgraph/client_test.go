@@ -186,7 +186,7 @@ func TestIterateUsers_Empty(t *testing.T) {
 		baseURL:       uri,
 		pageSize:      defaultPageSize,
 	}
-	err = client.IterateUsers(context.Background(), func(*User) bool {
+	err = client.IterateUsers(context.Background(), nil, func(*User) bool {
 		assert.Fail(t, "should never get called")
 		return true
 	})
@@ -215,7 +215,7 @@ func TestIterateUsers(t *testing.T) {
 	}
 
 	var users []*User
-	err = client.IterateUsers(context.Background(), func(u *User) bool {
+	err = client.IterateUsers(context.Background(), nil, func(u *User) bool {
 		users = append(users, u)
 		return true
 	})
