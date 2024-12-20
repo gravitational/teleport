@@ -662,6 +662,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			// The web app will show them the login page in this case.
 			session, _ := h.authenticateWebSession(w, r)
 			session.XCSRF = csrfToken
+			session.Version = teleport.Version
 
 			httplib.SetNoCacheHeaders(w.Header())
 			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
@@ -721,6 +722,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 type webSession struct {
 	Session string
 	XCSRF   string
+	Version string
 }
 
 func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
@@ -867,8 +869,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
 	// used for updating a token
 	h.PUT("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
+	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2/webapi/token endpoint
 	// used for creating tokens used during guided discover flows
 	h.POST("/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
+	// used for creating tokens used during guided discover flows
+	h.POST("/v2/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
@@ -1000,7 +1005,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
+	// TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
+	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
