@@ -20,11 +20,12 @@ import { useStore } from 'shared/libs/stores';
 import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import * as types from 'teleterm/services/tshd/types';
-import type * as uri from 'teleterm/ui/uri';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
 import { ImmutableStore } from '../immutableStore';
+
+import type * as uri from 'teleterm/ui/uri';
 
 type State = {
   // One regular dialog and multiple important dialogs can be rendered at the same time.
