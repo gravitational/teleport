@@ -4987,17 +4987,17 @@ func ParsePortMapping(rawPorts string) (PortMapping, error) {
 		return PortMapping{}, nil
 	}
 
-	parts := strings.SplitN(rawPorts, ":", 2)
-	localPort, err := strconv.ParseUint(parts[0], 10, 16)
+	rawLocalPort, rawTargetPort, colonFound := strings.Cut(rawPorts, ":")
+	localPort, err := strconv.ParseUint(rawLocalPort, 10, 16)
 	if err != nil {
 		return PortMapping{}, trace.Wrap(err, "parsing local port")
 	}
 
-	if len(parts) == 1 {
+	if !colonFound {
 		return PortMapping{LocalPort: int(localPort)}, nil
 	}
 
-	targetPort, err := strconv.ParseUint(parts[1], 10, 16)
+	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 16)
 	if err != nil {
 		return PortMapping{}, trace.Wrap(err, "parsing target port")
 	}
