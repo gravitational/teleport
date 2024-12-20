@@ -163,6 +163,7 @@ export class DeepLinksService {
         rootClusterUri: RootClusterUri;
       }
   > {
+    const currentlyActiveWorkspace = this.workspacesService.getRootClusterUri();
     const rootClusterId = url.hostname;
     const clusterAddress = url.host;
     const prefill = {
@@ -201,6 +202,16 @@ export class DeepLinksService {
         prefill
       );
 
-    return { isAtDesiredWorkspace, rootClusterUri };
+    if (isAtDesiredWorkspace) {
+      return { isAtDesiredWorkspace: true, rootClusterUri };
+    }
+
+    // We failed to change the workspace.
+    // If we closed the documents reopen dialog when launching a deep link,
+    // setting the active workspace again will reopen it.
+    if (currentlyActiveWorkspace) {
+      await this.workspacesService.setActiveWorkspace(currentlyActiveWorkspace);
+    }
+    return { isAtDesiredWorkspace: false };
   }
 }
