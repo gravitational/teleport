@@ -165,28 +165,49 @@ Updated rotation phase to "init". To check status use 'tctl status'
 
 #### Teleport Workload Identity
 
-We must decide whether the Teleport Workload Identity trust domain should be 
-isolated from the upstream PKI hierarchy - effectively, should Teleport Workload
-Identity distribute the upstream root CA and should workloads using Teleport
-Workload Identity trust certificates issued elsewhere in the PKI hierarchy.
+The behaviour of Teleport Workload Identity will need to be adjusted to support
+the SPIFFE CA being an intermediate CA. Specifically, we must decide how the 
+CAs above the Teleport SPIFFE CA are treated and distributed.
 
-Whilst the idea of isolating the trust domain is appealing, there is a number of
-challenges to this. Primarily, many TLS/X509 validators, do not support treating
-an intermediate CA as a root CA for the purposes of validating a certificate,
-and will reject a non-self signed root. This is not per the specification, but,
-would pose significant concerns around compatability. 
+If no changes were made, then, the PKI hierarchy above Teleport would
+effectively be superficial. Teleport Workload Identity would continue to
+distribute its intermediate CA as if it were a root CA. This would mean that 
+workloads using Teleport Workload Identity as a source of a trust bundle would
+not be able to validate X509 SVIDs that were issued elsewhere in the PKI 
+hierarchy. This provides a level of isolation for the trust domain and workloads
+can expect that any signed certificate is going to abide by the X509 SVID
+specification.
 
-Therefore, we will proceed with the unisolated option whereby:
+Unfortunately, a number of TLS/X509 validators refuse to accept an intermediate 
+certificate (e.g not self-signed) as a root CA. This is not per the
+specification, but, would pose significant concerns around compatability.
 
-- X509 SVIDs will include the intermediate CA certificate in the chain. This 
-  must occur for X509 SVIDs presented to Workloads via the Workload API and 
-  for X509 SVIDs written to disk.
-- The upstream root CA will be distributed in any trust bundle in place of the
-  intermediate CA.
+This means that Teleport Workload Identity must instead:
 
-TODO:
-- We should note here the compromises that using an external PKI hierarchy has 
-  on the security model of Teleport Workload Identity.
+- Distribute the root CA in place of the leaf SPIFFE CA in trust bundles.
+- Include the leaf CA and any intermediate CA with any X509 SVID.
+
+The ramifications of this for the Teleport Workload Identity security model are
+significant and must be included in the documentation:
+
+- Other CAs within the PKI hierarchy may be able to be used to issue X509
+  certificates that appear to be X509 SVIDs issued by Teleport Workload Identity
+  for the trust domain - without the attestation configured within Teleport
+  Workload Identity having taken place. It is the sole responsibility of the
+  operator to ensure that this is not possible or does not pose a risk.
+- Validators MUST take additional care when processing X509 certificates. There
+  is no longer a guarantee that a certificate that passes signature validation is
+  a valid X509 SVID that has been issued in line with the SPIFFE specification.
+- When a trust domain federates with a Teleport Workload Identity trust domain,
+  the federating trust domain will be trusting X509 certificates issued anywhere
+  within the PKI hierarchy rather than solely X509 SVIDs issued by the trust 
+  domain.
+
+Additionally, end-users should be made aware of other implications such as:
+
+- Whilst X509 SVIDs will be trusted across the entire PKI hierarchy, JWT SVIDs
+  will only be trusted within the Teleport Workload Identity trust domain. This
+  creates a disparity between X509 and JWT SVIDs that would not usually exist.
 
 ### Phase 2: Automation & Integration
 
