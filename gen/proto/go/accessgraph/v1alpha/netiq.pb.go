@@ -530,7 +530,7 @@ type NetIQCategory struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name is the resource name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// id is the universal identifier for the resource.
+	// id is the universal identifier for the category.
 	Id            string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

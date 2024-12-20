@@ -89,7 +89,7 @@ message NetIQResource {
 message NetIQCategory {
   // name is the resource name.
   string name = 1;
-  // id is the universal identifier for the resource.
+  // id is the universal identifier for the category.
   string id = 2;
 }
 
