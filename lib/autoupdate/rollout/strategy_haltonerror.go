@@ -60,7 +60,7 @@ func newHaltOnErrorStrategy(log *slog.Logger, clock clockwork.Clock) (rolloutStr
 	}, nil
 }
 
-func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
 	now := h.clock.Now()
 	// We process every group in order, all the previous groups must be in the DONE state
 	// for the next group to become active. Even if some early groups are not DONE,
@@ -72,12 +72,12 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, groups []*aut
 	// to transition "staging" to DONE.
 	previousGroupsAreDone := true
 
-	for i, group := range groups {
+	for i, group := range status.Groups {
 		switch group.State {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:
 			var previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup
 			if i != 0 {
-				previousGroup = groups[i-1]
+				previousGroup = status.Groups[i-1]
 			}
 			canStart, err := canStartHaltOnError(group, previousGroup, now)
 			if err != nil {
@@ -86,16 +86,31 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, groups []*aut
 				setGroupState(group, group.State, updateReasonReconcilerError, now)
 				return err
 			}
+
+			// Check if the rollout got created after the theoretical group start time
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime())
+			if err != nil {
+				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				return err
+			}
+
 			switch {
-			case previousGroupsAreDone && canStart:
-				// We can start
-				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
-			case previousGroupsAreDone:
-				// All previous groups are OK, but time-related criteria are not OK
-				setGroupState(group, group.State, updateReasonCannotStart, now)
-			default:
-				// At least one previous group is not DONE
+			case !previousGroupsAreDone:
+				// All previous groups are not DONE
 				setGroupState(group, group.State, updateReasonPreviousGroupsNotDone, now)
+			case !canStart:
+				// All previous groups are DONE, but time-related criteria are not met
+				// This can be because we are outside an update window, or because the
+				// specified wait_hours doesn't let us update yet.
+				setGroupState(group, group.State, updateReasonCannotStart, now)
+			case rolloutChangedDuringWindow:
+				// All previous groups are DONE and time-related criteria are met.
+				// However, the rollout changed during the maintenance window.
+				setGroupState(group, group.State, updateReasonRolloutChanged, now)
+			default:
+				// All previous groups are DONE and time-related criteria are met.
+				// We can start.
+				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
 			}
 			previousGroupsAreDone = false
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
@@ -132,10 +147,10 @@ func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRollout
 
 		previousStart := previousGroup.StartTime.AsTime()
 		if previousStart.IsZero() || previousStart.Unix() == 0 {
-			return false, trace.BadParameter("the previous group doesn't have a start time, cannot check the 'wait_hours' criteria")
+			return false, trace.BadParameter("the previous group doesn't have a start time, cannot check the 'wait_hours' criterion")
 		}
 
-		// Check if the wait_hours criteria is OK, if we are at least after 'wait_hours' hours since the previous start.
+		// Check if the wait_hours criterion is OK, if we are at least after 'wait_hours' hours since the previous start.
 		if now.Before(previousGroup.StartTime.AsTime().Add(time.Duration(group.ConfigWaitHours) * time.Hour)) {
 			return false, nil
 		}
