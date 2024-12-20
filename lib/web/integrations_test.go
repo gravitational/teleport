@@ -128,7 +128,14 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
 		}
 
-		gotSummary, err := collectAWSOIDCAutoDiscoverStats(ctx, logger, integration, clt, clt, deployedDatabaseServicesClient)
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
 		require.NoError(t, err)
 		expectedSummary := &ui.IntegrationWithSummary{
 			Integration: &ui.Integration{
@@ -200,7 +207,14 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 			databases:        make([]types.Database, 0),
 		}
 
-		gotSummary, err := collectAWSOIDCAutoDiscoverStats(ctx, logger, integration, clt, clt, deployedDatabaseServicesClient)
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
 		require.NoError(t, err)
 		expectedSummary := &ui.IntegrationWithSummary{
 			Integration: &ui.Integration{

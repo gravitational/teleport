@@ -221,7 +221,14 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	summary, err := collectAWSOIDCAutoDiscoverStats(r.Context(), h.logger, ig, clt.DiscoveryConfigClient(), clt, clt.IntegrationAWSOIDCClient())
+	req := collectIntegrationStatsRequest{
+		logger:                h.logger,
+		integration:           ig,
+		discoveryConfigLister: clt.DiscoveryConfigClient(),
+		databaseGetter:        clt,
+		awsOIDCClient:         clt.IntegrationAWSOIDCClient(),
+	}
+	summary, err := collectIntegrationStats(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,17 +236,18 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 	return summary, nil
 }
 
-func collectAWSOIDCAutoDiscoverStats(
-	ctx context.Context,
-	logger *slog.Logger,
-	integration types.Integration,
-	discoveryConfigLister discoveryConfigLister,
-	databaseGetter databaseGetter,
-	awsOIDCClient deployedDatabaseServiceLister,
-) (*ui.IntegrationWithSummary, error) {
+type collectIntegrationStatsRequest struct {
+	logger                *slog.Logger
+	integration           types.Integration
+	discoveryConfigLister discoveryConfigLister
+	databaseGetter        databaseGetter
+	awsOIDCClient         deployedDatabaseServiceLister
+}
+
+func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsRequest) (*ui.IntegrationWithSummary, error) {
 	ret := &ui.IntegrationWithSummary{}
 
-	uiIg, err := ui.MakeIntegration(integration)
+	uiIg, err := ui.MakeIntegration(req.integration)
 	if err != nil {
 		return nil, err
 	}
@@ -247,27 +255,27 @@ func collectAWSOIDCAutoDiscoverStats(
 
 	var nextPage string
 	for {
-		discoveryConfigs, nextToken, err := discoveryConfigLister.ListDiscoveryConfigs(ctx, 0, nextPage)
+		discoveryConfigs, nextToken, err := req.discoveryConfigLister.ListDiscoveryConfigs(ctx, 0, nextPage)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		for _, dc := range discoveryConfigs {
-			discoveredResources, ok := dc.Status.IntegrationDiscoveredResources[integration.GetName()]
+			discoveredResources, ok := dc.Status.IntegrationDiscoveredResources[req.integration.GetName()]
 			if !ok {
 				continue
 			}
 
-			if matchers := rulesWithIntegration(dc, types.AWSMatcherEC2, integration.GetName()); matchers != 0 {
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherEC2, req.integration.GetName()); matchers != 0 {
 				ret.AWSEC2.RulesCount += matchers
 				mergeResourceTypeSummary(&ret.AWSEC2, dc.Status.LastSyncTime, discoveredResources.AwsEc2)
 			}
 
-			if matchers := rulesWithIntegration(dc, types.AWSMatcherRDS, integration.GetName()); matchers != 0 {
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherRDS, req.integration.GetName()); matchers != 0 {
 				ret.AWSRDS.RulesCount += matchers
 				mergeResourceTypeSummary(&ret.AWSRDS, dc.Status.LastSyncTime, discoveredResources.AwsRds)
 			}
 
-			if matchers := rulesWithIntegration(dc, types.AWSMatcherEKS, integration.GetName()); matchers != 0 {
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherEKS, req.integration.GetName()); matchers != 0 {
 				ret.AWSEKS.RulesCount += matchers
 				mergeResourceTypeSummary(&ret.AWSEKS, dc.Status.LastSyncTime, discoveredResources.AwsEks)
 			}
@@ -279,12 +287,12 @@ func collectAWSOIDCAutoDiscoverStats(
 		nextPage = nextToken
 	}
 
-	regions, err := fetchRelevantAWSRegions(ctx, databaseGetter, discoveryConfigLister)
+	regions, err := fetchRelevantAWSRegions(ctx, req.databaseGetter, req.discoveryConfigLister)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	services, err := listDeployedDatabaseServices(ctx, logger, integration.GetName(), regions, awsOIDCClient)
+	services, err := listDeployedDatabaseServices(ctx, req.logger, req.integration.GetName(), regions, req.awsOIDCClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
