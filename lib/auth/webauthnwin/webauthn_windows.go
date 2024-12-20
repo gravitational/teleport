@@ -19,17 +19,19 @@
 package webauthnwin
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"syscall"
 	"unsafe"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 
+	"github.com/gravitational/teleport"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -52,27 +54,26 @@ func newNativeImpl() *nativeImpl {
 		hasCompileSupport: true,
 	}
 
+	logger := slog.With(teleport.ComponentKey, "WebAuthnWin")
+	ctx := context.Background()
+
 	// Explicitly loading the module avoids a panic when calling DLL functions if
 	// the DLL is missing.
 	// https://github.com/gravitational/teleport/issues/36851
 	if err := modWebAuthn.Load(); err != nil {
-		log.
-			WithError(err).
-			Debug("WebAuthnWin: failed to load WebAuthn.dll (it's likely missing)")
+		logger.DebugContext(ctx, "failed to load WebAuthn.dll (it's likely missing)", "error", err)
 		return n
 	}
 	// Load WebAuthNGetApiVersionNumber explicitly too, it avoids a panic on some
 	// Windows Server 2019 installs.
 	if err := procWebAuthNGetApiVersionNumber.Find(); err != nil {
-		log.
-			WithError(err).
-			Debug("WebAuthnWin: failed to load WebAuthNGetApiVersionNumber")
+		logger.DebugContext(ctx, "failed to load WebAuthNGetApiVersionNumber", "error", err)
 		return n
 	}
 
 	v, err := webAuthNGetApiVersionNumber()
 	if err != nil {
-		log.WithError(err).Debug("WebAuthnWin: failed to check version")
+		logger.DebugContext(ctx, "failed to check version", "error", err)
 		return n
 	}
 	n.webauthnAPIVersion = v
@@ -86,7 +87,7 @@ func newNativeImpl() *nativeImpl {
 	if err != nil {
 		// This should not happen if dll exists, however we are fine with
 		// to proceed without uvPlatform.
-		log.WithError(err).Debug("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
+		logger.DebugContext(ctx, "failed to check isUVPlatformAuthenticatorAvailable", "error", err)
 	}
 
 	return n
