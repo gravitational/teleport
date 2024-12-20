@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -37,7 +38,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -547,16 +547,18 @@ type TOTPRegisterChallenge struct {
 
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentClient,
-	})
-	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
+	log := slog.With(teleport.ComponentKey, teleport.ComponentClient)
+	log.DebugContext(context.Background(), "Initializing proxy HTTPS client",
+		"proxy_addr", proxyAddr,
+		"insecure", insecure,
+		"extra_headers", extraHeaders,
+	)
 
 	// validate proxy address
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
-			log.Error(err)
+			log.ErrorContext(context.Background(), "invalid proxy address", "error", err)
 		}
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
