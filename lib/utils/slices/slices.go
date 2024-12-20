@@ -36,10 +36,6 @@ func FilterMapUnique[T any, S comparable](ts []T, fn func(T) (s S, include bool)
 	return ss
 }
 
-type key[S any] struct {
-	val any
-}
-
 // ToPointers converts a slice of values to a slice of pointers to those values
 func ToPointers[T any](in []T) []*T {
 	out := make([]*T, len(in))
