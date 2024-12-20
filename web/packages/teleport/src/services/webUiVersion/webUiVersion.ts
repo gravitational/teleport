@@ -34,7 +34,7 @@ export function withUnsupportedLabelFeatureErrorConversion(
         'We could not complete your request. ' +
           'Your proxy may be behind the minimum required version ' +
           `(${getWebUiVersion()}) to support adding resource labels. ` +
-          'Remove labels and try again or upgrade your proxy version.'
+          'Upgrade your proxy version or remove labels and try again.'
       );
     }
   }
