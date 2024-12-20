@@ -73,7 +73,9 @@ export interface WorkspacesState {
   /**
    * isInitialized signifies whether the app has finished setting up
    * callbacks and restoring state during the start of the app.
-   * This also means that the UI is visible.
+   * This also means that the UI can be considered visible, because soon after
+   * isInitialized is flipped to true, AppInitializer removes the loading indicator
+   * and shows the usual app UI.
    *
    * This field is not persisted to disk.
    */
