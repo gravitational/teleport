@@ -20,6 +20,7 @@ package userloginstate
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -29,9 +30,11 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -59,6 +62,9 @@ type GeneratorConfig struct {
 
 	// Clock is the clock to use for the generator.
 	Clock clockwork.Clock
+
+	// Emitter is the emitter for audit events.
+	Emitter apievents.Emitter
 }
 
 // UsageEventsClient is an interface that allows for submitting usage events to Posthog.
@@ -78,6 +84,10 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 	if g.Access == nil {
 		return trace.BadParameter("missing access")
+	}
+
+	if g.Emitter == nil {
+		return trace.BadParameter("missing audit event emitter")
 	}
 
 	if modules.GetModules().Features().Cloud {
@@ -103,6 +113,7 @@ type Generator struct {
 	usageEvents   UsageEventsClient
 	memberChecker *services.AccessListMembershipChecker
 	clock         clockwork.Clock
+	emitter       apievents.Emitter
 }
 
 // NewGenerator creates a new user login state generator.
@@ -118,6 +129,7 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 		usageEvents:   config.UsageEvents,
 		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.Access),
 		clock:         config.Clock,
+		emitter:       config.Emitter,
 	}, nil
 }
 
@@ -176,7 +188,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	return uls, nil
 }
 
-// addAccessListsToState will added the user's applicable access lists to the user login state.
+// addAccessListsToState will add the user's applicable access lists to the user login state after validating them.
 func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) error {
 	accessLists, err := g.accessLists.GetAccessLists(ctx)
 	if err != nil {
@@ -193,13 +205,65 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 
 	for _, accessList := range accessLists {
 		if err := services.IsAccessListOwner(identity, accessList); err == nil {
-			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state)
+			g.handleAccessListOwnership(ctx, identity, accessList, state)
 		}
 
 		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
-			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state)
+			g.handleAccessListMembership(ctx, identity, accessList, state)
 		}
 	}
+
+	return nil
+}
+
+// handleAccessListMembership validates the access list and applies the grants and traits from the access list to the user if they are a member of the access list.
+// If the access list is invalid (because it references a non-existent role, for example,
+// then it will not be applied.
+func (g *Generator) handleAccessListMembership(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList, state *userloginstate.UserLoginState) error {
+	// Validate that all the roles in the access list exist.
+	missingRoles, err := g.identifyMissingRoles(ctx, accessList.Spec.Grants.Roles)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If there are any missing roles, then we cannot apply the access list.
+	// Emit an audit event and return early.
+	// This flow is designed to skip the entire access list rather than processing individual roles within it.
+	// This approach ensures that access lists are treated as cohesive units of access control. Partial
+	// application of an access list could result in unintended permission configurations, potentially leading
+	// to security vulnerabilities or unpredictable behavior.
+	if missingRoles != nil {
+		g.emitSkippedAccessListEvent(ctx, accessList.Spec.Title, missingRoles, identity.Username)
+		return nil
+	}
+
+	g.grantRolesAndTraits(identity, accessList.Spec.Grants, state)
+
+	return nil
+}
+
+// handleAccessListOwnership validates the access list and applies the grants and traits from the access list to the user if they are an owner of the access list.
+// If the access list is invalid (because it references a non-existent role, for example,
+// then it will not be applied.
+func (g *Generator) handleAccessListOwnership(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList, state *userloginstate.UserLoginState) error {
+	// Validate that all the roles in the access list exist.
+	missingRoles, err := g.identifyMissingRoles(ctx, accessList.Spec.OwnerGrants.Roles)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If there are any missing roles, then we cannot apply the access list.
+	// Emit an audit event and return early.
+	// This flow is designed to skip the entire access list rather than processing individual roles within it.
+	// This approach ensures that access lists are treated as cohesive units of access control. Partial
+	// application of an access list could result in unintended permission configurations, potentially leading
+	// to security vulnerabilities or unpredictable behavior.
+	if missingRoles != nil {
+		g.emitSkippedAccessListEvent(ctx, accessList.Spec.Title, missingRoles, identity.Username)
+		return nil
+	}
+
+	g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state)
 
 	return nil
 }
@@ -300,5 +364,50 @@ func (g *Generator) LoginHook(ulsService services.UserLoginStates) func(context.
 	return func(ctx context.Context, user types.User) error {
 		_, err := g.Refresh(ctx, user, ulsService)
 		return trace.Wrap(err)
+	}
+}
+
+// identifyMissingRoles is a helper function which identifies any roles from the provided list that don't exist, and returns nil if they all exist.
+func (g *Generator) identifyMissingRoles(ctx context.Context, roles []string) ([]string, error) {
+	var missingRoles []string
+
+	for _, role := range roles {
+		_, err := g.access.GetRole(ctx, role)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				missingRoles = append(missingRoles, role)
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if len(missingRoles) > 0 {
+		return missingRoles, nil
+	}
+
+	return nil, nil
+}
+
+// emitSkippedAccessListEvent emits an audit log event to indicate that an invalid
+// access list could not be applied during user login.
+func (g *Generator) emitSkippedAccessListEvent(ctx context.Context, accessListName string, missingRoles []string, username string) {
+	if err := g.emitter.EmitAuditEvent(ctx, &apievents.UserLoginAccessListInvalid{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginAccessListInvalidEvent,
+			Code: events.UserLoginAccessListInvalidCode,
+		},
+		AccessListInvalidMetadata: apievents.AccessListInvalidMetadata{
+			AccessListName: accessListName,
+			User:           username,
+			MissingRoles:   missingRoles,
+		},
+		Status: apievents.Status{
+			Success:     false,
+			Error:       fmt.Sprintf("roles %v were not found", missingRoles),
+			UserMessage: "access list skipped because it references non-existent role(s)",
+		},
+	}); err != nil {
+		g.log.WithError(err).Warn("Failed to emit access list skipped warning audit event.")
 	}
 }
