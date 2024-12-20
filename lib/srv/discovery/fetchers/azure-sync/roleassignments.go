@@ -20,7 +20,7 @@ package azure_sync
 
 import (
 	"context"
-	"fmt" //nolint:unused // used in a dependent PR
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
@@ -44,7 +44,16 @@ func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAs
 
 	// Convert to protobuf format
 	pbRoleAssigns := make([]*accessgraphv1alpha.AzureRoleAssignment, 0, len(roleAssigns))
+	var fetchErrs []error
 	for _, roleAssign := range roleAssigns {
+		if roleAssign.ID == nil ||
+			roleAssign.Properties == nil ||
+			roleAssign.Properties.PrincipalID == nil ||
+			roleAssign.Properties.Scope == nil {
+			fetchErrs = append(fetchErrs,
+				trace.BadParameter("nil values on AzureRoleAssignment object: %v", roleAssign))
+			continue
+		}
 		pbRoleAssign := &accessgraphv1alpha.AzureRoleAssignment{
 			Id:               *roleAssign.ID,
 			SubscriptionId:   subscriptionID,
@@ -55,5 +64,5 @@ func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAs
 		}
 		pbRoleAssigns = append(pbRoleAssigns, pbRoleAssign)
 	}
-	return pbRoleAssigns, nil
+	return pbRoleAssigns, trace.NewAggregate(fetchErrs...)
 }

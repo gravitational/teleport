@@ -20,15 +20,16 @@ package azure_sync
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/msgraph"
+
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
-func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) {
+func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint: unused // invoked in a dependent PR
 	// Fetch the users, groups, and service principals
 	var users []*msgraph.User
 	err := cli.IterateUsers(ctx, func(user *msgraph.User) bool {
@@ -58,8 +59,13 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	}
 
 	// Return the users, groups, and service principals as protobuf messages
+	var fetchErrs []error
 	var pbPrincipals []*accessgraphv1alpha.AzurePrincipal
 	for _, user := range users {
+		if user.ID == nil || user.DisplayName == nil {
+			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph User object: %v", user))
+			continue
+		}
 		var memberOf []string
 		for _, member := range user.MemberOf {
 			memberOf = append(memberOf, member.ID)
@@ -74,6 +80,10 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		})
 	}
 	for _, group := range groups {
+		if group.ID == nil || group.DisplayName == nil {
+			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph User object: %v", group))
+			continue
+		}
 		var memberOf []string
 		for _, member := range group.MemberOf {
 			memberOf = append(memberOf, member.ID)
@@ -88,6 +98,10 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		})
 	}
 	for _, sp := range servicePrincipals {
+		if sp.ID == nil || sp.DisplayName == nil {
+			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph User object: %v", sp))
+			continue
+		}
 		var memberOf []string
 		for _, member := range sp.MemberOf {
 			memberOf = append(memberOf, member.ID)
@@ -101,6 +115,5 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 			ObjectType:     "servicePrincipal",
 		})
 	}
-
-	return pbPrincipals, nil
+	return pbPrincipals, trace.NewAggregate(fetchErrs...)
 }

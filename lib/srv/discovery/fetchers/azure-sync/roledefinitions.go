@@ -43,9 +43,21 @@ func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDe
 
 	// Convert to protobuf format
 	pbRoleDefs := make([]*accessgraphv1alpha.AzureRoleDefinition, 0, len(roleDefs))
+	var fetchErrs []error
 	for _, roleDef := range roleDefs {
+		if roleDef.ID == nil ||
+			roleDef.Properties == nil ||
+			roleDef.Properties.Permissions == nil ||
+			roleDef.Properties.RoleName == nil {
+			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on AzureRoleDefinition object: %v", roleDef))
+			continue
+		}
 		pbPerms := make([]*accessgraphv1alpha.AzureRBACPermission, 0, len(roleDef.Properties.Permissions))
 		for _, perm := range roleDef.Properties.Permissions {
+			if perm.Actions == nil || perm.NotActions == nil {
+				fetchErrs = append(fetchErrs, trace.BadParameter("nil values on Permission object: %v", perm))
+				continue
+			}
 			pbPerm := accessgraphv1alpha.AzureRBACPermission{
 				Actions:    ptrsToList(perm.Actions),
 				NotActions: ptrsToList(perm.NotActions),
@@ -61,13 +73,15 @@ func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDe
 		}
 		pbRoleDefs = append(pbRoleDefs, pbRoleDef)
 	}
-	return pbRoleDefs, nil
+	return pbRoleDefs, trace.NewAggregate(fetchErrs...)
 }
 
 func ptrsToList(ptrs []*string) []string { //nolint:unused // used in a dependent PR
 	strList := make([]string, 0, len(ptrs))
 	for _, ptr := range ptrs {
-		strList = append(strList, *ptr)
+		if ptr != nil {
+			strList = append(strList, *ptr)
+		}
 	}
 	return strList
 }

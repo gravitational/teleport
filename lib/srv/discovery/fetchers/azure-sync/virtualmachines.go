@@ -43,7 +43,12 @@ func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli Virtua
 
 	// Return the VMs as protobuf messages
 	pbVms := make([]*accessgraphv1alpha.AzureVirtualMachine, 0, len(vms))
+	var fetchErrs []error
 	for _, vm := range vms {
+		if vm.ID == nil || vm.Name == nil {
+			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on AzureVirtualMachine object: %v", vm))
+			continue
+		}
 		pbVm := accessgraphv1alpha.AzureVirtualMachine{
 			Id:             *vm.ID,
 			SubscriptionId: subscriptionID,
@@ -52,5 +57,5 @@ func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli Virtua
 		}
 		pbVms = append(pbVms, &pbVm)
 	}
-	return pbVms, nil
+	return pbVms, trace.NewAggregate(fetchErrs...)
 }
