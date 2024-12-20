@@ -3,12 +3,14 @@ package aws_sync
 import (
 	"context"
 	"fmt"
-	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"golang.org/x/sync/errgroup"
 	"net/url"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/accessanalyzer"
@@ -19,11 +21,11 @@ const maxPollTime = 1 * time.Minute
 
 func (a *awsFetcher) fetchPolicyChanges(ctx context.Context, result *Resources) ([]*accessgraphv1alpha.AWSPolicyChange, error) {
 	// Initialize the client
-	client, err := a.CloudClients.GetAWSIAMAccessAnalyzerClient(ctx, "us-east-2", a.getAWSOptions()...)
+	client, err := a.CloudClients.GetAWSIAMAccessAnalyzerClient(ctx, os.Getenv("AWS_ACCESS_ANALYZER_REGION"), a.getAWSOptions()...)
 	if err != nil {
 		return nil, err
 	}
-	analyzerArn := "arn:aws:access-analyzer:us-east-2:278576220453:analyzer/mbrock-test"
+	analyzerArn := os.Getenv("AWS_ACCESS_ANALYZER_ARN")
 	input := &accessanalyzer.ListFindingsV2Input{
 		AnalyzerArn: &analyzerArn,
 	}
