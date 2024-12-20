@@ -26,14 +26,25 @@ import (
 //go:embed descriptions/*.md
 var descriptionsFS embed.FS
 
-// DescriptionForDiscoverEC2Issue returns the description of the issue and fixing steps.
-// The returned string contains a markdown document.
-// If issue type is not recognized or doesn't have a specific description, them an empty string is returned.
-func DescriptionForDiscoverEC2Issue(issueType string) string {
+func loadIssueDescription(issueType string) string {
 	filename := fmt.Sprintf("descriptions/%s.md", issueType)
 	bs, err := descriptionsFS.ReadFile(filename)
 	if err != nil {
 		return ""
 	}
 	return string(bs)
+}
+
+// DescriptionForDiscoverEC2Issue returns the description of the issue and fixing steps.
+// The returned string contains a markdown document.
+// If issue type is not recognized or doesn't have a specific description, them an empty string is returned.
+func DescriptionForDiscoverEC2Issue(issueType string) string {
+	return loadIssueDescription(issueType)
+}
+
+// DescriptionForDiscoverEKSIssue returns the description of the issue and fixing steps.
+// The returned string contains a markdown document.
+// If issue type is not recognized or doesn't have a specific description, them an empty string is returned.
+func DescriptionForDiscoverEKSIssue(issueType string) string {
+	return loadIssueDescription(issueType)
 }
