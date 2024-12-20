@@ -98,12 +98,12 @@ export interface Workspace {
   // where we construct the workspace manually.
   unifiedResourcePreferences?: UnifiedResourcePreferences;
   /**
-   * Tracks whether the user has restored or discarded documents from a previous session.
+   * Tracks whether the user can restore documents from a previous session.
    * This is used to ensure that the prompt to restore a previous session is shown only once.
    *
    * This field is not persisted to disk.
    */
-  documentsRestoredOrDiscarded?: boolean;
+  canRestoreDocuments?: boolean;
 }
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
@@ -370,20 +370,12 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       draftState.rootClusterUri = clusterUri;
     });
 
-    const documentsRestoredOrDiscarded =
-      this.getWorkspace(clusterUri)?.documentsRestoredOrDiscarded;
-    const restoredWorkspace = this.restoredState?.workspaces?.[clusterUri];
-    const askAboutRestoringDocuments =
-      !documentsRestoredOrDiscarded &&
-      hasDocumentsToReopen({
-        previousDocuments: restoredWorkspace?.documents,
-        currentDocuments: this.state.workspaces[clusterUri].documents,
-        defaultDocuments: getWorkspaceDefaultState(clusterUri).documents,
-      });
-    if (!askAboutRestoringDocuments) {
+    const { canRestoreDocuments } = this.getWorkspace(clusterUri);
+    if (!canRestoreDocuments) {
       return { isAtDesiredWorkspace: true };
     }
 
+    const restoredWorkspace = this.restoredState?.workspaces?.[clusterUri];
     const documentsReopen = await new Promise<
       'confirmed' | 'discarded' | 'canceled'
     >(resolve =>
@@ -529,14 +521,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         reopen.documents,
         reopen.location
       );
-      workspace.documentsRestoredOrDiscarded = true;
+      workspace.canRestoreDocuments = false;
     });
   }
 
   private discardPreviousDocuments(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
-      workspace.documentsRestoredOrDiscarded = true;
+      workspace.canRestoreDocuments = false;
     });
   }
 
@@ -638,7 +630,7 @@ function getWorkspaceDefaultState(
     location: defaultDocument.uri,
     documents: [defaultDocument],
     connectMyComputer: undefined,
-    documentsRestoredOrDiscarded: false,
+    canRestoreDocuments: false,
     localClusterUri: rootClusterUri,
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
   };
@@ -651,6 +643,10 @@ function getWorkspaceDefaultState(
     restoredWorkspace.unifiedResourcePreferences
   );
   defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
+  defaultWorkspace.canRestoreDocuments = hasDocumentsToReopen({
+    previousDocuments: restoredWorkspace.documents,
+    currentDocuments: defaultWorkspace.documents,
+  });
 
   return defaultWorkspace;
 }
@@ -674,32 +670,14 @@ function parseUnifiedResourcePreferences(
 function hasDocumentsToReopen({
   previousDocuments,
   currentDocuments,
-  defaultDocuments,
 }: {
   previousDocuments?: Immutable<Document[]>;
   currentDocuments: Document[];
-  defaultDocuments: Document[];
 }): boolean {
   const omitUriAndTitle = (documents: Immutable<Document[]>) =>
     documents.map(d => ({ ...d, uri: undefined, title: undefined }));
 
   if (!previousDocuments?.length) {
-    return false;
-  }
-
-  // If current documents are no longer the default documents, don't offer reopening the previous session.
-  // This can happen when another dialog closed the dialog to reopen documents, and then you opened
-  // a few documents in that workspace.
-  // The app would then ask you about replacing your current documents with the default document
-  // the next time you would navigate to the workspace.
-  // TODO(gzdunek): Consider replacing the document reopen dialog with an action in the UI that
-  // could reopen the previous session at any time.
-  if (
-    !arrayObjectIsEqual(
-      omitUriAndTitle(defaultDocuments),
-      omitUriAndTitle(currentDocuments)
-    )
-  ) {
     return false;
   }
 
