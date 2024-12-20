@@ -30,7 +30,8 @@ deployments, use your own private key and certificate.
   On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
   and `/var/lib/teleport/fullchain.pem` respectively.
 
-  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
+  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `teleport.example.com`
+  with all other mapped domains as alternate names, e.g., `*.teleport.example.com` for web applications.
 
   On the host where you will start the Teleport Auth Service and Proxy Service,
   run the following `teleport configure` command. Assign <Var
