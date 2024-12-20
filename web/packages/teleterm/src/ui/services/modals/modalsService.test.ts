@@ -65,36 +65,40 @@ test('closing regular dialog with abort signal', () => {
   expect(dialogClusterConnect.onCancel).toHaveBeenCalledTimes(1);
 });
 
-test('closing important dialog with abort signal', () => {
+test('aborting dialog takes effect only if it is open', () => {
   const dialogClusterConnect1 = makeDialogClusterConnect();
-  const dialogClusterConnect2 = makeDialogClusterConnect();
   const modalsService = new ModalsService();
-  const controller1 = new AbortController();
-  const controller2 = new AbortController();
+  const controller = new AbortController();
 
-  modalsService.openImportantDialog(dialogClusterConnect1, controller1.signal);
-  modalsService.openImportantDialog(dialogClusterConnect2, controller2.signal);
-  expect(modalsService.state.important).toHaveLength(2);
-  expect(modalsService.state.important[0].dialog).toStrictEqual(
-    dialogClusterConnect1
-  );
-  expect(modalsService.state.important[1].dialog).toStrictEqual(
-    dialogClusterConnect2
-  );
+  modalsService.openRegularDialog(dialogClusterConnect1, controller.signal);
+  expect(modalsService.state.regular).toStrictEqual(dialogClusterConnect1);
+  dialogClusterConnect1.onSuccess('');
 
-  controller1.abort();
-  expect(modalsService.state.important).toHaveLength(1);
-  expect(modalsService.state.important[0].dialog).toStrictEqual(
-    dialogClusterConnect2
-  );
-  expect(dialogClusterConnect1.onCancel).toHaveBeenCalledTimes(1);
+  const dialogClusterConnect2 = makeDialogClusterConnect();
+  modalsService.openRegularDialog(dialogClusterConnect2);
+  expect(modalsService.state.regular).toStrictEqual(dialogClusterConnect2);
 
-  controller2.abort();
-  expect(modalsService.state.important).toHaveLength(0);
-  expect(dialogClusterConnect2.onCancel).toHaveBeenCalledTimes(1);
+  controller.abort();
+  // The currently open dialog is not closed.
+  expect(modalsService.state.regular).toStrictEqual(dialogClusterConnect2);
 });
 
-test('dialogs opened with aborted signal return immediately', () => {
+test('dialog can be canceled only once', () => {
+  const dialogClusterConnect = makeDialogClusterConnect();
+  const modalsService = new ModalsService();
+  const controller = new AbortController();
+
+  const { closeDialog } = modalsService.openRegularDialog(
+    dialogClusterConnect,
+    controller.signal
+  );
+  expect(modalsService.state.regular).toStrictEqual(dialogClusterConnect);
+  closeDialog();
+  controller.abort();
+  expect(dialogClusterConnect.onCancel).toHaveBeenCalledTimes(1);
+});
+
+test('dialog opened with aborted signal return immediately', () => {
   const dialogClusterConnect = makeDialogClusterConnect();
   const modalsService = new ModalsService();
   const controller = new AbortController();
@@ -103,8 +107,4 @@ test('dialogs opened with aborted signal return immediately', () => {
   modalsService.openRegularDialog(dialogClusterConnect, controller.signal);
   expect(modalsService.state.regular).toStrictEqual(undefined);
   expect(dialogClusterConnect.onCancel).toHaveBeenCalledTimes(1);
-
-  modalsService.openImportantDialog(dialogClusterConnect, controller.signal);
-  expect(modalsService.state.important).toHaveLength(0);
-  expect(dialogClusterConnect.onCancel).toHaveBeenCalledTimes(2);
 });

@@ -69,6 +69,11 @@ export class ModalsService extends ImmutableStore<State> {
    *
    * The passed `abortSignal` or the returned `closeDialog` function can be used to close the dialog
    * and automatically call the dialog's onCancel callback (if present).
+   * The onCancel function can be called without a user interaction. As of now,
+   * this happens when the user launches a deep link while a regular dialog is open.
+   * As such, if the dialog presents the user with a decision, onCancel should be
+   * treated as no decision being made.
+   * If possible, the user should be prompted again to make the decision later on.
    */
   openRegularDialog(
     dialog: Dialog,
@@ -85,7 +90,8 @@ export class ModalsService extends ImmutableStore<State> {
       };
     }
 
-    this.state.regular?.['onCancel']?.();
+    const previousDialog = this.state.regular;
+    previousDialog?.['onCancel']?.();
 
     const closeDialog = () => {
       sharedSignal.removeEventListener('abort', closeDialog);
@@ -94,8 +100,8 @@ export class ModalsService extends ImmutableStore<State> {
         return;
       }
 
-      onCancelDialog();
       this.closeRegularDialog();
+      onCancelDialog();
     };
     sharedSignal.addEventListener('abort', closeDialog);
 
@@ -122,15 +128,12 @@ export class ModalsService extends ImmutableStore<State> {
    * Dialogs are displayed in the order they arrive, with the most recent one on top.
    * This allows actions that need further steps to be completed.
    *
-   * The passed `abortSignal` or the returned `closeDialog` function can be used to close the dialog
-   * and automatically call the dialog's onCancel callback (if present).
+   * The returned closeDialog function can be used to close the dialog and automatically call the
+   * dialog's onCancel callback (if present).
    */
-  openImportantDialog(
-    dialog: Dialog,
-    abortSignal?: AbortSignal
-  ): { closeDialog: () => void; id: string } {
+  openImportantDialog(dialog: Dialog): { closeDialog: () => void; id: string } {
     const onCancelDialog = () => dialog['onCancel']?.();
-    const sharedSignal = this.getSharedAbortSignal(abortSignal);
+    const sharedSignal = this.allDialogsController.signal;
 
     const id = crypto.randomUUID();
     if (sharedSignal.aborted) {
