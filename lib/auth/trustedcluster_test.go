@@ -607,10 +607,11 @@ func TestUpdateTrustedCluster(t *testing.T) {
 		ProxyAddress: "localhost",
 	}
 
-	trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
+	testClusterName := "trustedcluster"
+	trustedCluster, err := types.NewTrustedCluster(testClusterName, trustedClusterSpec)
 	require.NoError(t, err)
 
-	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
+	ca := suite.NewTestCA(types.UserCA, testClusterName)
 
 	configureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
 
@@ -621,7 +622,9 @@ func TestUpdateTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Invalid role change", func(t *testing.T) {
-		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		existing, err := a.GetTrustedCluster(ctx, testClusterName)
+		require.NoError(t, err)
+		trustedCluster, err := types.NewTrustedCluster(testClusterName,
 			types.TrustedClusterSpecV2{
 				Enabled: true,
 				RoleMap: []types.RoleMapping{
@@ -633,11 +636,14 @@ func TestUpdateTrustedCluster(t *testing.T) {
 				ProxyAddress: "localhost",
 			})
 		require.NoError(t, err)
+		trustedCluster.SetRevision(existing.GetRevision())
 		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
 		require.ErrorContains(t, err, "someNewRole")
 	})
 	t.Run("Change role map of existing enabled trusted cluster", func(t *testing.T) {
-		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		existing, err := a.GetTrustedCluster(ctx, testClusterName)
+		require.NoError(t, err)
+		trustedCluster, err := types.NewTrustedCluster(testClusterName,
 			types.TrustedClusterSpecV2{
 				Enabled: true,
 				RoleMap: []types.RoleMapping{
@@ -649,11 +655,14 @@ func TestUpdateTrustedCluster(t *testing.T) {
 				ProxyAddress: "localhost",
 			})
 		require.NoError(t, err)
+		trustedCluster.SetRevision(existing.GetRevision())
 		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
 	})
 	t.Run("Disable existing trusted cluster", func(t *testing.T) {
-		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		existing, err := a.GetTrustedCluster(ctx, testClusterName)
+		require.NoError(t, err)
+		trustedCluster, err := types.NewTrustedCluster(testClusterName,
 			types.TrustedClusterSpecV2{
 				Enabled: false,
 				RoleMap: []types.RoleMapping{
@@ -665,11 +674,14 @@ func TestUpdateTrustedCluster(t *testing.T) {
 				ProxyAddress: "localhost",
 			})
 		require.NoError(t, err)
+		trustedCluster.SetRevision(existing.GetRevision())
 		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
 	})
 	t.Run("Change role map of existing disabled trusted cluster", func(t *testing.T) {
-		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		existing, err := a.GetTrustedCluster(ctx, testClusterName)
+		require.NoError(t, err)
+		trustedCluster, err := types.NewTrustedCluster(testClusterName,
 			types.TrustedClusterSpecV2{
 				Enabled: false,
 				RoleMap: []types.RoleMapping{
@@ -681,11 +693,14 @@ func TestUpdateTrustedCluster(t *testing.T) {
 				ProxyAddress: "localhost",
 			})
 		require.NoError(t, err)
+		trustedCluster.SetRevision(existing.GetRevision())
 		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
 	})
 	t.Run("Enable existing trusted cluster", func(t *testing.T) {
-		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		existing, err := a.GetTrustedCluster(ctx, testClusterName)
+		require.NoError(t, err)
+		trustedCluster, err := types.NewTrustedCluster(testClusterName,
 			types.TrustedClusterSpecV2{
 				Enabled: true,
 				RoleMap: []types.RoleMapping{
@@ -697,13 +712,24 @@ func TestUpdateTrustedCluster(t *testing.T) {
 				ProxyAddress: "localhost",
 			})
 		require.NoError(t, err)
+		trustedCluster.SetRevision(existing.GetRevision())
 		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
 	})
-	t.Run("Upsert unmodified trusted cluster", func(t *testing.T) {
-		trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
+	t.Run("Update unmodified trusted cluster", func(t *testing.T) {
+		existing, err := a.GetTrustedCluster(ctx, testClusterName)
 		require.NoError(t, err)
+		trustedCluster, err := types.NewTrustedCluster(testClusterName, trustedClusterSpec)
+		require.NoError(t, err)
+		trustedCluster.SetRevision(existing.GetRevision())
 		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
+	})
+
+	t.Run("Invalid revision", func(t *testing.T) {
+		trustedCluster, err := types.NewTrustedCluster(testClusterName, trustedClusterSpec)
+		require.NoError(t, err)
+		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
+		require.Error(t, err)
 	})
 }
