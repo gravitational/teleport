@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -220,7 +221,7 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	summary, err := collectAWSOIDCAutoDiscoverStats(r.Context(), ig, clt.DiscoveryConfigClient())
+	summary, err := collectAWSOIDCAutoDiscoverStats(r.Context(), h.logger, ig, clt.DiscoveryConfigClient(), clt, clt.IntegrationAWSOIDCClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -230,24 +231,25 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 
 func collectAWSOIDCAutoDiscoverStats(
 	ctx context.Context,
+	logger *slog.Logger,
 	integration types.Integration,
-	clt interface {
-		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
-	},
-) (ui.IntegrationWithSummary, error) {
-	var ret ui.IntegrationWithSummary
+	discoveryConfigLister discoveryConfigLister,
+	databaseGetter databaseGetter,
+	awsOIDCClient deployedDatabaseServiceLister,
+) (*ui.IntegrationWithSummary, error) {
+	ret := &ui.IntegrationWithSummary{}
 
 	uiIg, err := ui.MakeIntegration(integration)
 	if err != nil {
-		return ret, err
+		return nil, err
 	}
 	ret.Integration = uiIg
 
 	var nextPage string
 	for {
-		discoveryConfigs, nextToken, err := clt.ListDiscoveryConfigs(ctx, 0, nextPage)
+		discoveryConfigs, nextToken, err := discoveryConfigLister.ListDiscoveryConfigs(ctx, 0, nextPage)
 		if err != nil {
-			return ret, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		for _, dc := range discoveryConfigs {
 			discoveredResources, ok := dc.Status.IntegrationDiscoveredResources[integration.GetName()]
@@ -277,8 +279,17 @@ func collectAWSOIDCAutoDiscoverStats(
 		nextPage = nextToken
 	}
 
-	// TODO(marco): add total number of ECS Database Services.
-	ret.AWSRDS.ECSDatabaseServiceCount = 0
+	regions, err := fetchRelevantAWSRegions(ctx, databaseGetter, discoveryConfigLister)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	services, err := listDeployedDatabaseServices(ctx, logger, integration.GetName(), regions, awsOIDCClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ret.AWSRDS.ECSDatabaseServiceCount = len(services)
 
 	return ret, nil
 }
