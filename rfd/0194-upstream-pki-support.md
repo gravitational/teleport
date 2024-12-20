@@ -108,6 +108,19 @@ CA, two new fields will be introduced to the `TLSKeyPair` protobuf message:
 
 TODO
 
+#### Expiry Warnings
+
+The expiry of a CA would have significant impact for a Teleport cluster and
+therefore we must provide notification of an impending expiry.
+
+The Teleport cluster alerts mechanism will be used to alert the user when any CA
+passes:
+
+- 15% of the remaining lifetime of the CA (e.g 13.5 days for a 90-day CA).
+- 10% of the remaining lifetime of the CA (e.g 9 days for a 90-day CA).
+- 5% of the remaining lifetime of the CA (e.g 4.5 days for a 90-day CA).
+
+
 #### UX
 
 ```shell
