@@ -63,5 +63,8 @@ jobs:
           path-to-document: 'https://github.com/gravitational/teleport/blob/master/CLA.md'
           # branch should not be protected
           branch: 'main'
-          allowlist: 'dependabot[bot],teleport-post-release-automation[bot]'
+          # dependabot: Dependency management tool that keeps us up-to-date on latest releases
+          # teleport-post-release-automation: Creates PRs for updating docs after a release is made
+          # web-flow: GitHub owned user that owns commits that are done through Web APIs
+          allowlist: 'dependabot[bot],teleport-post-release-automation[bot],web-flow'
           lock-pullrequest-aftermerge: false
