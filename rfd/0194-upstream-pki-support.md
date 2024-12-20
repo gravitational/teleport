@@ -111,6 +111,10 @@ certificate and chain:
 
 ```protobuf
 service TrustService {
+  // ImportCA imports a signed certificate and intermediate/roots into a
+  // Teleport CA which is in the pre-init phase.
+  //
+  // Requires Create/Update permissions for the CertificateAuthority resource.
   rpc ImportCA(ImportCARequest) returns (ImportCAResponse) {}
 }
 
@@ -133,6 +137,10 @@ message ImportCARequest {
 message ImportCAResponse {}
 ```
 
+The RotateCertAuthority RPC will need to be modified to support the new
+`pre-init` phase. Initially, this phase will only be accepted for the `spiffe`
+certificate authority.
+
 #### Expiry Warnings
 
 The expiry of a CA would have significant impact for a Teleport cluster and
@@ -144,7 +152,6 @@ passes:
 - 15% of the remaining lifetime of the CA (e.g 13.5 days for a 90-day CA).
 - 10% of the remaining lifetime of the CA (e.g 9 days for a 90-day CA).
 - 5% of the remaining lifetime of the CA (e.g 4.5 days for a 90-day CA).
-
 
 #### UX
 
