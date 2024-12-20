@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// Package sessionrecording can be used to read Teleport's
+// session recording files.
 package sessionrecording
 
 import (
