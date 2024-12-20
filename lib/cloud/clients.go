@@ -356,6 +356,10 @@ type azureClients struct {
 	azurePostgresFlexServersClients azure.ClientMap[azure.PostgresFlexServersClient]
 	// azureRunCommandClients contains the cached Azure Run Command clients.
 	azureRunCommandClients azure.ClientMap[azure.RunCommandClient]
+	// azureRoleDefinitionsClients contains the cached Azure Role Definitions clients.
+	azureRoleDefinitionsClients azure.ClientMap[azure.RoleDefinitionsClient]
+	// azureRoleAssignmentsClients contains the cached Azure Role Assignments clients.
+	azureRoleAssignmentsClients azure.ClientMap[azure.RoleAssignmentsClient]
 }
 
 // credentialsSource defines where the credentials must come from.
@@ -756,6 +760,16 @@ func (c *cloudClients) GetAzureRunCommandClient(subscription string) (azure.RunC
 	return c.azureRunCommandClients.Get(subscription, c.GetAzureCredential)
 }
 
+// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client
+func (c *cloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+	return c.azureRoleDefinitionsClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client
+func (c *cloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+	return c.azureRoleAssignmentsClients.Get(subscription, c.GetAzureCredential)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -1064,6 +1078,8 @@ type TestCloudClients struct {
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
 	AzureRunCommand         azure.RunCommandClient
+	AzureRoleDefinitions    azure.RoleDefinitionsClient
+	AzureRoleAssignments    azure.RoleAssignmentsClient
 }
 
 // GetAWSSession returns AWS session for the specified region, optionally
@@ -1317,9 +1333,19 @@ func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string
 	return c.AzurePostgresFlex, nil
 }
 
-// GetAzureRunCommand returns an Azure Run Command client for the given subscription.
+// GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
 func (c *TestCloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
 	return c.AzureRunCommand, nil
+}
+
+// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client for the given subscription.
+func (c *TestCloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+	return c.AzureRoleDefinitions, nil
+}
+
+// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client for the given subscription.
+func (c *TestCloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+	return c.AzureRoleAssignments, nil
 }
 
 // Close closes all initialized clients.
