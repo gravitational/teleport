@@ -20,6 +20,8 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
+import { withUnsupportedLabelFeatureErrorConversion } from '../webUiVersion/webUiVersion';
+
 import makeJoinToken from './makeJoinToken';
 import { JoinRule, JoinToken, JoinTokenRequest } from './types';
 
@@ -31,20 +33,43 @@ class JoinTokenService {
     req: JoinTokenRequest,
     signal: AbortSignal = null
   ): Promise<JoinToken> {
-    return api
-      .post(
-        cfg.getJoinTokenUrl(),
-        {
-          roles: req.roles,
-          join_method: req.method || 'token',
-          allow: makeAllowField(req.rules || []),
-          suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
-            req.suggestedAgentMatcherLabels
-          ),
-        },
-        signal
-      )
-      .then(makeJoinToken);
+    // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+    if (!req.suggestedLabels?.length) {
+      return api
+        .post(
+          cfg.getJoinTokenUrl(),
+          {
+            roles: req.roles,
+            join_method: req.method || 'token',
+            allow: makeAllowField(req.rules || []),
+            suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
+              req.suggestedAgentMatcherLabels
+            ),
+          },
+          signal
+        )
+        .then(makeJoinToken);
+    }
+
+    return (
+      api
+        .post(
+          cfg.getJoinTokenUrlV2(),
+          {
+            roles: req.roles,
+            join_method: req.method || 'token',
+            allow: makeAllowField(req.rules || []),
+            suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
+              req.suggestedAgentMatcherLabels
+            ),
+            suggested_labels: makeLabelMapOfStrArrs(req.suggestedLabels),
+          },
+          signal
+        )
+        .then(makeJoinToken)
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
   }
 
   upsertJoinTokenYAML(
