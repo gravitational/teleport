@@ -523,9 +523,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		s.ctx, s.getAllAWSServerFetchers, s.caRotationCh,
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
-		server.WithPreFetchHookFn(func() {
-			s.ec2WatcherIterationStarted()
-		}),
+		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
 	)
 	if err != nil {
 		return trace.Wrap(err)

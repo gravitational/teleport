@@ -76,9 +76,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
-		PreFetchHookFn: func() {
-			s.kubernetesIntegrationWatcherIterationStarted()
-		},
+		PreFetchHookFn: s.kubernetesIntegrationWatcherIterationStarted,
 	})
 	if err != nil {
 		return trace.Wrap(err)

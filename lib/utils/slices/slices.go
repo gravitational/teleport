@@ -20,7 +20,7 @@ package slices
 
 // FilterMapUnique applies a function to all elements of a slice and collects them.
 // The function returns the value to collect and whether the current element should be included.
-// Returned values are sorted and deduplicated.
+// Returned values are deduplicated.
 func FilterMapUnique[T any, S comparable](ts []T, fn func(T) (s S, include bool)) []S {
 	ss := make([]S, 0, len(ts))
 	seen := make(map[S]struct{}, len(ts))

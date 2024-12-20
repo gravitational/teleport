@@ -74,9 +74,7 @@ func (s *Server) startDatabaseWatchers() error {
 			TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 			Origin:         types.OriginCloud,
 			Clock:          s.clock,
-			PreFetchHookFn: func() {
-				s.databaseWatcherIterationStarted()
-			},
+			PreFetchHookFn: s.databaseWatcherIterationStarted,
 		},
 	)
 	if err != nil {
