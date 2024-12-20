@@ -33,3 +33,8 @@ Check out the [Kubernetes Service Discovery
 Guide](../auto-discovery/kubernetes/kubernetes.mdx) for more
 documentation and examples.
 
+## Does Teleport work with Kubernetes desktop UI applications?
+
+Yes, Teleport generates a kubeconfig file (default `~/.kube/config`) when a user
+logins to a Kubernetes cluster. GUI tools such as Lens and other applications can 
+interact with the Kubernetes cluster through Teleport as with any other standard kubeconfig.
