@@ -62,10 +62,10 @@ func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p
 	// Finally, we treat the request based on its type
 	switch requestType {
 	case "version":
-		h.log.Debugf("Agent requesting version for channel %s", channelName)
+		h.logger.DebugContext(r.Context(), "Agent requesting version for channel", "channel", channelName)
 		return h.automaticUpgradesVersion109(w, r, channelName)
 	case "critical":
-		h.log.Debugf("Agent requesting criticality for channel %s", channelName)
+		h.logger.DebugContext(r.Context(), "Agent requesting criticality for channel", "channel", channelName)
 		return h.automaticUpgradesCritical109(w, r, channelName)
 	default:
 		return nil, trace.BadParameter("requestType path must end with 'version' or 'critical'")

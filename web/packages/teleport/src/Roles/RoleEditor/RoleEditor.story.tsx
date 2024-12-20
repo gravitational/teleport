@@ -30,7 +30,7 @@ import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { Access } from 'teleport/services/user';
 import useResources from 'teleport/components/useResources';
 
-import { withDefaults } from './withDefaults';
+import { withDefaults } from './StandardEditor/withDefaults';
 import { RoleEditor } from './RoleEditor';
 import { RoleEditorDialog } from './RoleEditorDialog';
 

@@ -1776,7 +1776,7 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.Term, term.term)
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
-	require.NotNil(t, term.log)
+	require.NotNil(t, term.logger)
 }
 
 func TestUIConfig(t *testing.T) {
@@ -5573,10 +5573,6 @@ func TestCreateAppSession_RequireSessionMFA(t *testing.T) {
 	require.NoError(t, err)
 	mfaResp, err := webauthnDev.SolveAuthn(chal)
 	require.NoError(t, err)
-	mfaRespJSON, err := json.Marshal(mfaResponse{
-		WebauthnAssertionResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
-	})
-	require.NoError(t, err)
 
 	// Extract the session ID and bearer token for the current session.
 	rawCookie := *pack.cookies[0]
@@ -5610,7 +5606,9 @@ func TestCreateAppSession_RequireSessionMFA(t *testing.T) {
 					PublicAddr:  "panel.example.com",
 					ClusterName: "localhost",
 				},
-				MFAResponse: string(mfaRespJSON),
+				MFAResponse: client.MFAChallengeResponse{
+					WebauthnAssertionResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+				},
 			},
 			expectMFAVerified: true,
 		},
@@ -8209,7 +8207,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("Mux encountered err serving")
+			slog.ErrorContext(context.Background(), "Mux encountered error serving", "error", err)
 		}
 	}()
 
@@ -8283,7 +8281,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := sshGRPCServer.Serve(mux.TLS()); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("gRPC proxy server terminated unexpectedly")
+			slog.ErrorContext(context.Background(), "gRPC proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
@@ -8358,7 +8356,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(webServer.Close)
 	go func() {
 		if err := proxyServer.Serve(mux.SSH()); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("SSH proxy server terminated unexpectedly")
+			slog.ErrorContext(context.Background(), "SSH proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
@@ -10677,7 +10675,7 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	// not yet established.
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:     ws,
-		Logger: utils.NewLogger(),
+		Logger: utils.NewSlogLoggerForTests(),
 		Handlers: map[string]terminal.WSHandlerFunc{
 			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope terminal.Envelope) {
 				if envelope.Type != defaults.WebsocketSessionMetadata {

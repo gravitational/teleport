@@ -237,8 +237,8 @@ const api = {
    * If customOptions field is not provided, only fields defined in
    * `defaultRequestOptions` will be used.
    *
-   * @param webauthnResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
-   * will add a custom MFA header field that will hold the webauthn response.
+   * @param mfaResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
+   * will add a custom MFA header field that will hold the mfaResponse.
    */
   fetch(
     url: string,
@@ -258,7 +258,9 @@ const api = {
 
     if (mfaResponse) {
       options.headers[MFA_HEADER] = JSON.stringify({
-        // TODO(Joerger): Handle non-webauthn response.
+        ...mfaResponse,
+        // TODO(Joerger): DELETE IN v19.0.0.
+        // We include webauthnAssertionResponse for backwards compatibility.
         webauthnAssertionResponse: mfaResponse.webauthn_response,
       });
     }

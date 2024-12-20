@@ -17,212 +17,44 @@
  */
 
 import { render, screen, userEvent } from 'design/utils/testing';
-import React, { useState } from 'react';
-
 import { act, within } from '@testing-library/react';
-import Validation, { Validator } from 'shared/components/Validation';
+import { Validator } from 'shared/components/Validation';
 import selectEvent from 'react-select-event';
 
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
-import { ResourceKind } from 'teleport/services/resources';
-
 import {
-  AppAccessSpec,
-  DatabaseAccessSpec,
-  KubernetesAccessSpec,
-  newAccessSpec,
-  newRole,
-  roleToRoleEditorModel,
-  RuleModel,
-  ServerAccessSpec,
-  StandardEditorModel,
-  WindowsDesktopAccessSpec,
+  ServerAccess,
+  newResourceAccess,
+  KubernetesAccess,
+  AppAccess,
+  DatabaseAccess,
+  WindowsDesktopAccess,
 } from './standardmodel';
 import {
-  AccessRules,
-  AppAccessSpecSection,
-  DatabaseAccessSpecSection,
-  KubernetesAccessSpecSection,
-  SectionProps,
-  ServerAccessSpecSection,
-  StandardEditor,
-  StandardEditorProps,
-  WindowsDesktopAccessSpecSection,
-} from './StandardEditor';
-import {
-  AccessSpecValidationResult,
-  AccessRuleValidationResult,
-  validateAccessSpec,
-  validateAccessRule,
+  ResourceAccessValidationResult,
+  validateResourceAccess,
 } from './validation';
+import {
+  ServerAccessSection,
+  KubernetesAccessSection,
+  AppAccessSection,
+  DatabaseAccessSection,
+  WindowsDesktopAccessSection,
+} from './Resources';
+import { StatefulSection } from './StatefulSection';
 
-const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
-  const ctx = createTeleportContext();
-  const [model, setModel] = useState<StandardEditorModel>({
-    roleModel: roleToRoleEditorModel(newRole()),
-    isDirty: true,
-  });
-  return (
-    <TeleportContextProvider ctx={ctx}>
-      <Validation>
-        <StandardEditor
-          originalRole={null}
-          standardEditorModel={model}
-          isProcessing={false}
-          onChange={setModel}
-          {...props}
-        />
-      </Validation>
-    </TeleportContextProvider>
-  );
-};
-
-test('adding and removing sections', async () => {
-  const user = userEvent.setup();
-  render(<TestStandardEditor />);
-  expect(getAllSectionNames()).toEqual(['Role Metadata']);
-  await user.click(screen.getByRole('tab', { name: 'Resources' }));
-  expect(getAllSectionNames()).toEqual([]);
-
-  await user.click(
-    screen.getByRole('button', { name: 'Add New Specifications' })
-  );
-  expect(getAllMenuItemNames()).toEqual([
-    'Kubernetes',
-    'Servers',
-    'Applications',
-    'Databases',
-    'Windows Desktops',
-  ]);
-
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
-  expect(getAllSectionNames()).toEqual(['Servers']);
-
-  await user.click(
-    screen.getByRole('button', { name: 'Add New Specifications' })
-  );
-  expect(getAllMenuItemNames()).toEqual([
-    'Kubernetes',
-    'Applications',
-    'Databases',
-    'Windows Desktops',
-  ]);
-
-  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
-  expect(getAllSectionNames()).toEqual(['Servers', 'Kubernetes']);
-
-  await user.click(
-    within(getSectionByName('Servers')).getByRole('button', {
-      name: 'Remove section',
-    })
-  );
-  expect(getAllSectionNames()).toEqual(['Kubernetes']);
-
-  await user.click(
-    within(getSectionByName('Kubernetes')).getByRole('button', {
-      name: 'Remove section',
-    })
-  );
-  expect(getAllSectionNames()).toEqual([]);
-});
-
-test('collapsed sections still apply validation', async () => {
-  const user = userEvent.setup();
-  const onSave = jest.fn();
-  render(<TestStandardEditor onSave={onSave} />);
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name'));
-  // Collapse the section.
-  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
-  await user.click(screen.getByRole('button', { name: 'Create Role' }));
-  expect(onSave).not.toHaveBeenCalled();
-
-  // Expand the section, make it valid.
-  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
-  await user.type(screen.getByLabelText('Role Name'), 'foo');
-  await user.click(screen.getByRole('button', { name: 'Create Role' }));
-  expect(onSave).toHaveBeenCalled();
-});
-
-test('invisible tabs still apply validation', async () => {
-  const user = userEvent.setup();
-  const onSave = jest.fn();
-  render(<TestStandardEditor onSave={onSave} />);
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name'));
-  // Switch to a different tab.
-  await user.click(screen.getByRole('tab', { name: 'Resources' }));
-  await user.click(screen.getByRole('button', { name: 'Create Role' }));
-  expect(onSave).not.toHaveBeenCalled();
-
-  // Switch back, make it valid.
-  await user.click(screen.getByRole('tab', { name: 'Invalid data Overview' }));
-  await user.type(screen.getByLabelText('Role Name'), 'foo');
-  await user.click(screen.getByRole('button', { name: 'Create Role' }));
-  expect(onSave).toHaveBeenCalled();
-});
-
-const getAllMenuItemNames = () =>
-  screen.queryAllByRole('menuitem').map(m => m.textContent);
-
-const getAllSectionNames = () =>
-  screen.queryAllByRole('heading', { level: 3 }).map(m => m.textContent);
-
-const getSectionByName = (name: string) =>
-  // There's no better way to do it, unfortunately.
-  // eslint-disable-next-line testing-library/no-node-access
-  screen.getByRole('heading', { level: 3, name }).closest('details');
-
-function StatefulSection<Spec, ValidationResult>({
-  defaultValue,
-  component: Component,
-  onChange,
-  validatorRef,
-  validate,
-}: {
-  defaultValue: Spec;
-  component: React.ComponentType<SectionProps<Spec, any>>;
-  onChange(spec: Spec): void;
-  validatorRef?(v: Validator): void;
-  validate(arg: Spec): ValidationResult;
-}) {
-  const [model, setModel] = useState<Spec>(defaultValue);
-  const validation = validate(model);
-  return (
-    <Validation>
-      {({ validator }) => {
-        validatorRef?.(validator);
-        return (
-          <Component
-            value={model}
-            validation={validation}
-            isProcessing={false}
-            onChange={spec => {
-              setModel(spec);
-              onChange(spec);
-            }}
-          />
-        );
-      }}
-    </Validation>
-  );
-}
-
-describe('ServerAccessSpecSection', () => {
+describe('ServerAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<ServerAccessSpec, AccessSpecValidationResult>
-        component={ServerAccessSpecSection}
-        defaultValue={newAccessSpec('node')}
+      <StatefulSection<ServerAccess, ResourceAccessValidationResult>
+        component={ServerAccessSection}
+        defaultValue={newResourceAccess('node')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -251,7 +83,7 @@ describe('ServerAccessSpecSection', () => {
         expect.objectContaining({ label: 'root', value: 'root' }),
         expect.objectContaining({ label: 'some-user', value: 'some-user' }),
       ],
-    } as ServerAccessSpec);
+    } as ServerAccess);
   });
 
   test('validation', async () => {
@@ -270,25 +102,25 @@ describe('ServerAccessSpecSection', () => {
   });
 });
 
-describe('KubernetesAccessSpecSection', () => {
+describe('KubernetesAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<KubernetesAccessSpec, AccessSpecValidationResult>
-        component={KubernetesAccessSpecSection}
-        defaultValue={newAccessSpec('kube_cluster')}
+      <StatefulSection<KubernetesAccess, ResourceAccessValidationResult>
+        component={KubernetesAccessSection}
+        defaultValue={newResourceAccess('kube_cluster')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
   };
 
-  test('editing the spec', async () => {
+  test('editing', async () => {
     const { user, onChange } = setup();
 
     await selectEvent.create(screen.getByLabelText('Groups'), 'group1', {
@@ -338,7 +170,7 @@ describe('KubernetesAccessSpecSection', () => {
           ],
         },
       ],
-    } as KubernetesAccessSpec);
+    } as KubernetesAccess);
   });
 
   test('adding and removing resources', async () => {
@@ -413,19 +245,19 @@ describe('KubernetesAccessSpecSection', () => {
   });
 });
 
-describe('AppAccessSpecSection', () => {
+describe('AppAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<AppAccessSpec, AccessSpecValidationResult>
-        component={AppAccessSpecSection}
-        defaultValue={newAccessSpec('app')}
+      <StatefulSection<AppAccess, ResourceAccessValidationResult>
+        component={AppAccessSection}
+        defaultValue={newResourceAccess('app')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -485,7 +317,7 @@ describe('AppAccessSpecSection', () => {
         '{{internal.gcp_service_accounts}}',
         'admin@some-project.iam.gserviceaccount.com',
       ],
-    } as AppAccessSpec);
+    } as AppAccess);
   });
 
   test('validation', async () => {
@@ -519,19 +351,19 @@ describe('AppAccessSpecSection', () => {
   });
 });
 
-describe('DatabaseAccessSpecSection', () => {
+describe('DatabaseAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<DatabaseAccessSpec, AccessSpecValidationResult>
-        component={DatabaseAccessSpecSection}
-        defaultValue={newAccessSpec('db')}
+      <StatefulSection<DatabaseAccess, ResourceAccessValidationResult>
+        component={DatabaseAccessSection}
+        defaultValue={newResourceAccess('db')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -566,7 +398,7 @@ describe('DatabaseAccessSpecSection', () => {
         expect.objectContaining({ value: '{{internal.db_users}}' }),
         expect.objectContaining({ label: 'mary', value: 'mary' }),
       ],
-    } as DatabaseAccessSpec);
+    } as DatabaseAccess);
   });
 
   test('validation', async () => {
@@ -585,19 +417,19 @@ describe('DatabaseAccessSpecSection', () => {
   });
 });
 
-describe('WindowsDesktopAccessSpecSection', () => {
+describe('WindowsDesktopAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<WindowsDesktopAccessSpec, AccessSpecValidationResult>
-        component={WindowsDesktopAccessSpecSection}
-        defaultValue={newAccessSpec('windows_desktop')}
+      <StatefulSection<WindowsDesktopAccess, ResourceAccessValidationResult>
+        component={WindowsDesktopAccessSection}
+        defaultValue={newResourceAccess('windows_desktop')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -618,7 +450,7 @@ describe('WindowsDesktopAccessSpecSection', () => {
         expect.objectContaining({ value: '{{internal.windows_logins}}' }),
         expect.objectContaining({ label: 'julio', value: 'julio' }),
       ],
-    } as WindowsDesktopAccessSpec);
+    } as WindowsDesktopAccess);
   });
 
   test('validation', async () => {
@@ -628,63 +460,6 @@ describe('WindowsDesktopAccessSpecSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
-  });
-});
-
-describe('AccessRules', () => {
-  const setup = () => {
-    const onChange = jest.fn();
-    let validator: Validator;
-    render(
-      <StatefulSection<RuleModel[], AccessRuleValidationResult[]>
-        component={AccessRules}
-        defaultValue={[]}
-        onChange={onChange}
-        validatorRef={v => {
-          validator = v;
-        }}
-        validate={rules => rules.map(validateAccessRule)}
-      />
-    );
-    return { user: userEvent.setup(), onChange, validator };
-  };
-
-  test('editing', async () => {
-    const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add New' }));
-    await selectEvent.select(screen.getByLabelText('Resources'), [
-      'db',
-      'node',
-    ]);
-    await selectEvent.select(screen.getByLabelText('Permissions'), [
-      'list',
-      'read',
-    ]);
-    expect(onChange).toHaveBeenLastCalledWith([
-      {
-        id: expect.any(String),
-        resources: [
-          { label: ResourceKind.Database, value: 'db' },
-          { label: ResourceKind.Node, value: 'node' },
-        ],
-        verbs: [
-          { label: 'list', value: 'list' },
-          { label: 'read', value: 'read' },
-        ],
-      },
-    ] as RuleModel[]);
-  });
-
-  test('validation', async () => {
-    const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add New' }));
-    act(() => validator.validate());
-    expect(
-      screen.getByText('At least one resource kind is required')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('At least one permission is required')
-    ).toBeInTheDocument();
   });
 });
 

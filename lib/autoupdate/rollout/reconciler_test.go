@@ -139,6 +139,8 @@ func TestTryReconcile(t *testing.T) {
 	t.Parallel()
 	log := utils.NewSlogLoggerForTests()
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
 	// Test setup: creating fixtures
 	configOK, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
 		Tools: &autoupdate.AutoUpdateConfigSpecTools{
@@ -186,7 +188,7 @@ func TestTryReconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
-	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
+	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{StartTime: timestamppb.New(clock.Now())}
 
 	outOfDateRollout, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.2",
@@ -315,8 +317,9 @@ func TestTryReconcile(t *testing.T) {
 			// Test execution: Running the reconciliation
 
 			reconciler := &reconciler{
-				clt: client,
-				log: log,
+				clt:   client,
+				log:   log,
+				clock: clock,
 			}
 
 			require.NoError(t, reconciler.tryReconcile(ctx))
@@ -330,6 +333,7 @@ func TestTryReconcile(t *testing.T) {
 func TestReconciler_Reconcile(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 	// Test setup: creating fixtures
 	config, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
 		Tools: &autoupdate.AutoUpdateConfigSpecTools{
@@ -361,7 +365,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
-	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
+	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{StartTime: timestamppb.New(clock.Now())}
 
 	outOfDateRollout, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.2",
@@ -407,8 +411,9 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:   client,
+			log:   log,
+			clock: clock,
 		}
 
 		// Test execution: run the reconciliation loop
@@ -431,8 +436,9 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:   client,
+			log:   log,
+			clock: clock,
 		}
 
 		// Test execution: run the reconciliation loop
@@ -471,8 +477,9 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:   client,
+			log:   log,
+			clock: clock,
 		}
 
 		// Test execution: run the reconciliation loop
@@ -509,8 +516,9 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:   client,
+			log:   log,
+			clock: clock,
 		}
 
 		// Test execution: run the reconciliation loop
@@ -533,8 +541,9 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:   client,
+			log:   log,
+			clock: clock,
 		}
 
 		// Test execution: run the reconciliation loop
@@ -563,8 +572,9 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:   client,
+			log:   log,
+			clock: clock,
 		}
 
 		// Test execution: run the reconciliation loop
@@ -704,7 +714,7 @@ func (f *fakeRolloutStrategy) name() string {
 	return f.strategyName
 }
 
-func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
 	f.calls++
 	return nil
 }
@@ -742,8 +752,9 @@ func Test_reconciler_computeStatus(t *testing.T) {
 	newGroups, err := r.makeGroupsStatus(ctx, schedules, clock.Now())
 	require.NoError(t, err)
 	newStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
-		Groups: newGroups,
-		State:  autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
+		Groups:    newGroups,
+		State:     autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
+		StartTime: timestamppb.New(clock.Now()),
 	}
 
 	tests := []struct {
@@ -835,7 +846,9 @@ func Test_reconciler_computeStatus(t *testing.T) {
 				Strategy:       fakeRolloutStrategyName,
 			},
 			// groups should be unset
-			expectedStatus:        &autoupdate.AutoUpdateAgentRolloutStatus{},
+			expectedStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				StartTime: timestamppb.New(clock.Now()),
+			},
 			expectedStrategyCalls: 0,
 		},
 		{
@@ -843,7 +856,9 @@ func Test_reconciler_computeStatus(t *testing.T) {
 			existingRollout: &autoupdate.AutoUpdateAgentRollout{
 				Spec: oldSpec,
 				// old groups were empty
-				Status: &autoupdate.AutoUpdateAgentRolloutStatus{},
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					StartTime: timestamppb.New(clock.Now()),
+				},
 			},
 			// no spec change
 			newSpec: oldSpec,
