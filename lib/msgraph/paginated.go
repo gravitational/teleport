@@ -30,9 +30,9 @@ import (
 )
 
 // iterateSimple implements pagination for "simple" object lists, where additional logic isn't needed
-func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f func(*T) bool) error {
+func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, params *url.Values, f func(*T) bool) error {
 	var err error
-	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
+	itErr := c.iterate(ctx, endpoint, params, func(msg json.RawMessage) bool {
 		var page []T
 		if err = json.Unmarshal(msg, &page); err != nil {
 			return false
@@ -51,17 +51,22 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 }
 
 // iterate implements pagination for "list" endpoints.
-func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
+func (c *Client) iterate(ctx context.Context, endpoint string, params *url.Values, f func(json.RawMessage) bool) error {
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
-	uri.RawQuery = url.Values{
+	rawQuery := url.Values{
 		"$top": {
 			strconv.Itoa(c.pageSize),
 		},
-		"$expand": {
-			"memberOf",
-		},
-	}.Encode()
+	}
+	if params != nil {
+		for key, values := range *params {
+			for _, value := range values {
+				rawQuery.Add(key, value)
+			}
+		}
+	}
+	uri.RawQuery = rawQuery.Encode()
 	uriString := uri.String()
 	for uriString != "" {
 		resp, err := c.request(ctx, http.MethodGet, uriString, nil)
@@ -88,32 +93,32 @@ func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/application-list].
-func (c *Client) IterateApplications(ctx context.Context, f func(*Application) bool) error {
-	return iterateSimple(c, ctx, "applications", f)
+func (c *Client) IterateApplications(ctx context.Context, params *url.Values, f func(*Application) bool) error {
+	return iterateSimple(c, ctx, "applications", params, f)
 }
 
 // IterateGroups lists all groups in the Entra ID directory using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list].
-func (c *Client) IterateGroups(ctx context.Context, f func(*Group) bool) error {
-	return iterateSimple(c, ctx, "groups", f)
+func (c *Client) IterateGroups(ctx context.Context, params *url.Values, f func(*Group) bool) error {
+	return iterateSimple(c, ctx, "groups", params, f)
 }
 
 // IterateUsers lists all users in the Entra ID directory using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/user-list].
-func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool) error {
-	return iterateSimple(c, ctx, "users", f)
+func (c *Client) IterateUsers(ctx context.Context, params *url.Values, f func(*User) bool) error {
+	return iterateSimple(c, ctx, "users", params, f)
 }
 
 // IterateServicePrincipals lists all service principals in the Entra ID directory using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/user-list].
-func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal *ServicePrincipal) bool) error {
-	return iterateSimple(c, ctx, "servicePrincipals", f)
+func (c *Client) IterateServicePrincipals(ctx context.Context, params *url.Values, f func(principal *ServicePrincipal) bool) error {
+	return iterateSimple(c, ctx, "servicePrincipals", params, f)
 }
 
 // IterateGroupMembers lists all members for the given Entra ID group using pagination.
@@ -122,7 +127,7 @@ func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal 
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-members].
 func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool) error {
 	var err error
-	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
+	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), nil, func(msg json.RawMessage) bool {
 		var page []json.RawMessage
 		if err = json.Unmarshal(msg, &page); err != nil {
 			return false

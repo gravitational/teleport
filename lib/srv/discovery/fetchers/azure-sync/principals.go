@@ -20,6 +20,7 @@ package azure_sync
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,28 +31,28 @@ import (
 
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
 func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint: unused // invoked in a dependent PR
-	// Fetch the users, groups, and service principals
-	var users []*msgraph.User
-	err := cli.IterateUsers(ctx, func(user *msgraph.User) bool {
-		users = append(users, user)
+	var params = &url.Values{
+		"$expand": []string{"memberOf"},
+	}
+
+	// Fetch the users, groups, and service principals as directory objects
+	var dirObjs []msgraph.DirectoryObject
+	err := cli.IterateUsers(ctx, params, func(user *msgraph.User) bool {
+		dirObjs = append(dirObjs, user.DirectoryObject)
 		return true
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var groups []*msgraph.Group
-	err = cli.IterateGroups(ctx, func(group *msgraph.Group) bool {
-		groups = append(groups, group)
+	err = cli.IterateGroups(ctx, params, func(group *msgraph.Group) bool {
+		dirObjs = append(dirObjs, group.DirectoryObject)
 		return true
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var servicePrincipals []*msgraph.ServicePrincipal
-	err = cli.IterateServicePrincipals(ctx, func(servicePrincipal *msgraph.ServicePrincipal) bool {
-		servicePrincipals = append(servicePrincipals, servicePrincipal)
+	err = cli.IterateServicePrincipals(ctx, params, func(servicePrincipal *msgraph.ServicePrincipal) bool {
+		dirObjs = append(dirObjs, servicePrincipal.DirectoryObject)
 		return true
 	})
 	if err != nil {
@@ -61,58 +62,22 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	// Return the users, groups, and service principals as protobuf messages
 	var fetchErrs []error
 	var pbPrincipals []*accessgraphv1alpha.AzurePrincipal
-	for _, user := range users {
-		if user.ID == nil || user.DisplayName == nil {
-			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph User object: %v", user))
+	for _, dirObj := range dirObjs {
+		if dirObj.ID == nil || dirObj.DisplayName == nil {
+			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph directory object: %v", dirObj))
 			continue
 		}
 		var memberOf []string
-		for _, member := range user.MemberOf {
+		for _, member := range dirObj.MemberOf {
 			memberOf = append(memberOf, member.ID)
 		}
 		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
-			Id:             *user.ID,
+			Id:             *dirObj.ID,
 			SubscriptionId: subscriptionID,
 			LastSyncTime:   timestamppb.Now(),
-			DisplayName:    *user.DisplayName,
+			DisplayName:    *dirObj.DisplayName,
 			MemberOf:       memberOf,
 			ObjectType:     "user",
-		})
-	}
-	for _, group := range groups {
-		if group.ID == nil || group.DisplayName == nil {
-			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph User object: %v", group))
-			continue
-		}
-		var memberOf []string
-		for _, member := range group.MemberOf {
-			memberOf = append(memberOf, member.ID)
-		}
-		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
-			Id:             *group.ID,
-			SubscriptionId: subscriptionID,
-			LastSyncTime:   timestamppb.Now(),
-			DisplayName:    *group.DisplayName,
-			MemberOf:       memberOf,
-			ObjectType:     "group",
-		})
-	}
-	for _, sp := range servicePrincipals {
-		if sp.ID == nil || sp.DisplayName == nil {
-			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph User object: %v", sp))
-			continue
-		}
-		var memberOf []string
-		for _, member := range sp.MemberOf {
-			memberOf = append(memberOf, member.ID)
-		}
-		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
-			Id:             *sp.ID,
-			SubscriptionId: subscriptionID,
-			LastSyncTime:   timestamppb.Now(),
-			DisplayName:    *sp.DisplayName,
-			MemberOf:       memberOf,
-			ObjectType:     "servicePrincipal",
 		})
 	}
 	return pbPrincipals, trace.NewAggregate(fetchErrs...)
