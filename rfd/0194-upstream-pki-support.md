@@ -218,4 +218,62 @@ Additionally, end-users should be made aware of other implications such as:
 
 ### Phase 2: Automation & Integration
 
-https://ztpki-staging.venafi.com/api/v2/swagger/
+To provide a seamless experience for users, we can offer integrations with
+popular PKI solutions to remove the need to manually complete the CSR process
+each rotation.
+
+There two potential design approaches for this:
+
+- Integration functionality built directly into the Teleport Auth Server.
+- Integrations are built in a similar way to Teleport Access Plugins, small,
+  light-weight binaries that interact with the Teleport API.
+
+Taking an approach similar to the access plugins is likely to be the best choice
+because:
+
+- Decouples the PKI integration from the Teleport Auth Server, allowing us to
+  iterate more quickly.
+- The PKI integration plugin can be run in networks that the Teleport Auth
+  Server cannot access, allowing Teleport Cloud Tenants integrate with a 
+  PKI solution which is on-prem.
+- Ability to publish SDK tooling that allows users to build their own PKI
+  integrations that function in the same way as the first-party integrations.
+
+Each integration will follow a similar pattern:
+
+- The integration is configured with credentials for the Teleport API, and,
+  the credentials necessary to interact with the PKI solution.
+- The integration will poll the configured CA's status via the Teleport API.
+- When the CA approaches a configured threshold of remaining lifetime, the
+  integration will trigger the rotation to the "pre-init" phase.
+- The integration will generate a CSR for the new CA key-pair and submit it to
+  the PKI solution.
+- The integration will poll the PKI solution for the signed certificate and
+  chain.
+- The integration will submit the signed certificate and chain to the Teleport
+  API to complete the `pre-init` phase.
+
+Ideally, the integrations should also ship with a "one-shot" mode which allows
+the user to manually trigger the rotation to the "pre-init" phase and complete
+the rotation in a single step. This could leverage the user's existing `tsh`
+configuration to authenticate with the Teleport API.
+
+#### Venafi Zero-Touch PKI
+
+One PKI platform that we will integrate with is Venafi's Zero Touch Public Key
+Infrastructure (ZTPKI). This is a cloud-based solution.
+
+ZTPKI offers a HTTP API (https://ztpki-staging.venafi.com/api/v2/swagger/) which
+can be authenticated to using API keys.
+
+Venafi do not appear to publish a Go SDK for their API. Therefore, we will need
+to write our own client. This should be fairly trivial as the API is primarily
+REST-like and leverages JSON encoding. Whilst an OpenAPI spec is available, the
+API is trivial enough that it is likely not worth the effort to generate a
+client from the spec.
+
+Unusually, the API leverages HTTP Holder of Key (Hawk) authentication
+(https://github.com/mozilla/hawk/blob/main/API.md). Unfortunately, all packages
+that implement Hawk authentication in Go are unmaintained. Therefore, we will
+likely need to roll our own implementation.
+
