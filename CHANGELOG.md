@@ -1,6 +1,10 @@
 # Changelog
 
-## 17.1.0 (12/19/24)
+## 17.1.1 (12/20/24)
+
+**Warning**: 17.1.1 fixes a regression in 17.1.0 that causes SSH server heartbeats
+to disappear after a few minutes. Please skip 17.1.0 and upgrade straight to 17.1.1
+or above. [#50490](https://github.com/gravitational/teleport/pull/50490)
 
 ### Access requests support for AWS Identity Center
 
