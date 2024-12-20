@@ -176,12 +176,11 @@ test.each<{
     name: 'overwriting document reopen dialog with another regular dialog does not discard documents',
     action: async appContext => {
       act(() => {
-        const { closeDialog } = appContext.modalsService.openRegularDialog({
+        appContext.modalsService.openRegularDialog({
           kind: 'change-access-request-kind',
           onConfirm() {},
           onCancel() {},
         });
-        closeDialog();
       });
     },
     expectDocumentsRestoredOrDiscarded: false,
