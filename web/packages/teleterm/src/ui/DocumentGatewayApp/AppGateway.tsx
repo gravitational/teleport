@@ -65,15 +65,17 @@ export function AppGateway(props: {
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="3" flexWrap="wrap" gap={2}>
         <H1>App Connection</H1>
-        {props.disconnectAttempt.status === 'error' && (
-          <Alert details={props.disconnectAttempt.statusText}>
-            Could not close the connection
-          </Alert>
-        )}
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
       </Flex>
+
+      {props.disconnectAttempt.status === 'error' && (
+        <Alert details={props.disconnectAttempt.statusText}>
+          Could not close the connection
+        </Alert>
+      )}
+
       <Flex as="form" ref={formRef} gap={2}>
         <Validation>
           <PortFieldInput
@@ -93,13 +95,16 @@ export function AppGateway(props: {
           />
         )}
       </Flex>
+
       <Text>Access the app at:</Text>
       <TextSelectCopy my={1} text={address} bash={false} />
+
       {props.changePortAttempt.status === 'error' && (
         <Alert details={props.changePortAttempt.statusText}>
           Could not change the port number
         </Alert>
       )}
+
       <Text>
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
