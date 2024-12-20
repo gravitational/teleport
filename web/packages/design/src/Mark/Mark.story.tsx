@@ -19,7 +19,7 @@
 import Box from 'design/Box';
 import { IconTooltip } from 'design/Tooltip';
 
-import { Mark as M, MarkForToolTip } from './Mark';
+import { Mark as M, MarkInverse } from './Mark';
 
 export default {
   title: 'Design/Mark',
@@ -39,8 +39,6 @@ export const SampleText = () => {
         <b>necessitatibus</b>
       </M>{' '}
       obcaecati asperiores neque.
-      <br />
-      <br />
     </Box>
   );
 };
@@ -48,8 +46,8 @@ export const SampleText = () => {
 export const MarkInsideTooltip = () => {
   return (
     <IconTooltip>
-      Example of <MarkForToolTip>MarkForToolTip</MarkForToolTip>. Note the{' '}
-      <MarkForToolTip>inversed</MarkForToolTip> background and text color.
+      Example of <MarkInverse>MarkForToolTip</MarkInverse>. Note the{' '}
+      <MarkInverse>inversed</MarkInverse> background and text color.
     </IconTooltip>
   );
 };

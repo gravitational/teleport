@@ -17,7 +17,7 @@
  */
 
 import Link from 'design/Link';
-import { MarkForToolTip } from 'design/Mark';
+import { MarkInverse } from 'design/Mark';
 import { Position } from 'design/Popover/Popover';
 import { IconTooltip } from 'design/Tooltip';
 import styled from 'styled-components';
@@ -48,8 +48,8 @@ export function ResourceLabelTooltip({
               >
                 Teleport RBAC
               </Link>
-              . Only roles with <MarkForToolTip>node_labels</MarkForToolTip>{' '}
-              that match these labels will be allowed to access this server.
+              . Only roles with <MarkInverse>node_labels</MarkInverse> that
+              match these labels will be allowed to access this server.
             </li>
           </Ul>
         </>
@@ -74,9 +74,9 @@ export function ResourceLabelTooltip({
               >
                 Teleport RBAC
               </Link>
-              . Only roles with{' '}
-              <MarkForToolTip>kubernetes_labels</MarkForToolTip> that match
-              these labels will be allowed to access this Kubernetes cluster.
+              . Only roles with <MarkInverse>kubernetes_labels</MarkInverse>{' '}
+              that match these labels will be allowed to access this Kubernetes
+              cluster.
             </li>
             {resourceKind === 'eks' && (
               <li>
@@ -106,8 +106,8 @@ export function ResourceLabelTooltip({
               >
                 Teleport RBAC
               </Link>
-              . Only roles with <MarkForToolTip>db_labels</MarkForToolTip> that
-              match these labels will be allowed to access this database.
+              . Only roles with <MarkInverse>db_labels</MarkInverse> that match
+              these labels will be allowed to access this database.
             </li>
             {resourceKind === 'rds' && (
               <li>
