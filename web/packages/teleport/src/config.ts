@@ -19,7 +19,7 @@
 import { generatePath } from 'react-router';
 
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-import {
+import type {
   Auth2faType,
   AuthProvider,
   AuthType,
@@ -206,11 +206,11 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
-    integrationStatus: '/web/integrations/status/:type/:name',
+    integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
-    integrationEnroll: '/web/integrations/new/:type?',
+    integrationEnroll: '/web/integrations/new/:type?/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -603,12 +603,31 @@ const cfg = {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
+  /**
+   * Generates a route for an Integration's enrolment page
+   *
+   * @param {string} [type] - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} [subPage] - Optional subpage within the enrollment flow (currently Okta-specific)
+   * @returns {string} Generated enrollment route
+   */
+  getIntegrationEnrollRoute(type?: string, subPage?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type, subPage });
   },
 
-  getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
-    return generatePath(cfg.routes.integrationStatus, { type, name });
+  /**
+   * Generates a route for an Integration's status page
+   *
+   * @param {PluginKind | IntegrationKind} type - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} name - The integration name
+   * @param {string} [subPage] - Optional subpage within the status view (currently Okta-specific)
+   * @returns {string} Generated status route
+   */
+  getIntegrationStatusRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    subPage?: string
+  ) {
+    return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
   },
 
   getIntegrationStatusResourcesRoute(
