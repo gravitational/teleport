@@ -93,6 +93,27 @@ export const Support = ({
             <DataItem title="License Expiry" data={licenseExpiryDateText} />
           )}
         </StyledContentRow>
+        {isCloud && (
+          <Flex mt="5">
+            <Icons.Info mr="2" />
+            <Text>
+              Looking for{' '}
+              <Text
+                fontWeight={'bold'}
+                css={`
+                  display: inline;
+                `}
+              >
+                Scheduled Upgrades?
+              </Text>{' '}
+              It is now in{' '}
+              <Link to={cfg.getManageClusterRoute(clusterId)}>
+                Cluster Management
+              </Link>{' '}
+              page.
+            </Text>
+          </Flex>
+        )}
       </StyledMultiRowBox>
       <MobileSeparator />
       <StyledMultiRowBox mb={3}>
