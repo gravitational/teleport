@@ -40,22 +40,21 @@ export default function ModalsHost() {
   const { regular: regularDialog, important: importantDialogs } =
     modalsService.useState();
 
-  const closeRegularDialog = () => modalsService.closeRegularDialog();
-
   return (
     <>
-      {renderDialog({
-        dialog: regularDialog,
-        handleClose: closeRegularDialog,
-        hidden: !!importantDialogs.length,
-      })}
-      {importantDialogs.map(({ dialog, id }, index) => {
+      {regularDialog &&
+        renderDialog({
+          dialog: regularDialog.dialog,
+          handleClose: regularDialog.close,
+          hidden: !!importantDialogs.length,
+        })}
+      {importantDialogs.map(({ dialog, id, close }, index) => {
         const isLast = index === importantDialogs.length - 1;
         return (
           <Fragment key={id}>
             {renderDialog({
               dialog: dialog,
-              handleClose: () => modalsService.closeImportantDialog(id),
+              handleClose: close,
               hidden: !isLast,
             })}
           </Fragment>

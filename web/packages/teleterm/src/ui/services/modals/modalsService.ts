@@ -20,12 +20,11 @@ import { useStore } from 'shared/libs/stores';
 import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import * as types from 'teleterm/services/tshd/types';
+import type * as uri from 'teleterm/ui/uri';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
 import { ImmutableStore } from '../immutableStore';
-
-import type * as uri from 'teleterm/ui/uri';
 
 type State = {
   // One regular dialog and multiple important dialogs can be rendered at the same time.
@@ -39,8 +38,9 @@ type State = {
   // The important dialogs are displayed above the regular one. This is to avoid losing the state of
   // the regular modal if we happen to need to interrupt whatever the user is doing and display an
   // important modal.
-  important: { dialog: Dialog; id: string }[];
-  regular: Dialog | undefined;
+  // `close` function closes the dialog and unregisters event listeners.
+  important: { dialog: Dialog; id: string; close(): void }[];
+  regular: { dialog: Dialog; close(): void } | undefined;
 };
 
 export class ModalsService extends ImmutableStore<State> {
@@ -90,27 +90,29 @@ export class ModalsService extends ImmutableStore<State> {
       };
     }
 
+    // If there's a previous dialog, cancel and close it.
     const previousDialog = this.state.regular;
-    previousDialog?.['onCancel']?.();
+    if (previousDialog) {
+      previousDialog.dialog['onCancel']?.();
+      previousDialog.close();
+    }
 
-    const closeDialog = () => {
-      sharedSignal.removeEventListener('abort', closeDialog);
-      // Do we still have the same dialog open?
-      if (dialog !== this.state.regular) {
-        return;
-      }
-
+    const close = () => {
+      sharedSignal.removeEventListener('abort', cancelAndClose);
       this.closeRegularDialog();
+    };
+    const cancelAndClose = () => {
+      close();
       onCancelDialog();
     };
-    sharedSignal.addEventListener('abort', closeDialog);
+    sharedSignal.addEventListener('abort', cancelAndClose);
 
     this.setState(draftState => {
-      draftState.regular = dialog;
+      draftState.regular = { dialog, close };
     });
 
     return {
-      closeDialog,
+      closeDialog: cancelAndClose,
     };
   }
 
@@ -144,33 +146,32 @@ export class ModalsService extends ImmutableStore<State> {
       };
     }
 
-    const closeDialog = () => {
-      sharedSignal.removeEventListener('abort', closeDialog);
-      // Do we still have the same dialog open?
-      if (!this.state.important.find(i => i.id === id)) {
-        return;
-      }
+    const close = () => {
+      sharedSignal.removeEventListener('abort', cancelAndClose);
       this.closeImportantDialog(id);
+    };
+    const cancelAndClose = () => {
+      close();
       onCancelDialog();
     };
-    sharedSignal.addEventListener('abort', closeDialog);
+    sharedSignal.addEventListener('abort', cancelAndClose);
     this.setState(draftState => {
-      draftState.important.push({ dialog, id });
+      draftState.important.push({ dialog, id, close });
     });
 
     return {
       id,
-      closeDialog,
+      closeDialog: cancelAndClose,
     };
   }
 
-  closeRegularDialog() {
+  private closeRegularDialog() {
     this.setState(draftState => {
       draftState.regular = undefined;
     });
   }
 
-  closeImportantDialog(id: string) {
+  private closeImportantDialog(id: string) {
     this.setState(draftState => {
       const index = draftState.important.findIndex(d => d.id === id);
       if (index >= 0) {
