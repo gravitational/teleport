@@ -38,7 +38,7 @@ export type SectionProps<Model, ValidationResult> = {
  * A wrapper for editor section. Its responsibility is rendering a header,
  * expanding, collapsing, and removing the section.
  */
-export const Section = ({
+export const SectionBox = ({
   title,
   tooltip,
   children,

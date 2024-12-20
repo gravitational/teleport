@@ -38,7 +38,7 @@ import {
   RuleModel,
   verbOptions,
 } from './standardmodel';
-import { Section, SectionProps } from './sections';
+import { SectionBox, SectionProps } from './sections';
 
 export function AccessRules({
   value,
@@ -86,7 +86,7 @@ function AccessRule({
 }) {
   const { resources, verbs } = value;
   return (
-    <Section
+    <SectionBox
       title="Access Rule"
       tooltip="A rule that gives users access to certain kinds of resources"
       removable
@@ -114,7 +114,7 @@ function AccessRule({
         rule={precomputed(validation.fields.verbs)}
         mb={0}
       />
-    </Section>
+    </SectionBox>
   );
 }
 

@@ -33,33 +33,33 @@ import styled, { useTheme } from 'styled-components';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { SectionProps, Section } from './sections';
+import { SectionProps, SectionBox } from './sections';
 import {
-  AccessSpecKind,
-  AccessSpec,
-  ServerAccessSpec,
-  KubernetesAccessSpec,
+  ResourceAccessKind,
+  ResourceAccess,
+  ServerAccess,
+  KubernetesAccess,
   newKubernetesResourceModel,
   KubernetesResourceModel,
   kubernetesResourceKindOptions,
   kubernetesVerbOptions,
-  AppAccessSpec,
-  DatabaseAccessSpec,
-  WindowsDesktopAccessSpec,
+  AppAccess,
+  DatabaseAccess,
+  WindowsDesktopAccess,
 } from './standardmodel';
 import {
-  AccessSpecValidationResult,
-  ServerSpecValidationResult,
-  KubernetesSpecValidationResult,
+  ResourceAccessValidationResult,
+  ServerAccessValidationResult,
+  KubernetesAccessValidationResult,
   KubernetesResourceValidationResult,
-  AppSpecValidationResult,
-  DatabaseSpecValidationResult,
-  WindowsDesktopSpecValidationResult,
+  AppAccessValidationResult,
+  DatabaseAccessValidationResult,
+  WindowsDesktopAccessValidationResult,
 } from './validation';
 
-/** Maps access specification kind to UI component configuration. */
-export const specSections: Record<
-  AccessSpecKind,
+/** Maps resource access kind to UI component configuration. */
+export const resourceAccessSections: Record<
+  ResourceAccessKind,
   {
     title: string;
     tooltip: string;
@@ -69,37 +69,37 @@ export const specSections: Record<
   kube_cluster: {
     title: 'Kubernetes',
     tooltip: 'Configures access to Kubernetes clusters',
-    component: KubernetesAccessSpecSection,
+    component: KubernetesAccessSection,
   },
   node: {
     title: 'Servers',
     tooltip: 'Configures access to SSH servers',
-    component: ServerAccessSpecSection,
+    component: ServerAccessSection,
   },
   app: {
     title: 'Applications',
     tooltip: 'Configures access to applications',
-    component: AppAccessSpecSection,
+    component: AppAccessSection,
   },
   db: {
     title: 'Databases',
     tooltip: 'Configures access to databases',
-    component: DatabaseAccessSpecSection,
+    component: DatabaseAccessSection,
   },
   windows_desktop: {
     title: 'Windows Desktops',
     tooltip: 'Configures access to Windows desktops',
-    component: WindowsDesktopAccessSpecSection,
+    component: WindowsDesktopAccessSection,
   },
 };
 
 /**
- * A generic access spec section. Details are rendered by components from the
- * `specSections` map.
+ * A generic resource section. Details are rendered by components from the
+ * `resourceAccessSections` map.
  */
-export const AccessSpecSection = <
-  T extends AccessSpec,
-  V extends AccessSpecValidationResult,
+export const ResourceAccessSection = <
+  T extends ResourceAccess,
+  V extends ResourceAccessValidationResult,
 >({
   value,
   isProcessing,
@@ -109,9 +109,13 @@ export const AccessSpecSection = <
 }: SectionProps<T, V> & {
   onRemove?(): void;
 }) => {
-  const { component: Body, title, tooltip } = specSections[value.kind];
+  const {
+    component: Body,
+    title,
+    tooltip,
+  } = resourceAccessSections[value.kind];
   return (
-    <Section
+    <SectionBox
       title={title}
       removable
       onRemove={onRemove}
@@ -125,16 +129,16 @@ export const AccessSpecSection = <
         validation={validation}
         onChange={onChange}
       />
-    </Section>
+    </SectionBox>
   );
 };
 
-export function ServerAccessSpecSection({
+export function ServerAccessSection({
   value,
   isProcessing,
   validation,
   onChange,
-}: SectionProps<ServerAccessSpec, ServerSpecValidationResult>) {
+}: SectionProps<ServerAccess, ServerAccessValidationResult>) {
   return (
     <>
       <Text typography="body3" mb={1}>
@@ -165,12 +169,12 @@ export function ServerAccessSpecSection({
   );
 }
 
-export function KubernetesAccessSpecSection({
+export function KubernetesAccessSection({
   value,
   isProcessing,
   validation,
   onChange,
-}: SectionProps<KubernetesAccessSpec, KubernetesSpecValidationResult>) {
+}: SectionProps<KubernetesAccess, KubernetesAccessValidationResult>) {
   return (
     <>
       <FieldSelectCreatable
@@ -325,12 +329,12 @@ function KubernetesResourceView({
   );
 }
 
-export function AppAccessSpecSection({
+export function AppAccessSection({
   value,
   validation,
   isProcessing,
   onChange,
-}: SectionProps<AppAccessSpec, AppSpecValidationResult>) {
+}: SectionProps<AppAccess, AppAccessValidationResult>) {
   return (
     <Flex flexDirection="column" gap={3}>
       <Box>
@@ -369,12 +373,12 @@ export function AppAccessSpecSection({
   );
 }
 
-export function DatabaseAccessSpecSection({
+export function DatabaseAccessSection({
   value,
   isProcessing,
   validation,
   onChange,
-}: SectionProps<DatabaseAccessSpec, DatabaseSpecValidationResult>) {
+}: SectionProps<DatabaseAccess, DatabaseAccessValidationResult>) {
   return (
     <>
       <Box mb={3}>
@@ -443,12 +447,12 @@ export function DatabaseAccessSpecSection({
   );
 }
 
-export function WindowsDesktopAccessSpecSection({
+export function WindowsDesktopAccessSection({
   value,
   isProcessing,
   validation,
   onChange,
-}: SectionProps<WindowsDesktopAccessSpec, WindowsDesktopSpecValidationResult>) {
+}: SectionProps<WindowsDesktopAccess, WindowsDesktopAccessValidationResult>) {
   return (
     <>
       <Box mb={3}>
