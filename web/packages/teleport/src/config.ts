@@ -285,7 +285,11 @@ const cfg = {
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
-    joinTokenPath: '/v1/webapi/token',
+    discoveryJoinToken: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/token
+      create: '/v1/webapi/token',
+      createV2: '/v2/webapi/token',
+    },
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
     joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
@@ -368,8 +372,14 @@ const cfg = {
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
-    eksEnrollClustersPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+
+    eks: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters
+      enroll:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+      enrollV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+    },
 
     ec2InstancesListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
@@ -573,10 +583,6 @@ const cfg = {
 
   getJoinTokensUrl() {
     return cfg.api.joinTokensPath;
-  },
-
-  getJoinTokenUrl() {
-    return cfg.api.joinTokenPath;
   },
 
   getJoinTokenYamlUrl() {
@@ -1086,7 +1092,16 @@ const cfg = {
   getEnrollEksClusterUrl(integrationName: string): string {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.eksEnrollClustersPath, {
+    return generatePath(cfg.api.eks.enroll, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getEnrollEksClusterUrlV2(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eks.enrollV2, {
       clusterId,
       name: integrationName,
     });

@@ -22,6 +22,7 @@ package httplib
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"mime"
@@ -32,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -226,6 +228,51 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 		return nil, trace.ConvertSystemError(err)
 	}
 	return re, trace.ReadError(re.Code(), re.Bytes())
+}
+
+// ProxyVersion describes the parts of a Proxy semver
+// version in the format: major.minor.patch-preRelease
+type ProxyVersion struct {
+	// Major is the first part of version.
+	Major int64 `json:"major"`
+	// Minor is the second part of version.
+	Minor int64 `json:"minor"`
+	// Patch is the third part of version.
+	Patch int64 `json:"patch"`
+	// PreRelease is only defined if there was a hyphen
+	// and a word at the end of version eg: the prerelease
+	// value of version 18.0.0-dev is "dev".
+	PreRelease string `json:"preRelease"`
+	// String contains the whole version.
+	String string `json:"string"`
+}
+
+// RouteNotFoundResponse writes a JSON error reply containing
+// a not found error, a Version object, and a not found HTTP status code.
+func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter, proxyVersion string) {
+	SetDefaultSecurityHeaders(w.Header())
+
+	errObj := &trace.TraceErr{
+		Err: trace.NotFound("path not found"),
+	}
+
+	ver, err := semver.NewVersion(proxyVersion)
+	if err != nil {
+		slog.DebugContext(ctx, "Error parsing Teleport proxy semver version", "err", err)
+	} else {
+		verObj := ProxyVersion{
+			Major:      ver.Major,
+			Minor:      ver.Minor,
+			Patch:      ver.Patch,
+			String:     proxyVersion,
+			PreRelease: string(ver.PreRelease),
+		}
+		fields := make(map[string]interface{})
+		fields["proxyVersion"] = verObj
+		errObj.Fields = fields
+	}
+
+	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
 }
 
 // ParseBool will parse boolean variable from url query
