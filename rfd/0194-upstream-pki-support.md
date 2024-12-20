@@ -106,7 +106,32 @@ CA, two new fields will be introduced to the `TLSKeyPair` protobuf message:
 
 #### RPC Changes
 
-TODO
+A new RPC should be introduced to the TrustService for uploading the signed
+certificate and chain:
+
+```protobuf
+service TrustService {
+  rpc ImportCA(ImportCARequest) returns (ImportCAResponse) {}
+}
+
+
+message ImportCARequest {
+  // The type of the CA (e.g `spiffe`)
+  string type = 1;
+  // The signed CA certificate (encoded in PEM), generated from the CSR, for
+  // Teleport to use. 
+  bytes leaf_ca_certificate = 2;
+  // Any intermediate CA certificates (encoded in PEM and appended to one
+  // another) necessary to chain leaf_ca_certificate to a certificate in 
+  // root_ca_certificates.
+  bytes intermediate_ca_certificates = 3;
+  // The root CA certificates (encoded in PEM and appended to one another) at
+  // the top of the PKI hierarchy in which leaf_ca_certificate was issued.
+  bytes root_ca_certificates = 4;
+}
+
+message ImportCAResponse {}
+```
 
 #### Expiry Warnings
 
