@@ -1385,3 +1385,72 @@ Future versions of tsh will fail when incompatible versions are detected.
 		})
 	}
 }
+
+func TestParsePortMapping(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    PortMapping
+		wantErr bool
+	}{
+		{
+			in:   "",
+			want: PortMapping{},
+		},
+		{
+			in:   "1337",
+			want: PortMapping{LocalPort: 1337},
+		},
+		{
+			in:   "1337:42",
+			want: PortMapping{LocalPort: 1337, TargetPort: 42},
+		},
+		{
+			in:   "0:0",
+			want: PortMapping{},
+		},
+		{
+			in:   "0:42",
+			want: PortMapping{TargetPort: 42},
+		},
+		{
+			in:      " ",
+			wantErr: true,
+		},
+		{
+			in:      "1337:",
+			wantErr: true,
+		},
+		{
+			in:      ":42",
+			wantErr: true,
+		},
+		{
+			in:      "13371337",
+			wantErr: true,
+		},
+		{
+			in:      "42:73317331",
+			wantErr: true,
+		},
+		{
+			in:      "1337:42:42",
+			wantErr: true,
+		},
+		{
+			in:      "1337:42:",
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.in, func(t *testing.T) {
+			out, err := ParsePortMapping(test.in)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.want, out)
+			}
+		})
+	}
+}
