@@ -27,7 +27,7 @@ export const Mark = styled.mark`
   color: inherit;
 `;
 
-export const MarkForToolTip = styled(Mark)`
+export const MarkInverse = styled(Mark)`
   background-color: ${p => p.theme.colors.tooltip.inverseBackground};
   color: ${p => p.theme.colors.text.main};
 `;
