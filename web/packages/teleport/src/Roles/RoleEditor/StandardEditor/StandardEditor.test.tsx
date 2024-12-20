@@ -60,7 +60,7 @@ test('adding and removing sections', async () => {
   expect(getAllSectionNames()).toEqual([]);
 
   await user.click(
-    screen.getByRole('button', { name: 'Add New Specifications' })
+    screen.getByRole('button', { name: 'Add New Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',
@@ -74,7 +74,7 @@ test('adding and removing sections', async () => {
   expect(getAllSectionNames()).toEqual(['Servers']);
 
   await user.click(
-    screen.getByRole('button', { name: 'Add New Specifications' })
+    screen.getByRole('button', { name: 'Add New Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',

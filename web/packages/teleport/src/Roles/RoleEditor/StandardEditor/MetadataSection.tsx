@@ -24,7 +24,7 @@ import Text from 'design/Text';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { Section, SectionProps } from './sections';
+import { SectionBox, SectionProps } from './sections';
 import { MetadataModel } from './standardmodel';
 import { MetadataValidationResult } from './validation';
 
@@ -34,7 +34,7 @@ export const MetadataSection = ({
   validation,
   onChange,
 }: SectionProps<MetadataModel, MetadataValidationResult>) => (
-  <Section
+  <SectionBox
     title="Role Metadata"
     tooltip="Basic information about the role resource"
     isProcessing={isProcessing}
@@ -66,5 +66,5 @@ export const MetadataSection = ({
       setLabels={labels => onChange?.({ ...value, labels })}
       rule={precomputed(validation.fields.labels)}
     />
-  </Section>
+  </SectionBox>
 );
