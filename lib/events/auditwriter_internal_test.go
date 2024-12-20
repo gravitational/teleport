@@ -24,11 +24,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 func TestBytesToSessionPrintEvents(t *testing.T) {
-	b := make([]byte, MaxProtoMessageSizeBytes+1)
+	b := make([]byte, sessionrecording.MaxProtoMessageSizeBytes+1)
 	_, err := rand.Read(b)
 	require.NoError(t, err)
 

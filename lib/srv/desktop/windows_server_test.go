@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -249,7 +250,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	// a fake PNG Frame message, which is way too big to be legitimate
-	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
+	maliciousPNG := make([]byte, sessionrecording.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	maliciousPNG[0] = byte(tdp.TypePNGFrame)
 

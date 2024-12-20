@@ -47,9 +47,6 @@ const (
 	// per stream
 	ConcurrentUploadsPerStream = 1
 
-	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
-	MaxProtoMessageSizeBytes = 64 * 1024
-
 	// MinUploadPartSizeBytes is the minimum allowed part size when uploading a part to
 	// Amazon S3.
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
@@ -108,7 +105,7 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool: utils.NewSliceSyncPool(sessionrecording.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
 	}, nil
 }
 
@@ -383,10 +380,10 @@ func (s *ProtoStream) Done() <-chan struct{} {
 func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
 	event := pe.GetAuditEvent()
 	messageSize := event.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		event = event.TrimToMaxSize(MaxProtoMessageSizeBytes)
-		if event.Size() > MaxProtoMessageSizeBytes {
-			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+	if messageSize > sessionrecording.MaxProtoMessageSizeBytes {
+		event = event.TrimToMaxSize(sessionrecording.MaxProtoMessageSizeBytes)
+		if event.Size() > sessionrecording.MaxProtoMessageSizeBytes {
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, sessionrecording.MaxProtoMessageSizeBytes)
 		}
 	}
 
