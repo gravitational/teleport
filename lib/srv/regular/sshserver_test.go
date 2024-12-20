@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 // teleportTestUser is additional user used for tests
@@ -1080,6 +1081,14 @@ func TestRootX11ForwardPermissions(t *testing.T) {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
 
+	login := utils.GenerateLocalUsername(t)
+	_, err := host.UserAdd(login, nil, host.UserOpts{})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
+	})
+
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 	f.ssh.srv.x11 = &x11.ServerConfig{
@@ -1098,8 +1107,8 @@ func TestRootX11ForwardPermissions(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// Create a new X11 session as a non-root nonroot in the system.
-	nonroot, err := user.LookupId("1000")
+	// Create a new X11 session as a non-root user in the system.
+	nonroot, err := user.Lookup(login)
 	require.NoError(t, err)
 	client := f.newSSHClient(ctx, t, nonroot)
 	serverDisplay := x11EchoSession(ctx, t, client)
