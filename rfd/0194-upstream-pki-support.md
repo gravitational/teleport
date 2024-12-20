@@ -59,28 +59,34 @@ CertificateAuthorityV2 resource. These will be stored in a new field,
 `spec.NextKeys` of the existing CAKeySet type.
 
 If the user requests that the CA return to the `standby` phase from `pre-init`,
-then the `NextKeys` field will be cleared. No further action is required.
+then the `spec.NextKeys` field will be cleared. No further action is required.
 
 Once in the `pre-init` phase, the user may generate a CSR for the new CA key-pair
-using the `tctl auth generate-csr` command.
+using the `tctl auth generate-ca-csr` command.
 
-To progress from the `pre-init` phase to the `init` phase, the user must
-provide a signed certificate for the new CA key-pair, as well as the chain of
-intermediate CAs to and including the root CA.
+Out of band, the user then takes the CSR, and obtains a signed certificate from
+their upstream PKI hierarchy. They must also obtain a copy of the root CA and
+any intermediate CAs between the root CA and the leaf CA issued for Teleport.
 
-The following process will then occur:
+The user then use `tctl auth import-ca` to provide the signed certificate,
+intermediates and root CAs to Teleport:
 
 - Teleport will verify the signed certificate and chain:
   - The given leaf CA validates against the given chain.
-  - The given leaf CA's key matches the generated key in the `NextKeys` field.
-- The CertificateAuthority resource will be atomically updated:
+  - The given leaf CA's key matches the generated key in the `spec.NextKeys` field.
+- The CertificateAuthority resource will then be updated:
   - The given leaf CA will be written into `spec.NextKeys.TLS.Cert`.
   - The given intermediate CAs will be written into `spec.NextKeys.TLS.IntermediateCerts`.
   - The given root CAs will be written into `spec.NextKeys.TLS.RootCerts`.
-  - The `NextKeys` field will be swapped into the `AdditionalTrustedKeys` field. 
-  - To enter the `init` phase.
 
-Once in the `init` phase, the rotation process will proceed as normal.
+With the certificates loaded into `spec.NextKeys`, the user can now transition
+the CA to the `init` phase sing the standard `tctl auth rotate` command. This
+will:
+
+- Swap the `NextKeys` field into the `AdditionalTrustedKeys` field.
+- Transition the CA to the `init` phase.
+
+From this point, the CA rotation continues as normal.
 
 #### Resource Changes
 
@@ -110,11 +116,12 @@ $ tctl auth rotate --manual --type spiffe --phase pre-init
 Updated rotation phase to pre-init. New keys have been generated, and you can
 now provide a certificate to move to the next phase.
 # User can now generate a CSR for the new CA key-pair.
-$ tctl auth generate-csr --type spiffe -o spiffe.csr
+$ tctl auth generate-ca-csr --type spiffe -o spiffe.csr
 A CSR for the SPIFFE CA has been generated and written to spiffe.csr.
-# User provides the signed certificate and chain to progress to the `init` phase
-# of a normal rotation.
-$ tctl auth rotate --manual --type spiffe --phase init --signed-cert spiffe-chain.crt
+# User provides the signed certificate and chain:
+$ tctl auth import-ca --type spiffe --chain spiffe-chain.crt
+# User progresses to the `init` phase of a normal rotation.
+$ tctl auth rotate --manual --type spiffe --phase init 
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
 
@@ -144,3 +151,5 @@ TODO:
   on the security model of Teleport Workload Identity.
 
 ### Phase 2: Automation & Integration
+
+https://ztpki-staging.venafi.com/api/v2/swagger/
