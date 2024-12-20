@@ -20,6 +20,7 @@ package sessionrecording_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -46,4 +47,41 @@ func TestReadCorruptedRecording(t *testing.T) {
 
 	// verify that the expected number of events are extracted
 	require.Len(t, events, 12)
+}
+
+// note: testdata/session is not a real session recording, but enough for
+// demonstratation purposes
+// testdata/session has just enough metadata in the protobuf binary file
+// to have the event types populated
+func ExampleNewReader() {
+	// testdata/session includes 4 events
+	// 1. session.start
+	// 2. print
+	// 3. session.end
+	// 4. session.leave
+	sessionFile, err := os.Open("testdata/session")
+	if err != nil {
+		// handle Open error
+		return
+	}
+	defer sessionFile.Close()
+
+	reader := sessionrecording.NewReader(sessionFile)
+	defer reader.Close()
+
+	events, err := reader.ReadAll(context.Background())
+	if err != nil {
+		// handle ReadAll error
+		return
+	}
+
+	// loop through parsed events
+	for _, event := range events {
+		fmt.Println(event.GetType())
+	}
+
+	// Output: session.start
+	// print
+	// session.end
+	// session.leave
 }
