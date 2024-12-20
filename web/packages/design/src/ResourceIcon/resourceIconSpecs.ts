@@ -195,6 +195,7 @@ export const resourceIconSpecs = {
 
   oasisopen: forAllThemes(i.oasisopen),
   okta: { dark: i.oktaDark, light: i.oktaLight },
+  oktaAlt: forAllThemes(i.oktaAlt),
   '101domain': forAllThemes(i.onehundredonedomain),
   onelogin: { dark: i.oneloginDark, light: i.oneloginLight },
   '1password': { dark: i.onepasswordDark, light: i.onepasswordLight },

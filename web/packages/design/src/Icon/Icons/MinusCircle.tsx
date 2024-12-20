@@ -48,10 +48,20 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function {ICON_NAME}({ size = 24, color, ...otherProps}: IconProps) {
+export function MinusCircle({ size = 24, color, ...otherProps }: IconProps) {
   return (
-    <Icon size={size} color={color} className="icon {CLASS_NAME}" {...otherProps}>
-      {PATHS}
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-minuscircle"
+      {...otherProps}
+    >
+      <path d="M8.25 11.25C7.83579 11.25 7.5 11.5858 7.5 12C7.5 12.4142 7.83579 12.75 8.25 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H8.25Z" />
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+      />
     </Icon>
   );
 }

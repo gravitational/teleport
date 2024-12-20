@@ -16,23 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
-import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
+import styled from 'styled-components';
+
+import { Box } from 'design';
 
 import { State as ResourceState } from 'teleport/components/useResources';
 
-import { ResponsiveConnector } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
-
 import { State as AuthConnectorState } from '../useAuthConnectors';
+import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
+import getSsoIcon from '../ssoIcons/getSsoIcon';
 
 export default function ConnectorList({ items, onEdit, onDelete }: Props) {
   items = items || [];
   const $items = items.map(item => {
-    const { id, name } = item;
+    const { id, name, kind } = item;
+
+    const Icon = getSsoIcon(kind, name);
+
     return (
-      <ConnectorListItem
+      <AuthConnectorTile
         key={id}
+        kind={kind}
         id={id}
+        Icon={Icon}
+        isDefault={false}
+        isPlaceholder={false}
         onEdit={onEdit}
         onDelete={onDelete}
         name={name}
@@ -41,55 +49,22 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
   });
 
   return (
-    <Flex flexWrap="wrap" alignItems="center" flex={1} gap={5}>
+    <AuthConnectorsGrid>
+      <LocalConnectorTile />
       {$items}
-    </Flex>
+    </AuthConnectorsGrid>
   );
 }
-
-function ConnectorListItem({ name, id, onEdit, onDelete }) {
-  const onClickEdit = () => onEdit(id);
-  const onClickDelete = () => onDelete(id);
-
-  return (
-    <ResponsiveConnector>
-      <Flex width="100%" justifyContent="center">
-        <MenuIcon buttonIconProps={menuActionProps}>
-          <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
-        </MenuIcon>
-      </Flex>
-      <Flex
-        flex="1"
-        alignItems="center"
-        justifyContent="center"
-        flexDirection="column"
-        width="200px"
-        style={{ textAlign: 'center' }}
-      >
-        <Box mb={3} mt={3}>
-          <ResourceIcon name="github" width="50px" />
-        </Box>
-        <Text style={{ width: '100%' }} typography="h3">
-          {name}
-        </Text>
-      </Flex>
-      <ButtonPrimary mt="auto" size="medium" block onClick={onClickEdit}>
-        Edit Connector
-      </ButtonPrimary>
-    </ResponsiveConnector>
-  );
-}
-
-const menuActionProps = {
-  style: {
-    right: '10px',
-    position: 'absolute',
-    top: '10px',
-  },
-};
 
 type Props = {
   items: AuthConnectorState['items'];
   onEdit: ResourceState['edit'];
   onDelete: ResourceState['remove'];
 };
+
+export const AuthConnectorsGrid = styled(Box)`
+  width: 100%;
+  display: grid;
+  gap: ${p => p.theme.space[3]}px;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+`;
