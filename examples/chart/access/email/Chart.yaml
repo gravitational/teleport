@@ -1,4 +1,4 @@
-.version: &version "16.4.12"
+.version: &version "16.4.12-cloud-1-region-fix"
 
 apiVersion: v2
 name: teleport-plugin-email
