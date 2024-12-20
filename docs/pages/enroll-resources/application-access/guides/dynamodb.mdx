@@ -22,15 +22,15 @@ This guide will help you to:
 
 </Tabs>
 
-<Admonition type="warning" title="Recommendation: Use the Teleport Database
-Service">
+## How it works
 
 The Teleport Application Service enables secure access to DynamoDB via its
 [integration](../cloud-apis/aws-console.mdx) with the AWS management console and
 API. This is an alternative to accessing DynamoDB through the Teleport Database
-service, as described in our [Database Access with AWS
-DynamoDB](../../database-access/enroll-aws-databases/aws-dynamodb.mdx) guide.
+service, as described in our [Protect Amazon DynamoDB with
+Teleport](../../database-access/enroll-aws-databases/aws-dynamodb.mdx) guide.
 
+<Admonition type="warning">
 The Application Service's integration with AWS is not designed specifically for
 DynamoDB, while the Database Service has a purpose-built DynamoDB integration.
 As a result, we recommend using the Database Service to enable secure access to
@@ -40,7 +40,6 @@ It is worth noting that the Database Service will allow you to connect with GUI
 clients, whereas the Application Service does not. On the other hand, a single
 Application Service configuration can access DynamoDB across regions, while
 database resources must be configured for each region with DynamoDB databases.
-
 </Admonition>
 
 ## Prerequisites
@@ -173,6 +172,6 @@ $ tsh apps logout aws
 ```
 
 ## Next steps
-- More information on [AWS Management and API with Teleport Application Access](../../application-access/cloud-apis/aws-console.mdx).
+- More information on [protecting AWS Console with Teleport](../../application-access/cloud-apis/aws-console.mdx).
 - Learn more about [AWS service endpoints](https://docs.aws.amazon.com/general/latest/gr/rande.html).
 
