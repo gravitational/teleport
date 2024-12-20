@@ -22,23 +22,23 @@ import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
 
+import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
+
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
 
 import { CliCommand } from './CliCommand';
-import { DocumentGatewayProps } from './DocumentGateway';
 
-type OnlineDocumentGatewayProps = Pick<
-  DocumentGatewayProps,
-  | 'changeDbNameAttempt'
-  | 'changePortAttempt'
-  | 'disconnect'
-  | 'changeDbName'
-  | 'changePort'
-  | 'gateway'
-  | 'runCliCommand'
->;
-
-export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
+export function OnlineDocumentGateway(props: {
+  changeDbName: (name: string) => RunFuncReturnValue<void>;
+  changeDbNameAttempt: Attempt<void>;
+  changePort: (port: string) => RunFuncReturnValue<void>;
+  changePortAttempt: Attempt<void>;
+  disconnect: () => RunFuncReturnValue<void>;
+  gateway: Gateway;
+  runCliCommand: () => void;
+}) {
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
     props.changePortAttempt.status === 'processing';

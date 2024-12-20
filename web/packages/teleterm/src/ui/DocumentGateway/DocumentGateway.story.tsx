@@ -16,20 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
+import { ComponentProps } from 'react';
 import {
   makeEmptyAttempt,
   makeProcessingAttempt,
-  makeErrorAttemptWithStatusText,
-  makeSuccessAttempt,
+  makeErrorAttempt,
 } from 'shared/hooks/useAsync';
 
 import { makeDatabaseGateway } from 'teleterm/services/tshd/testHelpers';
 
-import { DocumentGateway, DocumentGatewayProps } from './DocumentGateway';
+import { OfflineGateway } from '../components/OfflineGateway';
 
-export default {
+import { OnlineDocumentGateway } from './OnlineDocumentGateway';
+
+const meta: Meta = {
   title: 'Teleterm/DocumentGateway',
 };
+export default meta;
 
 const gateway = makeDatabaseGateway({
   uri: '/gateways/bar',
@@ -43,24 +47,19 @@ const gateway = makeDatabaseGateway({
 });
 gateway.gatewayCliCommand.preview = 'connect-me-to-db-please';
 
-const onlineDocumentGatewayProps: DocumentGatewayProps = {
-  gateway: gateway,
-  targetName: gateway.targetName,
-  defaultPort: gateway.localPort,
-  disconnect: async () => [undefined, null],
-  connected: true,
-  reconnect: async () => [undefined, null],
-  connectAttempt: makeSuccessAttempt(undefined),
-  disconnectAttempt: makeEmptyAttempt(),
-  runCliCommand: () => {},
-  changeDbName: async () => [undefined, null],
-  changeDbNameAttempt: makeEmptyAttempt(),
-  changePort: async () => [undefined, null],
-  changePortAttempt: makeEmptyAttempt(),
-};
+const onlineDocumentGatewayProps: ComponentProps<typeof OnlineDocumentGateway> =
+  {
+    gateway: gateway,
+    disconnect: async () => [undefined, null],
+    runCliCommand: () => {},
+    changeDbName: async () => [undefined, null],
+    changeDbNameAttempt: makeEmptyAttempt(),
+    changePort: async () => [undefined, null],
+    changePortAttempt: makeEmptyAttempt(),
+  };
 
 export function Online() {
-  return <DocumentGateway {...onlineDocumentGatewayProps} />;
+  return <OnlineDocumentGateway {...onlineDocumentGatewayProps} />;
 }
 
 export function OnlineWithLongValues() {
@@ -80,20 +79,16 @@ export function OnlineWithLongValues() {
     'connect-me-to-db-please-baz-quux-quuz-foo-baz-quux-quuz-foo-baz-quux-quuz-foo';
 
   return (
-    <DocumentGateway
-      {...onlineDocumentGatewayProps}
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-    />
+    <OnlineDocumentGateway {...onlineDocumentGatewayProps} gateway={gateway} />
   );
 }
 
 export function OnlineWithFailedDbNameAttempt() {
   return (
-    <DocumentGateway
+    <OnlineDocumentGateway
       {...onlineDocumentGatewayProps}
-      changeDbNameAttempt={makeErrorAttemptWithStatusText<void>(
-        'Something went wrong with setting database name.'
+      changeDbNameAttempt={makeErrorAttempt(
+        new Error('Something went wrong with setting database name.')
       )}
     />
   );
@@ -101,10 +96,10 @@ export function OnlineWithFailedDbNameAttempt() {
 
 export function OnlineWithFailedPortAttempt() {
   return (
-    <DocumentGateway
+    <OnlineDocumentGateway
       {...onlineDocumentGatewayProps}
-      changePortAttempt={makeErrorAttemptWithStatusText<void>(
-        'Something went wrong with setting port.'
+      changePortAttempt={makeErrorAttempt(
+        new Error('Something went wrong with setting port.')
       )}
     />
   );
@@ -112,39 +107,36 @@ export function OnlineWithFailedPortAttempt() {
 
 export function OnlineWithFailedDbNameAndPortAttempts() {
   return (
-    <DocumentGateway
+    <OnlineDocumentGateway
       {...onlineDocumentGatewayProps}
-      changeDbNameAttempt={makeErrorAttemptWithStatusText<void>(
-        'Something went wrong with setting database name.'
+      changeDbNameAttempt={makeErrorAttempt(
+        new Error('Something went wrong with setting database name.')
       )}
-      changePortAttempt={makeErrorAttemptWithStatusText<void>(
-        'Something went wrong with setting port.'
+      changePortAttempt={makeErrorAttempt(
+        new Error('Something went wrong with setting port.')
       )}
     />
   );
 }
 
+const offlineGatewayProps: ComponentProps<typeof OfflineGateway> = {
+  connectAttempt: makeEmptyAttempt(),
+  reconnect: () => {},
+  gatewayPort: { isSupported: true, defaultPort: '1337' },
+  targetName: gateway.targetName,
+  gatewayKind: 'database',
+};
+
 export function Offline() {
-  return (
-    <DocumentGateway
-      {...onlineDocumentGatewayProps}
-      gateway={undefined}
-      defaultPort="1337"
-      connected={false}
-      connectAttempt={makeEmptyAttempt()}
-    />
-  );
+  return <OfflineGateway {...offlineGatewayProps} />;
 }
 
 export function OfflineWithFailedConnectAttempt() {
   return (
-    <DocumentGateway
-      {...onlineDocumentGatewayProps}
-      gateway={undefined}
-      defaultPort="62414"
-      connected={false}
-      connectAttempt={makeErrorAttemptWithStatusText<void>(
-        'listen tcp 127.0.0.1:62414: bind: address already in use'
+    <OfflineGateway
+      {...offlineGatewayProps}
+      connectAttempt={makeErrorAttempt(
+        new Error('listen tcp 127.0.0.1:62414: bind: address already in use')
       )}
     />
   );
@@ -152,11 +144,8 @@ export function OfflineWithFailedConnectAttempt() {
 
 export function Processing() {
   return (
-    <DocumentGateway
-      {...onlineDocumentGatewayProps}
-      gateway={undefined}
-      defaultPort="1337"
-      connected={false}
+    <OfflineGateway
+      {...offlineGatewayProps}
       connectAttempt={makeProcessingAttempt()}
     />
   );
@@ -164,7 +153,7 @@ export function Processing() {
 
 export function PortProcessing() {
   return (
-    <DocumentGateway
+    <OnlineDocumentGateway
       {...onlineDocumentGatewayProps}
       changePortAttempt={makeProcessingAttempt()}
     />

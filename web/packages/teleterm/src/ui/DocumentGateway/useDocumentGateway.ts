@@ -19,13 +19,13 @@
 import { useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-import { Gateway } from 'teleterm/services/tshd/types';
 import { isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
 export function useGateway(doc: types.DocumentGateway) {
