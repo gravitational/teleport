@@ -1,0 +1,30 @@
+name: Docs Preview
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+  
+permissions:
+  pull-requests: write
+  id-token: write
+  
+jobs:
+  amplify-preview:
+    name: Prepare Amplify preview URL
+    runs-on: ubuntu-22.04-2core-arm64
+    environment: docs-amplify
+    steps:    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+      with:
+        aws-region: us-west-2
+        role-to-assume: ${{ vars.IAM_ROLE }}
+
+    - name: Create Amplify preview environment
+      uses: gravitational/shared-workflows/tools/amplify-preview@tools/amplify-preview/v0.0.1
+      with:
+        app_ids: ${{ vars.AMPLIFY_APP_IDS }}
+        create_branches: "true"
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        wait: "true"
