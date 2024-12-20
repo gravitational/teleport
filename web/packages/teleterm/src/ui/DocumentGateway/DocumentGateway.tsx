@@ -24,47 +24,52 @@ import { OfflineGateway } from '../components/OfflineGateway';
 import { useDocumentGateway } from './useDocumentGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 
-type Props = {
+export function DocumentGateway(props: {
   visible: boolean;
   doc: types.DocumentGateway;
-};
-
-export default function Container(props: Props) {
+}) {
   const { doc, visible } = props;
-  const state = useDocumentGateway(doc);
-  return (
-    <Document visible={visible}>
-      <DocumentGateway {...state} targetName={doc.targetName} />
-    </Document>
-  );
-}
+  const {
+    connected,
+    // Needed for OfflineGateway.
+    connectAttempt,
+    reconnect,
+    defaultPort,
+    // Needed for OnlineDocumentGateway.
+    disconnect,
+    changeDbName,
+    changeDbNameAttempt,
+    changePortAttempt,
+    gateway,
+    changePort,
+    runCliCommand,
+  } = useDocumentGateway(doc);
 
-export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway> & {
-  targetName: string;
-};
-
-export function DocumentGateway(props: DocumentGatewayProps) {
-  if (!props.connected) {
+  if (!connected) {
     return (
-      <OfflineGateway
-        connectAttempt={props.connectAttempt}
-        reconnect={props.reconnect}
-        gatewayPort={{ isSupported: true, defaultPort: props.defaultPort }}
-        targetName={props.targetName}
-        gatewayKind="database"
-      />
+      <Document visible={visible}>
+        <OfflineGateway
+          connectAttempt={connectAttempt}
+          reconnect={reconnect}
+          gatewayPort={{ isSupported: true, defaultPort }}
+          targetName={doc.targetName}
+          gatewayKind="database"
+        />
+      </Document>
     );
   }
 
   return (
-    <OnlineDocumentGateway
-      disconnect={props.disconnect}
-      changeDbName={props.changeDbName}
-      changeDbNameAttempt={props.changeDbNameAttempt}
-      changePortAttempt={props.changePortAttempt}
-      gateway={props.gateway}
-      changePort={props.changePort}
-      runCliCommand={props.runCliCommand}
-    />
+    <Document visible={visible}>
+      <OnlineDocumentGateway
+        disconnect={disconnect}
+        changeDbName={changeDbName}
+        changeDbNameAttempt={changeDbNameAttempt}
+        changePortAttempt={changePortAttempt}
+        gateway={gateway}
+        changePort={changePort}
+        runCliCommand={runCliCommand}
+      />
+    </Document>
   );
 }
