@@ -47,9 +47,11 @@ import { SlideTabs } from 'design/SlideTabs';
 import { RadioGroup } from 'design/RadioGroup';
 import Select from 'shared/components/Select';
 import { components, MultiValueProps } from 'react-select';
+
+import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
+
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { LabelsInput } from 'teleport/components/LabelsInput';
-import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
 
 import { EditorSaveCancelButton } from '../Shared';
 
