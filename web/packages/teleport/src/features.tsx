@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import {
   Bots as BotsIcon,
   CirclePlay,
@@ -248,7 +246,12 @@ export class FeatureBots implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.listBots;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.listBots;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -435,7 +438,12 @@ export class FeatureIntegrations implements TeleportFeature {
   section = ManagementSection.Access;
 
   hasAccess(flags: FeatureFlags) {
-    return flags.integrations;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.integrations;
+    }
+    return true;
   }
 
   route = {

@@ -19,9 +19,12 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	"github.com/gravitational/teleport/lib/usertasks"
 )
 
 // UserTask describes UserTask fields.
@@ -37,12 +40,16 @@ type UserTask struct {
 	IssueType string `json:"issueType,omitempty"`
 	// Integration is the Integration Name this User Task refers to.
 	Integration string `json:"integration,omitempty"`
+	// LastStateChange indicates when the current's user task state was last changed.
+	LastStateChange time.Time `json:"lastStateChange,omitempty"`
 }
 
 // UserTaskDetail contains all the details for a User Task.
 type UserTaskDetail struct {
-	// UserTask has the basic fields that all taks include.
+	// UserTask has the basic fields that all tasks include.
 	UserTask
+	// Description is a markdown document that explains the issue and how to fix it.
+	Description string `json:"description,omitempty"`
 	// DiscoverEC2 contains the task details for the DiscoverEC2 tasks.
 	DiscoverEC2 *usertasksv1.DiscoverEC2 `json:"discoverEc2,omitempty"`
 }
@@ -87,6 +94,7 @@ func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 	return UserTaskDetail{
 		UserTask:    MakeUserTask(ut),
+		Description: usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType()),
 		DiscoverEC2: ut.GetSpec().GetDiscoverEc2(),
 	}
 }
@@ -94,10 +102,11 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 // MakeUserTask creates a UI UserTask representation.
 func MakeUserTask(ut *usertasksv1.UserTask) UserTask {
 	return UserTask{
-		Name:        ut.GetMetadata().GetName(),
-		TaskType:    ut.GetSpec().GetTaskType(),
-		State:       ut.GetSpec().GetState(),
-		IssueType:   ut.GetSpec().GetIssueType(),
-		Integration: ut.GetSpec().GetIntegration(),
+		Name:            ut.GetMetadata().GetName(),
+		TaskType:        ut.GetSpec().GetTaskType(),
+		State:           ut.GetSpec().GetState(),
+		IssueType:       ut.GetSpec().GetIssueType(),
+		Integration:     ut.GetSpec().GetIntegration(),
+		LastStateChange: ut.GetStatus().GetLastStateChange().AsTime(),
 	}
 }

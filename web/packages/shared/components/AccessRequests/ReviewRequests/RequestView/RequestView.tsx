@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Fragment } from 'react';
 import styled from 'styled-components';
 import {
   Alert,
@@ -617,7 +617,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
       review;
 
     return (
-      <React.Fragment key={index}>
+      <Fragment key={index}>
         <Timestamp
           author={author}
           state={state}
@@ -632,7 +632,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
             createdDuration={createdDuration}
           />
         )}
-      </React.Fragment>
+      </Fragment>
     );
   });
 

@@ -20,12 +20,13 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	certificatesv1 "k8s.io/api/certificates/v1"
@@ -50,7 +51,7 @@ import (
 // - deniedResources: excluded if (namespace,name) matches an entry even if it matches
 // the allowedResources's list.
 // - allowedResources: excluded if (namespace,name) not match a single entry.
-func newResourceFilterer(kind, verb string, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log logrus.FieldLogger) responsewriters.FilterWrapper {
+func newResourceFilterer(kind, verb string, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
 	// If the list of allowed resources contains a wildcard and no deniedResources, then we
 	// don't need to filter anything.
 	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
@@ -113,7 +114,7 @@ type resourceFilterer struct {
 	// deniedResources is the list of kubernetes resources the user must not access.
 	deniedResources []types.KubernetesResource
 	// log is the logger.
-	log logrus.FieldLogger
+	log *slog.Logger
 	// kind is the type of the resource.
 	kind string
 	// verb is the kube API verb based on HTTP verb.
@@ -176,6 +177,8 @@ func pointerArrayToArray[T any](arr []*T) []T {
 // with the object.
 // The isListObj boolean returned indicates if the object is a list of resources.
 func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList bool, err error) {
+	ctx := context.Background()
+
 	switch o := obj.(type) {
 	case *metav1.Status:
 		// Status object is returned when the Kubernetes API returns an error and
@@ -184,7 +187,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.Pod:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -198,7 +201,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.Secret:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -212,7 +215,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.ConfigMap:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -226,7 +229,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.Namespace:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -240,7 +243,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.Service:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -254,7 +257,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.Endpoints:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -268,7 +271,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.ServiceAccount:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -282,7 +285,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.Node:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -296,7 +299,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.PersistentVolume:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -310,7 +313,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.PersistentVolumeClaim:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -325,7 +328,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.Deployment:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -340,7 +343,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.ReplicaSet:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -354,7 +357,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.StatefulSet:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -369,7 +372,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.DaemonSet:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -383,7 +386,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.ClusterRole:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -397,7 +400,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.Role:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -412,7 +415,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.ClusterRoleBinding:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -427,7 +430,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.RoleBinding:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -442,7 +445,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *batchv1.CronJob:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -457,7 +460,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *batchv1.Job:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -472,7 +475,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *certificatesv1.CertificateSigningRequest:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -486,7 +489,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *networkingv1.Ingress:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -500,7 +503,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.Ingress:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -515,7 +518,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.DaemonSet:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -530,7 +533,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.Deployment:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -545,7 +548,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.ReplicaSet:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -569,7 +572,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			d.allowedResources, d.deniedResources,
 		)
 		if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
@@ -632,13 +635,13 @@ func (d *resourceFilterer) encode(obj runtime.Object, w io.Writer) error {
 }
 
 // filterResourceList excludes resources the user should not have access to.
-func filterResourceList[T kubeObjectInterface](kind, verb string, originalList []T, allowed, denied []types.KubernetesResource, log logrus.FieldLogger) []T {
+func filterResourceList[T kubeObjectInterface](kind, verb string, originalList []T, allowed, denied []types.KubernetesResource, log *slog.Logger) []T {
 	filteredList := make([]T, 0, len(originalList))
 	for _, resource := range originalList {
 		if result, err := filterResource(kind, verb, resource, allowed, denied); err == nil && result {
 			filteredList = append(filteredList, resource)
 		} else if err != nil {
-			log.WithError(err).Warnf("Unable to compile regex expressions within kubernetes_resources.")
+			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 	}
 	return filteredList
@@ -686,7 +689,7 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 		if result, err := matchKubernetesResource(resource, allowedResources, deniedResources); err == nil && result {
 			resources = append(resources, *row)
 		} else if err != nil {
-			d.log.WithError(err).Warn("Unable to compile regex expression.")
+			d.log.WarnContext(context.Background(), "Unable to compile regex expression", "error", err)
 		}
 	}
 	table.Rows = resources
@@ -799,7 +802,7 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 // filterUnstructuredList filters the unstructured list object to exclude resources
 // that the user must not have access to.
 // The filtered list is re-assigned to `obj.Object["items"]`.
-func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource, log logrus.FieldLogger) (hasElems bool) {
+func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource, log *slog.Logger) (hasElems bool) {
 	const (
 		itemsKey = "items"
 	)
@@ -809,7 +812,7 @@ func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed
 	objList, err := obj.ToList()
 	if err != nil {
 		// This should never happen, but if it does, we should log it.
-		log.WithError(err).Warnf("Unable to convert unstructured object to list.")
+		slog.WarnContext(context.Background(), "Unable to convert unstructured object to list", "error", err)
 		return false
 	}
 
@@ -822,7 +825,7 @@ func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed
 		); result {
 			filteredList = append(filteredList, resource.Object)
 		} else if err != nil {
-			log.WithError(err).Warnf("Unable to compile regex expressions within kubernetes_resources.")
+			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
 	}
 	obj.Object[itemsKey] = filteredList

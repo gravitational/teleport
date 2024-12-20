@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -376,15 +377,17 @@ func TestIntegrationCRUD(t *testing.T) {
 			Setup: func(t *testing.T, igName string) {
 				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
 				require.NoError(t, err)
-				require.NoError(t, localClient.CreatePlugin(ctx, newPlugin(t, igName)))
+				// other existing plugin should not affect identity center plugin referenced integration.
+				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewMattermostPlugin(t)))
+				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewIdentityCenterPlugin(t, igName, igName)))
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
 				return err
 			},
 			Cleanup: func(t *testing.T, igName string) {
-				err := localClient.DeletePlugin(ctx, newPlugin(t, igName).GetName())
-				require.NoError(t, err)
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
 			},
 			ErrAssertion: trace.IsBadParameter,
 		},
@@ -719,31 +722,6 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	require.NoError(t, err)
 
 	return ca
-}
-
-func newPlugin(t *testing.T, integrationName string) *types.PluginV1 {
-	t.Helper()
-	return &types.PluginV1{
-		Metadata: types.Metadata{
-			Name: types.PluginTypeAWSIdentityCenter,
-			Labels: map[string]string{
-				types.HostedPluginLabel: "true",
-			},
-		},
-		Spec: types.PluginSpecV1{
-			Settings: &types.PluginSpecV1_AwsIc{
-				AwsIc: &types.PluginAWSICSettings{
-					IntegrationName:         integrationName,
-					Region:                  "test-region",
-					Arn:                     "test-arn",
-					AccessListDefaultOwners: []string{"user1", "user2"},
-					ProvisioningSpec: &types.AWSICProvisioningSpec{
-						BaseUrl: "https://example.com",
-					},
-				},
-			},
-		},
-	}
 }
 
 func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error) {

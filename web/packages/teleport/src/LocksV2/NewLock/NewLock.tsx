@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Prompt } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Transition } from 'react-transition-group';

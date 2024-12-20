@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -40,11 +41,13 @@ const (
 	defaultStrategy       = update.AgentsStrategyHaltOnError
 	maxConflictRetry      = 3
 
-	defaultGroupName = "default"
-	defaultStartHour = 12
+	defaultGroupName    = "default"
+	defaultCMCGroupName = defaultGroupName + "-cmc"
+	defaultStartHour    = 12
 )
 
 var (
+	// defaultUpdateDays is the default list of days when groups can be updated.
 	defaultUpdateDays = []string{"Mon", "Tue", "Wed", "Thu"}
 )
 
@@ -150,7 +153,7 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 		return trace.Wrap(err, "computing rollout status")
 	}
 
-	// there was an existing rollout, we must figure if something changed
+	// We compute if something changed.
 	specChanged := !proto.Equal(existingRollout.GetSpec(), newSpec)
 	statusChanged := !proto.Equal(existingRollout.GetStatus(), newStatus)
 	rolloutChanged := specChanged || statusChanged
@@ -270,6 +273,8 @@ func (r *reconciler) computeStatus(
 	// We create a new status if the rollout should be reset or the previous status was nil
 	if shouldResetRollout || existingRollout.GetStatus() == nil {
 		status = new(autoupdate.AutoUpdateAgentRolloutStatus)
+		// We set the start time if this is a new rollout
+		status.StartTime = timestamppb.New(r.clock.Now())
 	} else {
 		status = utils.CloneProtoMsg(existingRollout.GetStatus())
 	}
@@ -294,21 +299,21 @@ func (r *reconciler) computeStatus(
 	groups := status.GetGroups()
 	var err error
 	if len(groups) == 0 {
-		groups, err = makeGroupsStatus(configSchedules, now)
+		groups, err = r.makeGroupsStatus(ctx, configSchedules, now)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating groups status")
 		}
 	}
+	status.Groups = groups
 
-	err = r.progressRollout(ctx, newSpec.GetStrategy(), groups)
+	err = r.progressRollout(ctx, newSpec.GetStrategy(), status)
 	// Failing to progress the update is not a hard failure.
-	// We expected to update the status even if something went wrong to surface the failed reconciliation and potential errors to the user.
+	// We want to update the status even if something went wrong to surface the failed reconciliation and potential errors to the user.
 	if err != nil {
 		r.log.ErrorContext(ctx, "Errors encountered during rollout progress. Some groups might not get updated properly.",
 			"error", err)
 	}
 
-	status.Groups = groups
 	status.State = computeRolloutState(groups)
 	return status, nil
 }
@@ -317,10 +322,10 @@ func (r *reconciler) computeStatus(
 // groups are updated in place.
 // If an error is returned, the groups should still be upserted, depending on the strategy,
 // failing to update a group might not be fatal (other groups can still progress independently).
-func (r *reconciler) progressRollout(ctx context.Context, strategyName string, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+func (r *reconciler) progressRollout(ctx context.Context, strategyName string, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
 	for _, strategy := range r.rolloutStrategies {
 		if strategy.name() == strategyName {
-			return strategy.progressRollout(ctx, groups)
+			return strategy.progressRollout(ctx, status)
 		}
 	}
 	return trace.NotImplemented("rollout strategy %q not implemented", strategyName)
@@ -328,10 +333,10 @@ func (r *reconciler) progressRollout(ctx context.Context, strategyName string, g
 
 // makeGroupStatus creates the autoupdate_agent_rollout.status.groups based on the autoupdate_config.
 // This should be called if the status groups have not been initialized or must be reset.
-func makeGroupsStatus(schedules *autoupdate.AgentAutoUpdateSchedules, now time.Time) ([]*autoupdate.AutoUpdateAgentRolloutStatusGroup, error) {
+func (r *reconciler) makeGroupsStatus(ctx context.Context, schedules *autoupdate.AgentAutoUpdateSchedules, now time.Time) ([]*autoupdate.AutoUpdateAgentRolloutStatusGroup, error) {
 	configGroups := schedules.GetRegular()
 	if len(configGroups) == 0 {
-		defaultGroup, err := defaultConfigGroup()
+		defaultGroup, err := r.defaultConfigGroup(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "retrieving default group")
 		}
@@ -348,7 +353,7 @@ func makeGroupsStatus(schedules *autoupdate.AgentAutoUpdateSchedules, now time.T
 			LastUpdateReason: updateReasonCreated,
 			ConfigDays:       group.Days,
 			ConfigStartHour:  group.StartHour,
-			ConfigWaitDays:   group.WaitDays,
+			ConfigWaitHours:  group.WaitHours,
 		}
 	}
 	return groups, nil
@@ -357,12 +362,45 @@ func makeGroupsStatus(schedules *autoupdate.AgentAutoUpdateSchedules, now time.T
 // defaultConfigGroup returns the default group in case of missing autoupdate_config resource.
 // This is a function and not a variable because we will need to add more logic there in the future
 // lookup maintenance information from RFD 109's cluster_maintenance_config.
-func defaultConfigGroup() (*autoupdate.AgentAutoUpdateGroup, error) {
-	// TODO: get group from CMC if possible
+func (r *reconciler) defaultConfigGroup(ctx context.Context) (*autoupdate.AgentAutoUpdateGroup, error) {
+	cmc, err := r.clt.GetClusterMaintenanceConfig(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// There's no CMC, we return the default group.
+			return defaultGroup(), nil
+		}
+
+		// If we had an error, and it's not trace.ErrNotFound, we stop.
+		return nil, trace.Wrap(err, "retrieving the cluster maintenance config")
+	}
+	// We got a CMC, we generate the default from it.
+	upgradeWindow, ok := cmc.GetAgentUpgradeWindow()
+
+	if !ok {
+		// The CMC is here but does not contain upgrade window.
+		return defaultGroup(), nil
+	}
+
+	weekdays := upgradeWindow.Weekdays
+	// A CMC upgrade window not specifying weekdays should update every day.
+	if len(weekdays) == 0 {
+		weekdays = []string{types.Wildcard}
+	}
+
+	return &autoupdate.AgentAutoUpdateGroup{
+		Name:      defaultCMCGroupName,
+		Days:      weekdays,
+		StartHour: int32(upgradeWindow.UTCStartHour),
+		WaitHours: 0,
+	}, nil
+
+}
+
+func defaultGroup() *autoupdate.AgentAutoUpdateGroup {
 	return &autoupdate.AgentAutoUpdateGroup{
 		Name:      defaultGroupName,
 		Days:      defaultUpdateDays,
 		StartHour: defaultStartHour,
-		WaitDays:  0,
-	}, nil
+		WaitHours: 0,
+	}
 }

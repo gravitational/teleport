@@ -43,6 +43,8 @@ module.exports = {
   appId,
   asar: true,
   asarUnpack: '**\\*.{node,dll}',
+  // TODO(ravicious): Migrate from custom notarize.js script to using the notarize field of the
+  // mac target.
   afterSign: 'notarize.js',
   afterPack: packed => {
     // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
@@ -95,6 +97,9 @@ module.exports = {
     target: 'dmg',
     category: 'public.app-category.developer-tools',
     type: 'distribution',
+    // TODO(ravicious): Migrate from custom notarize.js script to using the notarize field of the
+    // mac target.
+    notarize: false,
     hardenedRuntime: true,
     gatekeeperAssess: false,
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.

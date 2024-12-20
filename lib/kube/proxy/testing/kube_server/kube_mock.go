@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,7 +37,6 @@ import (
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	v1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -151,7 +151,7 @@ type KubeUpgradeRequests struct {
 
 type KubeMockServer struct {
 	router               *httprouter.Router
-	log                  *log.Entry
+	log                  *slog.Logger
 	server               *httptest.Server
 	TLS                  *tls.Config
 	URL                  string
@@ -178,7 +178,7 @@ type KubeMockServer struct {
 func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 	s := &KubeMockServer{
 		router:           httprouter.New(),
-		log:              log.NewEntry(log.New()),
+		log:              slog.Default(),
 		deletedResources: make(map[deletedResource][]string),
 		version: &apimachineryversion.Info{
 			Major:      "1",
@@ -273,7 +273,7 @@ func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr erro
 	status = status.DeepCopy()
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
-		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
+		s.log.WarnContext(context.Background(), "Failed encoding error into kube Status object", "error", err)
 		trace.WriteError(rw, respErr)
 		return
 	}
@@ -283,7 +283,7 @@ func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr erro
 	// embedded.
 	rw.WriteHeader(int(status.Code))
 	if _, err := rw.Write(data); err != nil {
-		s.log.Warningf("Failed writing kube error response body: %v", err)
+		s.log.WarnContext(context.Background(), "Failed writing kube error response body", "error", err)
 	}
 }
 
@@ -323,13 +323,13 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 	if request.stdout {
 		if _, err := proxy.stdoutStream.Write([]byte(request.containerName + "\n")); err != nil {
-			s.log.WithError(err).Errorf("unable to send to stdout")
+			s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
 		}
 	}
 
 	if request.stderr {
 		if _, err := proxy.stderrStream.Write([]byte(request.containerName + "\n")); err != nil {
-			s.log.WithError(err).Errorf("unable to send to stderr")
+			s.log.ErrorContext(request.context, "unable to send to stderr", "error", err)
 		}
 	}
 
@@ -341,7 +341,7 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 			if errors.Is(err, io.EOF) && n == 0 {
 				break
 			} else if err != nil && n == 0 {
-				s.log.WithError(err).Errorf("unable to receive from stdin")
+				s.log.ErrorContext(request.context, "unable to receive from stdin", "error", err)
 				break
 			}
 
@@ -359,13 +359,13 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 			if request.stdout {
 				if _, err := proxy.stdoutStream.Write(buffer); err != nil {
-					s.log.WithError(err).Errorf("unable to send to stdout")
+					s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
 				}
 			}
 
 			if request.stderr {
 				if _, err := proxy.stderrStream.Write(buffer); err != nil {
-					s.log.WithError(err).Errorf("unable to send to stdout")
+					s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
 				}
 			}
 
@@ -536,10 +536,10 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	var handler protocolHandler
 	switch protocol {
 	case "":
-		log.Warningf("Client did not request protocol negotiation.")
+		slog.WarnContext(req.context, "Client did not request protocol negotiation.")
 		fallthrough
 	case StreamProtocolV4Name:
-		log.Infof("Negotiated protocol %v.", protocol)
+		slog.InfoContext(req.context, "Negotiated protocol", "protocol", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
 		return nil, trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
@@ -641,7 +641,7 @@ func (t *termQueue) handleResizeEvents(stream io.Reader) {
 		size := remotecommand.TerminalSize{}
 		if err := decoder.Decode(&size); err != nil {
 			if !errors.Is(err, io.EOF) {
-				log.Warningf("Failed to decode resize event: %v", err)
+				slog.WarnContext(t.done, "Failed to decode resize event", "error", err)
 			}
 			t.cancel()
 			return
@@ -696,7 +696,7 @@ WaitForStreams:
 				remoteProxy.resizeStream = stream
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			default:
-				log.Warningf("Ignoring unexpected stream type: %q", streamType)
+				slog.WarnContext(stopCtx, "Ignoring unexpected stream type", "stream_type", streamType)
 			}
 		case <-replyChan:
 			receivedStreams++

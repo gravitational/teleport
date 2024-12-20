@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ComponentType, PropsWithChildren } from 'react';
+import { ComponentType, PropsWithChildren } from 'react';
+
+import { Preview } from '@storybook/react';
+
+import { initialize, mswLoader } from 'msw-storybook-addon';
+
 import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
 import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
 import Box from '../packages/design/src/Box';
@@ -27,9 +32,7 @@ import {
 } from '../packages/teleterm/src/ui/ThemeProvider/theme';
 import history from '../packages/teleport/src/services/history/history';
 import { UserContextProvider } from '../packages/teleport/src/User';
-import { Preview } from '@storybook/react';
 import { Theme } from '../packages/design/src/theme/themes/types';
-import { initialize, mswLoader } from 'msw-storybook-addon';
 
 initialize();
 

@@ -21,10 +21,10 @@ package fetchers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -48,7 +48,9 @@ type AKSFetcherConfig struct {
 	// FilterLabels are the filter criteria.
 	FilterLabels types.Labels
 	// Log is the logger.
-	Log logrus.FieldLogger
+	Logger *slog.Logger
+	// DiscoveryConfigName is the name of the DiscoveryConfig that created this Fetcher.
+	DiscoveryConfigName string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -64,8 +66,8 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing FilterLabels field")
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:aks")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "fetcher:aks")
 	}
 	return nil
 }
@@ -88,19 +90,19 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 	var kubeClusters types.KubeClusters
 	for _, cluster := range clusters {
 		if !a.isRegionSupported(cluster.Location) {
-			a.Log.Debugf("Cluster region %q does not match with allowed values.", cluster.Location)
+			a.Logger.DebugContext(ctx, "Cluster region does not match with allowed values", "region", cluster.Location)
 			continue
 		}
 		kubeCluster, err := common.NewKubeClusterFromAzureAKS(cluster)
 		if err != nil {
-			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
+			a.Logger.WarnContext(ctx, "Unable to create Kubernetes cluster from azure.AKSCluster", "error", err)
 			continue
 		}
 		if match, reason, err := services.MatchLabels(a.FilterLabels, kubeCluster.GetAllLabels()); err != nil {
-			a.Log.WithError(err).Warn("Unable to match AKS cluster labels against match labels.")
+			a.Logger.WarnContext(ctx, "Unable to match AKS cluster labels against match labels", "error", err)
 			continue
 		} else if !match {
-			a.Log.Debugf("AKS cluster labels does not match the selector: %s.", reason)
+			a.Logger.DebugContext(ctx, "AKS cluster labels does not match the selector", "reason", reason)
 			continue
 		}
 
@@ -156,8 +158,8 @@ func (a *aksFetcher) IntegrationName() string {
 	return ""
 }
 
-func (a *aksFetcher) DiscoveryConfigName() string {
-	return ""
+func (a *aksFetcher) GetDiscoveryConfigName() string {
+	return a.DiscoveryConfigName
 }
 
 func (a *aksFetcher) FetcherType() string {

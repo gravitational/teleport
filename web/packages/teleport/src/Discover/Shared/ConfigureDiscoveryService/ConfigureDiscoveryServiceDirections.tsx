@@ -20,8 +20,6 @@ import styled from 'styled-components';
 
 import { IconTooltip } from 'design/Tooltip';
 
-import React from 'react';
-
 import { P } from 'design/Text/Text';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';

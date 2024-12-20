@@ -107,6 +107,13 @@ type Role interface {
 	// SetNodeLabels sets the map of node labels this role is allowed or denied access to.
 	SetNodeLabels(RoleConditionType, Labels)
 
+	// GetWorkloadIdentityLabels gets the map of node labels this role is
+	// allowed or denied access to.
+	GetWorkloadIdentityLabels(RoleConditionType) Labels
+	// SetWorkloadIdentityLabels sets the map of WorkloadIdentity labels this
+	// role is allowed or denied access to.
+	SetWorkloadIdentityLabels(RoleConditionType, Labels)
+
 	// GetAppLabels gets the map of app labels this role is allowed or denied access to.
 	GetAppLabels(RoleConditionType) Labels
 	// SetAppLabels sets the map of app labels this role is allowed or denied access to.
@@ -288,6 +295,9 @@ type Role interface {
 	// GetIdentityCenterAccountAssignments fetches the allow or deny Account
 	// Assignments for the role
 	GetIdentityCenterAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
+	// GetIdentityCenterAccountAssignments sets the allow or deny Account
+	// Assignments for the role
+	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
 }
 
 // NewRole constructs new standard V7 role.
@@ -613,6 +623,25 @@ func (r *RoleV6) SetNodeLabels(rct RoleConditionType, labels Labels) {
 		r.Spec.Allow.NodeLabels = labels.Clone()
 	} else {
 		r.Spec.Deny.NodeLabels = labels.Clone()
+	}
+}
+
+// GetWorkloadIdentityLabels gets the map of WorkloadIdentity labels for
+// allow or deny.
+func (r *RoleV6) GetWorkloadIdentityLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.WorkloadIdentityLabels
+	}
+	return r.Spec.Deny.WorkloadIdentityLabels
+}
+
+// SetWorkloadIdentityLabels sets the map of WorkloadIdentity labels this role
+// is allowed or denied access to.
+func (r *RoleV6) SetWorkloadIdentityLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.WorkloadIdentityLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.WorkloadIdentityLabels = labels.Clone()
 	}
 }
 
@@ -1255,6 +1284,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
+		r.Spec.Allow.WorkloadIdentityLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -1970,6 +2000,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
 	case KindGitServer:
 		return r.makeGitServerLabelMatchers(cond), nil
+	case KindWorkloadIdentity:
+		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2022,6 +2054,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindUserGroup:
 		cond.GroupLabels = labelMatchers.Labels
 		cond.GroupLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWorkloadIdentity:
+		cond.WorkloadIdentityLabels = labelMatchers.Labels
+		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -2092,6 +2128,16 @@ func (r *RoleV6) GetIdentityCenterAccountAssignments(rct RoleConditionType) []Id
 		return r.Spec.Allow.AccountAssignments
 	}
 	return r.Spec.Deny.AccountAssignments
+}
+
+// SetIdentityCenterAccountAssignments sets the allow or deny Identity Center
+// Account Assignments for the role
+func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assignments []IdentityCenterAccountAssignment) {
+	cond := &r.Spec.Deny
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	}
+	cond.AccountAssignments = assignments
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label

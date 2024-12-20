@@ -149,7 +149,7 @@ specification. To provide consistency and uniformity there are a few
 and [design patterns](https://cloud.google.com/apis/design/design_patterns)
 that should be followed when possible. The most notable of the design patterns
 is
-[Bool vs. Enum vs. String](https://cloud.google.com/apis/design/design_patterns#bool_vs_enum_vs_string). There have been several occasions in the past where a particular field
+[Bool vs. Enum vs. String](https://google.aip.dev/126). There have been several occasions in the past where a particular field
 was not flexible enough which prevented behavior from being easily extended to
 support a new feature.
 
@@ -569,7 +569,7 @@ func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
 		}
 		return types.Resource153ToLegacy(foo), nil
 	default:
