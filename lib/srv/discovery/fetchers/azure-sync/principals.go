@@ -29,6 +29,15 @@ import (
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
+type dirObjMetadata struct {
+	objectType string
+}
+
+type queryResult struct {
+	metadata dirObjMetadata
+	dirObj   msgraph.DirectoryObject
+}
+
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
 func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint: unused // invoked in a dependent PR
 	var params = &url.Values{
@@ -36,23 +45,26 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	}
 
 	// Fetch the users, groups, and service principals as directory objects
-	var dirObjs []msgraph.DirectoryObject
+	var queryResults []queryResult
 	err := cli.IterateUsers(ctx, params, func(user *msgraph.User) bool {
-		dirObjs = append(dirObjs, user.DirectoryObject)
+		res := queryResult{metadata: dirObjMetadata{objectType: "user"}, dirObj: user.DirectoryObject}
+		queryResults = append(queryResults, res)
 		return true
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = cli.IterateGroups(ctx, params, func(group *msgraph.Group) bool {
-		dirObjs = append(dirObjs, group.DirectoryObject)
+		res := queryResult{metadata: dirObjMetadata{objectType: "group"}, dirObj: group.DirectoryObject}
+		queryResults = append(queryResults, res)
 		return true
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = cli.IterateServicePrincipals(ctx, params, func(servicePrincipal *msgraph.ServicePrincipal) bool {
-		dirObjs = append(dirObjs, servicePrincipal.DirectoryObject)
+		res := queryResult{metadata: dirObjMetadata{objectType: "servicePrincipal"}, dirObj: servicePrincipal.DirectoryObject}
+		queryResults = append(queryResults, res)
 		return true
 	})
 	if err != nil {
@@ -62,22 +74,23 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	// Return the users, groups, and service principals as protobuf messages
 	var fetchErrs []error
 	var pbPrincipals []*accessgraphv1alpha.AzurePrincipal
-	for _, dirObj := range dirObjs {
-		if dirObj.ID == nil || dirObj.DisplayName == nil {
-			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on msgraph directory object: %v", dirObj))
+	for _, res := range queryResults {
+		if res.dirObj.ID == nil || res.dirObj.DisplayName == nil {
+			fetchErrs = append(fetchErrs,
+				trace.BadParameter("nil values on msgraph directory object: %v", res.dirObj))
 			continue
 		}
 		var memberOf []string
-		for _, member := range dirObj.MemberOf {
+		for _, member := range res.dirObj.MemberOf {
 			memberOf = append(memberOf, member.ID)
 		}
 		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
-			Id:             *dirObj.ID,
+			Id:             *res.dirObj.ID,
 			SubscriptionId: subscriptionID,
 			LastSyncTime:   timestamppb.Now(),
-			DisplayName:    *dirObj.DisplayName,
+			DisplayName:    *res.dirObj.DisplayName,
 			MemberOf:       memberOf,
-			ObjectType:     "user",
+			ObjectType:     res.metadata.objectType,
 		})
 	}
 	return pbPrincipals, trace.NewAggregate(fetchErrs...)
