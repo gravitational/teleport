@@ -140,11 +140,6 @@ func EnhancedEvents() []string {
 }
 
 const (
-	// MaxIterationLimit is max iteration limit
-	MaxIterationLimit = 1000
-)
-
-const (
 	// DefaultChunkSize is the default chunk size for paginated endpoints.
 	DefaultChunkSize = 1000
 )

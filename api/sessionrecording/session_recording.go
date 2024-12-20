@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
@@ -56,6 +55,11 @@ const (
 	// ProtoStreamV1RecordHeaderSize is the size of the header
 	// of the record header, it consists of the record length
 	ProtoStreamV1RecordHeaderSize = Int32Size
+)
+
+const (
+	// maxIterationLimit is max iteration limit
+	maxIterationLimit = 1000
 )
 
 // NewReader returns a new session recording reader
@@ -161,7 +165,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	var checkpointIteration int64
 	for {
 		checkpointIteration++
-		if checkpointIteration%defaults.MaxIterationLimit == 0 {
+		if checkpointIteration%maxIterationLimit == 0 {
 			select {
 			case <-ctx.Done():
 				if ctx.Err() != nil {

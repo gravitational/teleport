@@ -210,7 +210,7 @@ const (
 	MaxPasswordLength = 128
 
 	// MaxIterationLimit is max iteration limit
-	MaxIterationLimit = defaults.MaxIterationLimit
+	MaxIterationLimit = 1000
 
 	// EventsIterationLimit is a default limit if it's not set for events
 	EventsIterationLimit = 500
