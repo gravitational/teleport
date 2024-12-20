@@ -145,7 +145,7 @@ func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 	// write timestamp first if enabled
 	if tf.timestampEnabled {
-		writeTimeRFC3339(w.b, e.Time)
+		*w.b = appendRFC3339Millis(*w.b, e.Time.Round(0))
 	}
 
 	for _, field := range tf.ExtraFields {
