@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -173,6 +174,15 @@ func TestSystemdUnitDriver(t *testing.T) {
 
 	require.Equal(t, "fake-schedule-3", string(sb))
 
+	// verify ForceNOP
+	err = driver.ForceNOP(ctx)
+	require.NoError(t, err)
+
+	sb, err = os.ReadFile(schedPath)
+	require.NoError(t, err)
+
+	require.Equal(t, scheduleNOP, string(sb))
+
 	// verify that an empty schedule value is treated equivalent to a reset
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
 	require.NoError(t, err)
@@ -207,6 +217,10 @@ func (d *fakeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	}
 
 	return nil
+}
+
+func (d *fakeDriver) ForceNOP(ctx context.Context) error {
+	return trace.NotImplemented("force-nop not used by exporter")
 }
 
 func (d *fakeDriver) Reset(ctx context.Context) error {
