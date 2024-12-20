@@ -1080,7 +1080,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 					return trace.Wrap(err)
 				}
 
-				role, err := services.AddRoleDefaults(currentRole)
+				role, err := services.AddRoleDefaults(gctx, currentRole)
 				if trace.IsAlreadyExists(err) {
 					return nil
 				}
