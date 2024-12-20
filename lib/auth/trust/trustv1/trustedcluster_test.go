@@ -34,7 +34,7 @@ import (
 
 // TestCloudProhibited verifies that Trusted Clusters cannot be created or updated
 // in a Cloud hosted environment.
-// Tests cannot be run in parrallel because it relies on environment variables.
+// Tests cannot be run in parallel because it relies on environment variables.
 func TestCloudProhibited(t *testing.T) {
 	ctx := context.Background()
 	p := newTestPack(t)
