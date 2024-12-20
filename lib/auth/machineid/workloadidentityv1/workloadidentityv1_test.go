@@ -18,6 +18,7 @@ package workloadidentityv1_test
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -44,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
@@ -116,8 +117,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(ctx, jwtCA)
 	require.NoError(t, err)
-	kid, err := libjwt.KeyID(jwtSigner.Public())
-	require.NoError(t, err)
+	kid := libjwt.KeyID(jwtSigner.Public().(*rsa.PublicKey))
 
 	wildcardAccess, _, err := auth.CreateUserAndRole(
 		srv.Auth(),
@@ -150,7 +150,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate a keypair to generate x509 SVIDs for.
-	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	workloadKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
 	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
 	require.NoError(t, err)
