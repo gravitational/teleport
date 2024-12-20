@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getErrMessage } from 'shared/utils/errorType';
+
 import { App } from 'teleport/services/apps/types';
 import {
   CreateAwsAppAccessRequest,
@@ -43,6 +45,32 @@ export function withUnsupportedLabelFeatureErrorConversion(
   }
   throw err;
 }
+
+export const withUnsupportedOktaPluginUpdateErrorConversion = (
+  err: unknown
+) => {
+  if (err instanceof ApiError && err.response.status === 404) {
+    const msg = getErrMessage(err);
+    throw new Error(
+      `Could not update Okta plugin: ${msg}. Your proxy may be behind the minimum required version (v17.3.0) to support Okta plugin updates with this web client.`
+    );
+  }
+  throw err;
+};
+
+export const withUnsupportedOktaPluginCreateErrorConversion = (
+  err: unknown
+) => {
+  if (err instanceof ApiError) {
+    const msg = getErrMessage(err);
+    if (msg.match(/missing okta (?:organization url|api token)/gi)) {
+      throw new Error(
+        `Could not create Okta plugin: ${msg}. Your proxy may be behind the minimum required version (v17.3.0) to support Okta plugin creation with this web client.`
+      );
+    }
+  }
+  throw err;
+};
 
 type Base = {
   err: Error;
