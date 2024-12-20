@@ -3279,7 +3279,7 @@ service AuthService {
   rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   //
-  // Deprecated: Use [teleport.trust.v1.UpsertTrustedClusterV2] instead.
+  // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
   rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2) {
     option deprecated = true;
   }

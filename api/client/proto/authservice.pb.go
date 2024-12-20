@@ -17458,7 +17458,7 @@ type AuthServiceClient interface {
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	//
-	// Deprecated: Use [teleport.trust.v1.UpsertTrustedClusterV2] instead.
+	// Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
 	UpsertTrustedCluster(ctx context.Context, in *types.TrustedClusterV2, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
 	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -20839,7 +20839,7 @@ type AuthServiceServer interface {
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	//
-	// Deprecated: Use [teleport.trust.v1.UpsertTrustedClusterV2] instead.
+	// Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
 	UpsertTrustedCluster(context.Context, *types.TrustedClusterV2) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
 	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)

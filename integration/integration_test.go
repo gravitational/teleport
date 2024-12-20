@@ -3087,7 +3087,7 @@ func createAndUpdateTrustedClusters(t *testing.T, suite *integrationTestSuite, t
 	// Note that the trusted cluster resource name must match the cluster name.
 	// Modify the trusted cluster resource name and expect the create to fail.
 	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-	_, err = aux.Process.GetAuthServer().CreateTrustedClusterV2(ctx, trustedCluster)
+	_, err = aux.Process.GetAuthServer().CreateTrustedCluster(ctx, trustedCluster)
 	require.ErrorContains(t, err, "trusted cluster resource name must be the same as the remote cluster name", "expected failure due to tc name mismatch")
 
 	// Modify the trusted cluster resource name back to what it was originally.

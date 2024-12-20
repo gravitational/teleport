@@ -82,7 +82,7 @@ func (s *Service) CreateTrustedCluster(ctx context.Context, req *trustpb.CreateT
 	if err = services.ValidateTrustedCluster(req.GetTrustedCluster()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tc, err := s.authServer.CreateTrustedClusterV2(ctx, req.GetTrustedCluster())
+	tc, err := s.authServer.CreateTrustedCluster(ctx, req.GetTrustedCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -114,7 +114,7 @@ func (s *Service) UpdateTrustedCluster(ctx context.Context, req *trustpb.UpdateT
 	if err = services.ValidateTrustedCluster(req.GetTrustedCluster()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tc, err := s.authServer.UpdateTrustedClusterV2(ctx, req.GetTrustedCluster())
+	tc, err := s.authServer.UpdateTrustedCluster(ctx, req.GetTrustedCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

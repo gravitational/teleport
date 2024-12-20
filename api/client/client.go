@@ -2313,8 +2313,8 @@ func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster type
 	return resp, nil
 }
 
-// CreateTrustedClusterV2 creates a Trusted Cluster.
-func (c *Client) CreateTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+// CreateTrustedCluster creates a Trusted Cluster.
+func (c *Client) CreateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
@@ -2327,8 +2327,8 @@ func (c *Client) CreateTrustedClusterV2(ctx context.Context, trustedCluster type
 	return resp, nil
 }
 
-// UpdateTrustedClusterV2 updates a Trusted Cluster.
-func (c *Client) UpdateTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+// UpdateTrustedCluster updates a Trusted Cluster.
+func (c *Client) UpdateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)

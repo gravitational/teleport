@@ -104,11 +104,11 @@ func (f *fakeAuthServer) UpsertTrustedClusterV2(ctx context.Context, tc types.Tr
 	return tc, nil
 }
 
-func (f *fakeAuthServer) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+func (f *fakeAuthServer) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
 	return tc, nil
 }
 
-func (f *fakeAuthServer) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+func (f *fakeAuthServer) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
 	return tc, nil
 }
 

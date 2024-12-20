@@ -46,6 +46,7 @@ import (
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
+// Deprecated: UpsertTrustedClusterV2 should be preferred instead.
 func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	const validateNameFalse = false
 	upserted, err := a.upsertTrustedCluster(ctx, tc, validateNameFalse)
@@ -60,8 +61,8 @@ func (a *Server) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedClu
 	return upserted, trace.Wrap(err)
 }
 
-// CreateTrustedClusterV2 creates a Trusted Cluster relationship.
-func (a *Server) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+// CreateTrustedCluster creates a Trusted Cluster relationship.
+func (a *Server) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// verify that trusted cluster role map does not reference non-existent roles
 	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
 		return nil, trace.Wrap(err)
@@ -72,8 +73,8 @@ func (a *Server) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedClu
 	return created, trace.Wrap(err)
 }
 
-// UpdateTrustedClusterV2 updates a Trusted Cluster relationship.
-func (a *Server) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+// UpdateTrustedCluster updates a Trusted Cluster relationship.
+func (a *Server) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// verify that trusted cluster role map does not reference non-existent roles
 	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
 		return nil, trace.Wrap(err)

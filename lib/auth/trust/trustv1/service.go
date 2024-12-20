@@ -47,10 +47,10 @@ type authServer interface {
 
 	// UpsertTrustedClusterV2 upserts a Trusted Cluster.
 	UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
-	// CreateTrustedClusterV2 creates a Trusted Cluster.
-	CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
-	// UpdateTrustedClusterV2 updates a Trusted Cluster.
-	UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// CreateTrustedCluster creates a Trusted Cluster.
+	CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// UpdateTrustedCluster updates a Trusted Cluster.
+	UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 }
 
 // ServiceConfig holds configuration options for

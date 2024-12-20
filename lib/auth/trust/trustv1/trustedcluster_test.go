@@ -75,14 +75,14 @@ func TestCloudProhibited(t *testing.T) {
 		_, err = service.CreateTrustedCluster(ctx, &trustpb.CreateTrustedClusterRequest{
 			TrustedCluster: trustedClusterV2,
 		})
-		require.True(t, trace.IsNotImplemented(err), "CreateTrustedClusterV2 returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
+		require.True(t, trace.IsNotImplemented(err), "CreateTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 
 	t.Run("Cloud prohibits being a leaf cluster (UpdateTrustedCluster)", func(t *testing.T) {
 		_, err = service.UpdateTrustedCluster(ctx, &trustpb.UpdateTrustedClusterRequest{
 			TrustedCluster: trustedClusterV2,
 		})
-		require.True(t, trace.IsNotImplemented(err), "UpdateTrustedClusterV2 returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
+		require.True(t, trace.IsNotImplemented(err), "UpdateTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 }
 

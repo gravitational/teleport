@@ -61,7 +61,7 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.CreateTrustedClusterV2(ctx, trustedCluster)
+		_, err := authServer.CreateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
@@ -88,7 +88,7 @@ func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpdateTrustedClusterV2(ctx, trustedCluster)
+		_, err := authServer.UpdateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
