@@ -851,6 +851,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
+	h.GET("/webapi/sites/:site/sessionlength/:sid", h.WithClusterAuth(h.sessionLengthHandle))
 
 	// TODO(zmb3): remove these endpoints when Assist is no longer using them
 	// (assist calls the proxy's web API, and the proxy uses an HTTP client to call auth's API)
