@@ -47,27 +47,76 @@ The project is largely divided into two phases:
 
 ### Phase 1: Intermediate CA Support
 
+#### Overview
+
+A new `pre-init` phase will be added to the Teleport CA rotation process.
+
+The pre-init phase may only be entered from the `standby` phase.
+
+Upon entering the `pre-init` phase, a new set of key pairs
+(but not certificates) will be generated and stored in the
+CertificateAuthorityV2 resource. These will be stored in a new field,
+`spec.NextKeys` of the existing CAKeySet type.
+
+If the user requests that the CA return to the `standby` phase from `pre-init`,
+then the `NextKeys` field will be cleared. No further action is required.
+
+Once in the `pre-init` phase, the user may generate a CSR for the new CA key-pair
+using the `tctl auth generate-csr` command.
+
+To progress from the `pre-init` phase to the `init` phase, the user must
+provide a signed certificate for the new CA key-pair, as well as the chain of
+intermediate CAs to and including the root CA.
+
+The following process will then occur:
+
+- Teleport will verify the signed certificate and chain:
+  - The given leaf CA validates against the given chain.
+  - The given leaf CA's key matches the generated key in the `NextKeys` field.
+- The CertificateAuthority resource will be atomically updated:
+  - The given leaf CA will be written into `spec.NextKeys.TLS.Cert`.
+  - The given intermediate CAs will be written into `spec.NextKeys.TLS.IntermediateCerts`.
+  - The given root CAs will be written into `spec.NextKeys.TLS.RootCerts`.
+  - The `NextKeys` field will be swapped into the `AdditionalTrustedKeys` field. 
+  - To enter the `init` phase.
+
+Once in the `init` phase, the rotation process will proceed as normal.
+
+#### Resource Changes
+
+The following new fields will be added to the `CertificateAuthorityV2` protobuf
+message:
+
+- `NextKeys` (CAKeySet): The keys generated upon entering the `pre-init` phase
+  and for which a CSR can be generated.
+
+To accommodate storing the intermediate and root CAs related to a Teleport
+CA, two new fields will be introduced to the `TLSKeyPair` protobuf message:
+
+- `IntermediateCerts` (bytes) - PEM-encoded intermediate certs linking the
+  CA in the `Cert` field to one of the root CAs in the `RootCerts` field.
+- `RootCerts` (bytes) - PEM-encoded root certs. Multiple root certs may be
+  stored in this field.
+
+#### RPC Changes
+
+TODO
+
 #### UX
 
 ```shell
+# User indicates they wish to enter the pre-init phase.
 $ tctl auth rotate --manual --type spiffe --phase pre-init
 Updated rotation phase to pre-init. New keys have been generated, and you can
 now provide a certificate to move to the next phase.
+# User can now generate a CSR for the new CA key-pair.
 $ tctl auth generate-csr --type spiffe -o spiffe.csr
 A CSR for the SPIFFE CA has been generated and written to spiffe.csr.
-$ tctl auth rotate --manual --type spiffe --phase init --signed-cert spiffe.crt --upstream-ca root.crt
+# User provides the signed certificate and chain to progress to the `init` phase
+# of a normal rotation.
+$ tctl auth rotate --manual --type spiffe --phase init --signed-cert spiffe-chain.crt
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
-
-#### Implementation
-
-TODO:
-- Pre init phase.
-- CSR generation.
-- Signed cert import.
-- Tctl commands.
-- Commentary on whether this should extend to JWT.
-- Importing and storing the root CA as part of the certificate_authority.
 
 #### Teleport Workload Identity
 
