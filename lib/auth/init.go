@@ -71,11 +71,13 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentAuth,
-})
+var (
+	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentAuth)
+	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
+)
 
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
