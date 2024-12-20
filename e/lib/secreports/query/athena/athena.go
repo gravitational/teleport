@@ -55,6 +55,10 @@ type Config struct {
 	AWSConfig aws.Config
 	// Log logs messages.
 	Log *slog.Logger
+	// Region is the AWS region used for Access Monitoring.
+	// It can differ from audit config top lever Region in case of
+	// cross-region access monitoring setup.
+	Region string
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -112,6 +116,9 @@ const (
 
 	// reportResultS3 is a S3 URI where the security reports result will be stored.
 	reportResultS3 = "accessMonitoringResultsS3"
+
+	// securityReportRegion is param containing the AWS region used for Access Monitoring.
+	securityReportRegion = "region"
 )
 
 // ConfigFromURI extract athena configuration from backend URL
@@ -134,6 +141,12 @@ func ConfigFromURI(uri string) (*Config, error) {
 		ReportResults: url.Query().Get(reportResultS3),
 		RoleARN:       url.Query().Get(securityReportRoleArn),
 		Workgroup:     url.Query().Get(securityReportWorkgroup),
+		// Use the region specified in the Athena URL, if provided.
+		// This applies when `cfg.Region` differs from the Athena region,
+		// such as in multi-region setups like the Audit Log failover.
+		// For more details, refer to:
+		// https://github.com/gravitational/cloud/blob/master/rfd/0154-Audit-Log-Failover.md
+		Region: url.Query().Get(securityReportRegion),
 	}, nil
 }
 

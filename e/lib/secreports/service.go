@@ -150,6 +150,11 @@ func buildAthenaConfig(cfg ServiceConfig) (*athena.Config, error) {
 		athenaConfig.QueryResults = cfg.AccessMonitoring.QueryResults
 	}
 	athenaConfig.Clock = cfg.Clock
+
+	if athenaConfig.Region == "" {
+		// If region is not set in the Athena URL, use the region from the config.
+		athenaConfig.Region = cfg.Region
+	}
 	return athenaConfig, nil
 }
 
@@ -159,12 +164,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	awsConfig, err := cloudaws.BuildAWSConfig(ctx, cfg.Region, cfg.AccessMonitoring.RoleARN, cfg.AccessMonitoring.RoleTags)
+	athenaConfig, err := buildAthenaConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	athenaConfig, err := buildAthenaConfig(cfg)
+
+	awsConfig, err := cloudaws.BuildAWSConfig(ctx, athenaConfig.Region, cfg.AccessMonitoring.RoleARN, cfg.AccessMonitoring.RoleTags)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

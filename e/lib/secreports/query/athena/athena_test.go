@@ -25,4 +25,9 @@ func TestConfigFromURI(t *testing.T) {
 		_, err := ConfigFromURI("postgres://localhost:5432")
 		require.True(t, trace.IsBadParameter(err))
 	})
+	t.Run("region param", func(t *testing.T) {
+		config, err := ConfigFromURI("athena://database.table?accessMonitoringResultsS3=s3://foo/bar&region=us-west-2")
+		require.NoError(t, err)
+		require.Equal(t, "us-west-2", config.Region)
+	})
 }
