@@ -1900,4 +1900,7 @@ type ClientI interface {
 
 	// GitServerClient returns git server client.
 	GitServerClient() *gitserver.Client
+
+	// GitServerGetter defines a service to get Git servers.
+	services.GitServerGetter
 }

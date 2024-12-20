@@ -102,39 +102,59 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
+	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+	}, nil)
+	require.NoError(t, err)
+
+	openSSHNode, err := types.NewNode("openssh", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "openssh",
+	}, nil)
+	require.NoError(t, err)
+
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "org",
+		Organization: "org",
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name            string
 		component       string
-		nodeExists      bool
-		openSSHNode     bool
+		targetServer    types.Server
 		assertRBACCheck require.BoolAssertionFunc
 	}{
 		{
 			name:            "teleport node, regular server",
 			component:       teleport.ComponentNode,
-			nodeExists:      true,
-			openSSHNode:     false,
+			targetServer:    node,
 			assertRBACCheck: require.True,
 		},
 		{
 			name:            "teleport node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			nodeExists:      true,
-			openSSHNode:     false,
+			targetServer:    node,
 			assertRBACCheck: require.False,
 		},
 		{
 			name:            "registered openssh node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			nodeExists:      true,
-			openSSHNode:     true,
+			targetServer:    openSSHNode,
 			assertRBACCheck: require.True,
 		},
 		{
 			name:            "unregistered openssh node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			nodeExists:      false,
+			targetServer:    nil,
 			assertRBACCheck: require.False,
+		},
+		{
+			name:            "forwarding git",
+			component:       teleport.ComponentForwardingGit,
+			targetServer:    gitServer,
+			assertRBACCheck: require.True,
 		},
 	}
 
@@ -176,29 +196,12 @@ func TestRBAC(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// create node resource
-			var target types.Server
-			if tt.nodeExists {
-				n, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
-					Addr:     "1.2.3.4:22",
-					Hostname: "testie",
-					Version:  types.V2,
-				})
-				require.NoError(t, err)
-				server, ok := n.(*types.ServerV2)
-				require.True(t, ok)
-				if tt.openSSHNode {
-					server.SubKind = types.SubKindOpenSSHNode
-				}
-				target = server
-			}
-
 			config := &AuthHandlerConfig{
 				Server:       server,
 				Component:    tt.component,
 				Emitter:      &eventstest.MockRecorderEmitter{},
 				AccessPoint:  accessPoint,
-				TargetServer: target,
+				TargetServer: tt.targetServer,
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
