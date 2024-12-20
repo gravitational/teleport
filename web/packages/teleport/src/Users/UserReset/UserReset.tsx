@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import { ButtonPrimary, ButtonSecondary, Text, Alert } from 'design';
+import { ButtonPrimary, ButtonSecondary, Text, Alert, P2 } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -26,6 +26,7 @@ import Dialog, {
 } from 'design/Dialog';
 import { useAttemptNext } from 'shared/hooks';
 
+import cfg from 'teleport/config';
 import { ResetToken } from 'teleport/services/user';
 
 import UserTokenLink from './../UserTokenLink';
@@ -58,16 +59,31 @@ export function UserReset({
       </DialogHeader>
       <DialogContent>
         {attempt.status === 'failed' && (
-          <Alert kind="danger" children={attempt.statusText} />
+          <Alert kind="danger">{attempt.statusText}</Alert>
         )}
-        <Text mb={4} mt={1}>
-          You are about to reset authentication for user
-          <Text bold as="span">
-            {` ${username} `}
+        <P2>
+          You are about to reset authentication for user{' '}
+          <Text bold as="strong">
+            {username}
           </Text>
-          . This will generate a temporary URL which can be used to set up new
-          authentication.
-        </Text>
+          . This will generate a&nbsp;temporary URL which can be used to set up
+          new authentication.
+        </P2>
+        {cfg.isMfaEnabled() && (
+          <P2>
+            All{' '}
+            {cfg.isPasswordlessEnabled()
+              ? 'passkeys and MFA methods'
+              : 'MFA methods'}{' '}
+            of this user will be removed. The user will be able to set up{' '}
+            {cfg.isPasswordlessEnabled() ? (
+              <>a&nbsp;new passkey or an MFA method</>
+            ) : (
+              <>a&nbsp;new method</>
+            )}{' '}
+            after following the URL.
+          </P2>
+        )}
       </DialogContent>
       <DialogFooter>
         <ButtonPrimary
@@ -75,7 +91,7 @@ export function UserReset({
           disabled={attempt.status === 'processing'}
           onClick={onReset}
         >
-          Generate reset url
+          Generate Reset URL
         </ButtonPrimary>
         <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
       </DialogFooter>
