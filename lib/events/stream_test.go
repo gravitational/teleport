@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -213,7 +214,7 @@ func TestReadCorruptedRecording(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	reader := events.NewProtoReader(f)
+	reader := sessionrecording.NewProtoReader(f)
 	defer reader.Close()
 
 	events, err := reader.ReadAll(ctx)

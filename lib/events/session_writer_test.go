@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -74,7 +75,7 @@ func TestSessionWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, part := range parts {
-			reader := events.NewProtoReader(bytes.NewReader(part))
+			reader := sessionrecording.NewProtoReader(bytes.NewReader(part))
 			out, err := reader.ReadAll(test.ctx)
 			require.NoError(t, err, "part crash %#v", part)
 			outEvents = append(outEvents, out...)
@@ -420,7 +421,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	for _, part := range parts {
 		readers = append(readers, bytes.NewReader(part))
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader := sessionrecording.NewProtoReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(a.ctx)
 	require.NoError(t, err, "failed to read")
 	t.Logf("Reader stats :%v", reader.GetStats().ToFields())

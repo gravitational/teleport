@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -308,7 +309,7 @@ func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
 
 type upload struct {
 	sessionID      session.ID
-	reader         *events.ProtoReader
+	reader         *sessionrecording.ProtoReader
 	file           *os.File
 	fileUnlockFn   func() error
 	checkpointFile *os.File
@@ -441,7 +442,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 
 	upload := &upload{
 		sessionID:    sessionID,
-		reader:       events.NewProtoReader(sessionFile),
+		reader:       sessionrecording.NewProtoReader(sessionFile),
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}

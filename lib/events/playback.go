@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/sessionrecording"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -46,13 +47,13 @@ type Header struct {
 // of the header. Callers should call Seek()
 // to reuse reader after calling this function.
 func DetectFormat(r io.ReadSeeker) (*Header, error) {
-	version := make([]byte, Int64Size)
+	version := make([]byte, sessionrecording.Int64Size)
 	_, err := io.ReadFull(r, version)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 	protocolVersion := binary.BigEndian.Uint64(version)
-	if protocolVersion == ProtoStreamV1 {
+	if protocolVersion == sessionrecording.ProtoStreamV1 {
 		return &Header{
 			Proto:        true,
 			ProtoVersion: int64(protocolVersion),
@@ -88,7 +89,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 	switch {
 	case format.Proto:
-		protoReader := NewProtoReader(rs)
+		protoReader := sessionrecording.NewProtoReader(rs)
 		for {
 			event, err := protoReader.Read(ctx)
 			if err != nil {

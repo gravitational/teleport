@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -666,10 +667,10 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	require.NoError(t, err)
 
 	var outEvents []apievents.AuditEvent
-	var reader *events.ProtoReader
+	var reader *sessionrecording.ProtoReader
 	for i, part := range parts {
 		if i == 0 {
-			reader = events.NewProtoReader(bytes.NewReader(part))
+			reader = sessionrecording.NewProtoReader(bytes.NewReader(part))
 		} else {
 			err := reader.Reset(bytes.NewReader(part))
 			require.NoError(t, err)

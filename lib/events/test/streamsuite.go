@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -251,7 +252,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader := events.NewProtoReader(f)
+	reader := sessionrecording.NewProtoReader(f)
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 
@@ -318,7 +319,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader := events.NewProtoReader(f)
+	reader := sessionrecording.NewProtoReader(f)
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 

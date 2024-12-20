@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,12 +43,6 @@ import (
 )
 
 const (
-	// Int32Size is a constant for 32 bit integer byte size
-	Int32Size = 4
-
-	// Int64Size is a constant for 64 bit integer byte size
-	Int64Size = 8
-
 	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
 	// per stream
 	ConcurrentUploadsPerStream = 1
@@ -58,20 +53,6 @@ const (
 	// MinUploadPartSizeBytes is the minimum allowed part size when uploading a part to
 	// Amazon S3.
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
-
-	// ProtoStreamV1 is a version of the binary protocol
-	ProtoStreamV1 = 1
-
-	// ProtoStreamV1PartHeaderSize is the size of the part of the protocol stream
-	// on disk format, it consists of
-	// * 8 bytes for the format version
-	// * 8 bytes for meaningful size of the part
-	// * 8 bytes for optional padding size at the end of the slice
-	ProtoStreamV1PartHeaderSize = Int64Size * 3
-
-	// ProtoStreamV1RecordHeaderSize is the size of the header
-	// of the record header, it consists of the record length
-	ProtoStreamV1RecordHeaderSize = Int32Size
 
 	// uploaderReservePartErrorMessage error message present when
 	// `ReserveUploadPart` fails.
@@ -116,7 +97,7 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + sessionrecording.ProtoStreamV1RecordHeaderSize),
 	}, nil
 }
 
@@ -488,7 +469,7 @@ type sliceWriter struct {
 	completedParts []StreamPart
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
-	emptyHeader [ProtoStreamV1PartHeaderSize]byte
+	emptyHeader [sessionrecording.ProtoStreamV1PartHeaderSize]byte
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -871,9 +852,9 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 	data := s.buffer.Bytes()
 	// when the slice was created, the first bytes were reserved
 	// for the protocol version number and size of the slice in bytes
-	binary.BigEndian.PutUint64(data[0:], ProtoStreamV1)
-	binary.BigEndian.PutUint64(data[Int64Size:], uint64(wroteBytes-ProtoStreamV1PartHeaderSize))
-	binary.BigEndian.PutUint64(data[Int64Size*2:], uint64(paddingBytes))
+	binary.BigEndian.PutUint64(data[0:], sessionrecording.ProtoStreamV1)
+	binary.BigEndian.PutUint64(data[sessionrecording.Int64Size:], uint64(wroteBytes-sessionrecording.ProtoStreamV1PartHeaderSize))
+	binary.BigEndian.PutUint64(data[sessionrecording.Int64Size*2:], uint64(paddingBytes))
 	return bytes.NewReader(data), nil
 }
 
@@ -905,7 +886,7 @@ func (s *slice) recordEvent(event protoEvent) error {
 	s.eventCount++
 
 	messageSize := event.oneof.Size()
-	recordSize := ProtoStreamV1RecordHeaderSize + messageSize
+	recordSize := sessionrecording.ProtoStreamV1RecordHeaderSize + messageSize
 
 	if len(bytes) < recordSize {
 		return trace.BadParameter(
@@ -913,7 +894,7 @@ func (s *slice) recordEvent(event protoEvent) error {
 	}
 
 	binary.BigEndian.PutUint32(bytes, uint32(messageSize))
-	_, err := event.oneof.MarshalTo(bytes[Int32Size:])
+	_, err := event.oneof.MarshalTo(bytes[sessionrecording.Int32Size:])
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -930,259 +911,11 @@ func (s *slice) recordEvent(event protoEvent) error {
 	return nil
 }
 
-// NewProtoReader returns a new proto reader with slice pool
-func NewProtoReader(r io.Reader) *ProtoReader {
-	return &ProtoReader{
-		reader:    r,
-		lastIndex: -1,
-	}
-}
-
 // SessionReader provides method to read
 // session events one by one
 type SessionReader interface {
 	// Read reads session events
 	Read(context.Context) (apievents.AuditEvent, error)
-}
-
-const (
-	// protoReaderStateInit is ready to start reading the next part
-	protoReaderStateInit = 0
-	// protoReaderStateCurrent will read the data from the current part
-	protoReaderStateCurrent = iota
-	// protoReaderStateEOF indicates that reader has completed reading
-	// all parts
-	protoReaderStateEOF = iota
-	// protoReaderStateError indicates that reader has reached internal
-	// error and should close
-	protoReaderStateError = iota
-)
-
-// ProtoReader reads protobuf encoding from reader
-type ProtoReader struct {
-	gzipReader   *gzipReader
-	padding      int64
-	reader       io.Reader
-	sizeBytes    [Int64Size]byte
-	messageBytes [MaxProtoMessageSizeBytes]byte
-	state        int
-	error        error
-	lastIndex    int64
-	stats        ProtoReaderStats
-}
-
-// ProtoReaderStats contains some reader statistics
-type ProtoReaderStats struct {
-	// SkippedEvents is a counter with encountered
-	// events recorded several times or events
-	// that have been out of order as skipped
-	SkippedEvents int64
-	// OutOfOrderEvents is a counter with events
-	// received out of order
-	OutOfOrderEvents int64
-	// TotalEvents contains total amount of
-	// processed events (including duplicates)
-	TotalEvents int64
-}
-
-// ToFields returns a copy of the stats to be used as log fields
-func (p ProtoReaderStats) ToFields() map[string]any {
-	return map[string]any{
-		"skipped-events":      p.SkippedEvents,
-		"out-of-order-events": p.OutOfOrderEvents,
-		"total-events":        p.TotalEvents,
-	}
-}
-
-// Close releases reader resources
-func (r *ProtoReader) Close() error {
-	if r.gzipReader != nil {
-		return r.gzipReader.Close()
-	}
-	return nil
-}
-
-// Reset sets reader to read from the new reader
-// without resetting the stats, could be used
-// to deduplicate the events
-func (r *ProtoReader) Reset(reader io.Reader) error {
-	if r.error != nil {
-		return r.error
-	}
-	if r.gzipReader != nil {
-		if r.error = r.gzipReader.Close(); r.error != nil {
-			return trace.Wrap(r.error)
-		}
-		r.gzipReader = nil
-	}
-	r.reader = reader
-	r.state = protoReaderStateInit
-	return nil
-}
-
-func (r *ProtoReader) setError(err error) error {
-	r.state = protoReaderStateError
-	r.error = err
-	return err
-}
-
-// GetStats returns stats about processed events
-func (r *ProtoReader) GetStats() ProtoReaderStats {
-	return r.stats
-}
-
-// Read returns next event or io.EOF in case of the end of the parts
-func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
-	// periodic checks of context after fixed amount of iterations
-	// is an extra precaution to avoid
-	// accidental endless loop due to logic error crashing the system
-	// and allows ctx timeout to kick in if specified
-	var checkpointIteration int64
-	for {
-		checkpointIteration++
-		if checkpointIteration%defaults.MaxIterationLimit == 0 {
-			select {
-			case <-ctx.Done():
-				if ctx.Err() != nil {
-					return nil, trace.Wrap(ctx.Err())
-				}
-				return nil, trace.LimitExceeded("context has been canceled")
-			default:
-			}
-		}
-		switch r.state {
-		case protoReaderStateEOF:
-			return nil, io.EOF
-		case protoReaderStateError:
-			return nil, r.error
-		case protoReaderStateInit:
-			// read the part header that consists of the protocol version
-			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				// reached the end of the stream
-				if errors.Is(err, io.EOF) {
-					r.state = protoReaderStateEOF
-					return nil, err
-				}
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			protocolVersion := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			if protocolVersion != ProtoStreamV1 {
-				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
-			}
-			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			partSize := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			// read padding size (could be 0)
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
-			if err != nil {
-				return nil, r.setError(trace.Wrap(err))
-			}
-			r.gzipReader = gzipReader
-			r.state = protoReaderStateCurrent
-			continue
-			// read the next version from the gzip reader
-		case protoReaderStateCurrent:
-			// the record consists of length of the protobuf encoded
-			// message and the message itself
-			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
-			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					return nil, r.setError(trace.ConvertSystemError(err))
-				}
-
-				// due to a bug in older versions of teleport it was possible that padding
-				// bytes would end up inside of the gzip section of the archive. we should
-				// skip any dangling data in the gzip secion.
-				n, err := io.CopyBuffer(io.Discard, r.gzipReader.inner, r.messageBytes[:])
-				if err != nil {
-					return nil, r.setError(trace.ConvertSystemError(err))
-				}
-
-				if n != 0 {
-					// log the number of bytes that were skipped
-					slog.DebugContext(ctx, "skipped dangling data in session recording section", "length", n)
-				}
-
-				// reached the end of the current part, but not necessarily
-				// the end of the stream
-				if err := r.gzipReader.Close(); err != nil {
-					return nil, r.setError(trace.ConvertSystemError(err))
-				}
-				if r.padding != 0 {
-					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, r.padding), r.messageBytes[:])
-					if err != nil {
-						return nil, r.setError(trace.ConvertSystemError(err))
-					}
-					if skipped != r.padding {
-						return nil, r.setError(trace.BadParameter(
-							"data truncated, expected to read %v bytes, but got %v", r.padding, skipped))
-					}
-				}
-				r.padding = 0
-				r.gzipReader = nil
-				r.state = protoReaderStateInit
-				continue
-			}
-			messageSize := binary.BigEndian.Uint32(r.sizeBytes[:Int32Size])
-			// zero message size indicates end of the part
-			// that sometimes is present in partially submitted parts
-			// that have to be filled with zeroes for parts smaller
-			// than minimum allowed size
-			if messageSize == 0 {
-				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
-			}
-			_, err = io.ReadFull(r.gzipReader, r.messageBytes[:messageSize])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			oneof := apievents.OneOf{}
-			err = oneof.Unmarshal(r.messageBytes[:messageSize])
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			event, err := apievents.FromOneOf(oneof)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			r.stats.TotalEvents++
-			if event.GetIndex() <= r.lastIndex {
-				r.stats.SkippedEvents++
-				continue
-			}
-			if r.lastIndex > 0 && event.GetIndex() != r.lastIndex+1 {
-				r.stats.OutOfOrderEvents++
-			}
-			r.lastIndex = event.GetIndex()
-			return event, nil
-		default:
-			return nil, trace.BadParameter("unsupported reader size")
-		}
-	}
-}
-
-// ReadAll reads all events until EOF
-func (r *ProtoReader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, error) {
-	var events []apievents.AuditEvent
-	for {
-		event, err := r.Read(ctx)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return events, nil
-			}
-			return nil, trace.Wrap(err)
-		}
-		events = append(events, event)
-	}
 }
 
 // isReserveUploadPartError identifies uploader reserve part errors.
