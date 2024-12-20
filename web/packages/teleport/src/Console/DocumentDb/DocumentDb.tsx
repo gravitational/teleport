@@ -24,7 +24,7 @@ import AuthnDialog from 'teleport/components/AuthnDialog';
 import Document from 'teleport/Console/Document';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
 import * as stores from 'teleport/Console/stores/types';
-import { useMfa } from 'teleport/lib/useMfa';
+import { useMfaTty } from 'teleport/lib/useMfa';
 
 import { ConnectDialog } from './ConnectDialog';
 import { useDbSession } from './useDbSession';
@@ -37,11 +37,11 @@ type Props = {
 export function DocumentDb({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendDbConnectData } = useDbSession(doc);
-  const mfa = useMfa(tty);
+  const mfa = useMfaTty(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, mfa.requested, status]);
+  }, [visible, mfa, status]);
   const theme = useTheme();
 
   return (
@@ -51,7 +51,7 @@ export function DocumentDb({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      <AuthnDialog mfaState={mfa} />
 
       {status === 'waiting' && (
         <ConnectDialog
