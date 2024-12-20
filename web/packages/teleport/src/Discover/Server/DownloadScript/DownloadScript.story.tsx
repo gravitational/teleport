@@ -63,7 +63,7 @@ export const Polling: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -86,7 +86,7 @@ export const PollingSuccess: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return HttpResponse.json({ items: [{}] });
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -111,7 +111,7 @@ export const PollingError: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -130,7 +130,7 @@ export const Processing: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return delay('infinite');
         }),
       ],
@@ -149,7 +149,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },
