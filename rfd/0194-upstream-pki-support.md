@@ -45,7 +45,21 @@ The project is largely divided into two phases:
 - Building out integrations with specific PKI solutions to automate the process
   of rotating the Teleport CA.
 
-### Phase 1: Intermediate Support
+### Phase 1: Intermediate CA Support
+
+#### UX
+
+```shell
+$ tctl auth rotate --manual --type spiffe --phase pre-init
+Updated rotation phase to pre-init. New keys have been generated, and you can
+now provide a certificate to move to the next phase.
+$ tctl auth generate-csr --type spiffe -o spiffe.csr
+A CSR for the SPIFFE CA has been generated and written to spiffe.csr.
+$ tctl auth rotate --manual --type spiffe --phase init --signed-cert spiffe.crt --upstream-ca root.crt
+Updated rotation phase to "init". To check status use 'tctl status'
+```
+
+#### Implementation
 
 TODO:
 - Pre init phase.
@@ -80,4 +94,4 @@ TODO:
 - We should note here the compromises that using an external PKI hierarchy has 
   on the security model of Teleport Workload Identity.
 
-### Phase 2: Integrations
+### Phase 2: Automation & Integration
