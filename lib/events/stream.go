@@ -54,6 +54,17 @@ const (
 	// Amazon S3.
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
 
+	// ProtoStreamV1PartHeaderSize is the size of the part of the protocol stream
+	// on disk format, it consists of
+	// * 8 bytes for the format version
+	// * 8 bytes for meaningful size of the part
+	// * 8 bytes for optional padding size at the end of the slice
+	ProtoStreamV1PartHeaderSize = sessionrecording.Int64Size * 3
+
+	// ProtoStreamV1RecordHeaderSize is the size of the header
+	// of the record header, it consists of the record length
+	ProtoStreamV1RecordHeaderSize = sessionrecording.Int32Size
+
 	// uploaderReservePartErrorMessage error message present when
 	// `ReserveUploadPart` fails.
 	uploaderReservePartErrorMessage = "uploader failed to reserve upload part"
@@ -97,7 +108,7 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + sessionrecording.ProtoStreamV1RecordHeaderSize),
+		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
 	}, nil
 }
 
@@ -469,7 +480,7 @@ type sliceWriter struct {
 	completedParts []StreamPart
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
-	emptyHeader [sessionrecording.ProtoStreamV1PartHeaderSize]byte
+	emptyHeader [ProtoStreamV1PartHeaderSize]byte
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -853,7 +864,7 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 	// when the slice was created, the first bytes were reserved
 	// for the protocol version number and size of the slice in bytes
 	binary.BigEndian.PutUint64(data[0:], sessionrecording.ProtoStreamV1)
-	binary.BigEndian.PutUint64(data[sessionrecording.Int64Size:], uint64(wroteBytes-sessionrecording.ProtoStreamV1PartHeaderSize))
+	binary.BigEndian.PutUint64(data[sessionrecording.Int64Size:], uint64(wroteBytes-ProtoStreamV1PartHeaderSize))
 	binary.BigEndian.PutUint64(data[sessionrecording.Int64Size*2:], uint64(paddingBytes))
 	return bytes.NewReader(data), nil
 }
@@ -886,7 +897,7 @@ func (s *slice) recordEvent(event protoEvent) error {
 	s.eventCount++
 
 	messageSize := event.oneof.Size()
-	recordSize := sessionrecording.ProtoStreamV1RecordHeaderSize + messageSize
+	recordSize := ProtoStreamV1RecordHeaderSize + messageSize
 
 	if len(bytes) < recordSize {
 		return trace.BadParameter(

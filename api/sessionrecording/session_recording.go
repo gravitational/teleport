@@ -44,17 +44,6 @@ const (
 
 	// ProtoStreamV1 is a version of the binary protocol
 	ProtoStreamV1 = 1
-
-	// ProtoStreamV1PartHeaderSize is the size of the part of the protocol stream
-	// on disk format, it consists of
-	// * 8 bytes for the format version
-	// * 8 bytes for meaningful size of the part
-	// * 8 bytes for optional padding size at the end of the slice
-	ProtoStreamV1PartHeaderSize = Int64Size * 3
-
-	// ProtoStreamV1RecordHeaderSize is the size of the header
-	// of the record header, it consists of the record length
-	ProtoStreamV1RecordHeaderSize = Int32Size
 )
 
 const (
