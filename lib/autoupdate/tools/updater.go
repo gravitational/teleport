@@ -389,6 +389,11 @@ func (u *Updater) downloadHash(ctx context.Context, url string) ([]byte, error) 
 // downloadArchive downloads the archive package by `url` and writes content to the writer interface,
 // return calculated sha256 hash sum of the content.
 func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) ([]byte, error) {
+	// Display a progress bar before initiating the update request to inform the user that
+	// an update is in progress, allowing them the option to cancel before actual response
+	// which might be delayed with slow internet connection or complete isolation to CDN.
+	pw, finish := newProgressWriter(10)
+	defer finish()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -410,10 +415,6 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	pw, finish := newProgressWriter(10)
-	defer finish()
-
 	h := sha256.New()
 	// It is a little inefficient to download the file to disk and then re-load
 	// it into memory to unarchive later, but this is safer as it allows client
