@@ -18,10 +18,12 @@
 
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
+import { getCliCommandArgv0 } from 'teleterm/services/tshd/gateway';
 
 import { OfflineGateway } from '../components/OfflineGateway';
+import { useWorkspaceContext } from '../Documents';
 
-import { useDocumentGateway } from './useDocumentGateway';
+import { useGateway } from './useGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 
 export function DocumentGateway(props: {
@@ -29,6 +31,8 @@ export function DocumentGateway(props: {
   doc: types.DocumentGateway;
 }) {
   const { doc, visible } = props;
+  const { documentsService } = useWorkspaceContext();
+
   const {
     connected,
     // Needed for OfflineGateway.
@@ -36,14 +40,29 @@ export function DocumentGateway(props: {
     reconnect,
     defaultPort,
     // Needed for OnlineDocumentGateway.
-    disconnect,
-    changeDbName,
-    changeDbNameAttempt,
-    changePortAttempt,
     gateway,
+    // TODO(ravicious): Show disconnectAttempt errors in UI.
+    disconnect,
     changePort,
-    runCliCommand,
-  } = useDocumentGateway(doc);
+    changePortAttempt,
+    changeTargetSubresourceNameAttempt: changeDbNameAttempt,
+    changeTargetSubresourceName: changeDbName,
+  } = useGateway(doc);
+
+  const runCliCommand = () => {
+    const command = getCliCommandArgv0(gateway.gatewayCliCommand);
+    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+
+    const cliDoc = documentsService.createGatewayCliDocument({
+      title,
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+      targetName: doc.targetName,
+      targetProtocol: gateway.protocol,
+    });
+    documentsService.add(cliDoc);
+    documentsService.setLocation(cliDoc.uri);
+  };
 
   if (!connected) {
     return (
