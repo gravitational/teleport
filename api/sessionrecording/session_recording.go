@@ -58,7 +58,7 @@ const (
 	ProtoStreamV1RecordHeaderSize = Int32Size
 )
 
-// NewReader returns a new reader with slice pool
+// NewReader returns a new session recording reader
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		reader:    r,
@@ -79,7 +79,7 @@ const (
 	protoReaderStateError = iota
 )
 
-// Reader reads protobuf encoding from reader
+// Reader reads Teleport's session recordings
 type Reader struct {
 	gzipReader   *gzipReader
 	padding      int64
