@@ -2134,8 +2134,9 @@ message AuthPreferenceSpecV2 {
   string Type = 1 [(gogoproto.jsontag) = "type"];
 
   // SecondFactor is the type of mult-factor.
-  // Deprecated: Prefer setting SecondFactors instead.
+  // Deprecated: Prefer using SecondFactors instead.
   string SecondFactor = 2 [
+    deprecated = true,
     (gogoproto.jsontag) = "second_factor,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.SecondFactorType"
   ];

@@ -1458,7 +1458,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"second_factor": {
 					Computed:      true,
-					Description:   "SecondFactor is the type of mult-factor. Deprecated: Prefer setting SecondFactors instead.",
+					Description:   "SecondFactor is the type of mult-factor. Deprecated: Prefer using SecondFactors instead.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
