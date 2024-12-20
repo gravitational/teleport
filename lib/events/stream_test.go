@@ -214,7 +214,7 @@ func TestReadCorruptedRecording(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	reader := sessionrecording.NewProtoReader(f)
+	reader := sessionrecording.NewReader(f)
 	defer reader.Close()
 
 	events, err := reader.ReadAll(ctx)

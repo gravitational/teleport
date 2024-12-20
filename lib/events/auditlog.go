@@ -573,7 +573,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			return
 		}
 
-		protoReader := sessionrecording.NewProtoReader(rawSession)
+		protoReader := sessionrecording.NewReader(rawSession)
 		defer protoReader.Close()
 
 		firstEvent := true

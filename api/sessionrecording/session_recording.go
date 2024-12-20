@@ -56,9 +56,9 @@ const (
 	ProtoStreamV1RecordHeaderSize = Int32Size
 )
 
-// NewProtoReader returns a new proto reader with slice pool
-func NewProtoReader(r io.Reader) *ProtoReader {
-	return &ProtoReader{
+// NewReader returns a new reader with slice pool
+func NewReader(r io.Reader) *Reader {
+	return &Reader{
 		reader:    r,
 		lastIndex: -1,
 	}
@@ -77,8 +77,8 @@ const (
 	protoReaderStateError = iota
 )
 
-// ProtoReader reads protobuf encoding from reader
-type ProtoReader struct {
+// Reader reads protobuf encoding from reader
+type Reader struct {
 	gzipReader   *gzipReader
 	padding      int64
 	reader       io.Reader
@@ -87,11 +87,11 @@ type ProtoReader struct {
 	state        int
 	error        error
 	lastIndex    int64
-	stats        ProtoReaderStats
+	stats        ReaderStats
 }
 
-// ProtoReaderStats contains some reader statistics
-type ProtoReaderStats struct {
+// ReaderStats contains some reader statistics
+type ReaderStats struct {
 	// SkippedEvents is a counter with encountered
 	// events recorded several times or events
 	// that have been out of order as skipped
@@ -105,7 +105,7 @@ type ProtoReaderStats struct {
 }
 
 // ToFields returns a copy of the stats to be used as log fields
-func (p ProtoReaderStats) ToFields() map[string]any {
+func (p ReaderStats) ToFields() map[string]any {
 	return map[string]any{
 		"skipped-events":      p.SkippedEvents,
 		"out-of-order-events": p.OutOfOrderEvents,
@@ -114,7 +114,7 @@ func (p ProtoReaderStats) ToFields() map[string]any {
 }
 
 // Close releases reader resources
-func (r *ProtoReader) Close() error {
+func (r *Reader) Close() error {
 	if r.gzipReader != nil {
 		return r.gzipReader.Close()
 	}
@@ -124,7 +124,7 @@ func (r *ProtoReader) Close() error {
 // Reset sets reader to read from the new reader
 // without resetting the stats, could be used
 // to deduplicate the events
-func (r *ProtoReader) Reset(reader io.Reader) error {
+func (r *Reader) Reset(reader io.Reader) error {
 	if r.error != nil {
 		return r.error
 	}
@@ -139,19 +139,19 @@ func (r *ProtoReader) Reset(reader io.Reader) error {
 	return nil
 }
 
-func (r *ProtoReader) setError(err error) error {
+func (r *Reader) setError(err error) error {
 	r.state = protoReaderStateError
 	r.error = err
 	return err
 }
 
 // GetStats returns stats about processed events
-func (r *ProtoReader) GetStats() ProtoReaderStats {
+func (r *Reader) GetStats() ReaderStats {
 	return r.stats
 }
 
 // Read returns next event or io.EOF in case of the end of the parts
-func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
+func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	// periodic checks of context after fixed amount of iterations
 	// is an extra precaution to avoid
 	// accidental endless loop due to logic error crashing the system
@@ -290,7 +290,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 }
 
 // ReadAll reads all events until EOF
-func (r *ProtoReader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, error) {
+func (r *Reader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, error) {
 	var events []apievents.AuditEvent
 	for {
 		event, err := r.Read(ctx)

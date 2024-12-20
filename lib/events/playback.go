@@ -89,7 +89,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 	switch {
 	case format.Proto:
-		protoReader := sessionrecording.NewProtoReader(rs)
+		protoReader := sessionrecording.NewReader(rs)
 		for {
 			event, err := protoReader.Read(ctx)
 			if err != nil {

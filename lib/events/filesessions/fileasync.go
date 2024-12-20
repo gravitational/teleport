@@ -309,7 +309,7 @@ func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
 
 type upload struct {
 	sessionID      session.ID
-	reader         *sessionrecording.ProtoReader
+	reader         *sessionrecording.Reader
 	file           *os.File
 	fileUnlockFn   func() error
 	checkpointFile *os.File
@@ -442,7 +442,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 
 	upload := &upload{
 		sessionID:    sessionID,
-		reader:       sessionrecording.NewProtoReader(sessionFile),
+		reader:       sessionrecording.NewReader(sessionFile),
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}

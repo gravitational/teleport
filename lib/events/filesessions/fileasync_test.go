@@ -667,10 +667,10 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	require.NoError(t, err)
 
 	var outEvents []apievents.AuditEvent
-	var reader *sessionrecording.ProtoReader
+	var reader *sessionrecording.Reader
 	for i, part := range parts {
 		if i == 0 {
-			reader = sessionrecording.NewProtoReader(bytes.NewReader(part))
+			reader = sessionrecording.NewReader(bytes.NewReader(part))
 		} else {
 			err := reader.Reset(bytes.NewReader(part))
 			require.NoError(t, err)
