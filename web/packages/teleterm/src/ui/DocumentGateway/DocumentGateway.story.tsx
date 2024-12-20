@@ -36,6 +36,7 @@ type StoryProps = {
   longValues: boolean;
   dbNameAttempt: 'not-started' | 'processing' | 'error';
   portAttempt: 'not-started' | 'processing' | 'error';
+  disconnectAttempt: 'not-started' | 'error';
   // Offline props.
   connectAttempt: 'not-started' | 'processing' | 'error';
 };
@@ -56,6 +57,11 @@ const meta: Meta<StoryProps> = {
       control: { type: 'radio' },
       options: ['not-started', 'processing', 'error'],
     },
+    disconnectAttempt: {
+      if: { arg: 'online' },
+      control: { type: 'radio' },
+      options: ['not-started', 'error'],
+    },
     // Offline props.
     connectAttempt: {
       if: { arg: 'online', truthy: false },
@@ -69,6 +75,7 @@ const meta: Meta<StoryProps> = {
     longValues: false,
     dbNameAttempt: 'not-started',
     portAttempt: 'not-started',
+    disconnectAttempt: 'not-started',
     // Offline props.
     connectAttempt: 'not-started',
   },
@@ -143,6 +150,7 @@ export function Story(props: StoryProps) {
     changeDbNameAttempt: makeEmptyAttempt(),
     changePort: async () => [undefined, null],
     changePortAttempt: makeEmptyAttempt(),
+    disconnectAttempt: makeEmptyAttempt(),
   };
 
   if (props.dbNameAttempt === 'error') {
@@ -161,6 +169,12 @@ export function Story(props: StoryProps) {
   }
   if (props.portAttempt === 'processing') {
     onlineDocumentGatewayProps.changePortAttempt = makeProcessingAttempt();
+  }
+
+  if (props.disconnectAttempt === 'error') {
+    onlineDocumentGatewayProps.disconnectAttempt = makeErrorAttempt(
+      new Error('Something went wrong with closing connection.')
+    );
   }
 
   return (

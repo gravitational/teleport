@@ -41,8 +41,8 @@ export function DocumentGateway(props: {
     defaultPort,
     // Needed for OnlineDocumentGateway.
     gateway,
-    // TODO(ravicious): Show disconnectAttempt errors in UI.
     disconnect,
+    disconnectAttempt,
     changePort,
     changePortAttempt,
     changeTargetSubresourceNameAttempt: changeDbNameAttempt,
@@ -82,6 +82,7 @@ export function DocumentGateway(props: {
     <Document visible={visible}>
       <OnlineDocumentGateway
         disconnect={disconnect}
+        disconnectAttempt={disconnectAttempt}
         changeDbName={changeDbName}
         changeDbNameAttempt={changeDbNameAttempt}
         changePortAttempt={changePortAttempt}

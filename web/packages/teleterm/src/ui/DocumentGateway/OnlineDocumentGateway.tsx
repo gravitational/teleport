@@ -18,7 +18,7 @@
 
 import { useMemo, useRef } from 'react';
 import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
+import { Alert, Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
 
@@ -36,6 +36,7 @@ export function OnlineDocumentGateway(props: {
   changePort: (port: string) => RunFuncReturnValue<void>;
   changePortAttempt: Attempt<void>;
   disconnect: () => RunFuncReturnValue<void>;
+  disconnectAttempt: Attempt<void>;
   gateway: Gateway;
   runCliCommand: () => void;
 }) {
@@ -85,6 +86,13 @@ export function OnlineDocumentGateway(props: {
           Close Connection
         </ButtonSecondary>
       </Flex>
+
+      {props.disconnectAttempt.status === 'error' && (
+        <Alert details={props.disconnectAttempt.statusText}>
+          Could not close the connection
+        </Alert>
+      )}
+
       <H2 mb={2}>Connect with CLI</H2>
       <Flex as="form" ref={formRef}>
         <Validation>
@@ -110,6 +118,7 @@ export function OnlineDocumentGateway(props: {
         onButtonClick={props.runCliCommand}
       />
       {$errors}
+
       <H2 mt={3} mb={2}>
         Connect with GUI
       </H2>
