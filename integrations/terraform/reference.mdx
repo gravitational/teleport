@@ -2051,7 +2051,8 @@ Options is for OpenSSH options like agent forwarding.
 | max_sessions               | number           |          | MaxSessions defines the maximum number of concurrent sessions per connection.                                                                                                                          |
 | permit_x11_forwarding      | bool             |          | PermitX11Forwarding authorizes use of X11 forwarding.                                                                                                                                                  |
 | pin_source_ip              | bool             |          | PinSourceIP forces the same client IP for certificate generation and usage                                                                                                                             |
-| port_forwarding            | bool             |          |                                                                                                                                                                                                        |
+| ssh_port_forwarding        | object           |          | SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.                                                                                                                  |
+| port_forwarding            | bool             |          | Deprecated: Use SSHPortForwarding instead.                                                                                                                                                             |
 | record_session             | object           |          | RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.                                                                 |
 | request_access             | string           |          | RequestAccess defines the access request strategy (optional|note|always) where optional is the default.                                                                                                |
 | request_prompt             | string           |          | RequestPrompt is an optional message which tells users what they aught to request.                                                                                                                     |
@@ -2080,6 +2081,31 @@ IDP is a set of options related to accessing IdPs within Teleport. Requires Tele
 ###### spec.options.idp.saml
 
 SAML are options related to the Teleport SAML IdP.
+
+|  Name   | Type | Required | Description |
+|---------|------|----------|-------------|
+| enabled | bool |          |             |
+
+##### spec.options.ssh_port_forwarding
+
+SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+
+|  Name  |  Type  | Required |                    Description                            |
+|--------|--------|----------|-----------------------------------------------------------|
+| remote | object |          | remote contains options related to remote port forwarding |
+| local  | object |          | local contains options related to local port forwarding   |
+
+###### spec.options.ssh_port_forwarding.remote
+
+remote contains options related to remote port forwarding
+
+|  Name   | Type | Required | Description |
+|---------|------|----------|-------------|
+| enabled | bool |          |             |
+
+###### spec.options.ssh_port_forwarding.local
+
+local contains options related to local port forwarding
 
 |  Name   | Type | Required | Description |
 |---------|------|----------|-------------|
@@ -2114,11 +2140,19 @@ resource "teleport_role" "example" {
     options = {
       forward_agent           = false
       max_session_ttl         = "7m"
-      port_forwarding         = false
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
       permit_x11_forwarding   = false
       request_access          = "denied"
+      ssh_port_forwarding     = {
+        remote = {
+          enabled = false
+        }
+
+        local = {
+          enabled = false
+        }
+      }
     }
 
     allow = {
