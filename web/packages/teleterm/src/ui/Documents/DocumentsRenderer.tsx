@@ -32,7 +32,7 @@ import {
   Workspace,
 } from 'teleterm/ui/services/workspacesService';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
-import DocumentGateway from 'teleterm/ui/DocumentGateway';
+import { DocumentGateway } from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import {
   ConnectMyComputerContextProvider,
