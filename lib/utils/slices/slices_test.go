@@ -19,10 +19,15 @@
 package slices
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+type aType struct {
+	fieldA string
+}
 
 func TestFilterMapUnique(t *testing.T) {
 	for _, tt := range []struct {
@@ -69,4 +74,21 @@ func TestFilterMapUnique(t *testing.T) {
 			require.Equal(t, tt.expected, got)
 		})
 	}
+
+	t.Run("structs", func(t *testing.T) {
+		input := []aType{
+			{"+a"},
+			{"+b"},
+			{"+b"},
+			{"b"},
+			{"z"},
+		}
+		withPlusPrefix := func(a aType) (string, bool) {
+			return a.fieldA, strings.HasPrefix(a.fieldA, "+")
+		}
+		got := FilterMapUnique(input, withPlusPrefix)
+
+		expected := []string{"+a", "+b"}
+		require.Equal(t, expected, got)
+	})
 }
