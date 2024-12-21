@@ -812,7 +812,7 @@ func startDebugAgent(t *testing.T) error {
 			conn, err := listener.Accept()
 			if err != nil {
 				if !utils.IsUseOfClosedNetworkError(err) {
-					log.Warnf("Unexpected response from listener.Accept: %v", err)
+					log.WarnContext(context.Background(), "Unexpected response from listener.Accept", "error", err)
 				}
 				return
 			}

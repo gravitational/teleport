@@ -84,7 +84,7 @@ type WebClient struct {
 // and a the HTTPS failure will be considered final.
 func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val interface{}, allowHTTPFallback bool) (*roundtrip.Response, error) {
 	// First try HTTPS and see how that goes
-	log.Debugf("Attempting %s", endpoint)
+	log.DebugContext(ctx, "Attempting request", "endpoint", endpoint)
 	resp, httpsErr := w.Client.PostJSON(ctx, endpoint, val)
 	if httpsErr == nil {
 		// If all went well, then we don't need to do anything else - just return
@@ -116,7 +116,7 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 	// re-write the endpoint to try HTTP
 	u.Scheme = "http"
 	endpoint = u.String()
-	log.Warnf("Request for %s/%s falling back to PLAIN HTTP", u.Host, u.Path)
+	log.WarnContext(ctx, "Request for falling back to PLAIN HTTP", "endpoint", endpoint)
 	return httplib.ConvertResponse(w.Client.PostJSON(ctx, endpoint, val))
 }
 

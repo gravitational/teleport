@@ -20,9 +20,10 @@ package client
 
 import (
 	"bytes"
+	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -117,7 +118,7 @@ func canPruneOldHostsEntry(oldEntry *knownHostEntry, newEntries []*knownHostEntr
 // duplicate entry exists. This may modify order of host keys, but will not
 // change their content.
 func pruneOldHostKeys(output []string) []string {
-	log := logrus.WithField(teleport.ComponentKey, teleport.ComponentMigrate)
+	log := slog.With(teleport.ComponentKey, teleport.ComponentMigrate)
 
 	var (
 		oldEntries   = make([]*knownHostEntry, 0)
@@ -130,7 +131,10 @@ func pruneOldHostKeys(output []string) []string {
 		parsed, err := parseKnownHost(line)
 		if err != nil {
 			// If the line isn't parseable, pass it through.
-			log.WithError(err).Debugf("Unable to parse known host on line %d, skipping", i+1)
+			log.DebugContext(context.Background(), "Unable to parse known host, skipping",
+				"invalid_line_number", i+1,
+				"error", err,
+			)
 			prunedOutput = append(prunedOutput, line)
 			continue
 		}
@@ -153,7 +157,7 @@ func pruneOldHostKeys(output []string) []string {
 	// exists. If not, pass it through.
 	for _, entry := range oldEntries {
 		if canPruneOldHostsEntry(entry, newEntries) {
-			log.Debugf("Pruning old known_hosts entry for %s.", entry.hosts[0])
+			log.DebugContext(context.Background(), "Pruning old known_hosts entry for host", "host", entry.hosts[0])
 		} else {
 			prunedOutput = append(prunedOutput, entry.raw)
 		}

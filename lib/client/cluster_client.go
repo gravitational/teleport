@@ -311,7 +311,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		defer authClient.Close()
 	}
 
-	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
+	log.DebugContext(ctx, "Attempting to issue a single-use user certificate with an MFA check")
 	keyRing, err = c.performSessionMFACeremony(ctx,
 		mfaClt,
 		ReissueParams{
@@ -325,7 +325,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debug("Issued single-use user certificate after an MFA check.")
+	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
 	am, err := keyRing.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(ceremonyFailedErr{err})
@@ -561,7 +561,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	// MFA is not required, but the user requires a new certificate with the
 	// target included in it for routing.
 	if !mfaRequired {
-		log.Debug("MFA not required for access.")
+		log.DebugContext(ctx, "MFA not required for access")
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		return keyRing, proto.MFARequired_MFA_REQUIRED_NO, trace.Wrap(err)
 	}
@@ -572,7 +572,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		return nil, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
 	}
 
-	log.Debug("Issued single-use user certificate after an MFA check.")
+	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
 	return keyRing, proto.MFARequired_MFA_REQUIRED_YES, nil
 }
 
@@ -648,7 +648,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// that MFA was not required instead of the error received from the root cluster.
 	if mfaRequiredReq != nil && !params.MFAAgainstRoot {
 		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
-		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
+		log.DebugContext(ctx, "MFA requirement acquired from leaf", "mfa_required", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
 			return nil, nil, trace.Wrap(MFARequiredUnknown(err))
@@ -686,7 +686,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	certsReq := params.CertsReq
 	certsReq.MFAResponse = mfaResp
 	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
-	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
+	log.DebugContext(ctx, "Issuing single-use certificate from unary GenerateUserCerts")
 	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

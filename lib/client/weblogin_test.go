@@ -121,7 +121,6 @@ func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	t.Parallel()
-	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
