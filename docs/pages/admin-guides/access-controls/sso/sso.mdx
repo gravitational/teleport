@@ -213,7 +213,7 @@ spec:
       - '2001:db8::/96'
 ```
 
-## Configuring SSO
+## Configuring SSO for login
 
 Teleport works with SSO providers by relying on the concept of an
 **authentication connector**. An authentication connector is a configuration
@@ -410,6 +410,106 @@ values to match your identity provider:
 - `okta` (OIDC): Required when using Okta as an OIDC provider.
 
 At this time, the `spec.provider` field should not be set for any other identity providers.
+
+## Configuring SSO for MFA checks
+
+Teleport MFA checks can be delegated to your SSO provider. This allows Teleport
+users to use MFA devices and custom flows configured in the SSO provider to carry out
+privileged actions in Teleport, such as:
+
+- MFA device management (e.g. register or delete a webauthn device in Teleport)
+- [Per-session MFA](./per-session-mfa.mdx)
+- [Moderated sessions](./moderated-sessions.mdx)
+- [Admin actions](./mfa-for-admin-actions.mdx)
+
+<Admonition type="warning">
+  SSO MFA is an enterprise feature. Only OIDC and SAML auth connectors are supported.
+</Admonition>
+
+### Considerations
+
+Administrators may want to consider enabling this feature for the following benefits:
+
+- All authentication (login and MFA) goes through the IdP, consolidating monitoring
+- Make custom MFA flows, such as prompting for 2 distinct devices for a single MFA check
+- Integrate with non-webauthn devices supported directly by your IdP.
+- Enable new SSO users to carry out MFA-reliant actions, such as [Per-session MFA](./per-session-mfa.mdx),
+without requiring them to register their device through Teleport first.
+
+### Configure the IdP App / Client
+
+There is no standardized MFA flow unlike there is with SAML/OIDC login, so
+each IdP may offer zero, one, or more ways to offer MFA checks.
+
+Teleport does not make any assumptions as to how the MFA app is configured.
+If desired, you could even use your basic login flow with username, password,
+and MFA device.
+
+<Admonition type="warning">
+  While the customizability of SSO MFA presents multiple secure options previously
+  unavailable to administrators, it also presents the possibility of insecure
+  misconfigurations. Therefore, we strongly advice administrators to incorporate
+  strict, phishing-resistant checks with WebAuthn, Device Trust, or some similar
+  security features into their custom SSO MFA flow.
+</Admonition>
+
+### Updating your authentication connector to enable MFA checks
+
+Take the authentication connector file `connector.yaml` created in the previous step
+and add MFA settings.
+
+<Tabs>
+<TabItem label="OIDC">
+
+```yaml
+(!/examples/resources/oidc-connector-mfa.yaml!)
+```
+
+</TabItem>
+<TabItem label="SAML">
+
+```yaml
+(!/examples/resources/saml-connector-mfa.yaml!)
+```
+
+You may use `entity_descriptor_url` in lieu of `entity_descriptor` to fetch
+the entity descriptor from your IDP. 
+
+We recommend "pinning" the entity descriptor by including the XML rather than
+fetching from a URL.
+
+</TabItem>
+</Tabs>
+
+Update the connector: 
+
+```code
+$ tctl create -f connector.yaml
+```
+
+### Allowing SSO as an MFA method in your cluster
+
+Before you can use the SSO MFA flow we created above, you need to enable SSO
+as a second factor in your cluster settings. Modify the dynamic config resource
+using the following command:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+
+Make the following change:
+
+```diff
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  # ...
+  second_factors:
+   - webauthn
++  - sso
+```
 
 ## Working with an external email identity
 
