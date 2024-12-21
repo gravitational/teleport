@@ -61,7 +61,7 @@ const (
 )
 
 var (
-	// // pattern is template for response on version command for client tools {tsh, tctl}.
+	// pattern is template for response on version command for client tools {tsh, tctl}.
 	pattern = regexp.MustCompile(`(?m)Teleport v(.*) git`)
 )
 
@@ -327,7 +327,7 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 }
 
 // Exec re-executes tool command with same arguments and environ variables.
-func (u *Updater) Exec() (int, error) {
+func (u *Updater) Exec(args []string) (int, error) {
 	path, err := toolName(u.toolsDir)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -336,7 +336,7 @@ func (u *Updater) Exec() (int, error) {
 	env := append(os.Environ(), teleportToolsVersionEnv+"=off")
 
 	if runtime.GOOS == constants.WindowsOS {
-		cmd := exec.Command(path, os.Args[1:]...)
+		cmd := exec.Command(path, args...)
 		cmd.Env = env
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -348,7 +348,7 @@ func (u *Updater) Exec() (int, error) {
 		return cmd.ProcessState.ExitCode(), nil
 	}
 
-	if err := syscall.Exec(path, append([]string{path}, os.Args[1:]...), env); err != nil {
+	if err := syscall.Exec(path, append([]string{path}, args...), env); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -415,7 +415,6 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	h := sha256.New()
 	// It is a little inefficient to download the file to disk and then re-load
 	// it into memory to unarchive later, but this is safer as it allows client
