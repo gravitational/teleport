@@ -4399,6 +4399,8 @@ type ClusterWebsocketHandler func(w http.ResponseWriter, r *http.Request, p http
 // WithClusterAuth wraps a ClusterHandler to ensure that a request is authenticated to this proxy
 // (the same as WithAuth), as well as to grab the remoteSite (which can represent this local cluster
 // or a remote trusted cluster) as specified by the ":site" url parameter.
+//
+// WithClusterAuth also provides CSRF protection by requiring the bearer token to be present.
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
@@ -4694,6 +4696,7 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 
 // WithAuth ensures that a request is authenticated.
 // Authenticated requests require both a session cookie as well as a bearer token.
+// WithAuth also provides CSRF protection by requiring the bearer token to be present.
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, err := h.AuthenticateRequest(w, r, true /* check bearer token */)
@@ -4706,6 +4709,10 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 
 // WithSession ensures that the request provides a session cookie.
 // It does not check for a bearer token.
+//
+// WithSession does not provide CSRF protection, so it should only
+// be used for non-state-changing requests or when other CSRF mitigations
+// are applied.
 func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, err := h.AuthenticateRequest(w, r, false /* check bearer token */)
@@ -5118,6 +5125,11 @@ type SSOCallbackResponse struct {
 // error is returned.
 func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *SSOCallbackResponse, verifyCSRF bool) error {
 	if verifyCSRF {
+		// Make sure that the CSRF token provided in this request matches
+		// the token that was used to initiate this SSO attempt.
+		//
+		// This ensures that an attacker cannot perform a login CSRF attack
+		// in order to get the victim to log in to the incorrect account.
 		if err := csrf.VerifyToken(response.CSRFToken, r); err != nil {
 			return trace.Wrap(err)
 		}

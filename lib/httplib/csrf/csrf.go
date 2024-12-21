@@ -29,17 +29,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	// CookieName is the name of the CSRF cookie used to protect against login
-	// CSRF in Teleport's SSO flows.
-	//
-	// It's prefixed with "__Host-" as an additional defense in depth measure.
-	// This makes sure the cookie is sent from a secure page (HTTPS),
-	// won't be sent to subdomains, and the path attribute is set to /.
-	CookieName = "__Host-grv_csrf"
-	// HeaderName is the default HTTP request header to inspect.
-	HeaderName = "X-CSRF-Token"
-)
+// CookieName is the name of the CSRF cookie used to protect against login
+// CSRF in Teleport's SSO flows.
+//
+// It's prefixed with "__Host-" as an additional defense in depth measure.
+// This makes sure the cookie is sent from a secure page (HTTPS),
+// won't be sent to subdomains, and the path attribute is set to /.
+const CookieName = "__Host-grv_csrf"
 
 // tokenLenBytes is the length of a raw CSRF token prior to encoding
 const tokenLenBytes = 32
