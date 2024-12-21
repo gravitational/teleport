@@ -75,7 +75,6 @@ import (
 )
 
 var (
-	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentAuth)
 	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 )
 
