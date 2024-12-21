@@ -113,6 +113,8 @@ type MFAChallengeResponse struct {
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 	// SSOResponse is a response from an SSO MFA flow.
 	SSOResponse *SSOResponse `json:"sso_response"`
+	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // SSOResponse is a json compatible [proto.SSOResponse].
@@ -124,23 +126,55 @@ type SSOResponse struct {
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
 // if there were any responses set. Otherwise returns nil.
 func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
-	if r.TOTPCode != "" && r.WebauthnResponse != nil {
+	var availableResponses int
+	if r.TOTPCode != "" {
+		availableResponses++
+	}
+	if r.WebauthnResponse != nil {
+		availableResponses++
+	}
+	if r.SSOResponse != nil {
+		availableResponses++
+	}
+
+	if availableResponses > 1 {
 		return nil, trace.BadParameter("only one MFA response field can be set")
 	}
 
-	if r.TOTPCode != "" {
+	switch {
+	case r.WebauthnResponse != nil:
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
+		}}, nil
+	case r.SSOResponse != nil:
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: r.SSOResponse.RequestID,
+				Token:     r.SSOResponse.Token,
+			},
+		}}, nil
+	case r.TOTPCode != "":
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
 		}}, nil
-	}
-
-	if r.WebauthnResponse != nil {
+	case r.WebauthnAssertionResponse != nil:
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnAssertionResponse),
 		}}, nil
 	}
 
 	return nil, nil
+}
+
+// ParseMFAChallengeResponse parses [MFAChallengeResponse] from JSON and returns it as a [proto.MFAAuthenticateResponse].
+func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateResponse, error) {
+	var resp MFAChallengeResponse
+	if err := json.Unmarshal(mfaResponseJSON, &resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoResp, err := resp.GetOptionalMFAResponseProtoReq()
+	return protoResp, trace.Wrap(err)
 }
 
 // CreateSSHCertReq is passed by tsh to authenticate a local user without MFA

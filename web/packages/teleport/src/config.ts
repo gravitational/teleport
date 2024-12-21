@@ -17,8 +17,8 @@
  */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import generateResourcePath from './generateResourcePath';
 
@@ -40,11 +40,11 @@ import type {
 } from 'shared/services';
 
 import type { SortType } from 'teleport/services/agents';
+import type { KubeResourceKind } from 'teleport/services/kube/types';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/mfa';
 import type { ParticipantMode } from 'teleport/services/session';
+import type { MfaChallengeResponse } from './services/mfa';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
-import type { KubeResourceKind } from './services/kube/types';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -889,20 +889,25 @@ const cfg = {
     });
   },
 
-  getScpUrl({ webauthn, ...params }: UrlScpParams) {
+  getScpUrl({ mfaResponse, ...params }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
 
-    if (!webauthn) {
+    if (!mfaResponse) {
       return path;
     }
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
     // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
     // as the existence of this param is what will issue certs
-    return `${path}&webauthn=${JSON.stringify({
-      webauthnAssertionResponse: webauthn,
+
+    // TODO(Joerger): DELETE IN v19.0.0
+    // We include webauthn for backwards compatibility.
+    path = `${path}&webauthn=${JSON.stringify({
+      webauthnAssertionResponse: mfaResponse.webauthn_response,
     })}`;
+
+    return `${path}&mfaResponse=${JSON.stringify(mfaResponse)}`;
   },
 
   getRenewTokenUrl() {
@@ -1250,6 +1255,14 @@ export interface UrlAppParams {
   arn?: string;
 }
 
+export interface CreateAppSessionParams {
+  fqdn: string;
+  clusterId?: string;
+  publicAddr?: string;
+  arn?: string;
+  mfaResponse?: MfaChallengeResponse;
+}
+
 export interface UrlScpParams {
   clusterId: string;
   serverId: string;
@@ -1258,7 +1271,7 @@ export interface UrlScpParams {
   filename: string;
   moderatedSessionId?: string;
   fileTransferRequestId?: string;
-  webauthn?: WebauthnAssertionResponse;
+  mfaResponse?: MfaChallengeResponse;
 }
 
 export interface UrlSshParams {
