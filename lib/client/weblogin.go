@@ -21,9 +21,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,7 +48,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -911,12 +908,6 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 		return nil, nil, trace.Wrap(err)
 	}
 
-	token := make([]byte, 32)
-	if _, err := rand.Read(token); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	csrfToken := hex.EncodeToString(token)
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -932,15 +923,7 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 			return nil, err
 		}
 
-		cookie := &http.Cookie{
-			Name:  csrf.CookieName,
-			Value: csrfToken,
-		}
-
-		req.AddCookie(cookie)
-
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(csrf.HeaderName, csrfToken)
 		return clt.HTTPClient().Do(req)
 	}))
 	if err != nil {
