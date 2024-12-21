@@ -174,7 +174,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 		}),
 	)
 
-	mustLoginSetEnv(t, s)
+	mustLoginSetEnvLegacy(t, s)
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
@@ -551,7 +551,7 @@ func TestKubeSelection(t *testing.T) {
 				t.Parallel()
 				// login for each parallel test to avoid races when multiple tsh
 				// clients work in the same profile dir.
-				tshHome, _ := mustLogin(t, s)
+				tshHome, _ := mustLoginLegacy(t, s)
 				// Set kubeconfig to a non-exist file to avoid loading other things.
 				kubeConfigPath := filepath.Join(tshHome, "kube-config")
 				var cmdRunner func(*exec.Cmd) error
@@ -591,7 +591,7 @@ func TestKubeSelection(t *testing.T) {
 			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
-				tshHome, kubeConfigPath := mustLogin(t, s)
+				tshHome, kubeConfigPath := mustLoginLegacy(t, s)
 				err := Run(
 					context.Background(),
 					append([]string{"kube", "login", "--insecure"},
@@ -676,7 +676,7 @@ func TestKubeSelection(t *testing.T) {
 	t.Run("access request", func(t *testing.T) {
 		t.Parallel()
 		// login as the user.
-		tshHome, kubeConfig := mustLogin(t, s)
+		tshHome, kubeConfig := mustLoginLegacy(t, s)
 
 		// Run the login command in a goroutine so we can check if the access
 		// request was created and approved.
