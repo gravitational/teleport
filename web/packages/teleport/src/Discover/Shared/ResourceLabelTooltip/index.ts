@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
  *
@@ -16,18 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-
-export const Mark = styled.mark`
-  padding: 2px 5px;
-  border-radius: 6px;
-  font-family: ${p => p.theme.fonts.mono};
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
-  color: inherit;
-`;
-
-export const MarkInverse = styled(Mark)`
-  background-color: ${p => p.theme.colors.tooltip.inverseBackground};
-  color: ${p => p.theme.colors.text.main};
-`;
+export { ResourceLabelTooltip } from './ResourceLabelTooltip';

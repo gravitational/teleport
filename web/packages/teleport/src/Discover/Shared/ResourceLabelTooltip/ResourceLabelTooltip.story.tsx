@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
  *
@@ -16,18 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import { ResourceLabelTooltip } from './ResourceLabelTooltip';
 
-export const Mark = styled.mark`
-  padding: 2px 5px;
-  border-radius: 6px;
-  font-family: ${p => p.theme.fonts.mono};
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
-  color: inherit;
-`;
+export default {
+  title: 'Teleport/Discover/Shared/ResourceLabelTooltip',
+};
 
-export const MarkInverse = styled(Mark)`
-  background-color: ${p => p.theme.colors.tooltip.inverseBackground};
-  color: ${p => p.theme.colors.text.main};
-`;
+export const RDS = () => <ResourceLabelTooltip resourceKind="rds" />;
+export const EKS = () => <ResourceLabelTooltip resourceKind="eks" />;
+export const Server = () => <ResourceLabelTooltip resourceKind="server" />;
+export const Database = () => <ResourceLabelTooltip resourceKind="db" />;
+export const Kube = () => <ResourceLabelTooltip resourceKind="kube" />;
