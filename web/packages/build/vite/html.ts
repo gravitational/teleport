@@ -118,6 +118,7 @@ export function htmlPlugin(target: string): Plugin {
 
             replaceMetaTag('grv_csrf_token', source, result);
             replaceMetaTag('grv_bearer_token', source, result);
+            replaceMetaTag('teleport_version', source, result);
 
             res.setHeader('set-cookie', headers['set-cookie']);
             res.writeHead(200, { 'Content-Type': 'text/html' });

@@ -53,7 +53,7 @@ function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
 export function makeLabelMapOfStrArrs(labels: ResourceLabel[] = []) {
   const m: Record<string, string[]> = {};
 
-  labels.forEach(label => {
+  labels?.forEach(label => {
     if (!m[label.name]) {
       m[label.name] = [];
     }
