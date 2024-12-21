@@ -116,7 +116,7 @@ func CreateTAGCacheFile(ctx context.Context) error {
 	}
 
 	cache := &TAGInfoCache{}
-	err = graphClient.IterateApplications(ctx, func(app *msgraph.Application) bool {
+	err = graphClient.IterateApplications(ctx, nil, func(app *msgraph.Application) bool {
 		appID := app.AppID
 		if appID == nil {
 			slog.WarnContext(ctx, "app ID is nil", "app", app)
