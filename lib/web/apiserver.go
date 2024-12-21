@@ -1997,6 +1997,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
@@ -5045,6 +5046,8 @@ type SSORequestParams struct {
 	// ConnectorID identifies the SSO connector to use to log in, from
 	// the connector_id query parameter.
 	ConnectorID string
+	// CSRFToken is used to protect against login-CSRF in SSO flows.
+	CSRFToken string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5077,9 +5080,15 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 
+	csrfToken, err := csrf.ExtractTokenFromCookie(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &SSORequestParams{
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
+		CSRFToken:         csrfToken,
 	}, nil
 }
 
