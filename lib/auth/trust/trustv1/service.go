@@ -42,6 +42,13 @@ type authServer interface {
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
 	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
+
+	// UpsertTrustedClusterV2 upserts a Trusted Cluster.
+	UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// CreateTrustedCluster creates a Trusted Cluster.
+	CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// UpdateTrustedCluster updates a Trusted Cluster.
+	UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 }
 
 // ServiceConfig holds configuration options for
