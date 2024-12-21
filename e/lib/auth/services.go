@@ -27,7 +27,7 @@ func StartServices(ctx context.Context, plugin *Plugin) (func(), error) {
 			}
 
 			if err := cleanupFunc(); err != nil {
-				plugin.authServer.Logger.Errorf("Error creating Okta access request reconciler: %v", err)
+				plugin.logger.ErrorContext(ctx, "Error creating Okta access request reconciler", "error", err)
 			}
 		}
 	}

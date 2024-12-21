@@ -139,7 +139,7 @@ func (ac *cloudWithRoles) SendTeleportInvite(ctx context.Context, req *v1.SendTe
 
 	res, err := ac.plugin.cloudClient.SendTeleportInvite(ctx, req)
 	if err != nil {
-		ac.plugin.authServer.WithError(err).Warnf("SendTeleportInvite failed")
+		ac.plugin.logger.WarnContext(ctx, "SendTeleportInvite failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
