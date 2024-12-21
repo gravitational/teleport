@@ -25,6 +25,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var (
+	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
+	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on windows"}
+)
+
 func configureOS(ctx context.Context, cfg *osConfig) error {
 	// TODO(nklaassen): implement configureOS on Windows.
 	return trace.Wrap(ErrVnetNotImplemented)

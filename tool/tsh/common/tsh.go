@@ -1243,9 +1243,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	workloadIdentityCmd := newSVIDCommands(app)
 
-	vnetCmd := newVnetCommand(app)
-	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
-	vnetDaemonCmd := newVnetDaemonCommand(app)
+	vnetCommands := newVnetCommands(app)
 
 	gitCmd := newGitCommands(app)
 
@@ -1392,6 +1390,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			return trace.Wrap(err)
 		}
 		defer runtimetrace.Stop()
+	}
+
+	if ok, err := vnetCommands.tryRun(&cf, command); ok || err != nil {
+		return trace.Wrap(err)
 	}
 
 	switch command {
@@ -1620,12 +1622,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issue.FullCommand():
 		err = workloadIdentityCmd.issue.run(&cf)
-	case vnetCmd.FullCommand():
-		err = vnetCmd.run(&cf)
-	case vnetAdminSetupCmd.FullCommand():
-		err = vnetAdminSetupCmd.run(&cf)
-	case vnetDaemonCmd.FullCommand():
-		err = vnetDaemonCmd.run(&cf)
 	case gitCmd.list.FullCommand():
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():

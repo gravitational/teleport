@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -27,8 +28,57 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
+
+// osConfigurationLoop will keep running until [ctx] is canceled or an unrecoverable error is encountered, in
+// order to keep the host OS configuration up to date.
+func osConfigurationLoop(ctx context.Context, tunName string, config AdminProcessConfig) error {
+	osConfigurator, err := newOSConfigurator(tunName, config)
+	if err != nil {
+		return trace.Wrap(err, "creating OS configurator")
+	}
+	defer func() {
+		if err := osConfigurator.close(); err != nil {
+			log.ErrorContext(ctx, "Error while closing OS configurator", "error", err)
+		}
+	}()
+
+	// Clean up any stale configuration left by a previous VNet instance that
+	// may have failed to clean up. This is necessary in case any stale DNS
+	// configuration is still present, we need to be able to reach the proxy in
+	// order to fetch the vnet_config.
+	if err := osConfigurator.deconfigureOS(ctx); err != nil {
+		return trace.Wrap(err, "cleaning up OS configuration on startup")
+	}
+
+	defer func() {
+		// Shutting down, deconfigure OS. Pass context.Background because [ctx] has likely been canceled
+		// already but we still need to clean up.
+		if err := osConfigurator.deconfigureOS(context.Background()); err != nil {
+			log.ErrorContext(ctx, "Error deconfiguring host OS before shutting down.", "error", err)
+		}
+	}()
+
+	if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+		return trace.Wrap(err, "applying initial OS configuration")
+	}
+
+	// Re-configure the host OS every 10 seconds. This will pick up any newly logged-in clusters by
+	// reading profiles from TELEPORT_HOME.
+	const osConfigurationInterval = 10 * time.Second
+	ticker := time.NewTicker(osConfigurationInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+				return trace.Wrap(err, "updating OS configuration")
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
 
 type osConfig struct {
 	tunName    string
@@ -43,35 +93,24 @@ type osConfigurator struct {
 	clientStore        *client.Store
 	clientCache        *clientcache.Cache
 	clusterConfigCache *ClusterConfigCache
-	// daemonClientCred are the credentials of the process that contacted the daemon.
-	daemonClientCred daemon.ClientCred
-	tunName          string
-	tunIPv6          string
-	dnsAddr          string
-	homePath         string
-	tunIPv4          string
+	tunName            string
+	tunIPv6            string
+	tunIPv4            string
+	config             AdminProcessConfig
 }
 
-func newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath string, daemonClientCred daemon.ClientCred) (*osConfigurator, error) {
-	if homePath == "" {
-		// This runs as root so we need to be configured with the user's home path.
-		return nil, trace.BadParameter("homePath must be passed from unprivileged process")
-	}
-
+func newOSConfigurator(tunName string, config AdminProcessConfig) (*osConfigurator, error) {
 	// ipv6Prefix always looks like "fdxx:xxxx:xxxx::"
 	// Set the IPv6 address for the TUN to "fdxx:xxxx:xxxx::1", the first valid address in the range.
-	tunIPv6 := ipv6Prefix + "1"
+	tunIPv6 := config.IPv6Prefix + "1"
 
 	configurator := &osConfigurator{
-		tunName:          tunName,
-		tunIPv6:          tunIPv6,
-		dnsAddr:          dnsAddr,
-		homePath:         homePath,
-		clientStore:      client.NewFSClientStore(homePath),
-		daemonClientCred: daemonClientCred,
+		clientStore:        client.NewFSClientStore(config.HomePath),
+		clusterConfigCache: NewClusterConfigCache(clockwork.NewRealClock()),
+		tunName:            tunName,
+		tunIPv6:            tunIPv6,
+		config:             config,
 	}
-	configurator.clusterConfigCache = NewClusterConfigCache(clockwork.NewRealClock())
-
 	clientCache, err := clientcache.New(clientcache.Config{
 		NewClientFunc: configurator.getClient,
 		RetryWithReloginFunc: func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
@@ -92,7 +131,7 @@ func (c *osConfigurator) close() error {
 	return trace.Wrap(c.clientCache.Clear())
 }
 
-// updateOSConfiguration reads tsh profiles out of [c.homePath]. For each profile, it reads the VNet
+// updateOSConfiguration reads tsh profiles out of [c.config.HomePath]. For each profile, it reads the VNet
 // config of the root cluster and of each leaf cluster. Then it proceeds to update the OS based on
 // information from that config.
 //
@@ -103,10 +142,10 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	var cidrRanges []string
 
 	// Drop privileges to ensure that the user who spawned the daemon client has privileges necessary
-	// to access c.homePath that it sent when starting the daemon.
+	// to access [c.config.HomePath] that it sent when starting the daemon.
 	// Otherwise a client could make the daemon read a profile out of any directory.
 	if err := c.doWithDroppedRootPrivileges(ctx, func() error {
-		profileNames, err := profile.ListProfileNames(c.homePath)
+		profileNames, err := profile.ListProfileNames(c.config.HomePath)
 		if err != nil {
 			return trace.Wrap(err, "listing user profiles")
 		}
@@ -135,7 +174,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		tunName:    c.tunName,
 		tunIPv6:    c.tunIPv6,
 		tunIPv4:    c.tunIPv4,
-		dnsAddr:    c.dnsAddr,
+		dnsAddr:    c.config.DNSAddr,
 		dnsZones:   dnsZones,
 		cidrRanges: cidrRanges,
 	})
