@@ -33,8 +33,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DecisionService_EvaluateSSHAccess_FullMethodName      = "/teleport.decision.v1alpha1.DecisionService/EvaluateSSHAccess"
-	DecisionService_EvaluateDatabaseAccess_FullMethodName = "/teleport.decision.v1alpha1.DecisionService/EvaluateDatabaseAccess"
+	DecisionService_GetSimulatedTLSIdentity_FullMethodName = "/teleport.decision.v1alpha1.DecisionService/GetSimulatedTLSIdentity"
+	DecisionService_GetSimulatedSSHIdentity_FullMethodName = "/teleport.decision.v1alpha1.DecisionService/GetSimulatedSSHIdentity"
+	DecisionService_EvaluateSSHAccess_FullMethodName       = "/teleport.decision.v1alpha1.DecisionService/EvaluateSSHAccess"
+	DecisionService_EvaluateDatabaseAccess_FullMethodName  = "/teleport.decision.v1alpha1.DecisionService/EvaluateDatabaseAccess"
 )
 
 // DecisionServiceClient is the client API for DecisionService service.
@@ -52,6 +54,12 @@ const (
 // decision. A successful evaluation carries a Permit, whereas a failed
 // evaluation carries a Denial.
 type DecisionServiceClient interface {
+	// GetSimulatedTLSIdentity gets a TLS idenitity object based on a target user. The identity objects generated
+	// this way are not authoratative, and are meant for use only in the context of auditing and introspection.
+	GetSimulatedTLSIdentity(ctx context.Context, in *GetSimulatedTLSIdentityRequest, opts ...grpc.CallOption) (*GetSimulatedTLSIdentityResponse, error)
+	// GetSimulatedSSHIdentity gets a SSH identity object based on a target user. The identity objects generated
+	// this way are not authoratative, and are meant for use only in the context of auditing and introspection.
+	GetSimulatedSSHIdentity(ctx context.Context, in *GetSimulatedSSHIdentityRequest, opts ...grpc.CallOption) (*GetSimulatedSSHIdentityResponse, error)
 	// EvaluateSSHAccess evaluates an SSH access attempt.
 	EvaluateSSHAccess(ctx context.Context, in *EvaluateSSHAccessRequest, opts ...grpc.CallOption) (*EvaluateSSHAccessResponse, error)
 	// EvaluateDatabaseAccess evaluate a database access attempt.
@@ -64,6 +72,26 @@ type decisionServiceClient struct {
 
 func NewDecisionServiceClient(cc grpc.ClientConnInterface) DecisionServiceClient {
 	return &decisionServiceClient{cc}
+}
+
+func (c *decisionServiceClient) GetSimulatedTLSIdentity(ctx context.Context, in *GetSimulatedTLSIdentityRequest, opts ...grpc.CallOption) (*GetSimulatedTLSIdentityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSimulatedTLSIdentityResponse)
+	err := c.cc.Invoke(ctx, DecisionService_GetSimulatedTLSIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *decisionServiceClient) GetSimulatedSSHIdentity(ctx context.Context, in *GetSimulatedSSHIdentityRequest, opts ...grpc.CallOption) (*GetSimulatedSSHIdentityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSimulatedSSHIdentityResponse)
+	err := c.cc.Invoke(ctx, DecisionService_GetSimulatedSSHIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *decisionServiceClient) EvaluateSSHAccess(ctx context.Context, in *EvaluateSSHAccessRequest, opts ...grpc.CallOption) (*EvaluateSSHAccessResponse, error) {
@@ -101,6 +129,12 @@ func (c *decisionServiceClient) EvaluateDatabaseAccess(ctx context.Context, in *
 // decision. A successful evaluation carries a Permit, whereas a failed
 // evaluation carries a Denial.
 type DecisionServiceServer interface {
+	// GetSimulatedTLSIdentity gets a TLS idenitity object based on a target user. The identity objects generated
+	// this way are not authoratative, and are meant for use only in the context of auditing and introspection.
+	GetSimulatedTLSIdentity(context.Context, *GetSimulatedTLSIdentityRequest) (*GetSimulatedTLSIdentityResponse, error)
+	// GetSimulatedSSHIdentity gets a SSH identity object based on a target user. The identity objects generated
+	// this way are not authoratative, and are meant for use only in the context of auditing and introspection.
+	GetSimulatedSSHIdentity(context.Context, *GetSimulatedSSHIdentityRequest) (*GetSimulatedSSHIdentityResponse, error)
 	// EvaluateSSHAccess evaluates an SSH access attempt.
 	EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*EvaluateSSHAccessResponse, error)
 	// EvaluateDatabaseAccess evaluate a database access attempt.
@@ -115,6 +149,12 @@ type DecisionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDecisionServiceServer struct{}
 
+func (UnimplementedDecisionServiceServer) GetSimulatedTLSIdentity(context.Context, *GetSimulatedTLSIdentityRequest) (*GetSimulatedTLSIdentityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSimulatedTLSIdentity not implemented")
+}
+func (UnimplementedDecisionServiceServer) GetSimulatedSSHIdentity(context.Context, *GetSimulatedSSHIdentityRequest) (*GetSimulatedSSHIdentityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSimulatedSSHIdentity not implemented")
+}
 func (UnimplementedDecisionServiceServer) EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*EvaluateSSHAccessResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EvaluateSSHAccess not implemented")
 }
@@ -140,6 +180,42 @@ func RegisterDecisionServiceServer(s grpc.ServiceRegistrar, srv DecisionServiceS
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&DecisionService_ServiceDesc, srv)
+}
+
+func _DecisionService_GetSimulatedTLSIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSimulatedTLSIdentityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DecisionServiceServer).GetSimulatedTLSIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DecisionService_GetSimulatedTLSIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DecisionServiceServer).GetSimulatedTLSIdentity(ctx, req.(*GetSimulatedTLSIdentityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DecisionService_GetSimulatedSSHIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSimulatedSSHIdentityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DecisionServiceServer).GetSimulatedSSHIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DecisionService_GetSimulatedSSHIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DecisionServiceServer).GetSimulatedSSHIdentity(ctx, req.(*GetSimulatedSSHIdentityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DecisionService_EvaluateSSHAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -185,6 +261,14 @@ var DecisionService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.decision.v1alpha1.DecisionService",
 	HandlerType: (*DecisionServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetSimulatedTLSIdentity",
+			Handler:    _DecisionService_GetSimulatedTLSIdentity_Handler,
+		},
+		{
+			MethodName: "GetSimulatedSSHIdentity",
+			Handler:    _DecisionService_GetSimulatedSSHIdentity_Handler,
+		},
 		{
 			MethodName: "EvaluateSSHAccess",
 			Handler:    _DecisionService_EvaluateSSHAccess_Handler,
