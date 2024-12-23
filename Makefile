@@ -16,6 +16,7 @@
 VERSION=17.0.0-dev
 
 DOCKER_IMAGE ?= teleport
+DELETE_ME
 
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
