@@ -21,6 +21,7 @@ package aws_sync
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,7 +33,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // pollAWSS3Buckets is a function that returns a function that fetches
@@ -71,14 +71,9 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 		}
 	}
 
-	region := awsutil.GetKnownRegions()[0]
-	if len(a.Regions) > 0 {
-		region = a.Regions[0]
-	}
-
 	s3Client, err := a.CloudClients.GetAWSS3Client(
 		ctx,
-		region,
+		os.Getenv("AWS_REGION"),
 		a.getAWSOptions()...,
 	)
 	if err != nil {
