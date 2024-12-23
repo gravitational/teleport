@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'docs/**'
+      - .github/workflows/docs-amplify.yaml
   workflow_dispatch:
   
 permissions:
