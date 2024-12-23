@@ -6,7 +6,7 @@ PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
 
 BUILDDIR ?= build
 TFDIR ?= example
-RELEASE_DIR ?= .
+RELEASE_DIR ?= build
 
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
@@ -42,7 +42,7 @@ build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm
 # the release tarball. make will not automatically build this; you will need
 # to run "make ARCH=amd64 release" and "make ARCH=arm64 release" first as is
 # done in the build workflow.
-$(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSION)-$(OS)-%-bin.tar.gz
+$(BUILDDIR)/terraform-provider-teleport_%: $(RELEASE_DIR)/terraform-provider-teleport-v$(VERSION)-$(OS)-%-bin.tar.gz
 	mkdir -p $(BUILDDIR)/$(OS)/$*
 	tar -xzf $< -C $(BUILDDIR)/$(OS)/$*
 	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleport $@
