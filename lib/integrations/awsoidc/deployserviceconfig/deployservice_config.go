@@ -89,3 +89,26 @@ func GenerateTeleportConfigString(proxyHostPort, iamTokenName string, resourceMa
 
 	return teleportConfigString, nil
 }
+
+// ParseResourceLabelMatchers receives a teleport config string and returns the Resource Matcher Label.
+// The expected input is a base64 encoded yaml string containing a teleport configuration,
+// the same format that GenerateTeleportConfigString returns.
+func ParseResourceLabelMatchers(teleportConfigStringBase64 string) (types.Labels, error) {
+	teleportConfigString, err := base64.StdEncoding.DecodeString(teleportConfigStringBase64)
+	if err != nil {
+		return nil, trace.BadParameter("invalid base64 value, error=%v", err)
+	}
+
+	var teleportConfig config.FileConfig
+	if err := yaml.Unmarshal(teleportConfigString, &teleportConfig); err != nil {
+		return nil, trace.BadParameter("invalid teleport config, error=%v", err)
+	}
+
+	if len(teleportConfig.Databases.ResourceMatchers) == 0 {
+		return nil, trace.BadParameter("valid yaml configuration but db_service.resources has 0 items")
+	}
+
+	resourceMatchers := teleportConfig.Databases.ResourceMatchers[0]
+
+	return resourceMatchers.Labels, nil
+}

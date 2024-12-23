@@ -26,6 +26,7 @@ import { Primary, Secondary } from 'design/Label';
 
 import { Cluster } from 'teleport/services/clusters';
 import cfg from 'teleport/config';
+import { DropdownDivider } from 'teleport/components/Dropdown';
 
 export default function ClustersList(props: Props) {
   const { clusters = [], pageSize = 50, menuFlags } = props;
@@ -83,6 +84,12 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
       renderMenuItem('Session Recordings', cfg.getRecordingsRoute(clusterId))
     );
   }
+
+  $items.push(<DropdownDivider key="divider" />);
+
+  $items.push(
+    renderMenuItem('Manage Cluster', cfg.getManageClusterRoute(clusterId))
+  );
 
   return (
     <Cell align="right">{$items && <MenuButton children={$items} />}</Cell>
