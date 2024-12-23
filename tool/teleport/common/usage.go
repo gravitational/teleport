@@ -47,7 +47,7 @@ const (
     --uri="http://localhost:8080" \
     --labels=group=dev
   Same as the above, but the app server runs with "group=dev" label which only
-  allows access to users with the application label "group: dev" in a assigned role.`
+  allows access to users with the application label "group: dev" in an assigned role.`
 
 	dbUsageExamples = `
 > teleport db start --token=xyz --auth-server=proxy.example.com:3080 \
@@ -66,7 +66,7 @@ const (
   --labels=env=aws
   Starts a database server that proxies Aurora MySQL database running in AWS
   region us-west-1 which only allows access to users with the database label
-  "env: aws" in a assigned role.`
+  "env: aws" in an assigned role.`
 
 	systemdInstallExamples = `
   > teleport install systemd
