@@ -6021,12 +6021,16 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	err := a.localServerAction()
 	isTeleportServer := err == nil
 
-	if !isTeleportServer {
-		if err := a.actionForKindSession(ctx, sessionID); err != nil {
-			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-			e <- trace.Wrap(err)
-			return c, e
-		}
+	// StreamSessionEvents can be called internally, and when that
+	// happens we don't want to emit an event or check for permissions.
+	if isTeleportServer {
+		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+	}
+
+	if err := a.actionForKindSession(ctx, sessionID); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
 	}
 
 	// We can only determine the session type after the streaming started. For
@@ -6034,12 +6038,6 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	// the streaming returns an error.
 	watcher := &eventsWatcher{
 		onSessionStart: func(evt apievents.AuditEvent, _ error) {
-			// StreamSessionEvents can be called internally, and when that
-			// happens we don't want to emit an event.
-			if isTeleportServer {
-				return
-			}
-
 			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
 				Metadata: apievents.Metadata{
 					Type: events.SessionRecordingAccessEvent,
