@@ -789,6 +789,18 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		return trace.Wrap(err)
 	}
 
+	for _, gw := range s.gateways {
+		targetURI := gw.TargetURI()
+		if !(targetURI.GetRootClusterURI() == cluster.URI && targetURI.IsKube()) {
+			continue
+		}
+		kubeGw, err := gateway.AsKube(gw)
+		if err != nil {
+			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+		}
+		kubeGw.ClearCerts()
+	}
+
 	// We have to reconnect using the updated cert.
 	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
