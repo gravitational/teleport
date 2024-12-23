@@ -6036,32 +6036,22 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	// We can only determine the session type after the streaming started. For
 	// this reason, we delay the emit audit event until the first event or if
 	// the streaming returns an error.
-	watcher := &eventsWatcher{
-		onSessionStart: func(evt apievents.AuditEvent, _ error) {
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
-				Metadata: apievents.Metadata{
-					Type: events.SessionRecordingAccessEvent,
-					Code: events.SessionRecordingAccessCode,
-				},
-				SessionID:    sessionID.String(),
-				UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
-				SessionType:  string(sessionTypeFromStartEvent(evt)),
-				Format:       metadata.SessionRecordingFormatFromContext(ctx),
-			}); err != nil {
-				log.WithError(err).Errorf("Failed to emit stream session event audit event")
-			}
-		},
+	cb := func(evt apievents.AuditEvent, _ error) {
+		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+			Metadata: apievents.Metadata{
+				Type: events.SessionRecordingAccessEvent,
+				Code: events.SessionRecordingAccessCode,
+			},
+			SessionID:    sessionID.String(),
+			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
+			SessionType:  string(sessionTypeFromStartEvent(evt)),
+			Format:       metadata.SessionRecordingFormatFromContext(ctx),
+		}); err != nil {
+			log.WithError(err).Errorf("Failed to emit stream session event audit event")
+		}
 	}
 
-	return a.alog.StreamSessionEvents(events.ContextWithEventWatcher(ctx, watcher), sessionID, startIndex)
-}
-
-type eventsWatcher struct {
-	onSessionStart func(apievents.AuditEvent, error)
-}
-
-func (e *eventsWatcher) OnSessionStart(evt apievents.AuditEvent, err error) {
-	e.onSessionStart(evt, err)
+	return a.alog.StreamSessionEvents(events.ContextWithSessionStartCallback(ctx, cb), sessionID, startIndex)
 }
 
 // sessionTypeFromStartEvent determines the session type given the session start

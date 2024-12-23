@@ -509,9 +509,25 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
+	sessionStartCh := make(chan apievents.AuditEvent, 1)
+	if startCb, err := SessionStartCallbackFromContext(ctx); err == nil {
+		go func() {
+			select {
+			case evt, ok := <-sessionStartCh:
+				if !ok {
+					startCb(nil, trace.NotFound("session start event not found"))
+					return
+				}
+
+				startCb(evt, nil)
+			}
+		}()
+	}
+
 	rawSession, err := os.CreateTemp(l.playbackDir, string(sessionID)+".stream.tar.*")
 	if err != nil {
 		e <- trace.Wrap(trace.ConvertSystemError(err), "creating temporary stream file")
+		close(sessionStartCh)
 		return c, e
 	}
 	// The file is still perfectly usable after unlinking it, and the space it's
@@ -528,6 +544,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	if err := os.Remove(rawSession.Name()); err != nil {
 		_ = rawSession.Close()
 		e <- trace.Wrap(trace.ConvertSystemError(err), "removing temporary stream file")
+		close(sessionStartCh)
 		return c, e
 	}
 
@@ -538,27 +555,13 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
 		e <- trace.Wrap(err)
+		close(sessionStartCh)
 		return c, e
 	}
 	l.log.DebugContext(ctx, "Downloaded session to a temporary file for streaming.",
 		"duration", time.Since(start),
 		"session_id", string(sessionID),
 	)
-
-	sessionStartCh := make(chan apievents.AuditEvent, 1)
-	if watcher, err := EventsWatcherFromContext(ctx); err == nil {
-		go func() {
-			select {
-			case evt, ok := <-sessionStartCh:
-				if !ok {
-					watcher.OnSessionStart(nil, trace.NotFound("session start event not found"))
-					return
-				}
-
-				watcher.OnSessionStart(evt, nil)
-			}
-		}()
-	}
 
 	go func() {
 		defer rawSession.Close()
@@ -690,35 +693,38 @@ func (l *AuditLog) periodicSpaceMonitor() {
 	}
 }
 
-// TODO
+// streamSessionEventsContextKey represent context keys used by
+// StreamSessionEvents function.
 type streamSessionEventsContextKey string
 
 const (
-	// TODO
-	eventWatcherContextKey streamSessionEventsContextKey = "watcher"
+	// sessionStartCallbackContextKey is the context key used to store the
+	// session start callback function.
+	sessionStartCallbackContextKey streamSessionEventsContextKey = "session-start"
 )
 
-// TODO
-type EventsWatcher interface {
-	// TODO
-	OnSessionStart(evt apievents.AuditEvent, err error)
+// SessionStartCallback is the function used when streaming reaches the start
+// event. If any error, such as session not found, the event will be nil, and
+// the error will be set.
+type SessionStartCallback func(startEvent apievents.AuditEvent, err error)
+
+// ContextWithSessionStartCallback returns a context.Context containing a
+// session start event callback.
+func ContextWithSessionStartCallback(ctx context.Context, cb SessionStartCallback) context.Context {
+	return context.WithValue(ctx, sessionStartCallbackContextKey, cb)
 }
 
-// TODO
-func ContextWithEventWatcher(ctx context.Context, watcher EventsWatcher) context.Context {
-	return context.WithValue(ctx, eventWatcherContextKey, watcher)
-}
-
-// TODO
-func EventsWatcherFromContext(ctx context.Context) (EventsWatcher, error) {
+// SessionStartCallbackFromContext returns the session start callback from
+// context.Context.
+func SessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback, error) {
 	if ctx == nil {
 		return nil, trace.BadParameter("context is nil")
 	}
 
-	watcher, ok := ctx.Value(eventWatcherContextKey).(EventsWatcher)
+	cb, ok := ctx.Value(sessionStartCallbackContextKey).(SessionStartCallback)
 	if !ok {
-		return nil, trace.BadParameter("events watcher was not found in the context")
+		return nil, trace.BadParameter("session start callback function was not found in the context")
 	}
 
-	return watcher, nil
+	return cb, nil
 }
