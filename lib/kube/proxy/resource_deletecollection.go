@@ -21,10 +21,10 @@ package proxy
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	appsv1 "k8s.io/api/apps/v1"
@@ -566,7 +566,7 @@ func (f *Forwarder) handleDeleteCustomResourceCollection(w http.ResponseWriter, 
 
 type deleteResourcesCommonParams struct {
 	ctx         context.Context
-	log         logrus.FieldLogger
+	log         *slog.Logger
 	authCtx     *authContext
 	header      http.Header
 	kubeDetails *kubeDetails

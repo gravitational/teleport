@@ -3722,19 +3722,15 @@ func onSSHLatency(cf *CLIConf) error {
 	}
 	defer clt.Close()
 
-	// detect the common error when users use host:port address format
-	_, port, err := net.SplitHostPort(tc.Host)
-	// client has used host:port notation
-	if err == nil {
-		return trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	target, err := tc.GetTargetNode(cf.Context, clt.AuthClient, nil)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
 
 	nodeClient, err := tc.ConnectToNode(
 		cf.Context,
 		clt,
-		client.NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		client.NodeDetails{Addr: target.Addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -3920,7 +3916,9 @@ func onSSH(cf *CLIConf) error {
 			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
 		}
 		if err != nil {
-			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+			if errors.Is(err, teleport.ErrNodeIsAmbiguous) ||
+				// TODO(tross) DELETE IN v20.0.0
+				strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
 				if err != nil {
 					return trace.Wrap(err)

@@ -56,7 +56,7 @@ export type StandardEditorModel = {
  */
 export type RoleEditorModel = {
   metadata: MetadataModel;
-  accessSpecs: AccessSpec[];
+  resources: ResourceAccess[];
   rules: RuleModel[];
   options: OptionsModel;
   /**
@@ -75,19 +75,18 @@ export type MetadataModel = {
   labels: UILabel[];
 };
 
-/** A model for access specifications section. */
-export type AccessSpec =
-  | KubernetesAccessSpec
-  | ServerAccessSpec
-  | AppAccessSpec
-  | DatabaseAccessSpec
-  | WindowsDesktopAccessSpec;
+/** A model for resource section. */
+export type ResourceAccess =
+  | KubernetesAccess
+  | ServerAccess
+  | AppAccess
+  | DatabaseAccess
+  | WindowsDesktopAccess;
 
 /**
- * A base for all access specification section models. Contains a type
- * discriminator field.
+ * A base for all resource section models. Contains a type discriminator field.
  */
-type AccessSpecBase<T extends AccessSpecKind> = {
+type ResourceAccessBase<T extends ResourceAccessKind> = {
   /**
    * Determines kind of resource that is accessed using this spec. Intended to
    * be mostly consistent with UnifiedResources.kind, but that has no real
@@ -97,15 +96,15 @@ type AccessSpecBase<T extends AccessSpecKind> = {
   kind: T;
 };
 
-export type AccessSpecKind =
+export type ResourceAccessKind =
   | 'node'
   | 'kube_cluster'
   | 'app'
   | 'db'
   | 'windows_desktop';
 
-/** Model for the Kubernetes access specification section. */
-export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'> & {
+/** Model for the Kubernetes resource section. */
+export type KubernetesAccess = ResourceAccessBase<'kube_cluster'> & {
   groups: readonly Option[];
   labels: UILabel[];
   resources: KubernetesResourceModel[];
@@ -226,27 +225,27 @@ export const verbOptions: VerbOption[] = (
 ).map(stringToOption);
 const verbOptionsMap = optionsToMap(verbOptions);
 
-/** Model for the server access specification section. */
-export type ServerAccessSpec = AccessSpecBase<'node'> & {
+/** Model for the server resource access section. */
+export type ServerAccess = ResourceAccessBase<'node'> & {
   labels: UILabel[];
   logins: readonly Option[];
 };
 
-export type AppAccessSpec = AccessSpecBase<'app'> & {
+export type AppAccess = ResourceAccessBase<'app'> & {
   labels: UILabel[];
   awsRoleARNs: string[];
   azureIdentities: string[];
   gcpServiceAccounts: string[];
 };
 
-export type DatabaseAccessSpec = AccessSpecBase<'db'> & {
+export type DatabaseAccess = ResourceAccessBase<'db'> & {
   labels: UILabel[];
   names: readonly Option[];
   users: readonly Option[];
   roles: readonly Option[];
 };
 
-export type WindowsDesktopAccessSpec = AccessSpecBase<'windows_desktop'> & {
+export type WindowsDesktopAccess = ResourceAccessBase<'windows_desktop'> & {
   labels: UILabel[];
   logins: readonly Option[];
 };
@@ -342,15 +341,15 @@ export function newRole(): Role {
   };
 }
 
-export function newAccessSpec(kind: 'node'): ServerAccessSpec;
-export function newAccessSpec(kind: 'kube_cluster'): KubernetesAccessSpec;
-export function newAccessSpec(kind: 'app'): AppAccessSpec;
-export function newAccessSpec(kind: 'db'): DatabaseAccessSpec;
-export function newAccessSpec(
+export function newResourceAccess(kind: 'node'): ServerAccess;
+export function newResourceAccess(kind: 'kube_cluster'): KubernetesAccess;
+export function newResourceAccess(kind: 'app'): AppAccess;
+export function newResourceAccess(kind: 'db'): DatabaseAccess;
+export function newResourceAccess(
   kind: 'windows_desktop'
-): WindowsDesktopAccessSpec;
-export function newAccessSpec(kind: AccessSpecKind): AppAccessSpec;
-export function newAccessSpec(kind: AccessSpecKind): AccessSpec {
+): WindowsDesktopAccess;
+export function newResourceAccess(kind: ResourceAccessKind): AppAccess;
+export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
   switch (kind) {
     case 'node':
       return {
@@ -428,7 +427,7 @@ export function roleToRoleEditorModel(
     metadata;
   const { allow, deny, options, ...unsupportedSpecs } = spec;
   const {
-    accessSpecs,
+    resources,
     rules,
     requiresReset: allowRequiresReset,
   } = roleConditionsToModel(allow);
@@ -442,7 +441,7 @@ export function roleToRoleEditorModel(
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
     },
-    accessSpecs,
+    resources,
     rules,
     options: optionsModel,
     requiresReset:
@@ -461,11 +460,11 @@ export function roleToRoleEditorModel(
 
 /**
  * Converts a `RoleConditions` instance (an "allow" or "deny" section, to be
- * specific) to a list of access specification models.
+ * specific) to a part of the role editor model.
  */
 function roleConditionsToModel(
   conditions: RoleConditions
-): Pick<RoleEditorModel, 'accessSpecs' | 'rules' | 'requiresReset'> {
+): Pick<RoleEditorModel, 'resources' | 'rules' | 'requiresReset'> {
   const {
     node_labels,
     logins,
@@ -492,12 +491,12 @@ function roleConditionsToModel(
     ...unsupportedConditions
   } = conditions;
 
-  const accessSpecs: AccessSpec[] = [];
+  const resources: ResourceAccess[] = [];
 
   const nodeLabelsModel = labelsToModel(node_labels);
   const nodeLoginsModel = stringsToOptions(logins ?? []);
   if (someNonEmpty(nodeLabelsModel, nodeLoginsModel)) {
-    accessSpecs.push({
+    resources.push({
       kind: 'node',
       labels: nodeLabelsModel,
       logins: nodeLoginsModel,
@@ -511,7 +510,7 @@ function roleConditionsToModel(
     requiresReset: kubernetesResourcesRequireReset,
   } = kubernetesResourcesToModel(kubernetes_resources);
   if (someNonEmpty(kubeGroupsModel, kubeLabelsModel, kubeResourcesModel)) {
-    accessSpecs.push({
+    resources.push({
       kind: 'kube_cluster',
       groups: kubeGroupsModel,
       labels: kubeLabelsModel,
@@ -531,7 +530,7 @@ function roleConditionsToModel(
       gcpServiceAccountsModel
     )
   ) {
-    accessSpecs.push({
+    resources.push({
       kind: 'app',
       labels: appLabelsModel,
       awsRoleARNs: awsRoleARNsModel,
@@ -545,7 +544,7 @@ function roleConditionsToModel(
   const dbUsersModel = db_users ?? [];
   const dbRolesModel = db_roles ?? [];
   if (someNonEmpty(dbLabelsModel, dbNamesModel, dbUsersModel, dbRolesModel)) {
-    accessSpecs.push({
+    resources.push({
       kind: 'db',
       labels: dbLabelsModel,
       names: stringsToOptions(dbNamesModel),
@@ -559,7 +558,7 @@ function roleConditionsToModel(
     windows_desktop_logins ?? []
   );
   if (someNonEmpty(windowsDesktopLabelsModel, windowsDesktopLoginsModel)) {
-    accessSpecs.push({
+    resources.push({
       kind: 'windows_desktop',
       labels: windowsDesktopLabelsModel,
       logins: windowsDesktopLoginsModel,
@@ -570,7 +569,7 @@ function roleConditionsToModel(
     rulesToModel(rules);
 
   return {
-    accessSpecs,
+    resources: resources,
     rules: rulesModel,
     requiresReset:
       kubernetesResourcesRequireReset ||
@@ -799,18 +798,18 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     version: roleVersion,
   };
 
-  for (const spec of roleModel.accessSpecs) {
-    const { kind } = spec;
+  for (const res of roleModel.resources) {
+    const { kind } = res;
     switch (kind) {
       case 'node':
-        role.spec.allow.node_labels = labelsModelToLabels(spec.labels);
-        role.spec.allow.logins = optionsToStrings(spec.logins);
+        role.spec.allow.node_labels = labelsModelToLabels(res.labels);
+        role.spec.allow.logins = optionsToStrings(res.logins);
         break;
 
       case 'kube_cluster':
-        role.spec.allow.kubernetes_groups = optionsToStrings(spec.groups);
-        role.spec.allow.kubernetes_labels = labelsModelToLabels(spec.labels);
-        role.spec.allow.kubernetes_resources = spec.resources.map(
+        role.spec.allow.kubernetes_groups = optionsToStrings(res.groups);
+        role.spec.allow.kubernetes_labels = labelsModelToLabels(res.labels);
+        role.spec.allow.kubernetes_resources = res.resources.map(
           ({ kind, name, namespace, verbs }) => ({
             kind: kind.value,
             name,
@@ -821,24 +820,24 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         break;
 
       case 'app':
-        role.spec.allow.app_labels = labelsModelToLabels(spec.labels);
-        role.spec.allow.aws_role_arns = spec.awsRoleARNs;
-        role.spec.allow.azure_identities = spec.azureIdentities;
-        role.spec.allow.gcp_service_accounts = spec.gcpServiceAccounts;
+        role.spec.allow.app_labels = labelsModelToLabels(res.labels);
+        role.spec.allow.aws_role_arns = res.awsRoleARNs;
+        role.spec.allow.azure_identities = res.azureIdentities;
+        role.spec.allow.gcp_service_accounts = res.gcpServiceAccounts;
         break;
 
       case 'db':
-        role.spec.allow.db_labels = labelsModelToLabels(spec.labels);
-        role.spec.allow.db_names = optionsToStrings(spec.names);
-        role.spec.allow.db_users = optionsToStrings(spec.users);
-        role.spec.allow.db_roles = optionsToStrings(spec.roles);
+        role.spec.allow.db_labels = labelsModelToLabels(res.labels);
+        role.spec.allow.db_names = optionsToStrings(res.names);
+        role.spec.allow.db_users = optionsToStrings(res.users);
+        role.spec.allow.db_roles = optionsToStrings(res.roles);
         break;
 
       case 'windows_desktop':
         role.spec.allow.windows_desktop_labels = labelsModelToLabels(
-          spec.labels
+          res.labels
         );
-        role.spec.allow.windows_desktop_logins = optionsToStrings(spec.logins);
+        role.spec.allow.windows_desktop_logins = optionsToStrings(res.logins);
         break;
 
       default:

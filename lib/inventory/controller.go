@@ -1174,6 +1174,7 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 		return nil
 	}
 
+	handle.sshServer.resource.SetExpiry(now.Add(c.serverTTL).UTC())
 	if _, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource); err == nil {
 		if handle.sshServer.retryUpsert {
 			c.testEvent(sshUpsertRetryOk)
