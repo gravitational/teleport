@@ -846,6 +846,11 @@ const (
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
