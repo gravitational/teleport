@@ -2778,7 +2778,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	return makeAuthenticateChallenge(mfaChallenge), nil
+	return makeAuthenticateChallenge(mfaChallenge, "" /*channelID*/), nil
 }
 
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH
@@ -4877,16 +4877,12 @@ func parseMFAResponseFromRequest(r *http.Request) error {
 // context and returned.
 func contextWithMFAResponseFromRequestHeader(ctx context.Context, requestHeader http.Header) (context.Context, error) {
 	if mfaResponseJSON := requestHeader.Get("Teleport-MFA-Response"); mfaResponseJSON != "" {
-		var resp mfaResponse
-		if err := json.Unmarshal([]byte(mfaResponseJSON), &resp); err != nil {
+		mfaResp, err := client.ParseMFAChallengeResponse([]byte(mfaResponseJSON))
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return mfa.ContextWithMFAResponse(ctx, &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
-			},
-		}), nil
+		return mfa.ContextWithMFAResponse(ctx, mfaResp), nil
 	}
 
 	return ctx, nil
