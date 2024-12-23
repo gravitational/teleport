@@ -53,6 +53,5 @@ func (c *vnetDaemonCommand) run(cf *CLIConf) error {
 	} else {
 		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 	}
-
 	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
 }

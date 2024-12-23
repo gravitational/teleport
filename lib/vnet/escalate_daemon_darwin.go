@@ -29,11 +29,13 @@ import (
 
 // execAdminProcess is called from the normal user process to register and call
 // the daemon process which runs as root.
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	return trace.Wrap(daemon.RegisterAndCall(ctx, config))
+func execAdminProcess(ctx context.Context, config AdminProcessConfig) error {
+	return trace.Wrap(daemon.RegisterAndCall(ctx, daemon.Config(config)))
 }
 
 // DaemonSubcommand runs the VNet daemon process.
 func DaemonSubcommand(ctx context.Context) error {
-	return trace.Wrap(daemon.Start(ctx, RunAdminProcess))
+	return trace.Wrap(daemon.Start(ctx, func(ctx context.Context, config daemon.Config) error {
+		return RunAdminProcess(ctx, AdminProcessConfig(config))
+	}))
 }
