@@ -35,6 +35,7 @@ import apolloIoLight from './assets/apollo.io-light.svg';
 import appleDark from './assets/apple-dark.svg';
 import appleLight from './assets/apple-light.svg';
 import application from './assets/application.svg';
+import argocd from './assets/argocd.svg';
 import asana from './assets/asana.svg';
 import assembleDark from './assets/assemble-dark.svg';
 import assembleLight from './assets/assemble-light.svg';
@@ -322,6 +323,7 @@ export {
   appleDark,
   appleLight,
   application,
+  argocd,
   asana,
   assembleDark,
   assembleLight,
