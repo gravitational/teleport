@@ -527,6 +527,10 @@ export class FeatureClusters implements TeleportFeature {
       return cfg.routes.clusters;
     },
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureTrust implements TeleportFeature {
