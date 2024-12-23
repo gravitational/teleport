@@ -349,3 +349,6 @@ replace (
 	// otherwise we get significant increase in size of the "teleport" binary.
 	sigs.k8s.io/kustomize/api => github.com/gravitational/kustomize/api v0.16.0-teleport.1
 )
+
+// TODO(codingllama): Remove once no dependencies import stats/opentelemetry.
+exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20240907200651-3ffb98b2c93a
