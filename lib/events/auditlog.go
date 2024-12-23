@@ -512,15 +512,13 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	sessionStartCh := make(chan apievents.AuditEvent, 1)
 	if startCb, err := SessionStartCallbackFromContext(ctx); err == nil {
 		go func() {
-			select {
-			case evt, ok := <-sessionStartCh:
-				if !ok {
-					startCb(nil, trace.NotFound("session start event not found"))
-					return
-				}
-
-				startCb(evt, nil)
+			evt, ok := <-sessionStartCh
+			if !ok {
+				startCb(nil, trace.NotFound("session start event not found"))
+				return
 			}
+
+			startCb(evt, nil)
 		}()
 	}
 

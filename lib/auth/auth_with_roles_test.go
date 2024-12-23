@@ -2322,7 +2322,7 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 	require.NoError(t, stream.Complete(ctx))
 
 	accessedFormat := teleport.PTY
-	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), session.ID(sessionID), 0)
+	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), sessionID, 0)
 
 	// Perform the listing an eventually loop to ensure the event is emitted.
 	var searchEvents []apievents.AuditEvent
