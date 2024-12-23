@@ -425,7 +425,7 @@ export class DocumentsService {
     if (doc.kind === 'doc.gateway_kube') {
       const { params } = routing.parseKubeUri(doc.targetUri);
       this.update(doc.uri, {
-        title: [shellBinName, cwd, params.kubeId].filter(Boolean).join(' · '),
+        title: [params.kubeId, shellBinName].filter(Boolean).join(' · '),
       });
     }
   }

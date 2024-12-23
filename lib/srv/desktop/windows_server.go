@@ -36,7 +36,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -382,7 +381,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
 		LDAPConfig:  caLDAPConfig,
-		Log:         logrus.NewEntry(logrus.StandardLogger()),
+		Logger:      slog.Default(),
 		ClusterName: s.clusterName,
 		LC:          s.lc,
 	})

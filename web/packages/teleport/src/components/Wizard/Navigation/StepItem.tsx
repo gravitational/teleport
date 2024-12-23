@@ -55,7 +55,11 @@ export function StepItem<T>(props: {
   return (
     <StepsContainer active={isDone || isActive}>
       <StepTitle>
-        <Bullet isDone={isDone} isActive={isActive} stepNumber={index + 1} />
+        <Bullet
+          isDone={isDone}
+          isActive={isActive}
+          stepNumber={props.view.displayIndex ?? index + 1}
+        />
         {props.view.title}
       </StepTitle>
     </StepsContainer>

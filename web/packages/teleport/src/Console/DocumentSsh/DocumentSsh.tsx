@@ -16,31 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'styled-components';
 
-import { Indicator, Box } from 'design';
+import { Box, Indicator } from 'design';
 
 import {
-  FileTransferActionBar,
   FileTransfer,
-  FileTransferRequests,
+  FileTransferActionBar,
   FileTransferContextProvider,
+  FileTransferRequests,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import * as stores from 'teleport/Console/stores';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import { useMfa } from 'teleport/lib/useMfa';
+import { useMfa, useMfaTty } from 'teleport/lib/useMfa';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import Document from '../Document';
 
 import { useConsoleContext } from '../consoleContextProvider';
 
 import { Terminal, TerminalRef } from './Terminal';
-import useSshSession from './useSshSession';
 import { useFileTransfer } from './useFileTransfer';
+import useSshSession from './useSshSession';
 
 export default function DocumentSshWrapper(props: PropTypes) {
   return (
@@ -56,13 +57,15 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
-  const mfa = useMfa(tty);
-  const {
-    getMfaResponseAttempt,
-    getDownloader,
-    getUploader,
-    fileTransferRequests,
-  } = useFileTransfer(tty, session, doc, mfa.addMfaToScpUrls);
+
+  const ttyMfa = useMfaTty(tty);
+  const ftMfa = useMfa({
+    isMfaRequired: ttyMfa.required,
+    req: {
+      scope: MfaChallengeScope.USER_SESSION,
+    },
+  });
+  const ft = useFileTransfer(tty, session, doc, ftMfa);
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -75,8 +78,13 @@ function DocumentSsh({ doc, visible }: PropTypes) {
 
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
-    terminalRef.current?.focus();
-  }, [visible, mfa.requested]);
+    if (
+      ttyMfa.attempt.status === 'processing' ||
+      ftMfa.attempt.status === 'processing'
+    ) {
+      terminalRef.current?.focus();
+    }
+  }, [visible, ttyMfa.attempt.status, ftMfa.attempt.status]);
 
   const onSearchClose = useCallback(() => {
     setShowSearch(false);
@@ -110,21 +118,15 @@ function DocumentSsh({ doc, visible }: PropTypes) {
               <FileTransferRequests
                 onDeny={handleFileTransferDecision}
                 onApprove={handleFileTransferDecision}
-                requests={fileTransferRequests}
+                requests={ft.fileTransferRequests}
               />
             }
             beforeClose={() =>
               window.confirm('Are you sure you want to cancel file transfers?')
             }
-            errorText={
-              getMfaResponseAttempt.status === 'failed'
-                ? getMfaResponseAttempt.statusText
-                : null
-            }
             afterClose={handleCloseFileTransfer}
             transferHandlers={{
-              getDownloader,
-              getUploader,
+              ...ft,
             }}
           />
         </>
@@ -143,7 +145,8 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      <AuthnDialog mfaState={ttyMfa} onClose={closeDocument} />
+      <AuthnDialog mfaState={ftMfa} />
       {status === 'initialized' && terminal}
     </Document>
   );

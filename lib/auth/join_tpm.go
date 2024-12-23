@@ -43,9 +43,7 @@ func (a *Server) RegisterUsingTPMMethod(
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
-			a.handleJoinFailure(
-				err, provisionToken, attributeSrc, initReq.JoinRequest,
-			)
+			a.handleJoinFailure(ctx, err, provisionToken, attributeSrc, initReq.JoinRequest)
 		}
 	}()
 

@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 )
 
-const message = "Adding diagnostic debugging handlers.\t To connect with profiler, use `go tool pprof diag_addr`."
+const message = "Adding diagnostic debugging handlers.\t To connect with profiler, use go tool pprof diag_addr."
 
 var (
 	logErr = errors.New("the quick brown fox jumped really high")
@@ -76,7 +76,6 @@ func TestOutput(t *testing.T) {
 	loc, err := time.LoadLocation("Africa/Cairo")
 	require.NoError(t, err, "failed getting timezone")
 	clock := clockwork.NewFakeClockAt(time.Now().In(loc))
-	formattedNow := clock.Now().UTC().Format(time.RFC3339)
 
 	t.Run("text", func(t *testing.T) {
 		// fieldsRegex matches all the key value pairs emitted after the message and before the caller. All fields are
@@ -88,7 +87,7 @@ func TestOutput(t *testing.T) {
 		// 2) the message
 		// 3) the fields
 		// 4) the caller
-		outputRegex := regexp.MustCompile("(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z)(\\s+.*)(\".*diag_addr`\\.\")(.*)(\\slog/formatter_test.go:\\d{3})")
+		outputRegex := regexp.MustCompile(`(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)(\s+.*)(".*diag_addr\.")(.*)(\slog/formatter_test.go:\d{3})`)
 
 		tests := []struct {
 			name        string
@@ -149,7 +148,7 @@ func TestOutput(t *testing.T) {
 					EnableColors: true,
 					ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 						if a.Key == slog.TimeKey {
-							a.Value = slog.StringValue(formattedNow)
+							a.Value = slog.TimeValue(clock.Now().UTC())
 						}
 						return a
 					},
@@ -188,7 +187,7 @@ func TestOutput(t *testing.T) {
 
 				// Match level, and component: DEBU [TEST]
 				assert.Empty(t, cmp.Diff(logrusMatches[2], slogMatches[2]), "level, and component to be identical")
-				// Match the log message: "Adding diagnostic debugging handlers.\t To connect with profiler, use `go tool pprof diag_addr`.\n"
+				// Match the log message: "Adding diagnostic debugging handlers.\t To connect with profiler, use go tool pprof diag_addr.\n"
 				assert.Empty(t, cmp.Diff(logrusMatches[3], slogMatches[3]), "expected output messages to be identical")
 				// The last matches are the caller information
 				assert.Equal(t, fmt.Sprintf(" log/formatter_test.go:%d", logrusTestLogLineNumber), logrusMatches[5])
@@ -461,7 +460,13 @@ func TestConcurrentOutput(t *testing.T) {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				logger.InfoContext(ctx, "Teleport component entered degraded state", "component", i)
+				logger.InfoContext(ctx, "Teleport component entered degraded state",
+					slog.Int("component", i),
+					slog.Group("group",
+						slog.String("test", "123"),
+						slog.String("animal", "llama"),
+					),
+				)
 			}(i)
 		}
 		wg.Wait()
