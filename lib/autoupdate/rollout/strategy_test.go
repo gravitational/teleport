@@ -151,12 +151,69 @@ func Test_inWindow(t *testing.T) {
 	}
 }
 
+func Test_rolloutChangedInWindow(t *testing.T) {
+	// Test setup: creating fixtures.
+	group := &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+		Name:            "test-group",
+		ConfigDays:      everyWeekdayButSunday,
+		ConfigStartHour: 12,
+	}
+	tests := []struct {
+		name         string
+		now          time.Time
+		rolloutStart time.Time
+		want         bool
+	}{
+		{
+			name:         "zero rollout start time",
+			now:          testSaturday,
+			rolloutStart: time.Time{},
+			want:         false,
+		},
+		{
+			name: "epoch rollout start time",
+			now:  testSaturday,
+			// tspb counts since epoch, wile go's zero is 0000-00-00 00:00:00 UTC
+			rolloutStart: (&timestamppb.Timestamp{}).AsTime(),
+			want:         false,
+		},
+		{
+			name:         "rollout changed a week ago",
+			now:          testSaturday,
+			rolloutStart: testSaturday.Add(-7 * 24 * time.Hour),
+			want:         false,
+		},
+		{
+			name:         "rollout changed the same day, before the window",
+			now:          testSaturday,
+			rolloutStart: testSaturday.Add(-2 * time.Hour),
+			want:         false,
+		},
+		{
+			name:         "rollout changed the same day, during the window",
+			now:          testSaturday,
+			rolloutStart: testSaturday.Add(-2 * time.Minute),
+			want:         true,
+		},
+		{
+			name:         "rollout just changed but we are not in a window",
+			now:          testSunday,
+			rolloutStart: testSunday.Add(-2 * time.Minute),
+			want:         false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test execution.
+			result, err := rolloutChangedInWindow(group, tt.now, tt.rolloutStart)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func Test_setGroupState(t *testing.T) {
 	groupName := "test-group"
-
-	// TODO(hugoShaka) remove those two variables once the strategies are merged and the constants are defined.
-	updateReasonCanStart := "can_start"
-	updateReasonCannotStart := "cannot_start"
 
 	clock := clockwork.NewFakeClock()
 	// oldUpdateTime is 5 minutes in the past

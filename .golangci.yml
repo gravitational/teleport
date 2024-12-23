@@ -56,6 +56,7 @@ issues:
       linters: [staticcheck]
       text: 'grpc.WithReturnConnectionError is deprecated'
     - linters: [govet]
+      path-except: ^e/
       text: 'non-constant format string in call to github.com/gravitational/trace.'
   exclude-use-default: true
   max-same-issues: 0
