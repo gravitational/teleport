@@ -91,7 +91,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
   const isMounted = useIsMounted();
   const asyncTask = useRef<Promise<AttemptData>>();
 
-  const run = useCallback(
+  const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
     (...args: Args) => {
       setState(prevState => ({
         status: 'processing',
@@ -311,3 +311,5 @@ export function useDelayedRepeatedAttempt<Data>(
 
   return currentAttempt;
 }
+
+export type RunFuncReturnValue<AttemptData> = Promise<[AttemptData, Error]>;
