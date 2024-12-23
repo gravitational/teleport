@@ -4635,6 +4635,8 @@ message OneOf {
     events.UserTaskCreate UserTaskCreate = 188;
     events.UserTaskUpdate UserTaskUpdate = 189;
     events.UserTaskDelete UserTaskDelete = 190;
+    events.ContactCreate ContactCreate = 192;
+    events.ContactDelete ContactDelete = 193;
     events.WorkloadIdentityCreate WorkloadIdentityCreate = 194;
     events.WorkloadIdentityUpdate WorkloadIdentityUpdate = 195;
     events.WorkloadIdentityDelete WorkloadIdentityDelete = 196;
@@ -7671,4 +7673,99 @@ message UserLoginAccessListInvalid {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// ContactCreate is emitted when a contact is created.
+message ContactCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Email is the Email of the contact being deleted
+  string Email = 6 [(gogoproto.jsontag) = "email"];
+
+  // ContactType is the type of the contact being deleted ('Business' or 'Security')
+  ContactType ContactType = 7 [(gogoproto.jsontag) = "contact_type"];
+}
+
+// ContactDelete is emitted when a contact is deleted.
+message ContactDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Email is the Email of the contact being deleted
+  string Email = 6 [(gogoproto.jsontag) = "email"];
+
+  // ContactType is the type of the contact being deleted ('Business' or 'Security')
+  ContactType ContactType = 7 [(gogoproto.jsontag) = "contact_type"];
+}
+
+// ContactType is the type of contact being added.
+enum ContactType {
+  CONTACT_TYPE_UNSPECIFIED = 0;
+  CONTACT_TYPE_BUSINESS = 1;
+  CONTACT_TYPE_SECURITY = 2;
 }
