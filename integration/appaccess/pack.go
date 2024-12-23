@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
@@ -251,15 +250,9 @@ func (p *Pack) initWebSession(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
 
-	// Attach CSRF token in cookie and header.
-	csrfToken, err := utils.CryptoRandomHex(32)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
+	// Set Content-Type header, otherwise Teleport's CSRF protection will
+	// reject the request.
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{

@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -1531,18 +1530,7 @@ func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionRespo
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Attach CSRF token in cookie and header.
-	csrfToken, err := utils.CryptoRandomHex(32)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	req.AddCookie(&http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	httpClient := &http.Client{
