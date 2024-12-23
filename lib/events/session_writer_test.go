@@ -424,7 +424,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	reader := sessionrecording.NewReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(a.ctx)
 	require.NoError(t, err, "failed to read")
-	t.Logf("Reader stats :%v", reader.GetStats().ToFields())
+	t.Logf("Reader stats :%v", reader.GetStats().LogValue())
 
 	return outEvents
 }

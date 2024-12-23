@@ -100,12 +100,12 @@ type ReaderStats struct {
 }
 
 // ToFields returns a copy of the stats to be used as log fields
-func (p ReaderStats) ToFields() map[string]any {
-	return map[string]any{
-		"skipped-events":      p.SkippedEvents,
-		"out-of-order-events": p.OutOfOrderEvents,
-		"total-events":        p.TotalEvents,
-	}
+func (p ReaderStats) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int64("skipped-events", p.SkippedEvents),
+		slog.Int64("out-of-order-events", p.OutOfOrderEvents),
+		slog.Int64("total-events", p.TotalEvents),
+	)
 }
 
 // Close releases reader resources
