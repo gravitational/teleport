@@ -347,6 +347,7 @@ The logic flow will look like the same as the core update model:
 - If within maintenance window, attempt update
 
 For getting the region, let's iterate over all Databases, filter for RDS ones and extract the AWS.Region.
+Additionally, iterate over all Database Services, filter for the ones with the awsoidc-agent label and extract the region from matcher labels.
 For each unique Region, we will call the APIs (DescribeCluster/DescribeServices)
 
 To query for available ECS clusters Teleport will iterate over all databases filtering for RDS, and then extract the AWS.Region. For each
