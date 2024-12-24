@@ -135,12 +135,23 @@ describe('cycle', () => {
 
     expect(screen.getByText('Last updated: Nov 09, 2023')).toBeInTheDocument();
   });
+});
 
-  test('renders calibration period', () => {
-    props.summary.cycleStart = new Date('2024-01-01').getTime();
-    props.summary.cycleEnd = new Date('2024-01-31').getTime();
-    props.summary.salesforceIdUpdatedAt = new Date('2024-01-13').getTime();
-    props.summary.hasCloudAnonymizationKey = true;
+describe('calibration period', () => {
+  test.each`
+    desc                        | start                               | end                                 | updated
+    ${'updated on cycle start'} | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-01').getTime()}
+    ${'updated on cycle end'}   | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-31').getTime()}
+    ${'updated mid cycle'}      | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-15').getTime()}
+  `('renders for $desc', ({ start, end, updated }) => {
+    const props = {
+      summary: makeUsageSummary({
+        cycleEnd: end,
+        cycleStart: start,
+        salesforceIdUpdatedAt: updated,
+        hasCloudAnonymizationKey: true,
+      }),
+    };
 
     render(<Cycle {...props} />);
 

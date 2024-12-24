@@ -28,8 +28,8 @@ export const Cycle = ({
   const theme = useTheme();
   const calibrationPeriod =
     hasCloudAnonymizationKey &&
-    salesforceIdUpdatedAt < cycleEnd &&
-    salesforceIdUpdatedAt > cycleStart;
+    salesforceIdUpdatedAt <= cycleEnd &&
+    salesforceIdUpdatedAt >= cycleStart;
 
   const usage: CycleUsage[] = [
     {
