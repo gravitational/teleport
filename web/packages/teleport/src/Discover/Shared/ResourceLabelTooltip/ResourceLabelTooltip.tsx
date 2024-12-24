@@ -22,6 +22,16 @@ import { Position } from 'design/Popover/Popover';
 import { IconTooltip } from 'design/Tooltip';
 import styled from 'styled-components';
 
+/**
+ * Returns a IconTooltip component with its tip contents
+ * set to the requested resource kind.
+ *
+ * @param resourceKind - the tip contents differ slightly depending
+ * on the resource kind
+ * @param toolTipPosition (opt) - the position which the tooltip should
+ * render (see type Position)
+ * @returns JSX Element
+ */
 export function ResourceLabelTooltip({
   resourceKind,
   toolTipPosition,
@@ -38,7 +48,7 @@ export function ResourceLabelTooltip({
           Labels allow you to do the following:
           <Ul>
             <li>
-              Filter servers by labels when using tsh, tctl, or the web UI
+              Filter servers by labels when using tsh, tctl, or the web UI.
             </li>
             <li>
               Restrict access to this server with{' '}
@@ -64,7 +74,7 @@ export function ResourceLabelTooltip({
           <Ul>
             <li>
               Filter Kubernetes clusters by labels when using tsh, tctl, or the
-              web UI
+              web UI.
             </li>
             <li>
               Restrict access to this Kubernetes cluster with{' '}
@@ -96,7 +106,7 @@ export function ResourceLabelTooltip({
           Labels allow you to do the following:
           <Ul>
             <li>
-              Filter databases by labels when using tsh, tctl, or the web UI
+              Filter databases by labels when using tsh, tctl, or the web UI.
             </li>
             <li>
               Restrict access to this database with{' '}
