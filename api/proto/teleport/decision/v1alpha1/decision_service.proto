@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "teleport/decision/v1alpha1/database_access.proto";
+import "teleport/decision/v1alpha1/simulated.proto";
 import "teleport/decision/v1alpha1/ssh_access.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
@@ -32,6 +33,14 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // decision. A successful evaluation carries a Permit, whereas a failed
 // evaluation carries a Denial.
 service DecisionService {
+  // GetSimulatedTLSIdentity gets a TLS idenitity object based on a target user. The identity objects generated
+  // this way are not authoratative, and are meant for use only in the context of auditing and introspection.
+  rpc GetSimulatedTLSIdentity(GetSimulatedTLSIdentityRequest) returns (GetSimulatedTLSIdentityResponse);
+
+  // GetSimulatedSSHIdentity gets a SSH identity object based on a target user. The identity objects generated
+  // this way are not authoratative, and are meant for use only in the context of auditing and introspection.
+  rpc GetSimulatedSSHIdentity(GetSimulatedSSHIdentityRequest) returns (GetSimulatedSSHIdentityResponse);
+
   // EvaluateSSHAccess evaluates an SSH access attempt.
   rpc EvaluateSSHAccess(EvaluateSSHAccessRequest) returns (EvaluateSSHAccessResponse);
 
