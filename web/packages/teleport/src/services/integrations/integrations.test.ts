@@ -276,6 +276,48 @@ test('fetch integration rules: fetchIntegrationRules()', async () => {
   });
 });
 
+test('fetch integration user task list: fetchIntegrationUserTasksList()', async () => {
+  // test a valid response
+  jest.spyOn(api, 'get').mockResolvedValue({
+    items: [
+      {
+        name: "task-name",
+        taskType: "task-type",
+        state: "task-state",
+        issueType: "issue-type",
+        integration: "name",
+      },
+    ],
+    nextKey: 'some-key',
+  });
+
+  let response = await integrationService.fetchIntegrationUserTasksList('name');
+  expect(api.get).toHaveBeenCalledWith(
+    cfg.getIntegrationUserTasksListUrl('name')
+  );
+  expect(response).toEqual({
+    nextKey: 'some-key',
+    items: [
+      {
+        name: "task-name",
+        taskType: "task-type",
+        state: "task-state",
+        issueType: "issue-type",
+        integration: "name",
+      },
+    ],
+  });
+
+  // test null response
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  response = await integrationService.fetchIntegrationUserTasksList('name');
+  expect(response).toEqual({
+    nextKey: undefined,
+    items: [],
+  });
+});
+
 const nonAwsOidcIntegration = {
   name: 'non-aws-oidc-integration',
   subKind: 'abc',

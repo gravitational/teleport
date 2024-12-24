@@ -306,6 +306,31 @@ export type IntegrationDiscoveryRules = {
   nextKey: string;
 };
 
+// UserTasksListResponse contains a list of UserTasks.
+// In case of exceeding the pagination limit (either via query param `limit` or the default 1000)
+// a `nextToken` is provided and should be used to obtain the next page (as a query param `startKey`)
+export type UserTasksListResponse = {
+  // items is a list of resources retrieved.
+  items: UserTask[];
+  // nextKey is the position to resume listing events.
+  nextKey: string;
+};
+
+// UserTask describes UserTask fields.
+// Used for listing User Tasks without receiving all the details.
+export type UserTask = {
+  // name is the UserTask name.
+  name: string;
+  // taskType identifies this task's type.
+  taskType: string;
+  // state is the state for the User Task.
+  state: string;
+  // issueType identifies this task's issue type.
+  issueType: string;
+  // integration is the Integration Name this User Task refers to.
+  integration: string;
+};
+
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.
 export type IntegrationDiscoveryRule = {
   // resourceType indicates the type of resource that this rule targets.
