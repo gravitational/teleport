@@ -294,7 +294,7 @@ traced back to a specific Kubernetes pod.
 
 ## Alternatives
 
-### Introducing a seperate `kubernetes_remote` join method
+### Introducing a separate `kubernetes_remote` join method
 
 One alternative implementation was to introduce a new `kubernetes_remote` join
 method that would use a bi-di gRPC RPC to create a challenge and response flow

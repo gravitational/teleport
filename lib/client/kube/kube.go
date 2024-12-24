@@ -17,17 +17,17 @@
 package kube
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentKubeClient,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKubeClient)
 
 // CheckIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
 // to access kubeCluster has at least one kubernetes_user or kubernetes_group
@@ -43,7 +43,7 @@ func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, telep
 		return nil
 	}
 	if cred, ok := k.KubeTLSCredentials[kubeCluster]; ok {
-		log.Debugf("Got TLS cert for Kubernetes cluster %q", kubeCluster)
+		log.DebugContext(context.Background(), "Got TLS cert for Kubernetes cluster", "kubernetes_cluster", kubeCluster)
 		exist, err := checkIfCertHasKubeGroupsAndUsers(cred.Cert)
 		if err != nil {
 			return trace.Wrap(err)
