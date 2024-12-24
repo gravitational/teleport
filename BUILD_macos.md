@@ -26,10 +26,7 @@ PRs with corrections and updates are welcome!
   brew install go
   ````
 
-* `Rust` and `Cargo` version from
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11)
-  (search for RUST_VERSION):
-
+* `Rust` and `Cargo`
   * Follow [official instructions](https://www.rust-lang.org/tools/install) to install `rustup`
     * Or install with homebrew:
 
@@ -55,16 +52,6 @@ PRs with corrections and updates are welcome!
   # or open a new shell
   ```
 
-  * Install the required version
-
-  ```shell
-  rustup toolchain install <version from build.assets/versions.mk>
-  cd <teleport.git>
-  rustup override set <version from build.assets/versions.mk>
-  rustc --version
-  # rustc <version from build.assets/versions.mk>
-  ```
-
 * To install `libfido2` (pulls `openssl 3` as dependency)
 
   ```shell
@@ -80,7 +67,7 @@ PRs with corrections and updates are welcome!
 * To install tools for building the UI:
   * `brew install node corepack`
   * `corepack enable pnpm`
-  * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
+  * `Rust` and `Cargo` are required
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
     `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
 

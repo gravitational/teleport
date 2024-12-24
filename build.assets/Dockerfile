@@ -208,11 +208,9 @@ RUN groupadd ci --gid=$GID -o && \
     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport
 
 # Install Rust.
-ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=$RUST_VERSION
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
 # Install Rust using the ci user, as that is the user that
@@ -220,11 +218,10 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
 # Cross-compilation targets are only installed on amd64, as
 # this image doesn't contain gcc-multilib.
 USER ci
-RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal && \
     rustup --version && \
     cargo --version && \
     rustc --version && \
-    rustup component add rustfmt clippy && \
     rustup target add wasm32-unknown-unknown && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu i686-unknown-linux-gnu; fi
 

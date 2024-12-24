@@ -4,16 +4,16 @@ run-name: Build on Mac OS
 on:
   merge_group:
     paths:
-      - '.github/workflows/build-macos.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.rs'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
+      - ".github/workflows/build-macos.yaml"
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "**.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.assets/Makefile"
+      - "build.assets/Dockerfile*"
+      - "Makefile"
 
 jobs:
   build:
@@ -61,10 +61,6 @@ jobs:
         with:
           cache: false
           go-version: ${{ env.GOLANG_VERSION }}
-
-      - name: Configure Rust Toolchain
-        run: |
-          rustup override set ${{ env.RUST_VERSION }}
 
       - name: Install wasm-pack
         run: make ensure-wasm-deps
