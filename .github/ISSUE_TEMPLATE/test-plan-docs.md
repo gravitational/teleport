@@ -1,49 +1,52 @@
 ---
-name: Documentation Test Plan
-about: Manual test plan for Teleport major releases
+name: Documentation Release Plan
+about: Documentation checks and changes to perform for major Teleport releases
 title: "Teleport X Docs Test Plan"
 labels: testplan
 ---
 
-Perform the following checks on the Teleport documentation whenever we roll out
-a new major version of Teleport on Teleport Cloud. Use `/docs/upcoming-releases`
-to determine the rollout date.
+Perform the following tasks whenever we roll out a new major version of
+Teleport. 
 
-## Is the internal documentation coverage record up to date?
+We need to make sure that the documentation site presents accurate information
+to Teleport Enterprise (Cloud) users by default. Since we roll out a new major
+Teleport version to Teleport Enterprise (Cloud) users several weeks after we
+release the version, documentation release steps take place in two
+phases:
+
+- **Phase One:** We have released a new major version of Teleport but have not
+  rolled it out to Teleport Enterprise (Cloud) customers.
+- **Phase Two:** We have rolled out the new major version of Teleport to
+  Teleport Enterprise (Cloud) customers.
+
+Use `/docs/upcoming-releases` to determine the Teleport Enterprise (Cloud)
+rollout date.
+
+## Phase One tasks
+
+Make sure these tasks are complete by the time we have released a new major
+version of Teleport.
 
 - [ ] Identify features within the new release that we want to include as topics
   in our measurement of documentation coverage. Update our internal
   documentation coverage record to include the new topics. See our internal
   knowledge base for the location of the coverage record.
 
-## Is the docs site configuration accurate?
+- [ ] Update the submodule configuration in `gravitational/docs-website`.
 
-> [!IMPORTANT] 
-> **Do not merge the new docs site configuration** before we roll out a new
-> major version to Teleport Enterprise (Cloud).
+  Remove the directory of the EOL release. Create a directory for the next
+  release using a command similar to the following:
+  
+  ```bash
+  git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
+  ```
 
-- [ ] Verify the latest version in `gravitational/docs/config.json`
-
-- [ ] Verify that `gravitational/docs/.gitmodules` contains the latest release
-
-- [ ] Ensure that submodule directories in `gravitational/docs` correspond to
-    those in `.gitmodules`.
-
-    Remove the directory of the EOL release and create one for the next release
-    using a command similar to the following:
-
-    ```bash
-    git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
-    ```
-
-## Is the docs site content up to date with the new release?
+  Verify that `gravitational/docs-website/.gitmodules` contains the latest
+  release and not the EOL release.
 
 - [ ] Verify that Teleport version variables are correct and reflect the upcoming
-  release. Check `docs/config.json` for this.
-
-- [ ] Ensure that redirects (as configured in `docs/config.json`) only exist for
-  the default version of the docs site, and have been removed from other
-  versions.
+  release. Check `docs/config.json` for this in all supported branches of
+  `gravitational/teleport`.
 
 - [ ] Remove version warnings in the docs that mention a version we no longer
   support _except_ for the last EOL version. E.g., if we no longer support
@@ -52,11 +55,11 @@ to determine the rollout date.
 
 - [ ] Verify that all necessary documentation for the release was backported to
   the release branch:
-  - [ ] Diff between master and release branch and make sure there are no missed
-    PRs
+  - [ ] Diff between `master` and the new release branch and make sure there are
+    no missed PRs.
   - [ ] Ensure that the release branch's documentation content reflects all
     changes introduced by the release. If not, plan to update the docs ASAP and
-    notify all relevant teams of the delay (e.g., Developer Relations).
+    notify all relevant teams of the delay.
 
 - [ ] Verify that the [changelog](../../CHANGELOG.md) is up to date and complete
   for the default docs version. If one release branch has a more complete
@@ -67,38 +70,47 @@ to determine the rollout date.
   $ git checkout origin/branch/v<release_version> -- CHANGELOG.md
   ```
 
-- [ ] Verify the supported versions table in the FAQ
-  (https://goteleport.com/docs/faq/#supported-versions)
+- [ ] Update the supported versions table in the FAQ
+  (https://goteleport.com/docs/faq/#supported-versions).
+
+- [ ] Verify the accuracy of critical docs pages. Follow the docs guides below
+  and verify their accuracy while using the newly released major version of
+  Teleport.
+
+  - [ ] General [installation page](../../docs/pages/installation.mdx): ensure
+    that installation methods support the new release candidate.
+  - [ ] [Teleport Community
+    Edition](../../docs/pages/admin-guides/deploy-a-cluster/linux-demo.mdx) demo
+    guide.
+  - [ ] [Teleport Enterprise (Cloud)](../../docs/pages/get-started.mdx) getting
+    started guide.
+  - [ ] [Teleport Enterprise (Self-Hosted) with
+    Helm](../../docs/pages/admin-guides/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)
+  - [ ] [Teleport Enterprise (Self-Hosted) with
+    Terraform](../../docs/pages/admin-guides/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform.mdx)
+
+## Phase Two changes
+
+Make sure these tasks are complete by the time we have rolled out a new major
+version of Teleport to Teleport Enterprise (Cloud) customers.
+
+- [ ] Update the docs site configuration in
+  `gravitational/docs-website/config.json`: ensure that the EOL version has
+  `"deprecated": true` assigned and the newly rolled out version has
+  `"isDefault" true`. Remove the `"isDefault": true` assignment from the
+  previous version.
+
+- [ ] Copy the changelog from the previous default branch to the new one:
+
+  ```bash
+  $ git checkout origin/branch/v<release_version> -- CHANGELOG.md
+  ```
 
 - [ ] Verify that the [Upcoming Releases
   Page](../../docs/pages/upcoming-releases.mdx) only exists for the major
-  version of Teleport we are releasing. Ensure that this page contains the
+  version of Teleport we have rolled out. Ensure that this page contains the
   latest information:
 
   ```bash
   $ git checkout origin/branch/v<last_version> -- docs/pages/upcoming-releases.mdx
   ```
-
-## Verify the accuracy of critical docs pages
-
-Follow the docs guides below and verify their accuracy. To do so, open the
-version of the docs site that corresponds to the major release we're testing
-for. For example, for Teleport 12 release use `branch/v12` branch and make sure
-to select "Version 12.0" in the documentation version switcher.
-
-### Installation
-
-- [ ] General [installation page](../../docs/pages/installation.mdx): ensure that
-  installation methods support the new release candidate.
-- [ ] Enterprise Cloud [downloads
-  page](../../docs/pages/choose-an-edition/teleport-cloud/downloads.mdx): ensure that
-  the release cnadidate is available at the repositories we link to.
-
-### Getting started
-
-- [ ] [Teleport Community Edition](../../docs/pages/index.mdx)
-- [ ] [Teleport Enterprise (Cloud)](../../docs/pages/choose-an-edition/teleport-cloud/get-started.mdx).
-- [ ] [Teleport Enterprise (Self-Hosted) with
-  Helm](../../docs/pages/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)
-- [ ] [Teleport Enterprise (Self-Hosted) with
-  Terraform](../../docs/pages/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform.mdx)
