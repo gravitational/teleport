@@ -23,7 +23,7 @@ require (
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
-	google.golang.org/grpc v1.68.0
+	google.golang.org/grpc v1.69.2
 	google.golang.org/protobuf v1.36.1
 )
 
@@ -411,3 +411,6 @@ replace (
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
 	sigs.k8s.io/kustomize/api => github.com/gravitational/kustomize/api v0.16.0-teleport.1
 )
+
+// TODO(codingllama): Remove once no dependencies import stats/opentelemetry.
+exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20240907200651-3ffb98b2c93a
