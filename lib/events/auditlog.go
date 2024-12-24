@@ -510,7 +510,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	c := make(chan apievents.AuditEvent)
 
 	sessionStartCh := make(chan apievents.AuditEvent, 1)
-	if startCb, err := SessionStartCallbackFromContext(ctx); err == nil {
+	if startCb, err := sessionStartCallbackFromContext(ctx); err == nil {
 		go func() {
 			evt, ok := <-sessionStartCh
 			if !ok {
@@ -713,9 +713,9 @@ func ContextWithSessionStartCallback(ctx context.Context, cb SessionStartCallbac
 	return context.WithValue(ctx, sessionStartCallbackContextKey, cb)
 }
 
-// SessionStartCallbackFromContext returns the session start callback from
+// sessionStartCallbackFromContext returns the session start callback from
 // context.Context.
-func SessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback, error) {
+func sessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback, error) {
 	if ctx == nil {
 		return nil, trace.BadParameter("context is nil")
 	}
