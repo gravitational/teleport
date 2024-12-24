@@ -1866,9 +1866,10 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 // - Namespace is not empty
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
-		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
-			return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
-		}
+		// TODO(creack): Move the validation to the server side so we can lookup the list of valid CRDs.
+		// if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
+		// 	return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
+		// }
 
 		for _, verb := range kubeResource.Verbs {
 			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard && !strings.Contains(verb, "{{") {
