@@ -834,6 +834,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
+	h.GET("/webapi/sites/:site/sessionlength/:sid", h.WithClusterAuth(h.sessionLengthHandle))
 
 	// DELETE in 16(zmb3): v15+ web UIs use new streaming 'ttyplayback' endpoint
 	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
