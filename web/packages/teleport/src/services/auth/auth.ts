@@ -240,7 +240,7 @@ const auth = {
       .then(res => {
         const request = {
           action: 'accept',
-          webauthnAssertionResponse: res.webauthn_response,
+          webauthnAssertionResponse: res?.webauthn_response,
         };
 
         return api.put(cfg.getHeadlessSsoPath(transactionId), request);
@@ -282,6 +282,8 @@ const auth = {
     mfaType?: DeviceType,
     totpCode?: string
   ): Promise<MfaChallengeResponse> {
+    if (!challenge) return;
+
     // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
     // to display a component, similar to the one used in useMfa. For now we just default to
     // whichever method we can succeed with first.
@@ -439,7 +441,7 @@ const auth = {
     return auth
       .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
       .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
-      .then(res => res.webauthn_response);
+      .then(res => res?.webauthn_response);
   },
 
   getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
