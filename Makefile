@@ -1789,17 +1789,12 @@ build-ui-e: ensure-js-deps
 docker-ui:
 	$(MAKE) -C build.assets ui
 
-.PHONY: rustup-set-version
-rustup-set-version: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
-rustup-set-version:
-	rustup override set $(RUST_VERSION)
-
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
-# defined in build.assets/Makefile. It assumes that `rustup` is already
+# defined in rust-toolchain.toml. It assumes that `rustup` is already
 # installed for managing the rust toolchain.
 .PHONY: rustup-install-target-toolchain
-rustup-install-target-toolchain: rustup-set-version
+rustup-install-target-toolchain:
 	rustup target add $(RUST_TARGET_ARCH)
 
 # changelog generates PR changelog between the provided base tag and the tip of

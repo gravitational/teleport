@@ -90,9 +90,7 @@ function Install-Rust {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [string] $ToolchainDir,
-        [Parameter(Mandatory)]
-        [string] $RustVersion
+        [string] $ToolchainDir
     )
     begin {
         Write-Host "::group::Installing Rust $RustVersion to $ToolchainDir..."
@@ -101,7 +99,7 @@ function Install-Rust {
         Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-gnu/rustup-init.exe -OutFile $RustupFile
         $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
-        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
+        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --target x86_64-pc-windows-gnu
         Enable-Rust -ToolchainDir $ToolchainDir
         Write-Host "::endgroup::"
     }
@@ -259,8 +257,7 @@ function Install-BuildRequirements {
     $CommandDuration = Measure-Block {
         New-Item -Path "$InstallDirectory" -ItemType Directory -Force | Out-Null
 
-        $RustVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-rust-version).Trim()
-        Install-Rust -RustVersion "$RustVersion" -ToolchainDir "$InstallDirectory"
+        Install-Rust -ToolchainDir "$InstallDirectory"
 
         $NodeVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-node-version).Trim()
         Install-Node -NodeVersion "$NodeVersion" -ToolchainDir "$InstallDirectory"

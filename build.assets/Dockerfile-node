@@ -66,16 +66,14 @@ RUN groupadd ci --gid=$GID -o && \
     useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh
 
 # Install Rust.
-ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=$RUST_VERSION
+    PATH=/usr/local/cargo/bin:$PATH
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
 
 USER ci
-RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal && \
     rustup --version && \
     cargo --version && \
     rustc --version && \
