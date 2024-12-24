@@ -17,12 +17,19 @@
  */
 
 import { formatDistanceStrict } from 'date-fns';
+import styled from 'styled-components';
 
 import { Card, Flex, H2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
-import { ResourceTypeSummary } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
+import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
+import history from 'teleport/services/history';
+import {
+  IntegrationKind,
+  ResourceTypeSummary,
+} from 'teleport/services/integrations';
 
 export enum AwsResource {
   ec2 = 'ec2',
@@ -31,22 +38,33 @@ export enum AwsResource {
 }
 
 type StatCardProps = {
+  name: string;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
 };
 
-export function StatCard({ resource, summary }: StatCardProps) {
+export function StatCard({ name, resource, summary }: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
   const term = getResourceTerm(resource);
 
+  if (!foundResource(summary)) {
+    return <EnrollCard resource={resource} />;
+  }
+
   return (
-    <Card
-      width="33%"
-      p={3}
-      bg="levels.surface"
+    <SelectCard
       data-testid={`${resource}-stats`}
+      onClick={() => {
+        history.push(
+          cfg.getIntegrationStatusResourcesRoute(
+            IntegrationKind.AwsOidc,
+            name,
+            resource
+          )
+        );
+      }}
     >
       <Flex
         flexDirection="column"
@@ -95,7 +113,7 @@ export function StatCard({ resource, summary }: StatCardProps) {
           </Text>
         )}
       </Flex>
-    </Card>
+    </SelectCard>
   );
 }
 
@@ -110,3 +128,29 @@ function getResourceTerm(resource: AwsResource): string {
       return 'Instances';
   }
 }
+
+function foundResource(resource: ResourceTypeSummary): boolean {
+  if (Object.keys(resource).length == 0) {
+    return false;
+  }
+
+  if (resource.ecsDatabaseServiceCount != 0) {
+    return true;
+  }
+
+  return resource.rulesCount != 0 || resource.resourcesFound != 0;
+}
+
+export const SelectCard = styled(Card)`
+  width: 33%;
+  background-color: ${props => props.theme.colors.levels.surface};
+  padding: 12px;
+  border-radius: ${props => props.theme.radii[2]}px;
+  border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
+  cursor: pointer;
+
+  &:hover {
+    background-color: ${props => props.theme.colors.levels.elevated};
+    box-shadow: ${({ theme }) => theme.boxShadow[2]};
+  }
+`;

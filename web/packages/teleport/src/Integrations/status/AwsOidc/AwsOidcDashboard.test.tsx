@@ -83,13 +83,20 @@ test('renders header and stats cards', () => {
     </MockAwsOidcStatusProvider>
   );
 
-  expect(screen.getByRole('link', { name: 'back' })).toHaveAttribute(
+  const breadcrumbs = screen.getByTestId('aws-oidc-header');
+  expect(within(breadcrumbs).getByText('integration-one')).toBeInTheDocument();
+
+  const title = screen.getByTestId('aws-oidc-title');
+  expect(within(title).getByRole('link', { name: 'back' })).toHaveAttribute(
     'href',
     '/web/integrations'
   );
-  expect(screen.getByText('integration-one')).toBeInTheDocument();
-  expect(screen.getByLabelText('status')).toHaveAttribute('kind', 'success');
-  expect(screen.getByLabelText('status')).toHaveTextContent('Running');
+  expect(within(title).getByLabelText('status')).toHaveAttribute(
+    'kind',
+    'success'
+  );
+  expect(within(title).getByLabelText('status')).toHaveTextContent('Running');
+  expect(within(title).getByText('integration-one')).toBeInTheDocument();
 
   const ec2 = screen.getByTestId('ec2-stats');
   expect(within(ec2).getByTestId('sync')).toHaveTextContent(
@@ -135,4 +142,67 @@ test('renders header and stats cards', () => {
   expect(within(eks).getByTestId('failed')).toHaveTextContent(
     'Failed Clusters 0'
   );
+});
+
+test('renders enroll cards', () => {
+  const zeroCount = {
+    rulesCount: 0,
+    resourcesFound: 0,
+    resourcesEnrollmentFailed: 0,
+    resourcesEnrollmentSuccess: 0,
+    discoverLastSync: new Date().getTime(),
+    ecsDatabaseServiceCount: 0,
+  };
+
+  render(
+    <MockAwsOidcStatusProvider
+      value={{
+        integrationAttempt: {
+          status: 'success',
+          statusText: '',
+          data: {
+            resourceType: 'integration',
+            name: 'integration-one',
+            kind: IntegrationKind.AwsOidc,
+            spec: {
+              roleArn: 'arn:aws:iam::111456789011:role/bar',
+            },
+            statusCode: 1,
+          },
+        },
+        statsAttempt: {
+          status: 'success',
+          statusText: '',
+          data: {
+            name: 'integration-one',
+            subKind: IntegrationKind.AwsOidc,
+            awsoidc: {
+              roleArn: 'arn:aws:iam::111456789011:role/bar',
+            },
+            awsec2: zeroCount,
+            awsrds: zeroCount,
+            awseks: zeroCount,
+          },
+        },
+      }}
+    >
+      <AwsOidcDashboard />
+    </MockAwsOidcStatusProvider>
+  );
+
+  expect(
+    within(screen.getByTestId('ec2-enroll')).getByRole('button', {
+      name: 'Enroll EC2',
+    })
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByTestId('rds-enroll')).getByRole('button', {
+      name: 'Enroll RDS',
+    })
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByTestId('eks-enroll')).getByRole('button', {
+      name: 'Enroll EKS',
+    })
+  ).toBeInTheDocument();
 });
