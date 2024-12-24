@@ -62,6 +62,14 @@ type fakeAuth struct {
 
 	lastInstance    types.Instance
 	lastRawInstance []byte
+
+	lastServerExpiry time.Time
+}
+
+func (a *fakeAuth) getLastServerExpiry() time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lastServerExpiry
 }
 
 func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -77,6 +85,7 @@ func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.Ke
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -89,6 +98,7 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -105,6 +115,7 @@ func (a *fakeAuth) UpsertDatabaseServer(_ context.Context, server types.Database
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -121,6 +132,7 @@ func (a *fakeAuth) UpsertKubernetesServer(_ context.Context, server types.KubeSe
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -128,7 +140,7 @@ func (a *fakeAuth) DeleteKubernetesServer(ctx context.Context, hostID, name stri
 	return nil
 }
 
-func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
+func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepalives++
@@ -136,6 +148,7 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 		a.failKeepAlives--
 		return trace.Errorf("keepalive failed as test condition")
 	}
+	a.lastServerExpiry = ka.Expires
 	return a.err
 }
 
@@ -244,6 +257,10 @@ func TestSSHServerBasics(t *testing.T) {
 		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
 	)
 
+	// we will check that the expiration time will grow after keepalives and new
+	// server announces
+	expiry := auth.getLastServerExpiry()
+
 	// set up to induce some failures, but not enough to cause the control
 	// stream to be closed.
 	auth.mu.Lock()
@@ -276,6 +293,9 @@ func TestSSHServerBasics(t *testing.T) {
 		deny(sshKeepAliveErr, sshUpsertErr, sshUpsertRetryOk, handlerClose),
 	)
 
+	oldExpiry, expiry := expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
+
 	err = downstream.Send(ctx, proto.InventoryHeartbeat{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
@@ -301,6 +321,9 @@ func TestSSHServerBasics(t *testing.T) {
 		expect(sshKeepAliveOk, sshUpsertErr, sshUpsertRetryOk),
 		deny(sshKeepAliveErr, handlerClose),
 	)
+
+	oldExpiry, expiry = expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
