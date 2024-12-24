@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
  *
@@ -16,4 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Mark, MarkInverse } from './Mark';
+import { ResourceLabelTooltip } from './ResourceLabelTooltip';
+
+export default {
+  title: 'Teleport/Discover/Shared/ResourceLabelTooltip',
+};
+
+export const RDS = () => <ResourceLabelTooltip resourceKind="rds" />;
+export const EKS = () => <ResourceLabelTooltip resourceKind="eks" />;
+export const Server = () => <ResourceLabelTooltip resourceKind="server" />;
+export const Database = () => <ResourceLabelTooltip resourceKind="db" />;
+export const Kube = () => <ResourceLabelTooltip resourceKind="kube" />;
