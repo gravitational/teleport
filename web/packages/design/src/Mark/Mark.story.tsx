@@ -46,7 +46,7 @@ export const SampleText = () => {
 export const MarkInsideTooltip = () => {
   return (
     <IconTooltip>
-      Example of <MarkInverse>MarkForToolTip</MarkInverse>. Note the{' '}
+      Example of <MarkInverse>MarkInverse</MarkInverse> component. Note the{' '}
       <MarkInverse>inversed</MarkInverse> background and text color.
     </IconTooltip>
   );
