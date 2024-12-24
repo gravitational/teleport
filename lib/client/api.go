@@ -5098,6 +5098,37 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 	return result, nil
 }
 
+// PortMapping represents a mapping of LocalPort to TargetPort, e.g., "1337:42".
+type PortMapping struct {
+	LocalPort  int
+	TargetPort int
+}
+
+// ParsePortMapping parses textual form of port mapping (e.g., "1337:42") into a struct. It accepts
+// a single port number as well (e.g., "42"). Both numbers must be between 0 and 65535.
+func ParsePortMapping(rawPorts string) (PortMapping, error) {
+	if rawPorts == "" {
+		return PortMapping{}, nil
+	}
+
+	rawLocalPort, rawTargetPort, colonFound := strings.Cut(rawPorts, ":")
+	localPort, err := strconv.ParseUint(rawLocalPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing local port")
+	}
+
+	if !colonFound {
+		return PortMapping{LocalPort: int(localPort)}, nil
+	}
+
+	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing target port")
+	}
+
+	return PortMapping{LocalPort: int(localPort), TargetPort: int(targetPort)}, nil
+}
+
 // InsecureSkipHostKeyChecking is used when the user passes in
 // "StrictHostKeyChecking yes".
 func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey) error {
