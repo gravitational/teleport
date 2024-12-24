@@ -291,6 +291,7 @@ func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList
 	if b.webProxyURL != nil {
 		reqURL := *b.webProxyURL
 		reqURL.Path = lib.BuildURLPath("web", "accesslists", accessList.Metadata.Name)
+		reqURL.Fragment = "review"
 		link = fmt.Sprintf("*Link*: %s", reqURL.String())
 	}
 
