@@ -75,7 +75,7 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 		teleport.ComponentKey, "aws",
 		"db", config.database.GetName(),
 	)
-	dbConfigurator, err := getDBConfigurator(ctx, logger, config.clients, config.database)
+	dbConfigurator, err := getDBConfigurator(logger, config.clients, config.database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ type dbIAMAuthConfigurator interface {
 }
 
 // getDBConfigurator returns a database IAM Auth configurator.
-func getDBConfigurator(ctx context.Context, logger *slog.Logger, clients cloud.Clients, db types.Database) (dbIAMAuthConfigurator, error) {
+func getDBConfigurator(logger *slog.Logger, clients cloud.Clients, db types.Database) (dbIAMAuthConfigurator, error) {
 	if db.IsRDS() {
 		// Only setting for RDS instances and Aurora clusters.
 		return &rdsDBConfigurator{clients: clients, logger: logger}, nil

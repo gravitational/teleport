@@ -37,8 +37,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// STSMock mocks AWS STS API.
-type STSMock struct {
+// STSClientV1 mocks AWS STS API for AWS SDK v1.
+type STSClientV1 struct {
 	stsiface.STSAPI
 	ARN                    string
 	URL                    *url.URL
@@ -47,36 +47,36 @@ type STSMock struct {
 	mu                     sync.Mutex
 }
 
-func (m *STSMock) GetAssumedRoleARNs() []string {
+func (m *STSClientV1) GetAssumedRoleARNs() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.assumedRoleARNs
 }
 
-func (m *STSMock) GetAssumedRoleExternalIDs() []string {
+func (m *STSClientV1) GetAssumedRoleExternalIDs() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.assumedRoleExternalIDs
 }
 
-func (m *STSMock) ResetAssumeRoleHistory() {
+func (m *STSClientV1) ResetAssumeRoleHistory() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.assumedRoleARNs = nil
 	m.assumedRoleExternalIDs = nil
 }
 
-func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
+func (m *STSClientV1) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
 	return &sts.GetCallerIdentityOutput{
 		Arn: aws.String(m.ARN),
 	}, nil
 }
 
-func (m *STSMock) AssumeRole(in *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error) {
+func (m *STSClientV1) AssumeRole(in *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error) {
 	return m.AssumeRoleWithContext(context.Background(), in)
 }
 
-func (m *STSMock) AssumeRoleWithContext(ctx aws.Context, in *sts.AssumeRoleInput, _ ...request.Option) (*sts.AssumeRoleOutput, error) {
+func (m *STSClientV1) AssumeRoleWithContext(ctx aws.Context, in *sts.AssumeRoleInput, _ ...request.Option) (*sts.AssumeRoleOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !slices.Contains(m.assumedRoleARNs, aws.StringValue(in.RoleArn)) {
@@ -94,7 +94,7 @@ func (m *STSMock) AssumeRoleWithContext(ctx aws.Context, in *sts.AssumeRoleInput
 	}, nil
 }
 
-func (m *STSMock) GetCallerIdentityRequest(req *sts.GetCallerIdentityInput) (*request.Request, *sts.GetCallerIdentityOutput) {
+func (m *STSClientV1) GetCallerIdentityRequest(req *sts.GetCallerIdentityInput) (*request.Request, *sts.GetCallerIdentityOutput) {
 	return &request.Request{
 		HTTPRequest: &http.Request{
 			Header: http.Header{},

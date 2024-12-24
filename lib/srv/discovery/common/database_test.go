@@ -27,12 +27,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -1182,14 +1182,14 @@ func TestAzureTagsToLabels(t *testing.T) {
 // TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
 func TestDatabaseFromRedshiftCluster(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		cluster := &redshift.Cluster{
+		cluster := &redshifttypes.Cluster{
 			ClusterIdentifier:   aws.String("mycluster"),
 			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
-			Endpoint: &redshift.Endpoint{
+			Endpoint: &redshifttypes.Endpoint{
 				Address: aws.String("localhost"),
-				Port:    aws.Int64(5439),
+				Port:    aws.Int32(5439),
 			},
-			Tags: []*redshift.Tag{
+			Tags: []redshifttypes.Tag{
 				{
 					Key:   aws.String("key"),
 					Value: aws.String("val"),
@@ -1231,14 +1231,14 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("success with name override via"+overrideLabel, func(t *testing.T) {
-			cluster := &redshift.Cluster{
+			cluster := &redshifttypes.Cluster{
 				ClusterIdentifier:   aws.String("mycluster"),
 				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
-				Endpoint: &redshift.Endpoint{
+				Endpoint: &redshifttypes.Endpoint{
 					Address: aws.String("localhost"),
-					Port:    aws.Int64(5439),
+					Port:    aws.Int32(5439),
 				},
-				Tags: []*redshift.Tag{
+				Tags: []redshifttypes.Tag{
 					{
 						Key:   aws.String("key"),
 						Value: aws.String("val"),
@@ -1284,7 +1284,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 		})
 
 		t.Run("missing endpoint", func(t *testing.T) {
-			_, err := NewDatabaseFromRedshiftCluster(&redshift.Cluster{
+			_, err := NewDatabaseFromRedshiftCluster(&redshifttypes.Cluster{
 				ClusterIdentifier: aws.String("still-creating"),
 			})
 			require.Error(t, err)
