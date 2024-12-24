@@ -82,7 +82,7 @@ class Tty extends EventEmitterMfaSender {
     this.socket.send(bytearray.buffer);
   }
 
-  sendChallengeResponse(data: MfaChallengeResponse) {
+  sendChallengeResponse(resp: MfaChallengeResponse) {
     // we want to have the backend listen on a single message type
     // for any responses. so our data will look like data.webauthn, data.sso, etc
     // but to be backward compatible, we need to still spread the existing webauthn only fields
@@ -90,8 +90,8 @@ class Tty extends EventEmitterMfaSender {
     // in 19, we can just pass "data" without this extra step
     // TODO (avatus): DELETE IN 18
     const backwardCompatibleData = {
-      ...data.webauthn_response,
-      ...data,
+      ...resp?.webauthn_response,
+      ...resp,
     };
     const encoded = this._proto.encodeChallengeResponse(
       JSON.stringify(backwardCompatibleData)
