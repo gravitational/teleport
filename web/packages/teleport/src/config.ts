@@ -286,7 +286,9 @@ const cfg = {
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
+    // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/token
     joinTokenPath: '/v1/webapi/token',
+    joinTokenPathV2: '/v2/webapi/token',
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
     joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
@@ -369,8 +371,11 @@ const cfg = {
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
+    // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters
     eksEnrollClustersPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+    eksEnrollClustersPathV2:
+      '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
 
     ec2InstancesListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
@@ -578,6 +583,10 @@ const cfg = {
 
   getJoinTokenUrl() {
     return cfg.api.joinTokenPath;
+  },
+
+  getJoinTokenUrlV2() {
+    return cfg.api.joinTokenPathV2;
   },
 
   getJoinTokenYamlUrl() {
@@ -1086,6 +1095,15 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.eksEnrollClustersPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getEnrollEksClusterUrlV2(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eksEnrollClustersPathV2, {
       clusterId,
       name: integrationName,
     });

@@ -126,7 +126,7 @@ export type CreateJoinTokenRequest = {
 export type JoinTokenRequest = {
   // roles is a list of join roles, since there can be more than
   // one role associated with a token.
-  roles?: JoinRole[];
+  roles: JoinRole[];
   // rules is a list of allow rules associated with the join token
   // and the node using this token must match one of the rules.
   rules?: JoinRule[];
@@ -138,4 +138,13 @@ export type JoinTokenRequest = {
   method?: JoinMethod;
   // content is the yaml content of the joinToken to be created
   content?: string;
+  /**
+   * User provided labels.
+   * SuggestedLabels is a set of labels that resources should set when using this token to enroll
+   * themselves in the cluster.
+   * Currently, only node-join scripts create a configuration according to the suggestion.
+   *
+   * Only supported with V2 endpoint.
+   */
+  suggestedLabels?: ResourceLabel[];
 };
