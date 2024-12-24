@@ -342,6 +342,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
+	path := fmt.Sprintf("/v1/teleport/:%s/:%s/*path", paramTeleportCluster, paramKubernetesCluster)
+	for _, method := range allHTTPMethods() {
+		router.Handle(method, path, fwd.withAuthPassthrough(fwd.singleCertHandler, withRouteFromPath()))
+	}
+
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
 	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
@@ -520,7 +525,7 @@ type handlerWithAuthFuncStd func(ctx *authContext, w http.ResponseWriter, r *htt
 const accessDeniedMsg = "[00] access denied"
 
 // authenticate function authenticates request
-func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
+func (f *Forwarder) authenticate(req *http.Request, params httprouter.Params, routeSourcer routeSourcer) (*authContext, error) {
 	// If the cluster is not licensed for Kubernetes, return an error to the client.
 	if !f.cfg.ClusterFeatures.GetEntitlement(entitlements.K8s).Enabled {
 		// If the cluster is not licensed for Kubernetes, return an error to the client.
@@ -561,7 +566,12 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser)
+	routeSource, err := routeSourcer(userContext.Identity, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, routeSource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
 		if trace.IsAccessDenied(err) {
@@ -586,7 +596,8 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		req = req.WithContext(ctx)
 		defer span.End()
 
-		authContext, err := f.authenticate(req)
+		// note: empty params as this has no route
+		authContext, err := f.authenticate(req, httprouter.Params{}, identityRouteSourcer())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -630,12 +641,69 @@ type authOption func(*authOptions)
 type authOptions struct {
 	// errFormater is a function that formats the error response.
 	errFormater func(http.ResponseWriter, error)
+
+	// routeSourcer is an optional function that determines the route to the
+	// Kubernetes cluster. If unset, `withAuth()` and `withAuthPassthrough()`
+	// will use an identity route sourcer, for legacy compatibility.
+	routeSourcer routeSourcer
 }
 
 // withCustomErrFormatter allows to override the default error formatter.
 func withCustomErrFormatter(f func(http.ResponseWriter, error)) authOption {
 	return func(o *authOptions) {
 		o.errFormater = f
+	}
+}
+
+// routeSource indicates a specific Kubernetes cluster by its name and parent
+// Teleport cluster name.
+type routeSource struct {
+	teleportClusterName string
+	kubeClusterName     string
+}
+
+// routeSourcer is a function that produces routing information from an identity
+// and request parameters. Implementors may use either or both of these inputs
+// to produce a route.
+type routeSourcer func(authz.IdentityGetter, httprouter.Params) (*routeSource, error)
+
+// identityRouteSourcer extracts routing information from a TLS identity. It is
+// separate from `withRouteFromIdentity` so it can be constructed easily for
+// legacy cases.
+func identityRouteSourcer() routeSourcer {
+	return func(idGetter authz.IdentityGetter, params httprouter.Params) (*routeSource, error) {
+		ident := idGetter.GetIdentity()
+
+		return &routeSource{
+			teleportClusterName: ident.RouteToCluster,
+			kubeClusterName:     ident.KubernetesCluster,
+		}, nil
+	}
+}
+
+// withRouteFromPath applies a routeSourcer that extracts routing information
+// from the request path
+func withRouteFromPath() authOption {
+	return func(o *authOptions) {
+		o.routeSourcer = func(idGetter authz.IdentityGetter, params httprouter.Params) (*routeSource, error) {
+			teleportCluster, kubeCluster, err := parseRouteFromPath(params)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &routeSource{
+				teleportClusterName: teleportCluster,
+				kubeClusterName:     kubeCluster,
+			}, nil
+		}
+	}
+}
+
+// withRouteFromIdentity applies a routeSourcer that extracts routing
+// information from the session's TLS identity
+func withRouteFromIdentity() authOption {
+	return func(o *authOptions) {
+		o.routeSourcer = identityRouteSourcer()
 	}
 }
 
@@ -646,6 +714,13 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 	for _, opt := range opts {
 		opt(&authOpts)
 	}
+
+	// If no route sourcer was explicitly provided, fall back to the legacy
+	// identity route source.
+	if authOpts.routeSourcer == nil {
+		authOpts.routeSourcer = identityRouteSourcer()
+	}
+
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
@@ -658,7 +733,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 		)
 		req = req.WithContext(ctx)
 		defer span.End()
-		authContext, err := f.authenticate(req)
+		authContext, err := f.authenticate(req, p, authOpts.routeSourcer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -675,7 +750,20 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 
 // withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
 // doesn't have RBAC access to the Kubernetes cluster.
-func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
+func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc, opts ...authOption) httprouter.Handle {
+	authOpts := authOptions{
+		errFormater: f.formatStatusResponseError,
+	}
+	for _, opt := range opts {
+		opt(&authOpts)
+	}
+
+	// If no route sourcer was explicitly provided, fall back to the legacy
+	// identity route source.
+	if authOpts.routeSourcer == nil {
+		authOpts.routeSourcer = identityRouteSourcer()
+	}
+
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
@@ -689,7 +777,7 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.
 		req = req.WithContext(ctx)
 		defer span.End()
 
-		authContext, err := f.authenticate(req)
+		authContext, err := f.authenticate(req, p, authOpts.routeSourcer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -746,6 +834,7 @@ func (f *Forwarder) setupContext(
 	authCtx authz.Context,
 	req *http.Request,
 	isRemoteUser bool,
+	route *routeSource,
 ) (*authContext, error) {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
@@ -765,7 +854,7 @@ func (f *Forwarder) setupContext(
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
 	identity := authCtx.Identity.GetIdentity()
-	teleportClusterName := identity.RouteToCluster
+	teleportClusterName := route.teleportClusterName
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
 	}
@@ -783,7 +872,8 @@ func (f *Forwarder) setupContext(
 		err          error
 	)
 
-	kubeCluster := identity.KubernetesCluster
+	kubeCluster := route.kubeClusterName
+
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
@@ -2542,18 +2632,19 @@ func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authCon
 // - for HTTP2 in all other cases.
 // The reason being is that streaming requests are going to be upgraded to SPDY, which is only
 // supported coming from an HTTP1 request.
-func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Forwarder, error) {
+func (f *Forwarder) makeSessionForwarder(sess *clusterSession, extraOptions ...reverseproxy.Option) (*reverseproxy.Forwarder, error) {
 	transport, err := f.transportForRequest(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	opts := []reverseproxy.Option{
+
+	opts := append([]reverseproxy.Option{
 		reverseproxy.WithFlushInterval(100 * time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
 		// TODO(tross): convert this to use f.log once it has been converted to use slog
 		reverseproxy.WithLogger(slog.Default()),
 		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
-	}
+	}, extraOptions...)
 	if sess.isLocalKubernetesCluster {
 		// If the target cluster is local, i.e. the cluster that is served by this
 		// teleport service, then we set up the forwarder to allow re-writing
@@ -2746,5 +2837,21 @@ func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 		return metav1.StatusReasonInternalError
 	default:
 		return metav1.StatusReasonUnknown
+	}
+}
+
+// allHTTPMethods returns a list of all HTTP methods, useful for creating
+// non-root catch-all handlers.
+func allHTTPMethods() []string {
+	return []string{
+		http.MethodConnect,
+		http.MethodDelete,
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodOptions,
+		http.MethodPatch,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodTrace,
 	}
 }
