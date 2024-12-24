@@ -85,11 +85,10 @@ FROM base AS rust
 RUN install -d -m 0775 -o buildbox -g buildbox /opt/rust
 USER buildbox
 
-ARG RUST_VERSION
 ENV RUSTUP_HOME=/opt/rust
 ENV CARGO_HOME=/opt/rust
 RUN curl --proto =https --tlsv1.2 -fsSL https://sh.rustup.rs | \
-	sh -s -- -y --profile minimal --default-toolchain ${RUST_VERSION} && \
+	sh -s -- -y --profile minimal && \
 	${CARGO_HOME}/bin/rustup --version && \
 	${CARGO_HOME}/bin/cargo --version && \
 	${CARGO_HOME}/bin/rustc --version && \
