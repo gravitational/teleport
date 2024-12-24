@@ -30,9 +30,11 @@ import { useHistory } from 'react-router';
 export function AwsOidcHeader({
   integration,
   resource = undefined,
+  tasks = false,
 }: {
   integration: Integration;
   resource?: AwsResource;
+  tasks?: boolean;
 }) {
   const history = useHistory();
   const divider = (
@@ -87,6 +89,14 @@ export function AwsOidcHeader({
           {divider}
           <Text typography="body3" color="text.slightlyMuted" ml={2}>
             {resource.toUpperCase()}
+          </Text>
+        </>
+      )}
+      {tasks && (
+        <>
+          {divider}
+          <Text typography="body3" color="text.slightlyMuted" ml={2}>
+            Pending Tasks
           </Text>
         </>
       )}
