@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"encoding/base64"
@@ -30,6 +31,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/coreos/go-oidc"
 	"github.com/digitorus/pkcs7"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -76,9 +79,23 @@ type attestedData struct {
 
 type accessTokenClaims struct {
 	jwt.Claims
-	ResourceID string `json:"xms_mirid"`
-	TenantID   string `json:"tid"`
-	Version    string `json:"ver"`
+	TenantID string `json:"tid"`
+	Version  string `json:"ver"`
+
+	// Azure JWT tokens include two optional claims that can be used to validate
+	// the subscription and resource group of a joining node. These claims hold
+	// different values depending on the assigned Managed Identity of the Azure VM:
+	// - xms_mirid:
+	//   - For System-Assigned Identity it represents the resource id of the VM.
+	//   - For User-Assigned Identity it represents the resource id of the user-assigned identity.
+	// - xms_az_rid:
+	//   - For System-Assigned Identity this claim is omitted.
+	//   - For User-Assigned Identity it represents the resource id of the VM.
+	//
+	// More details at: https://learn.microsoft.com/en-us/answers/questions/1282788/existence-of-xms-az-rid-field-in-activity-logs-of
+
+	ManangedIdentityResourceID string `json:"xms_mirid"`
+	AzureResourceID            string `json:"xms_az_rid"`
 }
 
 type azureVerifyTokenFunc func(ctx context.Context, rawIDToken string) (*accessTokenClaims, error)
@@ -144,7 +161,14 @@ func (cfg *azureRegisterConfig) CheckAndSetDefaults(ctx context.Context) error {
 	}
 	if cfg.getVMClient == nil {
 		cfg.getVMClient = func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error) {
-			client, err := azure.NewVirtualMachinesClient(subscriptionID, token, nil)
+			opts := &armpolicy.ClientOptions{
+				ClientOptions: policy.ClientOptions{
+					Telemetry: policy.TelemetryOptions{
+						ApplicationID: "teleport",
+					},
+				},
+			}
+			client, err := azure.NewVirtualMachinesClient(subscriptionID, token, opts)
 			return client, trace.Wrap(err)
 		}
 	}
@@ -209,9 +233,8 @@ func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge s
 	return ad.SubscriptionID, ad.ID, nil
 }
 
-// verifyVMIdentity verifies that the provided access token came from the
-// correct Azure VM.
-func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken, subscriptionID, vmID string, requestStart time.Time) (*azure.VirtualMachine, error) {
+// verifyToken verifies the token and validates the expected claims.
+func verifyToken(ctx context.Context, cfg *azureRegisterConfig, accessToken string, requestStart time.Time) (*accessTokenClaims, error) {
 	tokenClaims, err := cfg.verify(ctx, accessToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -239,6 +262,12 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 		return nil, trace.Wrap(err)
 	}
 
+	return tokenClaims, nil
+}
+
+// verifyVMIdentity verifies that the provided access token came from the
+// correct Azure VM.
+func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, tokenClaims *accessTokenClaims, accessToken, subscriptionID, vmID string) (*azure.VirtualMachine, error) {
 	tokenCredential := azure.NewStaticCredential(azcore.AccessToken{
 		Token:     accessToken,
 		ExpiresOn: tokenClaims.Expiry.Time(),
@@ -248,7 +277,7 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 		return nil, trace.Wrap(err)
 	}
 
-	resourceID, err := arm.ParseResourceID(tokenClaims.ResourceID)
+	resourceID, err := arm.ParseResourceID(tokenClaims.ManangedIdentityResourceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -258,7 +287,7 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 	// If the token is from the system-assigned managed identity, the resource ID
 	// is for the VM itself and we can use it to look up the VM.
 	if slices.Contains(resourceID.ResourceType.Types, "virtualMachines") {
-		vm, err = vmClient.Get(ctx, tokenClaims.ResourceID)
+		vm, err = vmClient.Get(ctx, tokenClaims.ManangedIdentityResourceID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -281,18 +310,46 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 	return vm, nil
 }
 
-func checkAzureAllowRules(vm *azure.VirtualMachine, token string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
+func checkAzureAllowRulesWithClaims(claims *accessTokenClaims, token string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
+	// xms_az_rid claim is omitted when the VM is assigned a System-Assigned Identity.
+	// The xms_mirid claim should be used instead.
+	rid := cmp.Or(claims.AzureResourceID, claims.ManangedIdentityResourceID)
+
+	resourceID, err := arm.ParseResourceID(rid)
+	if err != nil {
+		return trace.Wrap(err, "failed to parse resource id from claims")
+	}
+
+	if !slices.Contains(resourceID.ResourceType.Types, "virtualMachines") {
+		return trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
+	}
+
+	if err := checkAzureAllowRules(resourceID.SubscriptionID, resourceID.ResourceGroupName, allowRules); err != nil {
+		return trace.AccessDenied("instance %v did not match any allow rules in token %v", resourceID.Name, token)
+	}
+	return nil
+}
+
+func checkAzureAllowRulesWithVMs(vm *azure.VirtualMachine, token string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
+	if err := checkAzureAllowRules(vm.Subscription, vm.ResourceGroup, allowRules); err != nil {
+		return trace.AccessDenied("instance %v did not match any allow rules in token %v", vm.Name, token)
+	}
+	return nil
+}
+
+func checkAzureAllowRules(subscription, resourceGroup string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
 	for _, rule := range allowRules {
-		if rule.Subscription != vm.Subscription {
+		if rule.Subscription != subscription {
 			continue
 		}
-		if !azureResourceGroupIsAllowed(rule.ResourceGroups, vm.ResourceGroup) {
+		if !azureResourceGroupIsAllowed(rule.ResourceGroups, resourceGroup) {
 			continue
 		}
 		return nil
 	}
-	return trace.AccessDenied("instance %v did not match any allow rules in token %v", vm.Name, token)
+	return trace.AccessDenied("matching allow rule not found")
 }
+
 func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup string) bool {
 	if len(allowedResourceGroups) == 0 {
 		return true
@@ -328,7 +385,7 @@ func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *p
 		return trace.Wrap(err)
 	}
 
-	vm, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart)
+	claims, err := verifyToken(ctx, cfg, req.AccessToken, requestStart)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -338,11 +395,20 @@ func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *p
 		return trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
 	}
 
-	if err := checkAzureAllowRules(vm, token.GetName(), token.Spec.Azure.Allow); err != nil {
+	if err := checkAzureAllowRulesWithClaims(claims, token.GetName(), token.Spec.Azure.Allow); err == nil {
+		return nil
+	}
+	a.logger.WarnContext(ctx, "Failed to validate Azure allow rules with claims. Attempting to validate with VMs.",
+		"error", err)
+
+	// Required claims for validation are only present for source resource types
+	// that have onboarded to SNI auth. Fallback to validation with VMs if
+	// unable to validate with claims.
+	vm, err := verifyVMIdentity(ctx, cfg, claims, req.AccessToken, subID, vmID)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	return nil
+	return trace.Wrap(checkAzureAllowRulesWithVMs(vm, token.GetName(), token.Spec.Azure.Allow))
 }
 
 func generateAzureChallenge() (string, error) {
