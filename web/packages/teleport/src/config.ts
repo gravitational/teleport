@@ -17,21 +17,12 @@
  */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
+
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
-import generateResourcePath from './generateResourcePath';
-
-import { defaultEntitlements } from './entitlement';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import {
-  AwsOidcPolicyPreset,
-  IntegrationKind,
-  PluginKind,
-  Regions,
-} from './services/integrations';
-
-import type {
   Auth2faType,
   AuthProvider,
   AuthType,
@@ -39,12 +30,23 @@ import type {
   PrimaryAuthType,
 } from 'shared/services';
 
+import {
+  AwsOidcPolicyPreset,
+  IntegrationKind,
+  PluginKind,
+  Regions,
+} from 'teleport/services/integrations';
+import { KubeResourceKind } from 'teleport/services/kube/types';
+
+import { defaultEntitlements } from './entitlement';
+
+import generateResourcePath from './generateResourcePath';
+
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/mfa';
+import type { WebauthnAssertionResponse } from 'teleport/services/mfa';
 import type { ParticipantMode } from 'teleport/services/session';
-import type { YamlSupportedResourceKind } from './services/yaml/types';
-import type { KubeResourceKind } from './services/kube/types';
+import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -268,6 +270,7 @@ const cfg = {
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sessionDurationPath: '/v1/webapi/sites/:clusterId/sessionlength/:sid',
 
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -776,6 +779,10 @@ const cfg = {
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
+  },
+
+  getSessionDurationUrl(clusterId: string, sid: string) {
+    return generatePath(cfg.api.sessionDurationPath, { clusterId, sid });
   },
 
   getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
