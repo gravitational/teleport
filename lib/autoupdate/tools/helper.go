@@ -26,7 +26,18 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+)
+
+// Variables might to be overridden during compilation time for integration tests.
+var (
+	// version is the current version of the Teleport.
+	version = teleport.Version
+	// baseURL is CDN URL for downloading official Teleport packages.
+	baseURL = defaultBaseURL
+	// toolsDir is client tools directory for package download and installation.
+	toolsDir = ""
 )
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
@@ -36,13 +47,16 @@ import (
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateLocal(ctx context.Context, currentVersion string, reExecArgs []string) error {
-	toolsDir, err := Dir()
-	if err != nil {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
-		return nil
+func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
+	var err error
+	if toolsDir == "" {
+		if toolsDir, err = Dir(); err != nil {
+			slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+			return nil
+		}
 	}
-	updater := NewUpdater(toolsDir, currentVersion)
+
+	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
 	// At process startup, check if a version has already been downloaded to
 	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
 	// environment variable. If so, re-exec that version of client tools.
@@ -64,13 +78,15 @@ func CheckAndUpdateLocal(ctx context.Context, currentVersion string, reExecArgs 
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy string, insecure bool, reExecArgs []string) error {
-	toolsDir, err := Dir()
-	if err != nil {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
-		return nil
+func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reExecArgs []string) error {
+	var err error
+	if toolsDir == "" {
+		if toolsDir, err = Dir(); err != nil {
+			slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+			return nil
+		}
 	}
-	updater := NewUpdater(toolsDir, currentVersion)
+	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
 	// The user has typed a command like `tsh ssh ...` without being logged in,
 	// if the running binary needs to be updated, update and re-exec.
 	//

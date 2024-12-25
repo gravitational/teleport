@@ -709,7 +709,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	if err := tools.CheckAndUpdateRemote(ctx, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify, os.Args[1:]); err != nil {
+	if err := tools.CheckAndUpdateRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify, os.Args[1:]); err != nil {
 		return trace.Wrap(err)
 	}
 

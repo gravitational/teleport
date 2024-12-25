@@ -732,7 +732,7 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version, args); err != nil {
+	if err := tools.CheckAndUpdateLocal(ctx, args); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1912,7 +1912,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1930,7 +1930,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1950,7 +1950,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2026,7 +2026,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}
