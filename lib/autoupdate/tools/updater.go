@@ -49,8 +49,8 @@ import (
 const (
 	// teleportToolsVersionEnv is environment name for requesting specific version for update.
 	teleportToolsVersionEnv = "TELEPORT_TOOLS_VERSION"
-	// baseURL is CDN URL for downloading official Teleport packages.
-	baseURL = "https://cdn.teleport.dev"
+	// defaultBaseURL is CDN URL for downloading official Teleport packages.
+	defaultBaseURL = "https://cdn.teleport.dev"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -109,7 +109,7 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 		tools:        DefaultClientTools(),
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
-		baseURL:      baseURL,
+		baseURL:      defaultBaseURL,
 		client:       http.DefaultClient,
 	}
 	for _, option := range options {
@@ -155,31 +155,11 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	return toolsVersion, true, nil
 }
 
-// CheckRemote first checks the version set by the environment variable. If not set or disabled,
-// it checks against the Proxy Service to determine if client tools need updating by requesting
+// CheckRemote checks against the Proxy Service to determine if client tools need updating by requesting
 // the `webapi/find` handler, which stores information about the required client tools version to
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
 func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (version string, reExec bool, err error) {
-	// Check if the user has requested a specific version of client tools.
-	requestedVersion := os.Getenv(teleportToolsVersionEnv)
-	switch requestedVersion {
-	// The user has turned off any form of automatic updates.
-	case "off":
-		return "", false, nil
-	// Requested version already the same as client version.
-	case u.localVersion:
-		return u.localVersion, false, nil
-	// No requested version, we continue.
-	case "":
-	// Requested version that is not the local one.
-	default:
-		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return "", false, trace.Wrap(err, "checking that request version is semantic")
-		}
-		return requestedVersion, true, nil
-	}
-
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return "", false, trace.Wrap(err)
@@ -332,7 +312,11 @@ func (u *Updater) Exec(args []string) (int, error) {
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	// To prevent re-execution loop we have to disable update logic for re-execution.
+	// To prevent re-execution loop we have to disable update logic for re-execution,
+	// by unsetting current tools version env variable and setting it to "off".
+	if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
+		return 0, trace.Wrap(err)
+	}
 	env := append(os.Environ(), teleportToolsVersionEnv+"=off")
 
 	if runtime.GOOS == constants.WindowsOS {
