@@ -1037,7 +1037,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
-	supervisor := NewSupervisor(processID, cfg.Log)
+	supervisor := NewSupervisor(processID, cfg.Logger)
 	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
