@@ -1031,7 +1031,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if len(cfg.FileDescriptors) == 0 {
-		cfg.FileDescriptors, err = importFileDescriptors(cfg.Log)
+		cfg.FileDescriptors, err = importFileDescriptors(cfg.Logger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
