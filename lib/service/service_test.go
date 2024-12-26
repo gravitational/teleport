@@ -518,7 +518,6 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			exitContext: context.Background(),
 		},
 		backend: backend,
-		log:     utils.NewLoggerForTests(),
 		logger:  utils.NewSlogLoggerForTests(),
 	}
 
@@ -1299,7 +1298,6 @@ func TestProxyGRPCServers(t *testing.T) {
 				},
 			},
 		},
-		log:    utils.NewLoggerForTests(),
 		logger: utils.NewSlogLoggerForTests(),
 	}
 

@@ -631,9 +631,6 @@ type TeleportProcess struct {
 	// during in-process reloads.
 	id string
 
-	// log is a process-local logrus.Entry.
-	// Deprecated: use logger instead.
-	log logrus.FieldLogger
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
@@ -1183,7 +1180,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		storage:                storage,
 		rotationCache:          rotationCache,
 		id:                     processID,
-		log:                    cfg.Log,
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
