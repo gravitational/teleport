@@ -657,10 +657,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.WarnContext(r.Context(), "Failed to generate CSRF token", "error", err)
 			}
 
-			session, err := h.authenticateWebSession(w, r)
-			if err != nil {
-				h.logger.DebugContext(r.Context(), "Could not authenticate", "error", err)
-			}
+			// Ignore errors here, as unauthenticated requests for index.html are common - the user might
+			// not have logged in yet, or their session may have expired.
+			// The web app will show them the login page in this case.
+			session, _ := h.authenticateWebSession(w, r)
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
@@ -724,7 +724,7 @@ type webSession struct {
 }
 
 func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
-	ctx, err := h.AuthenticateRequest(w, r, false)
+	ctx, err := h.AuthenticateRequest(w, r, false /* validate bearer token */)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
