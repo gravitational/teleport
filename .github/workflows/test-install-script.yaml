@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "assets/install-scripts/install.sh"
+      - "assets/install-scripts/install-teleport-tests/*"
+      - ".github/workflows/test-install-script.yaml"
 
 jobs:
   check:
@@ -12,5 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: bash run-all-tests.sh
+      - env:
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
         working-directory: ./assets/install-scripts/install-teleport-tests
+        run: |
+          export TELEPORT_VERSION=$(gh api /repos/gravitational/teleport/releases/latest | jq -r .tag_name | tr -d "v");
+          bash run-all-tests.sh
+
