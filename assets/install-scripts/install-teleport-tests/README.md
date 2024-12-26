@@ -9,7 +9,8 @@ for the one-line Teleport installation script available at
 The test suite uses `docker compose` to launch containers based on a number of
 Linux distributions. Each container mounts the installation script and runs it,
 then runs a command to make assertions against the results of the installation
-script. 
+script. The test suite uses the value of the `TELEPORT_VERSION` environment
+variable to determine the version of Teleport to install.
 
 If an assertion fails, the container running the script prints a log that
 includes the string `INSTALL_SCRIPT_TEST_FAILURE`. After running containers, the
@@ -19,6 +20,8 @@ with an error code.
 ## Run the test suite
 
 ```bash
+# Assign TELEPORT_VERSION to your version number
+$ export TELEPORT_VERSION=10.0.0 
 $ cd assets/install-scripts/install-teleport-tests
 $ bash run-all-tests.sh
 ```
@@ -37,30 +40,32 @@ Consult `docker-compose.yml` for the available test cases.
 
 ## Add a test
 
-1. Add a service definition to `docker-compose.yml`.
-1. Add the following bind mounts to the service definition:
+Add a test by defining a service similar to the following, adjusting the values
+to fit your test case:
 
-   ```yaml
-       volumes:
-         - type: bind
-           source: ../install.sh
-           target: /install.sh
-         - type: bind
-           source: ./run-test.sh
-           target: /run-test.sh
-   ```
+```yaml
+  test-ubuntu-jammy-cloud:
+    image: ubuntu:22.04
+    environment:
+      - TELEPORT_VERSION
+    volumes:
+      - type: bind
+        source: ../install.sh
+        target: /install.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    # Need to install curl on the ubuntu container
+    command: |
+       bash -c 'apt-get update;
+       apt-get install -y curl;
+       bash /install.sh ${TELEPORT_VERSION} cloud;
+       bash /run-test.sh cloud'
+```
 
-1. Edit the `command` field of the service definition to include the following:
+Edit the parameters of the `install.sh` and `run-tests.sh` scripts as
+appropriate. The edition parameter of the two must match (the default edition
+parameter for `install.sh` is `oss`).
 
-   ```yaml
-          bash /install.sh 15.0.0;
-          bash /run-test.sh oss'
-   ```
-
-   Edit the parameters of the `install.sh` and `run-tests.sh` scripts as
-   appropriate. The edition parameter of the two must match (the default edition
-   parameter for `install.sh` is `oss`).
-
-1. To add an assertion to the test suite, edit `run-test.sh`. Each assertion
-   must print a log that includes the string `INSTALL_SCRIPT_TEST_FAILURE` if it
-   fails.
+To add an assertion to the test suite, edit `run-test.sh`. Each assertion must
+print a log that includes the string `INSTALL_SCRIPT_TEST_FAILURE` if it fails.
