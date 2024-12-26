@@ -50,6 +50,7 @@ export const resourceIconSpecs = {
   'apollo.io': { dark: i.apolloIoDark, light: i.apolloIoLight },
   apple: { dark: i.appleDark, light: i.appleLight },
   application: forAllThemes(i.application),
+  argocd: forAllThemes(i.argocd),
   asana: forAllThemes(i.asana),
   assemble: { dark: i.assembleDark, light: i.assembleLight },
   atlassian: forAllThemes(i.atlassian),
