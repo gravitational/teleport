@@ -7227,7 +7227,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 		}, nil
 
 	case *proto.MFAAuthenticateResponse_TOTP:
-		dev, err := a.checkOTP(user, res.TOTP.Code)
+		dev, err := a.checkOTP(ctx, user, res.TOTP.Code)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
