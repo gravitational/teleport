@@ -58,7 +58,7 @@ export function UserReset({
       </DialogHeader>
       <DialogContent>
         {attempt.status === 'failed' && (
-          <Alert kind="danger" children={attempt.statusText} />
+          <Alert kind="danger">{attempt.statusText}</Alert>
         )}
         <Text mb={4} mt={1}>
           You are about to reset authentication for user
@@ -75,7 +75,7 @@ export function UserReset({
           disabled={attempt.status === 'processing'}
           onClick={onReset}
         >
-          Generate reset url
+          Generate Reset URL
         </ButtonPrimary>
         <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
       </DialogFooter>
