@@ -45,7 +45,7 @@ To prevent elevated privileges from resulting in security incidents, you should 
 following guidelines:
 
 - Create new, non-root, users and use test instances for experimenting with Teleport.
-- Run all Teleport agent services except the SSH Service as a non-root user. 
+- Run all Teleport Agent services except the SSH Service as a non-root user. 
   The SSH Service requires root access, so you should limit access to the SSH Service. The Teleport Proxy
   Service must also have root permission—or the `CAP_NET_BIND_SERVICE` capability—to allow Teleport listen 
   on any port number less than 1024, including port 443.

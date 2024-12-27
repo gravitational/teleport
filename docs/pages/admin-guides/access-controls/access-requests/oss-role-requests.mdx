@@ -20,7 +20,7 @@ users can request access to. In this example, we will define two roles:
 
 There is no role for request approvers, because request approval rules can only
 be configured for Teleport Enterprise. In Teleport Community Edition, approvals must
-be performed by running `tctl` on the Auth Server.
+be performed by running `tctl` on an Auth Service instance.
 
 **Contractor role**
 
@@ -91,7 +91,7 @@ $ tsh request create \
 By default, this command will block until the request is approved. To submit the
 request without waiting for approval, add the `--nowait` flag.
 
-Alternatively, `tsh` can automatically create an access request during the login
+Alternatively, `tsh` can automatically create an Access Request during the login
 process. To activate this behavior, specify the `--request-roles` flag:
 
 ```code
@@ -123,7 +123,7 @@ $ tsh request ls
 ## Reviewing requests
 
 In Teleport Community Edition, Access Requests must be reviewed by a cluster administrator
-with the ability to run `tctl` on the Auth Server.
+with the ability to run `tctl` on the Auth Service.
 
 Administrators can list requests with `tctl requests ls`, and view the details
 of a particular request with `tctl requests get <id>`.
