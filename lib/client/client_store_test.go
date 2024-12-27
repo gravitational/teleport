@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -104,16 +105,18 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
 	require.NoError(t, err)
 
-	cert, err := s.keygen.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         sshPriv.MarshalSSHPublicKey(),
-		Username:              idx.Username,
-		AllowedLogins:         allowedLogins,
-		TTL:                   ttl,
-		PermitAgentForwarding: false,
-		PermitPortForwarding:  true,
-		GitHubUserID:          "1234567",
-		GitHubUsername:        "github-username",
+	cert, err := s.keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      caSigner,
+		PublicUserKey: sshPriv.MarshalSSHPublicKey(),
+		TTL:           ttl,
+		Identity: sshca.Identity{
+			Username:              idx.Username,
+			AllowedLogins:         allowedLogins,
+			PermitAgentForwarding: false,
+			PermitPortForwarding:  true,
+			GitHubUserID:          "1234567",
+			GitHubUsername:        "github-username",
+		},
 	})
 	require.NoError(t, err)
 
