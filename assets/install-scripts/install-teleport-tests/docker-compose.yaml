@@ -1,0 +1,113 @@
+services:
+  test-ubuntu-jammy-cloud:
+    image: ubuntu:22.04
+    environment:
+      - TELEPORT_VERSION
+    volumes:
+      - type: bind
+        source: ../install.sh
+        target: /install.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    # Need to install curl on the ubuntu container
+    command: |
+       bash -c 'apt-get update;
+       apt-get install -y curl;
+       bash /install.sh ${TELEPORT_VERSION} cloud;
+       bash /run-test.sh cloud'
+
+  test-ubuntu-jammy-no-edition:
+    image: ubuntu:22.04
+    environment:
+      - TELEPORT_VERSION
+    volumes:
+      - type: bind
+        source: ../install.sh
+        target: /install.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    # Need to install curl on the ubuntu container
+    command: |
+       bash -c 'apt-get update;
+       apt-get install -y curl;
+       bash /install.sh ${TELEPORT_VERSION};
+       bash /run-test.sh oss'
+
+  test-debian-bookworm-oss:
+    image: debian:bookworm
+    environment:
+      - TELEPORT_VERSION
+    volumes:
+      - type: bind
+        source: ../install.sh
+        target: /install.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    # Need to install curl on the debian container
+    command: |
+       bash -c 'apt-get update;
+       apt-get install -y curl;
+       bash /install.sh ${TELEPORT_VERSION} oss;
+       bash /run-test.sh oss'
+
+  test-rocky-9-enterprise:
+    image: rockylinux:9
+    environment:
+      - TELEPORT_VERSION
+    volumes:
+      - type: bind
+        source: ../install.sh
+        target: /install.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    command: |
+       bash -c 'bash /install.sh ${TELEPORT_VERSION} enterprise;
+       bash /run-test.sh enterprise'
+
+  test-sles-cloud:
+    image: registry.suse.com/bci/bci-base:15.5
+    environment:
+      - TELEPORT_VERSION
+    volumes:
+      - type: bind
+        source: ../install.sh
+        target: /install.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    # We need to install awk on the SLES container to run
+    # the installation script.
+    command: |
+       bash -c '
+       zypper update -y;
+       zypper install -y awk;
+       bash /install.sh ${TELEPORT_VERSION} cloud;
+       bash /run-test.sh cloud'
+
+  # Ensure that the installation script completes as expected when the ID_LIKE
+  # value in /etc/os-release is "ubuntu debian", as it is on Linux Mint and
+  # Pop!_OS.
+  test-ubuntu-debian:
+    image: ubuntu:22.04
+    environment:
+      - TELEPORT_VERSION
+    volumes:
+      - type: bind
+        source: ../install.sh
+        target: /install.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    # Need to install curl on the ubuntu container
+    command: |
+       bash -c 'apt-get update;
+       apt-get install -y curl;
+       sed -E -i "s/ID_LIKE=.*$/ID_LIKE=\"ubuntu debian\"/" /etc/os-release;
+       bash /install.sh ${TELEPORT_VERSION};
+       bash /run-test.sh oss'
+
+
