@@ -35,12 +35,15 @@ install_via_apt_get() {
   echo "Installing Teleport v$TELEPORT_VERSION via apt-get"
   add_apt_key
   set -x
-  $SUDO apt-get install -y "teleport$TELEPORT_SUFFIX=$TELEPORT_VERSION"
+  
   set +x
   if [ "$TELEPORT_EDITION" = "cloud" ]; then
     set -x
+    $SUDO apt-get install -y "teleport$TELEPORT_SUFFIX"
     $SUDO apt-get install -y teleport-ent-updater
     set +x
+  else
+    $SUDO apt-get install -y "teleport$TELEPORT_SUFFIX=$TELEPORT_VERSION"
   fi
 }
 
@@ -147,9 +150,6 @@ add_apt_key() {
 # $1 is the value of the $ID path segment in the YUM repo URL. In
 # /etc/os-release, this is either the value of $ID or $ID_LIKE.
 install_via_yum() {
-  # shellcheck source=/dev/null
-  source /etc/os-release
-
   # Get the major version from the version ID.
   VERSION_ID=$(echo "$VERSION_ID" | grep -Eo "^[0-9]+")
   TELEPORT_MAJOR_VERSION="v$(echo "$TELEPORT_VERSION" | grep -Eo "^[0-9]+")"
@@ -183,9 +183,6 @@ install_via_yum() {
 }
 
 install_via_zypper() {
-  # shellcheck source=/dev/null
-  source /etc/os-release
-
   # Get the major version from the version ID.
   VERSION_ID=$(echo "$VERSION_ID" | grep -Eo "^[0-9]+")
   TELEPORT_MAJOR_VERSION="v$(echo "$TELEPORT_VERSION" | grep -Eo "^[0-9]+")"
