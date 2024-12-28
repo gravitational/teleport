@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -366,8 +365,7 @@ func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) authcli
 }
 
 type authWebPack struct {
-	clt       *TestWebClient
-	csrfToken string
+	clt *TestWebClient
 }
 
 func (s *webSuite) testPassword() string {
@@ -423,9 +421,7 @@ func (s *webSuite) newAuthWebPack(t *testing.T, user string, options ...webSuite
 
 	clt := s.client(t)
 
-	// TODO(zmb3): remove CSRF cookie when OSS stops caring about it
-	const csrfToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	rawSess, err := s.login(clt, csrfToken, web.CreateSessionReq{
+	rawSess, err := s.login(clt, web.CreateSessionReq{
 		User:              user,
 		Pass:              pass,
 		SecondFactorToken: validToken,
@@ -438,18 +434,12 @@ func (s *webSuite) newAuthWebPack(t *testing.T, user string, options ...webSuite
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	sessionCookieWithCSRF := append(rawSess.Cookies(), &http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
-
-	jar.SetCookies(s.webServerURL, sessionCookieWithCSRF)
+	jar.SetCookies(s.webServerURL, rawSess.Cookies())
 
 	clt = s.client(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
 
 	return &authWebPack{
-		clt:       clt,
-		csrfToken: csrfToken,
+		clt: clt,
 	}
 }
 
@@ -549,8 +539,7 @@ func (s *webSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebC
 	return &TestWebClient{wc}
 }
 
-// TODO(zmb3): remove csrfToken when OSS stops caring about it
-func (s *webSuite) login(clt *TestWebClient, csrfToken string, reqData web.CreateSessionReq) (*roundtrip.Response, error) {
+func (s *webSuite) login(clt *TestWebClient, reqData web.CreateSessionReq) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
 		if err != nil {
@@ -562,12 +551,7 @@ func (s *webSuite) login(clt *TestWebClient, csrfToken string, reqData web.Creat
 			return nil, err
 		}
 
-		req.AddCookie(&http.Cookie{
-			Name:  csrf.CookieName,
-			Value: csrfToken,
-		})
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(csrf.HeaderName, csrfToken)
 		return clt.HTTPClient().Do(req)
 	}))
 }

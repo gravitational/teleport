@@ -62,7 +62,6 @@ func TestCreatePluginHandle(t *testing.T) {
 				"apiEndpoint":  {"https://www.some-apiendoint.com"},
 				"apiKey":       {"some-api-key"},
 				"scheduleName": {"some-schedule-name"},
-				"csrf_token":   {webPack.csrfToken},
 			},
 			expectedResp: "some-schedule-name",
 		},
