@@ -17,7 +17,6 @@
 package common
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -29,36 +28,14 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-type vnetCommand struct {
-	*kingpin.CmdClause
-}
-
-func newVnetCommand(app *kingpin.Application) *vnetCommand {
-	cmd := &vnetCommand{
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
+func newVnetCommands(app *kingpin.Application) *vnetCommands {
+	return &vnetCommands{
+		subcommands: []vnetCLICommand{
+			newVnetCommand(app),
+			newVnetAdminSetupCommand(app),
+			newVnetDaemonCommand(app),
+		},
 	}
-	return cmd
-}
-
-func (c *vnetCommand) run(cf *CLIConf) error {
-	appProvider, err := newVnetAppProvider(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	processManager, err := vnet.Run(cf.Context, &vnet.RunConfig{AppProvider: appProvider})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		processManager.Close()
-	}()
-
-	fmt.Println("VNet is ready.")
-
-	return trace.Wrap(processManager.Wait())
 }
 
 // vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
@@ -102,7 +79,7 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("%s must be set", types.HomeEnvVar)
 	}
 
-	config := daemon.Config{
+	config := vnet.AdminProcessConfig{
 		SocketPath: c.socketPath,
 		IPv6Prefix: c.ipv6Prefix,
 		DNSAddr:    c.dnsAddr,

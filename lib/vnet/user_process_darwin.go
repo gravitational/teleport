@@ -19,25 +19,18 @@ package vnet
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
-
-// RunConfig provides the necessary configuration to run VNet.
-type RunConfig struct {
+// UserProcessConfig provides the necessary configuration to run VNet.
+type UserProcessConfig struct {
 	// AppProvider is a required field providing an interface implementation for [AppProvider].
 	AppProvider AppProvider
 	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
@@ -48,19 +41,17 @@ type RunConfig struct {
 	HomePath string
 }
 
-func (c *RunConfig) CheckAndSetDefaults() error {
+func (c *UserProcessConfig) CheckAndSetDefaults() error {
 	if c.AppProvider == nil {
 		return trace.BadParameter("missing AppProvider")
 	}
-
 	if c.HomePath == "" {
 		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
-
 	return nil
 }
 
-// Run creates a network stack for VNet and runs it in the background. To do
+// RunUserProcess creates a network stack for VNet and runs it in the background. To do
 // this, it also needs to launch an admin process in the background. It returns
 // a [ProcessManager] which controls the lifecycle of both background tasks.
 //
@@ -68,10 +59,16 @@ func (c *RunConfig) CheckAndSetDefaults() error {
 // network stack, clean up any resources used by it and terminate the admin
 // process.
 //
-// ctx is used to wait for setup steps that happen before Run hands out the
-// control to the process manager. If ctx gets canceled during Run, the process
+// ctx is used to wait for setup steps that happen before RunUserProcess hands out the
+// control to the process manager. If ctx gets canceled during RunUserProcess, the process
 // manager gets closed along with its background tasks.
-func Run(ctx context.Context, config *RunConfig) (*ProcessManager, error) {
+func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
+	defer func() {
+		if pm != nil && err != nil {
+			pm.Close()
+		}
+	}()
+
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,13 +80,6 @@ func Run(ctx context.Context, config *RunConfig) (*ProcessManager, error) {
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
 	pm, processCtx := newProcessManager()
-	success := false
-	defer func() {
-		if !success {
-			// Closes the socket and background tasks.
-			pm.Close()
-		}
-	}()
 
 	// Create the socket that's used to receive the TUN device from the admin process.
 	socket, socketPath, err := createSocket()
@@ -105,13 +95,13 @@ func Run(ctx context.Context, config *RunConfig) (*ProcessManager, error) {
 	})
 
 	pm.AddCriticalBackgroundTask("admin process", func() error {
-		daemonConfig := daemon.Config{
+		adminConfig := AdminProcessConfig{
 			SocketPath: socketPath,
 			IPv6Prefix: ipv6Prefix.String(),
 			DNSAddr:    dnsIPv6.String(),
 			HomePath:   config.HomePath,
 		}
-		return trace.Wrap(execAdminProcess(processCtx, daemonConfig))
+		return trace.Wrap(execAdminProcess(processCtx, adminConfig))
 	})
 
 	recvTUNErr := make(chan error, 1)
@@ -170,49 +160,5 @@ func Run(ctx context.Context, config *RunConfig) (*ProcessManager, error) {
 		return trace.Wrap(ns.run(processCtx))
 	})
 
-	success = true
 	return pm, nil
-}
-
-func newProcessManager() (*ProcessManager, context.Context) {
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
-	return &ProcessManager{
-		g:      g,
-		cancel: cancel,
-	}, ctx
-}
-
-// ProcessManager handles background tasks needed to run VNet.
-// Its semantics are similar to an error group with a context, but it cancels the context whenever
-// any task returns prematurely, that is, a task exits while the context was not canceled.
-type ProcessManager struct {
-	g      *errgroup.Group
-	cancel context.CancelFunc
-}
-
-// AddCriticalBackgroundTask adds a function to the error group. [task] is expected to block until
-// the context returned by [newProcessManager] gets canceled. The context gets canceled either by
-// calling Close on [ProcessManager] or if any task returns.
-func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func() error) {
-	pm.g.Go(func() error {
-		err := task()
-		if err == nil {
-			// Make sure to always return an error so that the errgroup context is canceled.
-			err = fmt.Errorf("critical task %q exited prematurely", name)
-		}
-		return trace.Wrap(err)
-	})
-}
-
-// Wait blocks and waits for the background tasks to finish, which typically happens when another
-// goroutine calls Close on the process manager.
-func (pm *ProcessManager) Wait() error {
-	return trace.Wrap(pm.g.Wait())
-}
-
-// Close stops any active background tasks by canceling the underlying context.
-func (pm *ProcessManager) Close() {
-	pm.cancel()
 }

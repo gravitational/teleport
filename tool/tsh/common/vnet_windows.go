@@ -17,95 +17,82 @@
 package common
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows/svc"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-type vnetCommand struct {
-	*kingpin.CmdClause
+func isWindowsService() bool {
+	isSvc, err := svc.IsWindowsService()
+	return err == nil && isSvc
 }
 
-func newVnetCommand(app *kingpin.Application) *vnetCommand {
-	cmd := &vnetCommand{
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access.").Hidden(),
+func newVnetCommands(app *kingpin.Application) *vnetCommands {
+	if isWindowsService() {
+		return &vnetCommands{
+			subcommands: []vnetCLICommand{
+				newVnetServiceCommand(app),
+			},
+		}
 	}
-	return cmd
-}
-
-func (c *vnetCommand) run(cf *CLIConf) error {
-	appProvider, err := newVnetAppProvider(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	processManager, err := vnet.Run(cf.Context, &vnet.RunConfig{AppProvider: appProvider})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		processManager.Close()
-	}()
-
-	fmt.Println("VNet is ready.")
-
-	return trace.Wrap(processManager.Wait())
-}
-
-// vnetAdminSetupCommand is the fallback command run as root when tsh isn't
-// compiled with the vnetdaemon build tag. This is typically the case when
-// running tsh in development where it's not signed and bundled in tsh.app.
-//
-// This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
-type vnetAdminSetupCommand struct {
-	*kingpin.CmdClause
-	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
-	// the unprivileged process.
-	socketPath string
-	// ipv6Prefix is the IPv6 prefix for the VNet.
-	ipv6Prefix string
-	// dnsAddr is the IP address for the VNet DNS server.
-	dnsAddr string
-}
-
-func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
-	cmd := &vnetAdminSetupCommand{
-		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
-	}
-	cmd.Flag("socket", "socket path").StringVar(&cmd.socketPath)
-	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
-	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
-	return cmd
-}
-
-func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	homePath := os.Getenv(types.HomeEnvVar)
-	if homePath == "" {
-		// This runs as root so we need to be configured with the user's home path.
-		return trace.BadParameter("%s must be set", types.HomeEnvVar)
-	}
-
-	config := daemon.Config{
-		SocketPath: c.socketPath,
-		IPv6Prefix: c.ipv6Prefix,
-		DNSAddr:    c.dnsAddr,
-		HomePath:   homePath,
-		ClientCred: daemon.ClientCred{
-			// TODO(nklaassen): figure out how to pass some form of user
-			// identifier. For now Valid: true is a hack to make
-			// CheckAndSetDefaults pass.
-			Valid: true,
+	return &vnetCommands{
+		subcommands: []vnetCLICommand{
+			newVnetCommand(app),
+			newVnetInstallServiceCommand(app),
+			newVnetUninstallServiceCommand(app),
 		},
 	}
+}
 
-	return trace.Wrap(vnet.RunAdminProcess(cf.Context, config))
+type vnetInstallServiceCommand struct {
+	*kingpin.CmdClause
+	userSID string
+}
+
+func newVnetInstallServiceCommand(app *kingpin.Application) *vnetInstallServiceCommand {
+	cmd := &vnetInstallServiceCommand{
+		CmdClause: app.Command("vnet-install-service", "Install the VNet Windows service.").Hidden(),
+	}
+	cmd.Flag("userSID", "SID of the user that the service should be installed for.").Required().StringVar(&cmd.userSID)
+	return cmd
+}
+
+func (c *vnetInstallServiceCommand) run(cf *CLIConf) error {
+	return trace.Wrap(vnet.InstallService(cf.Context, c.userSID))
+}
+
+type vnetUninstallServiceCommand struct {
+	*kingpin.CmdClause
+}
+
+func newVnetUninstallServiceCommand(app *kingpin.Application) *vnetUninstallServiceCommand {
+	cmd := &vnetUninstallServiceCommand{
+		CmdClause: app.Command("vnet-uninstall-service", "Uninstall (delete) the VNet Windows service.").Hidden(),
+	}
+	return cmd
+}
+
+func (c *vnetUninstallServiceCommand) run(cf *CLIConf) error {
+	return trace.Wrap(vnet.UninstallService(cf.Context))
+}
+
+// vnetServiceCommand is the command that runs the Windows service.
+type vnetServiceCommand struct {
+	*kingpin.CmdClause
+}
+
+func newVnetServiceCommand(app *kingpin.Application) *vnetServiceCommand {
+	cmd := &vnetServiceCommand{
+		CmdClause: app.Command("vnet-service", "Start the VNet service.").Hidden(),
+	}
+	return cmd
+}
+
+func (c *vnetServiceCommand) run(_ *CLIConf) error {
+	if err := vnet.ServiceMain(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

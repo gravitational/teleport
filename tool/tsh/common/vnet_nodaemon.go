@@ -21,7 +21,6 @@ package common
 
 import (
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
 )
 
 func newVnetDaemonCommand(app *kingpin.Application) vnetDaemonNotSupported {
@@ -33,6 +32,8 @@ type vnetDaemonNotSupported struct{}
 func (vnetDaemonNotSupported) FullCommand() string {
 	return ""
 }
-func (vnetDaemonNotSupported) run(*CLIConf) error {
-	return trace.NotImplemented("tsh was built without support for VNet daemon")
+
+func (vnetDaemonNotSupported) run(_ *CLIConf) error {
+	// This can never be called because FullCommand returns an empty string.
+	return nil
 }

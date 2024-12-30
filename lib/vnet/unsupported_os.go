@@ -24,8 +24,6 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 var (
@@ -33,8 +31,35 @@ var (
 	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 )
 
-// execAdminProcess is called from the normal user process to execute the admin
-// subcommand as root.
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
+type UserProcessConfig struct {
+	AppProvider        any
+	ClusterConfigCache any
+}
+
+func RunUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, error) {
+	return nil, trace.Wrap(ErrVnetNotImplemented)
+}
+
+type AdminProcessConfig struct {
+	SocketPath string
+	IPv6Prefix string
+	DNSAddr    string
+	HomePath   string
+}
+
+func (_ AdminProcessConfig) CheckAndSetDefaults() error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
+
+func configureOS(_ context.Context, _ *osConfig) error {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+func (_ *osConfigurator) doWithDroppedRootPrivileges(_ context.Context, _ func() error) (err error) {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+var (
+	// Satisfy unused linter.
+	_ = osConfigurationLoop
+)
