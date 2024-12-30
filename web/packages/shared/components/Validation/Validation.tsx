@@ -49,12 +49,6 @@ export default class Validator extends Store<ValidatorState> {
     validating: false,
   };
 
-  /**
-   * @deprecated For temporary Enterprise compatibility only. Use {@link state}
-   * instead.
-   */
-  valid = true;
-
   /** Callbacks that will be executed upon validation. */
   private ruleCallbacks: RuleCallback[] = [];
 
@@ -80,9 +74,7 @@ export default class Validator extends Store<ValidatorState> {
       logger.error(`rule should return a valid object`);
     }
 
-    const valid = this.state.valid && Boolean(isValid);
-    this.setState({ valid });
-    this.valid = valid;
+    this.setState({ valid: this.state.valid && Boolean(isValid) });
   }
 
   reset() {
@@ -90,7 +82,6 @@ export default class Validator extends Store<ValidatorState> {
       valid: true,
       validating: false,
     });
-    this.valid = true;
   }
 
   validate() {
