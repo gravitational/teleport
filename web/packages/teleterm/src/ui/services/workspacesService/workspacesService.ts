@@ -98,12 +98,12 @@ export interface Workspace {
   // where we construct the workspace manually.
   unifiedResourcePreferences?: UnifiedResourcePreferences;
   /**
-   * Tracks whether the user can restore documents from a previous session.
+   * Tracks whether the user has documents to reopen from a previous session.
    * This is used to ensure that the prompt to restore a previous session is shown only once.
    *
    * This field is not persisted to disk.
    */
-  canRestoreDocuments?: boolean;
+  hasDocumentsToReopen?: boolean;
 }
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
@@ -370,8 +370,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       draftState.rootClusterUri = clusterUri;
     });
 
-    const { canRestoreDocuments } = this.getWorkspace(clusterUri);
-    if (!canRestoreDocuments) {
+    const { hasDocumentsToReopen } = this.getWorkspace(clusterUri);
+    if (!hasDocumentsToReopen) {
       return { isAtDesiredWorkspace: true };
     }
 
@@ -521,14 +521,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         reopen.documents,
         reopen.location
       );
-      workspace.canRestoreDocuments = false;
+      workspace.hasDocumentsToReopen = false;
     });
   }
 
   private discardPreviousDocuments(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
-      workspace.canRestoreDocuments = false;
+      workspace.hasDocumentsToReopen = false;
     });
   }
 
@@ -630,7 +630,7 @@ function getWorkspaceDefaultState(
     location: defaultDocument.uri,
     documents: [defaultDocument],
     connectMyComputer: undefined,
-    canRestoreDocuments: false,
+    hasDocumentsToReopen: false,
     localClusterUri: rootClusterUri,
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
   };
@@ -643,7 +643,7 @@ function getWorkspaceDefaultState(
     restoredWorkspace.unifiedResourcePreferences
   );
   defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
-  defaultWorkspace.canRestoreDocuments = hasDocumentsToReopen({
+  defaultWorkspace.hasDocumentsToReopen = hasDocumentsToReopen({
     previousDocuments: restoredWorkspace.documents,
     currentDocuments: defaultWorkspace.documents,
   });

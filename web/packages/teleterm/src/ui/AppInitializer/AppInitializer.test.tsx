@@ -154,14 +154,14 @@ test('activating a workspace via deep link overrides the previously active works
 test.each<{
   name: string;
   action(appContext: IAppContext): Promise<void>;
-  expectCanReopenDocuments: boolean;
+  expectHasDocumentsToReopen: boolean;
 }>([
   {
     name: 'closing documents reopen dialog via close button discards previous documents',
     action: async () => {
       await userEvent.click(await screen.findByTitle('Close'));
     },
-    expectCanReopenDocuments: false,
+    expectHasDocumentsToReopen: false,
   },
   {
     name: 'starting new session in document reopen dialog discards previous documents',
@@ -170,7 +170,7 @@ test.each<{
         await screen.findByRole('button', { name: 'Start New Session' })
       );
     },
-    expectCanReopenDocuments: false,
+    expectHasDocumentsToReopen: false,
   },
   {
     name: 'overwriting document reopen dialog with another regular dialog does not discard documents',
@@ -183,7 +183,7 @@ test.each<{
         });
       });
     },
-    expectCanReopenDocuments: true,
+    expectHasDocumentsToReopen: true,
   },
 ])('$name', async testCase => {
   const rootCluster = makeRootCluster();
@@ -241,6 +241,6 @@ test.each<{
 
   expect(
     appContext.workspacesService.getWorkspace(rootCluster.uri)
-      .canRestoreDocuments
-  ).toBe(testCase.expectCanReopenDocuments);
+      .hasDocumentsToReopen
+  ).toBe(testCase.expectHasDocumentsToReopen);
 });
