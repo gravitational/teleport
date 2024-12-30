@@ -281,7 +281,7 @@ const auth = {
     challenge: MfaAuthenticateChallenge,
     mfaType?: DeviceType,
     totpCode?: string
-  ): Promise<MfaChallengeResponse> {
+  ): Promise<MfaChallengeResponse | undefined> {
     if (!challenge) return;
 
     // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
@@ -312,7 +312,7 @@ const auth = {
     }
 
     // No viable challenge, return empty response.
-    return null;
+    return;
   },
 
   async getWebAuthnChallengeResponse(
