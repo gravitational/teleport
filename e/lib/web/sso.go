@@ -38,6 +38,7 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
+		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
@@ -212,6 +213,7 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
 		ConnectorID:       req.ConnectorID,
+		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
 		ClientLoginIP:     remoteAddr,
