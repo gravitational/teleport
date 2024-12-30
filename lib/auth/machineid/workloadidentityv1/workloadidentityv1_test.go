@@ -547,7 +547,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: "bar-labelled",
+			Name: "bar-labeled",
 			Labels: map[string]string{
 				"foo":    "bar",
 				"access": "yes",
@@ -577,7 +577,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: "buzz-labelled",
+			Name: "buzz-labeled",
 			Labels: map[string]string{
 				"foo":    "buzz",
 				"access": "yes",
@@ -696,7 +696,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 					err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
 					require.NoError(t, err)
 				}
-				require.EqualValues(t, []string{"bar-labelled", "buzz-labelled"}, workloadIdentitiesIssued)
+				require.EqualValues(t, []string{"bar-labeled", "buzz-labeled"}, workloadIdentitiesIssued)
 			},
 		},
 		{
@@ -732,7 +732,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 					})
 					require.NoError(t, err)
 				}
-				require.EqualValues(t, []string{"bar-labelled", "buzz-labelled"}, workloadIdentitiesIssued)
+				require.EqualValues(t, []string{"bar-labeled", "buzz-labeled"}, workloadIdentitiesIssued)
 			},
 		},
 		{
