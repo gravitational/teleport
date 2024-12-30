@@ -20,8 +20,6 @@ package azure_sync
 
 import (
 	"context"
-	"net/url"
-
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -40,13 +38,13 @@ type queryResult struct {
 
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
 func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint: unused // invoked in a dependent PR
-	var params = &url.Values{
-		"$expand": []string{"memberOf"},
+	var opts = &msgraph.IterateOptions{
+		ExpandMembers: true,
 	}
 
 	// Fetch the users, groups, and service principals as directory objects
 	var queryResults []queryResult
-	err := cli.IterateUsers(ctx, params, func(user *msgraph.User) bool {
+	err := cli.IterateUsers(ctx, opts, func(user *msgraph.User) bool {
 		res := queryResult{metadata: dirObjMetadata{objectType: "user"}, dirObj: user.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
@@ -54,7 +52,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = cli.IterateGroups(ctx, params, func(group *msgraph.Group) bool {
+	err = cli.IterateGroups(ctx, opts, func(group *msgraph.Group) bool {
 		res := queryResult{metadata: dirObjMetadata{objectType: "group"}, dirObj: group.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
@@ -62,7 +60,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = cli.IterateServicePrincipals(ctx, params, func(servicePrincipal *msgraph.ServicePrincipal) bool {
+	err = cli.IterateServicePrincipals(ctx, opts, func(servicePrincipal *msgraph.ServicePrincipal) bool {
 		res := queryResult{metadata: dirObjMetadata{objectType: "servicePrincipal"}, dirObj: servicePrincipal.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
