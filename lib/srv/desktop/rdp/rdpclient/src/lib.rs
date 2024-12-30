@@ -39,6 +39,7 @@ use rdpdr::tdp::{
 };
 use std::ffi::CString;
 use std::fmt::Debug;
+use std::io::ErrorKind;
 use std::os::raw::c_char;
 use std::ptr;
 use util::{from_c_string, from_go_array};
@@ -141,18 +142,30 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
                 None => ptr::null_mut(),
             },
         },
-
         Err(e) => {
             error!("client_run failed: {:?}", e);
+            let message = match e {
+                client::ClientError::Tcp(io_err) if io_err.kind() == ErrorKind::TimedOut => {
+                    String::from(TIMEOUT_ERROR_MESSAGE)
+                }
+                _ => format!("{}", e),
+            };
             CGOResult {
                 err_code: CGOErrCode::ErrCodeFailure,
-                message: CString::new(format!("{}", e))
+                message: CString::new(message)
                     .map(|c| c.into_raw())
                     .unwrap_or(ptr::null_mut()),
             }
         }
     }
 }
+
+const TIMEOUT_ERROR_MESSAGE: &str = "Connection Timed Out\n\n\
+Teleport could not connect to the host within the timeout period. \
+This could be due to a firewall blocking connections, an overloaded system, \
+or network congestion. To resolve this issue, ensure that the Teleport agent \
+has connectivity to the Windows host.\n\n\
+Use \"nc -vz HOST 3389\" to help debug this issue.";
 
 fn handle_operation<T>(cgo_handle: CgoHandle, ctx: &'static str, f: T) -> CGOErrCode
 where
