@@ -19,6 +19,7 @@
 package terminal
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -76,7 +77,10 @@ func initTerminal(input bool) (func(), error) {
 			// Attempt to reset the stdout mode before returning.
 			err = winterm.SetConsoleMode(uintptr(stdoutFd), oldOutMode)
 			if err != nil {
-				log.Errorf("Failed to reset terminal output mode to %d: %v\n", oldOutMode, err)
+				log.ErrorContext(context.Background(), "Failed to reset terminal output mode",
+					"original_output_mode", oldOutMode,
+					"error", err,
+				)
 			}
 
 			return func() {}, fmt.Errorf("failed to set stdin mode: %w", err)
@@ -86,13 +90,19 @@ func initTerminal(input bool) (func(), error) {
 	return func() {
 		err := winterm.SetConsoleMode(uintptr(stdoutFd), oldOutMode)
 		if err != nil {
-			log.Errorf("Failed to reset terminal output mode to %d: %v\n", oldOutMode, err)
+			log.ErrorContext(context.Background(), "Failed to reset terminal output mode",
+				"original_output_mode", oldOutMode,
+				"error", err,
+			)
 		}
 
 		if input {
 			err = winterm.SetConsoleMode(uintptr(stdinFd), oldInMode)
 			if err != nil {
-				log.Errorf("Failed to reset terminal input mode to %d: %v\n", oldInMode, err)
+				log.ErrorContext(context.Background(), "Failed to reset terminal input mode",
+					"original_input_mode", oldInMode,
+					"error", err,
+				)
 			}
 		}
 	}, nil

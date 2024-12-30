@@ -19,10 +19,11 @@
 package services
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -801,7 +802,7 @@ func defaultAllowAccountAssignments(enterprise bool) map[string][]types.Identity
 
 // AddRoleDefaults adds default role attributes to a preset role.
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
-func AddRoleDefaults(role types.Role) (types.Role, error) {
+func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 	changed := false
 
 	oldLabels := role.GetAllLabels()
@@ -855,7 +856,10 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 				continue
 			}
 
-			log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
+			slog.DebugContext(ctx, "Adding default allow rule to role",
+				"rule", defaultRule,
+				"role", role.GetName(),
+			)
 			rules := role.GetRules(types.Allow)
 			rules = append(rules, defaultRule)
 			role.SetRules(types.Allow, rules)

@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,19 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package web
+import { ResourceLabelTooltip } from './ResourceLabelTooltip';
 
-import (
-	"github.com/sirupsen/logrus"
+export default {
+  title: 'Teleport/Discover/Shared/ResourceLabelTooltip',
+};
 
-	"github.com/gravitational/teleport"
-)
-
-var log = newPackageLogger()
-
-// newPackageLogger returns a new instance of the logger
-// configured for the package
-func newPackageLogger(subcomponents ...string) logrus.FieldLogger {
-	return logrus.WithField(teleport.ComponentKey,
-		teleport.Component(append([]string{teleport.ComponentWeb}, subcomponents...)...))
-}
+export const RDS = () => <ResourceLabelTooltip resourceKind="rds" />;
+export const EKS = () => <ResourceLabelTooltip resourceKind="eks" />;
+export const Server = () => <ResourceLabelTooltip resourceKind="server" />;
+export const Database = () => <ResourceLabelTooltip resourceKind="db" />;
+export const Kube = () => <ResourceLabelTooltip resourceKind="kube" />;
