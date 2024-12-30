@@ -18,13 +18,12 @@
 
 import { Flex } from 'design';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
-
 import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
+import { SearchPanel } from './ServersideSearchPanel';
 import useServersideSearchPanel, {
   HookProps,
 } from './useServerSideSearchPanel';
-import { SearchPanel } from './ServersideSearchPanel';
 
 interface ComponentProps {
   pageIndicators: PageIndicators;

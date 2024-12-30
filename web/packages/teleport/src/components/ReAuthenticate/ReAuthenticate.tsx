@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useEffect, useState } from 'react';
+
 import {
   Box,
   ButtonPrimary,
@@ -31,12 +33,10 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import React, { useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
-
 import { MfaOption } from 'teleport/services/mfa';
 
 import useReAuthenticate, {

@@ -17,7 +17,6 @@
  */
 
 import { useCallback } from 'react';
-
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { useVnetContext } from './vnetContext';

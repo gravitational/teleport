@@ -16,15 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DbProtocol } from 'shared/services/databases';
-
 import { Platform } from 'design/platform';
-
+import { DbProtocol } from 'shared/services/databases';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
-
-import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
+import { DatabaseEngine, DatabaseLocation, ResourceSpec } from './types';
 
 const baseDatabaseKeywords = ['db', 'database', 'databases'];
 const awsKeywords = [...baseDatabaseKeywords, 'aws', 'amazon web services'];

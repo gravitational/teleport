@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { equalsDeep } from 'shared/utils/highbar';
 import { Option } from 'shared/components/Select';
-
+import { equalsDeep } from 'shared/utils/highbar';
+import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   KubernetesResource,
   Labels,
   Role,
   RoleConditions,
 } from 'teleport/services/resources';
-import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
   CreateHostUserMode,

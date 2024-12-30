@@ -17,30 +17,27 @@
  */
 
 import React, { useCallback, useMemo } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import styled, { css, keyframes } from 'styled-components';
 
-import { NavLink, useLocation } from 'react-router-dom';
-
 import { ArrowSquareOut } from 'design/Icon';
-
-import { getIcon } from 'teleport/Navigation/utils';
-import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
+import { useTeleport } from 'teleport';
 import {
   commonNavigationItemStyles,
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { storageService } from 'teleport/services/storageService';
+import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
+import { getIcon } from 'teleport/Navigation/utils';
 import { LocalNotificationKind } from 'teleport/services/notifications';
-import { useTeleport } from 'teleport';
-
-import { NavTitle, RecommendationStatus } from 'teleport/types';
-
-import type {
-  TeleportFeature,
-  TeleportFeatureNavigationItem,
+import { storageService } from 'teleport/services/storageService';
+import {
+  NavTitle,
+  RecommendationStatus,
+  type TeleportFeature,
+  type TeleportFeatureNavigationItem,
 } from 'teleport/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 interface NavigationItemProps {
   feature: TeleportFeature;

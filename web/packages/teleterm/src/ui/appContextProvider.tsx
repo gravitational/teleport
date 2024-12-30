@@ -17,7 +17,6 @@
  */
 
 import React, { PropsWithChildren } from 'react';
-
 import { IAppContext } from 'teleterm/ui/types';
 
 export const AppReactContext = React.createContext<IAppContext>(null);

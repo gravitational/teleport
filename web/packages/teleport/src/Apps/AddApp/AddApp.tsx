@@ -18,16 +18,12 @@
 
 import { Flex } from 'design';
 import Dialog, { DialogTitle } from 'design/Dialog';
-
 import * as Icons from 'design/Icon';
-
+import { TabIcon } from 'teleport/components/TabIcon';
 import useTeleport from 'teleport/useTeleport';
 
-import { TabIcon } from 'teleport/components/TabIcon';
-
-import { Manually } from './Manually';
-
 import { Automatically } from './Automatically';
+import { Manually } from './Manually';
 import useAddApp, { State } from './useAddApp';
 
 export default function Container(props: Props) {

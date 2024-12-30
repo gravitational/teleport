@@ -18,14 +18,12 @@
 import {
   AnimatedProgressBar,
   ButtonPrimary,
-  Text,
-  Flex,
   ButtonSecondary,
+  Flex,
+  Text,
 } from 'design';
-
-import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
-
+import * as Icons from 'design/Icon';
 import { TextIcon } from 'teleport/Discover/Shared';
 
 type EnrollmentDialogProps = {

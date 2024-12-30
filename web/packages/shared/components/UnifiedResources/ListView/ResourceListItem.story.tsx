@@ -19,26 +19,21 @@
 import { Meta, StoryObj } from '@storybook/react';
 
 import { ButtonBorder, Flex } from 'design';
-
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
-
-import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
+import { kubes } from 'teleport/Kubes/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
-
 import makeApp from 'teleport/services/apps/makeApps';
 
 import {
   makeUnifiedResourceViewItemApp,
   makeUnifiedResourceViewItemDatabase,
+  makeUnifiedResourceViewItemDesktop,
   makeUnifiedResourceViewItemKube,
   makeUnifiedResourceViewItemNode,
-  makeUnifiedResourceViewItemDesktop,
 } from '../shared/viewItemsFactory';
-
 import { PinningSupport } from '../types';
-
 import { ResourceListItem } from './ResourceListItem';
 
 const additionalResources = [

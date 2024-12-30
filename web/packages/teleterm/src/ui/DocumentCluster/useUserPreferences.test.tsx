@@ -16,7 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  GetUserPreferencesResponse,
+  UpdateUserPreferencesResponse,
+  UserPreferences,
+} from 'teleterm/services/tshd/types';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import {
   AvailableResourceMode,
@@ -24,17 +33,6 @@ import {
   LabelsViewMode,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import {
-  UserPreferences,
-  GetUserPreferencesResponse,
-  UpdateUserPreferencesResponse,
-} from 'teleterm/services/tshd/types';
 
 import { useUserPreferences } from './useUserPreferences';
 

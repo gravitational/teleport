@@ -17,11 +17,11 @@
  */
 
 import { forwardRef } from 'react';
-import { Cluster } from 'design/Icon';
 import styled from 'styled-components';
-import { ButtonSecondary } from 'design';
-
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+
+import { ButtonSecondary } from 'design';
+import { Cluster } from 'design/Icon';
 
 import { ConnectionsIconStatusIndicator } from './ConnectionsIconStatusIndicator';
 

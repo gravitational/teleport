@@ -17,14 +17,13 @@
  */
 
 import styled from 'styled-components';
-import { ButtonPrimary, Text, Flex, ButtonSecondary, Image, H2 } from 'design';
 
+import { ButtonPrimary, ButtonSecondary, Flex, H2, Image, Text } from 'design';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 
-import celebratePamPng from './celebrate-pam.png';
-
 import type { AgentStepProps } from '../../types';
+import celebratePamPng from './celebrate-pam.png';
 
 export function Finished(props: AgentStepProps) {
   let title = 'Resource Successfully Added';

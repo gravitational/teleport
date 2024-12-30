@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import os from 'node:os';
-import path from 'node:path';
-
-import which from 'which';
-
 import Logger from 'teleterm/logger';
 import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
+import which from 'which';
+
+import os from 'node:os';
+import path from 'node:path';
 
 export interface Shell {
   /**

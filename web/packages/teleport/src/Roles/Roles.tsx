@@ -17,37 +17,35 @@
  */
 
 import { useEffect, useState } from 'react';
+import styled from 'styled-components';
+
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { HoverTooltip } from 'shared/components/ToolTip';
-
 import {
   Notification,
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
-
-import styled from 'styled-components';
-
+import { HoverTooltip } from 'shared/components/ToolTip';
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import useTeleport from 'teleport/useTeleport';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import { useServerSidePagination } from 'teleport/components/hooks';
-import { storageService } from 'teleport/services/storageService';
-import { RoleWithYaml, RoleResource } from 'teleport/services/resources';
 import useResources from 'teleport/components/useResources';
+import { RoleResource, RoleWithYaml } from 'teleport/services/resources';
+import { storageService } from 'teleport/services/storageService';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
-import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
-import { useRoles, State } from './useRoles';
-import templates from './templates';
 import { RoleEditorDialog } from './RoleEditor/RoleEditorDialog';
+import { RoleList } from './RoleList';
+import templates from './templates';
+import { State, useRoles } from './useRoles';
 
 export function RolesContainer() {
   const ctx = useTeleport();

@@ -16,18 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H3, Text } from 'design';
 import Dialog, {
+  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogContent,
 } from 'design/Dialog';
-import { Text, Box, ButtonSecondary, ButtonPrimary, Flex, H3 } from 'design';
-
-import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
-import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import { AuthType } from 'teleport/services/user';
 
 function ConnectDialog(props: Props) {
   const {

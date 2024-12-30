@@ -16,21 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Box, ButtonSecondary, Link, ButtonPrimary } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Link, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-import { DbProtocol } from 'shared/services/databases';
-
 import { NewTab as NewTabIcon } from 'design/Icon';
-
-import { AuthType } from 'teleport/services/user';
+import { DbProtocol } from 'shared/services/databases';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import cfg from 'teleport/config';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import { AuthType } from 'teleport/services/user';
 
 export default function ConnectDialog({
   username,

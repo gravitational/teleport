@@ -16,31 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
 import { matchPath } from 'react-router';
+import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
+import { EncodeUrlQueryParamsProps } from 'teleport/components/hooks/useUrlFiltering/encodeUrlQueryParams';
+import cfg from 'teleport/config';
+import { ResourceIdKind } from 'teleport/services/agents';
+import { useUser } from 'teleport/User/UserContext';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
-import cfg from 'teleport/config';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
-import { EncodeUrlQueryParamsProps } from 'teleport/components/hooks/useUrlFiltering/encodeUrlQueryParams';
-import { ResourceIdKind } from 'teleport/services/agents';
-import { useUser } from 'teleport/User/UserContext';
-
-import { NavigationSubsection, NavigationSection } from './Navigation';
+import { CustomNavigationSubcategory, NavigationCategory } from './categories';
+import { NavigationSection, NavigationSubsection } from './Navigation';
 import {
   CustomChildrenSection,
   RightPanel,
-  verticalPadding,
-  SubsectionItem,
   RightPanelHeader,
+  SubsectionItem,
+  verticalPadding,
 } from './Section';
-import { CustomNavigationSubcategory, NavigationCategory } from './categories';
 
 /**
  * getResourcesSection returns a NavigationSection for resources,

@@ -17,13 +17,11 @@
  */
 
 import { useCallback, useState } from 'react';
-
-import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
-
 import { staticConfig } from 'teleterm/staticConfig';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+
+import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { ShareFeedbackFormValues } from './types';
 

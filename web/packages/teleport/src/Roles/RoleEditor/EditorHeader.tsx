@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex, H2, Indicator, Box, ButtonIcon } from 'design';
+import { Box, ButtonIcon, Flex, H2, Indicator } from 'design';
 import { Cross } from 'design/Icon';
-
 import { Role } from 'teleport/services/resources';
 
 import { EditorTab, EditorTabs } from './EditorTabs';

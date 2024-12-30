@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import path from 'node:path';
-
 import { BrowserWindow, DownloadItem } from 'electron';
-
 import Logger from 'teleterm/logger';
+
+import path from 'node:path';
 
 export interface IFileDownloader {
   run(url: string, downloadDirectory: string): Promise<void>;

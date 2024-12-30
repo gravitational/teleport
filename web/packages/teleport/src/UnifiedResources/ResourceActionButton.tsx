@@ -17,31 +17,31 @@
  */
 
 import React, { useState } from 'react';
+
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import {
   LoginItem,
   MenuInputType,
   MenuLogin,
 } from 'shared/components/MenuLogin';
-import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import { AwsRole } from 'shared/services/apps';
-import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { Database } from 'teleport/services/databases';
-import { openNewTab } from 'teleport/lib/util';
-import { Kube } from 'teleport/services/kube';
-import { Desktop } from 'teleport/services/desktops';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
-import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { Node, sortNodeLogins } from 'teleport/services/nodes';
-import { App, AppSubKind } from 'teleport/services/apps';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
-
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
+import { openNewTab } from 'teleport/lib/util';
+import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
+import { UnifiedResource } from 'teleport/services/agents';
+import { App, AppSubKind } from 'teleport/services/apps';
+import { Database } from 'teleport/services/databases';
+import { Desktop } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
+import { Node, sortNodeLogins } from 'teleport/services/nodes';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 type Props = {
   resource: UnifiedResource;

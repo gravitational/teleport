@@ -17,11 +17,10 @@
  */
 
 import { render, screen, waitFor } from 'design/utils/testing';
-
-import session from 'teleport/services/websession';
-import { ApiError } from 'teleport/services/api/parseError';
 import api from 'teleport/services/api';
+import { ApiError } from 'teleport/services/api/parseError';
 import history from 'teleport/services/history';
+import session from 'teleport/services/websession';
 
 import Authenticated from './Authenticated';
 

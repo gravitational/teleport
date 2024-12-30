@@ -21,7 +21,6 @@ import { Link as InternalLink } from 'react-router-dom';
 import { ButtonIcon, Flex, Label, Text } from 'design';
 import { ArrowLeft } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
-
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
 import { Integration } from 'teleport/services/integrations';

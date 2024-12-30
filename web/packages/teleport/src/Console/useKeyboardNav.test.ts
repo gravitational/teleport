@@ -17,7 +17,6 @@
  */
 
 import renderHook from 'design/utils/renderHook';
-
 import { Document } from 'teleport/Console/stores';
 
 import ConsoleContext from './consoleContext';

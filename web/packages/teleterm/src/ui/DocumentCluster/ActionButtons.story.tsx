@@ -16,28 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex, Text, Box } from 'design';
-
 import { Meta } from '@storybook/react';
-
 import {
   makeApp,
-  makeRootCluster,
-  makeServer,
   makeDatabase,
   makeKube,
+  makeRootCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { VnetContextProvider } from 'teleterm/ui/Vnet';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
+
+import { Box, Flex, Text } from 'design';
 
 import {
+  AccessRequestButton,
   ConnectAppActionButton,
-  ConnectServerActionButton,
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
-  AccessRequestButton,
+  ConnectServerActionButton,
 } from './ActionButtons';
 
 type StoryProps = {

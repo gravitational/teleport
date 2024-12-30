@@ -35,42 +35,37 @@ import {
   UserCircleGear,
   User as UserIcon,
 } from 'design/Icon';
-
 import cfg from 'teleport/config';
-
+import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
-  NavigationCategory,
   ManagementSection,
+  NavigationCategory,
 } from 'teleport/Navigation/categories';
 import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
+
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
-import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
-
-import { NavTitle } from './types';
-
-import { AuditContainer as Audit } from './Audit';
-import { SessionsContainer as Sessions } from './Sessions';
-import { UnifiedResources } from './UnifiedResources';
-import { AccountPage } from './Account';
-import { Support } from './Support';
-import { Clusters } from './Clusters';
-import { TrustedClusters } from './TrustedClusters';
-import { Users } from './Users';
-import { RolesContainer as Roles } from './Roles';
-import { DeviceTrustLocked } from './DeviceTrust';
-import { RecordingsContainer as Recordings } from './Recordings';
-import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
-import { Locks } from './LocksV2/Locks';
-import { NewLockView } from './LocksV2/NewLock';
-import { Discover } from './Discover';
 import { LockedAccessRequests } from './AccessRequests';
-import { Integrations } from './Integrations';
+import { AccountPage } from './Account';
+import { AuditContainer as Audit } from './Audit';
+import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
+import { Clusters } from './Clusters';
+import { DeviceTrustLocked } from './DeviceTrust';
+import { Discover } from './Discover';
+import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
-
-import type { FeatureFlags, TeleportFeature } from './types';
+import { Locks } from './LocksV2/Locks';
+import { NewLockView } from './LocksV2/NewLock';
+import { RecordingsContainer as Recordings } from './Recordings';
+import { RolesContainer as Roles } from './Roles';
+import { SessionsContainer as Sessions } from './Sessions';
+import { Support } from './Support';
+import { TrustedClusters } from './TrustedClusters';
+import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
+import { UnifiedResources } from './UnifiedResources';
+import { Users } from './Users';
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;

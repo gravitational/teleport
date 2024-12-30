@@ -20,8 +20,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE. */
 
-import React, { useImperativeHandle, forwardRef } from 'react';
 import { render } from '@testing-library/react';
+import React, { forwardRef, useImperativeHandle } from 'react';
 
 import { mergeRefs } from './mergeRefs';
 

@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { StorybookConfig } from '@storybook/react-vite';
+
 import fs from 'node:fs';
 import path from 'node:path';
-
-import type { StorybookConfig } from '@storybook/react-vite';
 
 const enterpriseTeleportExists = fs.existsSync(
   path.join(__dirname, '/../../e/web')

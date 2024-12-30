@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import renderHook from 'design/utils/renderHook';
-
+import AppContext from 'teleterm/ui/appContext';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 
-import AppContext from 'teleterm/ui/appContext';
-
-import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import renderHook from 'design/utils/renderHook';
 
 import { KeyboardShortcutsService } from './keyboardShortcutsService';
 import { KeyboardShortcutEventSubscriber } from './types';
+import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 
 test('call handler on its event type', () => {
   const { handler, getEventEmitter, wrapper } = getTestSetup();

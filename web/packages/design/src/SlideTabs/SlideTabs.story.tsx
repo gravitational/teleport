@@ -18,8 +18,8 @@
 
 import { useState } from 'react';
 
-import * as Icon from 'design/Icon';
 import Flex from 'design/Flex';
+import * as Icon from 'design/Icon';
 
 import { SlideTabs, TabSpec } from './SlideTabs';
 

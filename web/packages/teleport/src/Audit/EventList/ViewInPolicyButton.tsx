@@ -17,12 +17,10 @@
  */
 
 import { useMemo } from 'react';
-
-import { ButtonBorder } from 'design';
 import { NavLink } from 'react-router-dom';
 
+import { ButtonBorder } from 'design';
 import cfg from 'teleport/config';
-
 import {
   Event,
   EventCode,

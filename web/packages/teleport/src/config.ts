@@ -17,20 +17,8 @@
  */
 
 import { generatePath } from 'react-router';
+
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-import { mergeDeep } from 'shared/utils/highbar';
-
-import {
-  AwsOidcPolicyPreset,
-  IntegrationKind,
-  PluginKind,
-  Regions,
-} from 'teleport/services/integrations';
-
-import { defaultEntitlements } from './entitlement';
-
-import generateResourcePath from './generateResourcePath';
-
 import type {
   Auth2faType,
   AuthProvider,
@@ -38,12 +26,21 @@ import type {
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
-
+import { mergeDeep } from 'shared/utils/highbar';
 import type { SortType } from 'teleport/services/agents';
+import {
+  AwsOidcPolicyPreset,
+  IntegrationKind,
+  PluginKind,
+  Regions,
+} from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+
+import { defaultEntitlements } from './entitlement';
+import generateResourcePath from './generateResourcePath';
 import type { MfaChallengeResponse } from './services/mfa';
 
 const cfg = {

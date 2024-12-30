@@ -19,7 +19,6 @@
 import { Link } from 'react-router-dom';
 
 import { Button } from 'design';
-
 import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 

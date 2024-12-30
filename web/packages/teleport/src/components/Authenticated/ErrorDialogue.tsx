@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Alert, ButtonSecondary } from 'design';
+import { Alert, ButtonSecondary, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-
 import history from 'teleport/services/history';
 
 export function ErrorDialog({ errMsg }: { errMsg: string }) {

@@ -17,8 +17,8 @@
  */
 
 import { MemoryRouter } from 'react-router';
-import { render, screen, userEvent } from 'design/utils/testing';
 
+import { render, screen, userEvent } from 'design/utils/testing';
 import cfg from 'teleport/config';
 
 import { IntegrationTiles } from './IntegrationTiles';

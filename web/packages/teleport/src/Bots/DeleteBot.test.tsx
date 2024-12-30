@@ -17,7 +17,6 @@
  */
 
 import { render, screen, userEvent } from 'design/utils/testing';
-
 import { DeleteBot } from 'teleport/Bots/DeleteBot';
 import { DeleteBotProps } from 'teleport/Bots/types';
 

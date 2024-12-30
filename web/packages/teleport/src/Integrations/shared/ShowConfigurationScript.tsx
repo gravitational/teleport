@@ -17,7 +17,6 @@
  */
 
 import { Box, Link, Text } from 'design';
-
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 export function ShowConfigurationScript({

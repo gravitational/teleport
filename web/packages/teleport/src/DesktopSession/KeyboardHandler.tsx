@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Platform, getPlatform } from 'design/platform';
-
-import { TdpClient, ButtonState } from 'teleport/lib/tdp';
+import { getPlatform, Platform } from 'design/platform';
+import { ButtonState, TdpClient } from 'teleport/lib/tdp';
 import { SyncKeys } from 'teleport/lib/tdp/codec';
 
 import { Withholder } from './Withholder';

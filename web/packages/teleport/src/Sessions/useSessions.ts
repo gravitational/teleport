@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-import { useAttempt } from 'shared/hooks';
-
 import { context, trace } from '@opentelemetry/api';
+import { useEffect, useState } from 'react';
 
-import { Session } from 'teleport/services/session';
-
-import Ctx from 'teleport/teleportContext';
+import { useAttempt } from 'shared/hooks';
 import cfg from 'teleport/config';
+import { Session } from 'teleport/services/session';
+import Ctx from 'teleport/teleportContext';
 
 const tracer = trace.getTracer('userSessions');
 

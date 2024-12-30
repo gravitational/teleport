@@ -16,32 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
-
 import { ClustersService } from 'teleterm/ui/services/clusters';
+import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import {
   Document,
   DocumentOrigin,
   isDocumentTshNodeWithLoginHost,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
-import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import * as uri from 'teleterm/ui/uri';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
-import { ImmutableStore } from '../immutableStore';
+import { useStore } from 'shared/libs/stores';
 
+import { ImmutableStore } from '../immutableStore';
 import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
 import {
   createGatewayConnection,
-  createKubeConnection,
   createGatewayKubeConnection,
+  createKubeConnection,
   createServerConnection,
   getGatewayConnectionByDocument,
+  getGatewayKubeConnectionByDocument,
   getKubeConnectionByDocument,
   getServerConnectionByDocument,
-  getGatewayKubeConnectionByDocument,
 } from './trackedConnectionUtils';
 import {
   ExtendedTrackedConnection,

@@ -19,10 +19,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Logger, { NullService } from 'teleterm/logger';
+
 import { fork } from 'node:child_process';
 import path from 'node:path';
-
-import Logger, { NullService } from 'teleterm/logger';
 
 import { terminateWithTimeout } from './terminateWithTimeout';
 

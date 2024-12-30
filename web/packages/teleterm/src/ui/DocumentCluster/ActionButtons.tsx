@@ -18,43 +18,44 @@
 
 import React from 'react';
 import {
-  MenuInputType,
-  MenuLogin,
-  MenuLoginProps,
-} from 'shared/components/MenuLogin';
-import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
+  formatPortRange,
+  getAwsAppLaunchUrl,
+  getSamlAppSsoUrl,
+  getWebAppLaunchUrl,
+  isWebApp,
+} from 'teleterm/services/tshd/app';
+import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import {
+  captureAppLaunchInBrowser,
+  connectToAppWithVnet,
+  connectToDatabase,
+  connectToKube,
+  connectToServer,
+  setUpAppGateway,
+} from 'teleterm/ui/services/workspacesService';
+import { IAppContext } from 'teleterm/ui/types';
+import { DatabaseUri, routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
+import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+
+import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
 import {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from 'design/Menu/MenuItem';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
+import {
+  MenuInputType,
+  MenuLogin,
+  MenuLoginProps,
+} from 'shared/components/MenuLogin';
+
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-
-import {
-  connectToServer,
-  connectToDatabase,
-  connectToKube,
-  connectToAppWithVnet,
-  captureAppLaunchInBrowser,
-  setUpAppGateway,
-} from 'teleterm/ui/services/workspacesService';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { GatewayProtocol } from 'teleterm/services/tshd/types';
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import {
-  getWebAppLaunchUrl,
-  isWebApp,
-  getAwsAppLaunchUrl,
-  getSamlAppSsoUrl,
-  formatPortRange,
-} from 'teleterm/services/tshd/app';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 
 export function ConnectServerActionButton(props: {
   server: Server;

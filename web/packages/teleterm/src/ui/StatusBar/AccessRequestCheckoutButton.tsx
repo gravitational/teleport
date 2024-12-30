@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useAccessRequestsButton } from 'teleterm/ui/StatusBar/useAccessRequestCheckoutButton';
+
 import { ButtonPrimary, Text } from 'design';
 import { ListAddCheck } from 'design/Icon';
-
-import { useAccessRequestsButton } from 'teleterm/ui/StatusBar/useAccessRequestCheckoutButton';
 
 export function AccessRequestCheckoutButton() {
   const { toggleAccessRequestBar, getAddedItemsCount, isCollapsed } =

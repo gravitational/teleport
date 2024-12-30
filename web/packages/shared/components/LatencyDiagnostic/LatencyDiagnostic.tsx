@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
 import React from 'react';
+import styled from 'styled-components';
 
-import * as Icons from 'design/Icon';
 import { Flex, H2, Text } from 'design';
+import * as Icons from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
-
-import { DocumentSsh } from 'teleport/Console/stores';
-
 import { MenuIcon } from 'shared/components/MenuAction';
+import { DocumentSsh } from 'teleport/Console/stores';
 
 export const WARN_THRESHOLD = 150;
 export const ERROR_THRESHOLD = 400;

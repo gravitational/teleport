@@ -18,35 +18,33 @@
 
 import { useEffect } from 'react';
 import styled from 'styled-components';
-
-import AppContextProvider from 'teleterm/ui/appContextProvider';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
-  createClusterServiceState,
-  ClustersServiceState,
-} from 'teleterm/ui/services/clusters';
-import { routing } from 'teleterm/ui/uri';
-import {
+  leafClusterUri,
+  makeAcl,
+  makeApp,
+  makeDatabase,
+  makeKube,
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
-  makeDatabase,
-  makeKube,
-  makeApp,
   rootClusterUri,
-  leafClusterUri,
-  makeAcl,
 } from 'teleterm/services/tshd/testHelpers';
-
-import { ResourcesService } from 'teleterm/ui/services/resources';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
-import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
 import * as tsh from 'teleterm/services/tshd/types';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import { VnetContextProvider } from 'teleterm/ui/Vnet';
+import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import {
+  ClustersServiceState,
+  createClusterServiceState,
+} from 'teleterm/ui/services/clusters';
+import { ResourcesService } from 'teleterm/ui/services/resources';
 import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { routing } from 'teleterm/ui/uri';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';

@@ -17,12 +17,11 @@
  */
 
 import { useState } from 'react';
-
-import Dialog from 'design/Dialog';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DialogClusterConnect } from 'teleterm/ui/services/modals';
 import { RootClusterUri } from 'teleterm/ui/uri';
+
+import Dialog from 'design/Dialog';
 
 import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';

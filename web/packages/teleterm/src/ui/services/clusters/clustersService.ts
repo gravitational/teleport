@@ -16,37 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MainProcessClient } from 'teleterm/mainProcess/types';
+import {
+  CloneableAbortSignal,
+  cloneAbortSignal,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { UsageService } from 'teleterm/ui/services/usage';
+import * as uri from 'teleterm/ui/uri';
+
 import { useStore } from 'shared/libs/stores';
+import { isAbortError } from 'shared/utils/abortError';
 import { pipe } from 'shared/utils/pipe';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   Cluster,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   CreateAccessRequestRequest,
-  ReviewAccessRequestRequest,
-  PromoteAccessRequestRequest,
-  PasswordlessPrompt,
   CreateGatewayRequest,
+  PasswordlessPrompt,
+  PromoteAccessRequestRequest,
+  ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-import { isAbortError } from 'shared/utils/abortError';
-
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { MainProcessClient } from 'teleterm/mainProcess/types';
-import { UsageService } from 'teleterm/ui/services/usage';
-import { AssumedRequest } from 'teleterm/services/tshd/types';
-import {
-  TshdClient,
-  CloneableAbortSignal,
-  cloneAbortSignal,
-} from 'teleterm/services/tshd';
 
 import { ImmutableStore } from '../immutableStore';
-
 import type * as types from './types';
 
 const { routing } = uri;

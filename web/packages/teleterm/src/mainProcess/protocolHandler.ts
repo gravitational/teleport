@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { app, protocol } from 'electron';
+import Logger from 'teleterm/logger';
+
+import fs from 'fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'path';
-import fs from 'fs';
-
-import { protocol, app } from 'electron';
-
-import Logger from 'teleterm/logger';
 
 const logger = new Logger('protocol handler');
 const disabledSchemes = [

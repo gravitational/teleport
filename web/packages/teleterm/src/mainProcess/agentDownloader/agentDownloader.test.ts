@@ -21,20 +21,17 @@
 
 /* eslint jest/no-conditional-expect: 0 */
 
-import childProcess from 'node:child_process';
-import { PassThrough } from 'node:stream';
-import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
-import zlib from 'node:zlib';
-
 import tarFs from 'tar-fs';
-
 import Logger, { NullService } from 'teleterm/logger';
 
+import childProcess from 'node:child_process';
+import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
+import { PassThrough } from 'node:stream';
+import zlib from 'node:zlib';
+
 import { makeRuntimeSettings } from '../fixtures/mocks';
-
 import { downloadAgent } from './agentDownloader';
-
 import type { IFileDownloader } from './fileDownloader';
 
 jest.mock('node:child_process');

@@ -17,19 +17,18 @@
  */
 
 import { render, screen, userEvent } from 'design/utils/testing';
-
-import { userEventService } from 'teleport/services/userEvent';
 import {
   ComponentWrapper,
   getDbMeta,
   getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
-import { agentService } from 'teleport/services/agents';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import { agentService } from 'teleport/services/agents';
 import auth from 'teleport/services/auth/auth';
+import { userEventService } from 'teleport/services/userEvent';
 
 import { TestConnection } from './TestConnection';
 

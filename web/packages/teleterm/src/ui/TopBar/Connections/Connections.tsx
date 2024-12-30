@@ -17,16 +17,16 @@
  */
 
 import { useMemo, useRef } from 'react';
-import Popover from 'design/Popover';
-import { Box, StepSlider } from 'design';
-
-import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { VnetSliderStep, useVnetContext } from 'teleterm/ui/Vnet';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+import { useVnetContext, VnetSliderStep } from 'teleterm/ui/Vnet';
 
+import { Box, StepSlider } from 'design';
+import Popover from 'design/Popover';
+
+import { Step, useConnectionsContext } from './connectionsContext';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsSliderStep } from './ConnectionsSliderStep';
-import { Step, useConnectionsContext } from './connectionsContext';
 
 export function Connections() {
   const { connectionTracker } = useAppContext();

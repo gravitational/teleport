@@ -17,7 +17,6 @@
  */
 
 import { ipcMain, ipcRenderer, Menu } from 'electron';
-
 import { ConfigService } from 'teleterm/services/config';
 
 import { TerminalContextMenuEventChannel } from '../types';

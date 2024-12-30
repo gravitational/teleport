@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import path from 'node:path';
-
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
+import type { Plugin } from 'vite';
+
+import path from 'node:path';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
 
 import { getConnectCsp } from './csp';
-
-import type { Plugin } from 'vite';
 
 const rootDirectory = path.resolve(__dirname, '../../..');
 const outputDirectory = path.resolve(__dirname, 'build', 'app');

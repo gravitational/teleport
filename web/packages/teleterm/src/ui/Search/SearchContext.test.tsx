@@ -17,14 +17,20 @@
  */
 
 import { PropsWithChildren } from 'react';
+
 import '@testing-library/jest-dom';
-import { fireEvent, createEvent, render, screen } from '@testing-library/react';
-import { renderHook, act } from '@testing-library/react';
 
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from '@testing-library/react';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-
-import { IAppContext } from 'teleterm/ui/types';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { IAppContext } from 'teleterm/ui/types';
 
 import { SearchContextProvider, useSearchContext } from './SearchContext';
 

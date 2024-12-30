@@ -17,7 +17,6 @@
  */
 
 import { useRef } from 'react';
-
 import Logger from 'teleterm/logger';
 
 export function useLogger(name: string) {

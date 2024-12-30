@@ -16,15 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ButtonIcon, ButtonSecondary, Flex, H2, Text } from 'design';
 import { Danger } from 'design/Alert';
 import Dialog, { DialogContent } from 'design/Dialog';
 import { Cross, FingerprintSimple } from 'design/Icon';
-
-import { ButtonIcon, ButtonSecondary, Flex, H2, Text } from 'design';
-
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
-
 import { MfaState } from 'teleport/lib/useMfa';
 import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
 

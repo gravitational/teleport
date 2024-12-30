@@ -17,7 +17,6 @@
  */
 
 import { CardSuccessLogin } from 'design';
-
 import { LogoHero } from 'teleport/components/LogoHero';
 
 export function LoginSuccess() {

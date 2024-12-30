@@ -17,7 +17,6 @@
  */
 
 import { ipcMain, ipcRenderer } from 'electron';
-
 import { CONFIG_MODIFIABLE_FROM_RENDERER } from 'teleterm/services/config/appConfigSchema';
 
 import {

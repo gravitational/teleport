@@ -18,9 +18,7 @@
 
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-
 import { SearchPanel } from 'shared/components/Search';
-
 import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';
 import { RoleResource } from 'teleport/services/resources';
 import { Access } from 'teleport/services/user';

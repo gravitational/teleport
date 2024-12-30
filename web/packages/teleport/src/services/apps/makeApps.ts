@@ -17,7 +17,6 @@
  */
 
 import { AwsRole } from 'shared/services/apps';
-
 import cfg from 'teleport/config';
 
 import { App, AppSubKind, PermissionSet } from './types';

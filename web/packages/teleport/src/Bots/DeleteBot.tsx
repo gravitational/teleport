@@ -23,7 +23,6 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
-
 import { DeleteBotProps } from 'teleport/Bots/types';
 
 export function DeleteBot({

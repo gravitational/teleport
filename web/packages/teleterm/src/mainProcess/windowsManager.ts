@@ -16,28 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import path from 'node:path';
-import * as url from 'node:url';
-
 import {
   app,
   BrowserWindow,
+  ipcMain,
   Menu,
+  nativeTheme,
   Rectangle,
   screen,
-  nativeTheme,
-  ipcMain,
 } from 'electron';
-
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
-import { FileStorage } from 'teleterm/services/fileStorage';
 import {
   RendererIpc,
   RuntimeSettings,
   WindowsManagerIpc,
 } from 'teleterm/mainProcess/types';
+import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
-import { DeepLinkParseResult } from 'teleterm/deepLinks';
+
+import path from 'node:path';
+import * as url from 'node:url';
 
 type WindowState = Rectangle;
 

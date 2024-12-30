@@ -16,17 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { matchPath } from 'react-router';
+
 import { useAttempt } from 'shared/hooks';
 import { AuthProvider } from 'shared/services';
-import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
-
-import session from 'teleport/services/websession';
-import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import auth, { UserCredentials } from 'teleport/services/auth';
+import history from 'teleport/services/history';
 import { storageService } from 'teleport/services/storageService';
+import session from 'teleport/services/websession';
+
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });

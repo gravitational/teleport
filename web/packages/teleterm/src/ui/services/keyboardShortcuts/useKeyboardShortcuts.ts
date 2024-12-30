@@ -17,7 +17,6 @@
  */
 
 import { useEffect } from 'react';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import {

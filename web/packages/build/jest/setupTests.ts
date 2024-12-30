@@ -18,10 +18,10 @@
 
 import 'whatwg-fetch';
 
+import failOnConsole from 'jest-fail-on-console';
+
 import crypto from 'node:crypto';
 import path from 'node:path';
-
-import failOnConsole from 'jest-fail-on-console';
 
 let entFailOnConsoleIgnoreList = [];
 try {

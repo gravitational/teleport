@@ -18,10 +18,10 @@
 
 import { useRef } from 'react';
 import styled from 'styled-components';
-import * as Icons from 'design/Icon';
-import { ButtonIcon, Text } from 'design';
-
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+
+import { ButtonIcon, Text } from 'design';
+import * as Icons from 'design/Icon';
 
 import { useTabDnD } from './useTabDnD';
 

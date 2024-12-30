@@ -18,14 +18,13 @@
 
 import { ButtonSecondary, ButtonWarning, P1 } from 'design';
 import { Danger } from 'design/Alert';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
-
+import useAttempt from 'shared/hooks/useAttemptNext';
 import { Lock } from 'teleport/services/locks';
 
 import { Pills } from './Locks';

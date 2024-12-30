@@ -16,25 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Dialog from 'design/Dialog';
-
 import { delay, http, HttpResponse } from 'msw';
 
+import Dialog from 'design/Dialog';
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
+import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-
-import cfg from 'teleport/config';
-
 import {
   DeviceUsage,
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
 } from 'teleport/services/mfa';
-
-import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
-
-import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
 import {
   AddAuthDeviceWizardStepProps,

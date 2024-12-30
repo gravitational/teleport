@@ -17,17 +17,15 @@
  */
 
 import { useCallback } from 'react';
+import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 import Indicator from 'design/Indicator';
 
-import * as types from 'teleterm/ui/services/workspacesService';
-import Document from 'teleterm/ui/Document';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-
 import { useConnectMyComputerContext } from '../connectMyComputerContext';
-
-import { Status } from './Status';
 import { Setup } from './Setup';
+import { Status } from './Status';
 
 export function DocumentConnectMyComputer(props: {
   visible: boolean;

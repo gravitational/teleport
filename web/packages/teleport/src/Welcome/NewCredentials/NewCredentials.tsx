@@ -17,20 +17,18 @@
  */
 
 import { useState } from 'react';
-import { NewFlow, StepSlider } from 'design/StepSlider';
-import { Box } from 'design';
 
+import { Box } from 'design';
+import { NewFlow, StepSlider } from 'design/StepSlider';
 import { OnboardCard } from 'teleport/components/Onboard';
 import OSSRecoveryCodes from 'teleport/components/RecoveryCodes';
 import cfg from 'teleport/config';
-
 import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';
 
 import useToken from '../useToken';
-
 import { Expired } from './Expired';
-import { LoginFlow, NewCredentialsProps } from './types';
 import { RegisterSuccess } from './Success';
+import { LoginFlow, NewCredentialsProps } from './types';
 
 /**
  *

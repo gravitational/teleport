@@ -17,22 +17,20 @@
  */
 
 import { renderHook } from '@testing-library/react';
+import {
+  makeKube,
+  makeLabelsList,
+  makeLeafCluster,
+  makeRootCluster,
+  makeServer,
+} from 'teleterm/services/tshd/testHelpers';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { SearchResult } from 'teleterm/ui/services/resources';
+import { ServerUri } from 'teleterm/ui/uri';
 
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { ServerUri } from 'teleterm/ui/uri';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { SearchResult } from 'teleterm/ui/services/resources';
-import {
-  makeServer,
-  makeKube,
-  makeLabelsList,
-  makeRootCluster,
-  makeLeafCluster,
-} from 'teleterm/services/tshd/testHelpers';
-
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
-
 import { makeResourceResult } from './testHelpers';
 import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
 

@@ -17,41 +17,37 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import styled, { useTheme } from 'styled-components';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import * as Icon from 'design/Icon';
 import {
   Notification,
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
-
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
-
-import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-
 import cfg from 'teleport/config';
-
-import { PasswordState } from 'teleport/services/user';
-
 import { DeviceUsage } from 'teleport/services/mfa';
+import { PasswordState } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
+import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
 } from './ManageDevices/useManageDevices';
-import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
-import { PasswordBox } from './PasswordBox';
 import {
   AddAuthDeviceWizard,
   DeleteAuthDeviceWizard,
 } from './ManageDevices/wizards';
+import { PasswordBox } from './PasswordBox';
 import { StatePill } from './StatePill';
 
 export interface EnterpriseComponentProps {

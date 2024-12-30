@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Flex, ButtonPrimary, Mark } from 'design';
-import * as Icons from 'design/Icon';
+import { ButtonPrimary, Flex, Mark, Text } from 'design';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
-
+import * as Icons from 'design/Icon';
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 
 export function NoEc2IceRequiredDialog({ nextStep }: { nextStep: () => void }) {

@@ -20,12 +20,11 @@ import { Text } from 'design';
 import Table from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-
 import {
-  RadioCell,
   DisableableCell as Cell,
-  Labels,
   labelMatcher,
+  Labels,
+  RadioCell,
 } from 'teleport/Discover/Shared';
 
 import { CheckedEc2Instance } from './EnrollEc2Instance';

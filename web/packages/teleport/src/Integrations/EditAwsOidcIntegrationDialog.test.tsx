@@ -15,18 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useEffect } from 'react';
-import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationKind,
   integrationService,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
 
 import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
 import { useIntegrationOperation } from './Operations';

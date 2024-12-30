@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { EventEmitter } from 'events';
-
 import {
   createContext,
   FC,
@@ -26,8 +24,9 @@ import {
   useContext,
   useRef,
 } from 'react';
-
 import { RootClusterUri } from 'teleterm/ui/uri';
+
+import { EventEmitter } from 'events';
 
 export interface ResourcesContext {
   /**

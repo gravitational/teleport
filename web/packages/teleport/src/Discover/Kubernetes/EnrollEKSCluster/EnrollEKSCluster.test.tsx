@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, fireEvent, act } from 'design/utils/testing';
-
+import { act, fireEvent, render, screen } from 'design/utils/testing';
+import cfg from 'teleport/config';
+import { ComponentWrapper } from 'teleport/Discover/Fixtures/kubernetes';
+import * as discoveryService from 'teleport/services/discovery/discovery';
+import {
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+  DISCOVERY_GROUP_CLOUD,
+} from 'teleport/services/discovery/discovery';
 import {
   AwsEksCluster,
   integrationService,
 } from 'teleport/services/integrations';
-import { userEventService } from 'teleport/services/userEvent';
 import KubeService from 'teleport/services/kube/kube';
-import * as discoveryService from 'teleport/services/discovery/discovery';
-import { ComponentWrapper } from 'teleport/Discover/Fixtures/kubernetes';
-import cfg from 'teleport/config';
-import {
-  DISCOVERY_GROUP_CLOUD,
-  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
-} from 'teleport/services/discovery/discovery';
+import { userEventService } from 'teleport/services/userEvent';
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 

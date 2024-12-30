@@ -17,16 +17,16 @@
  */
 
 import { Link } from 'react-router-dom';
-import { Text, Flex } from 'design';
 
-import cfg from 'teleport/config';
+import { Flex, Text } from 'design';
 import {
   BadgeTitle,
   ToolTipNoPermBadge,
 } from 'teleport/components/ToolTipNoPermBadge';
+import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { IntegrationTile, IntegrationIcon } from './common';
+import { IntegrationIcon, IntegrationTile } from './common';
 
 export function IntegrationTiles({
   hasIntegrationAccess = true,

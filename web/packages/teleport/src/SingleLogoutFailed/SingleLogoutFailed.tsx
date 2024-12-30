@@ -17,8 +17,8 @@
  */
 
 import { useLocation } from 'react-router';
-import { LogoutFailed } from 'design/CardError';
 
+import { LogoutFailed } from 'design/CardError';
 import { LogoHero } from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 

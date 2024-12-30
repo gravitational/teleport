@@ -17,9 +17,8 @@
  */
 
 import { LoginFailed as CardFailed } from 'design/CardError';
-
-import { Route, Switch } from 'teleport/components/Router';
 import { LogoHero } from 'teleport/components/LogoHero';
+import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 export function LoginFailed() {

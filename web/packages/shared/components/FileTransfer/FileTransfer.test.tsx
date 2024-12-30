@@ -24,10 +24,10 @@ import {
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
 
+import { createFileTransferEventsEmitter } from './createFileTransferEventsEmitter';
 import { FileTransfer, TransferHandlers } from './FileTransfer';
 import { FileTransferContextProvider } from './FileTransferContextProvider';
 import { FileTransferDialogDirection } from './FileTransferStateless';
-import { createFileTransferEventsEmitter } from './createFileTransferEventsEmitter';
 
 function FileTransferTestWrapper(props: {
   beforeClose?: () => boolean | Promise<boolean>;

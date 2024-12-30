@@ -23,9 +23,9 @@ THE SOFTWARE.
 
 */
 
-import { Children, createElement } from 'react';
-import PropTypes from 'prop-types';
 import createReactClass from 'create-react-class';
+import PropTypes from 'prop-types';
+import { Children, createElement } from 'react';
 
 /**
  * To prevent text selection while dragging.

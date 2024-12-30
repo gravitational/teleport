@@ -16,19 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
-import { useState } from 'react';
 import { within } from '@testing-library/react';
-import Validation from 'shared/components/Validation';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { useState } from 'react';
 
+import { render, screen, userEvent } from 'design/utils/testing';
+import Validation from 'shared/components/Validation';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+
+import { StandardEditor, StandardEditorProps } from './StandardEditor';
 import {
   newRole,
   roleToRoleEditorModel,
   StandardEditorModel,
 } from './standardmodel';
-import { StandardEditor, StandardEditorProps } from './StandardEditor';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();

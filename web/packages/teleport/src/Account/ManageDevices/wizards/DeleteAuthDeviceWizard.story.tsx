@@ -17,20 +17,16 @@
  */
 
 import Dialog from 'design/Dialog';
-
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import {
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
   MfaDevice,
 } from 'teleport/services/mfa';
-
-import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
-
-import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
 import {
   DeleteAuthDeviceWizardStepProps,

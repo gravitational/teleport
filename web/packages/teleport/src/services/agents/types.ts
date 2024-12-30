@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { Platform } from 'design/platform';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
-import { Node } from 'teleport/services/nodes';
-import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
-
-import { UserGroup } from '../userGroups';
+import { Kube } from 'teleport/services/kube';
+import { Node } from 'teleport/services/nodes';
 
 import type { MfaChallengeResponse } from '../mfa';
-import type { Platform } from 'design/platform';
+import { UserGroup } from '../userGroups';
 
 export type UnifiedResource =
   | App

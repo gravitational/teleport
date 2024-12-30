@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Flex, Text, ButtonPrimary } from 'design';
-
-import Document from 'teleterm/ui/Document';
-import * as types from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
+import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
+import * as types from 'teleterm/ui/services/workspacesService';
 import { connectToDatabase } from 'teleterm/ui/services/workspacesService';
+
+import { ButtonPrimary, Flex, Text } from 'design';
 
 /**
  * DocumentGatewayCliClient creates a terminal session that targets the given gateway.

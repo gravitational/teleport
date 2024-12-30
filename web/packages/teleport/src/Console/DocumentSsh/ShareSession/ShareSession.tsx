@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, ButtonSecondary } from 'design';
+import { ButtonSecondary, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 export default function ShareSession({ closeShareSession }: Props) {

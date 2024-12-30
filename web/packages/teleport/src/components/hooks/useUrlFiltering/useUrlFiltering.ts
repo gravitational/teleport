@@ -18,13 +18,12 @@
 
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
+
 import { SortType } from 'design/DataTable/types';
-
-import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
-import history from 'teleport/services/history';
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
+import history from 'teleport/services/history';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 

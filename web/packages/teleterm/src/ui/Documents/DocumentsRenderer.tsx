@@ -18,36 +18,33 @@
 
 import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
-
 import styled from 'styled-components';
-import { Text } from 'design';
-
-import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests';
-import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import {
+  ConnectMyComputerContextProvider,
+  ConnectMyComputerNavigationMenu,
+  DocumentConnectMyComputer,
+} from 'teleterm/ui/ConnectMyComputer';
+import Document from 'teleterm/ui/Document';
+import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests';
+import { DocumentAuthorizeWebSession } from 'teleterm/ui/DocumentAuthorizeWebSession';
+import DocumentCluster from 'teleterm/ui/DocumentCluster';
+import { DocumentGateway } from 'teleterm/ui/DocumentGateway';
+import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
+import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
+import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
+import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
   DocumentsService,
   Workspace,
 } from 'teleterm/ui/services/workspacesService';
-import DocumentCluster from 'teleterm/ui/DocumentCluster';
-import { DocumentGateway } from 'teleterm/ui/DocumentGateway';
-import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import {
-  ConnectMyComputerContextProvider,
-  DocumentConnectMyComputer,
-  ConnectMyComputerNavigationMenu,
-} from 'teleterm/ui/ConnectMyComputer';
-import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
-import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
-import { DocumentAuthorizeWebSession } from 'teleterm/ui/DocumentAuthorizeWebSession';
+import { isAppUri, isDatabaseUri, RootClusterUri } from 'teleterm/ui/uri';
 
-import Document from 'teleterm/ui/Document';
-import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
+import { Text } from 'design';
 
-import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
+import { WorkspaceContextProvider } from './workspaceContext';
 
 export function DocumentsRenderer(props: {
   topBarContainerRef: React.MutableRefObject<HTMLDivElement>;

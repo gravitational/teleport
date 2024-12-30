@@ -17,15 +17,14 @@
  */
 
 import { ipcMain } from 'electron';
+import { MainProcessIpc } from 'teleterm/mainProcess/types';
+import { TshdClient } from 'teleterm/services/tshd';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { proxyHostToBrowserProxyHost } from 'teleterm/services/tshd/cluster';
+import * as tshd from 'teleterm/services/tshd/types';
+import { Logger } from 'teleterm/types';
 
 import { isAbortError } from 'shared/utils/abortError';
-
-import { proxyHostToBrowserProxyHost } from 'teleterm/services/tshd/cluster';
-import { TshdClient } from 'teleterm/services/tshd';
-import { Logger } from 'teleterm/types';
-import { MainProcessIpc } from 'teleterm/mainProcess/types';
-import * as tshd from 'teleterm/services/tshd/types';
-import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
 export type RootClusterProxyHostAllowList = Set<string>;
 

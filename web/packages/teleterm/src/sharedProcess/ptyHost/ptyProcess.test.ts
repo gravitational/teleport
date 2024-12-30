@@ -19,9 +19,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import crypto from 'node:crypto';
-
 import Logger, { NullService } from 'teleterm/logger';
+
+import crypto from 'node:crypto';
 
 import { PtyProcess } from './ptyProcess';
 

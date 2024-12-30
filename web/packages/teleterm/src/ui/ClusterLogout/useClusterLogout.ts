@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useAsync } from 'shared/hooks/useAsync';
-
 import { RootClusterUri } from 'teleterm/ui/uri';
+
+import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from '../appContextProvider';
 

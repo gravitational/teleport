@@ -16,38 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
-
-import {
-  getDryRunMaxDuration,
-  PendingListItem,
-  PendingKubeResourceItem,
-  isKubeClusterWithNamespaces,
-  RequestableResourceKind,
-} from 'shared/components/AccessRequests/NewRequest';
-import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
-
-import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
-import {
-  PendingAccessRequest,
-  extractResourceRequestProperties,
-  ResourceRequest,
-  mapRequestToKubeNamespaceUri,
-  mapKubeNamespaceUriToRequest,
-} from 'teleterm/ui/services/workspacesService/accessRequestsService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { useEffect, useState } from 'react';
 import {
   CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
-
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
+import {
+  extractResourceRequestProperties,
+  mapKubeNamespaceUriToRequest,
+  mapRequestToKubeNamespaceUri,
+  PendingAccessRequest,
+  ResourceRequest,
+} from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
+
+import {
+  getDryRunMaxDuration,
+  isKubeClusterWithNamespaces,
+  PendingKubeResourceItem,
+  PendingListItem,
+  RequestableResourceKind,
+} from 'shared/components/AccessRequests/NewRequest';
+import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
+import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
 

@@ -17,9 +17,7 @@
  */
 
 import { Store } from 'shared/libs/stores';
-
 import cfg from 'teleport/config';
-
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {

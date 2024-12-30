@@ -17,7 +17,6 @@
  */
 
 import { displayDate, displayDateTime } from 'design/datetime';
-
 import cfg from 'teleport/config';
 
 import { Cluster, ClusterInfo } from './types';

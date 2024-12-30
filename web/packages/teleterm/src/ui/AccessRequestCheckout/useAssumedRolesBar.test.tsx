@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { act, renderHook } from '@testing-library/react';
 import { useEffect } from 'react';
-import { renderHook, act } from '@testing-library/react';
-
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
   ResourcesContextProvider,
   useResourcesContext,
 } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useAssumedRolesBar } from './useAssumedRolesBar';

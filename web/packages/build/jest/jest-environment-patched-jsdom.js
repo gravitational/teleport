@@ -1,8 +1,8 @@
-import { TextEncoder, TextDecoder } from 'node:util';
-import { BroadcastChannel } from 'node:worker_threads';
-import { TransformStream } from 'node:stream/web';
-
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
+
+import { TransformStream } from 'node:stream/web';
+import { TextDecoder, TextEncoder } from 'node:util';
+import { BroadcastChannel } from 'node:worker_threads';
 
 // When using jest-environment-jsdom, TextEncoder and TextDecoder are not defined. This poses a
 // problem when writing tests for code which uses TextEncoder and TextDecoder directly or that

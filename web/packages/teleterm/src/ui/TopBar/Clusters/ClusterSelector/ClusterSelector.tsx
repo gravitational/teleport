@@ -17,11 +17,11 @@
  */
 
 import { forwardRef } from 'react';
-import { ChevronUp, ChevronDown } from 'design/Icon';
 import styled from 'styled-components';
-import { Text } from 'design';
-
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+
+import { Text } from 'design';
+import { ChevronDown, ChevronUp } from 'design/Icon';
 
 interface ClusterSelectorProps {
   clusterName?: string;

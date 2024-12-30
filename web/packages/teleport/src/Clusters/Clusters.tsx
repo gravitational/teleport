@@ -17,25 +17,23 @@
  */
 
 import { useEffect, useState } from 'react';
+
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
-
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
-
-import { useFeatures } from 'teleport/FeaturesContext';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
+import useTeleport from 'teleport/useTeleport';
 
 import ClusterList from './ClusterList';
-import { buildACL } from './utils';
 import { ManageCluster } from './ManageCluster';
+import { buildACL } from './utils';
 
 export function Clusters() {
   return (

@@ -15,23 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import { useEffect } from 'react';
+
 import {
   AnimatedProgressBar,
   Box,
   ButtonPrimary,
-  Text,
   Flex,
   Mark,
+  Text,
 } from 'design';
-import { useEffect } from 'react';
-
+import Dialog, { DialogContent } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
-
-import { Kube } from 'teleport/services/kube';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { TextIcon, useShowHint } from 'teleport/Discover/Shared';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import { Kube } from 'teleport/services/kube';
 
 type AgentWaitingDialogProps = {
   joinResourceId: string;

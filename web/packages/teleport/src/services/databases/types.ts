@@ -17,7 +17,6 @@
  */
 
 import { DbProtocol } from 'shared/services/databases';
-
 import { ResourceLabel } from 'teleport/services/agents';
 
 import { AwsRdsDatabase, RdsEngine, Regions } from '../integrations';

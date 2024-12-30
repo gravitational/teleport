@@ -18,12 +18,12 @@
 
 import React from 'react';
 
-import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
 import {
   ManagementSection,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
+
+import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
 import { NavigationCategory as SideNavigationCategory } from './Navigation/SideNavigation/categories';
 

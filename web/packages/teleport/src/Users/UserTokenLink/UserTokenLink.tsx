@@ -20,15 +20,14 @@ import { formatDistanceStrict } from 'date-fns';
 
 import { ButtonSecondary, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { ResetToken } from 'teleport/services/user';
 import cfg from 'teleport/config';
+import { ResetToken } from 'teleport/services/user';
 
 export default function UserTokenLink({
   token,

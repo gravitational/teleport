@@ -17,23 +17,20 @@
  */
 
 import { Fragment } from 'react';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
-import { Dialog } from 'teleterm/ui/services/modals';
 import { HeadlessAuthentication } from 'teleterm/ui/HeadlessAuthn';
+import { Dialog } from 'teleterm/ui/services/modals';
 
 import { ClusterLogout } from '../ClusterLogout';
 import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
 import { assertUnreachable } from '../utils';
-
-import { UsageData } from './modals/UsageData';
-import { UserJobRole } from './modals/UserJobRole';
-import { ReAuthenticate } from './modals/ReAuthenticate';
 import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
+import { ReAuthenticate } from './modals/ReAuthenticate';
+import { UsageData } from './modals/UsageData';
+import { UserJobRole } from './modals/UserJobRole';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();

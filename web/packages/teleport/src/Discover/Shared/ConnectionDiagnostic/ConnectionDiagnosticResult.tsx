@@ -18,24 +18,23 @@
 
 import { useState } from 'react';
 import styled from 'styled-components';
+
 import {
-  ButtonSecondary,
-  Text,
   Box,
-  Flex,
+  ButtonSecondary,
   ButtonText,
-  Mark,
+  Flex,
   H3,
+  Mark,
   Subtitle3,
+  Text,
 } from 'design';
 import * as Icons from 'design/Icon';
-
+import type { Attempt } from 'shared/hooks/useAttemptNext';
 import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
+import type { ConnectionDiagnostic } from 'teleport/services/agents';
 
 import { StyledBox, TextIcon } from '..';
-
-import type { Attempt } from 'shared/hooks/useAttemptNext';
-import type { ConnectionDiagnostic } from 'teleport/services/agents';
 
 export function ConnectionDiagnosticResult({
   attempt,

@@ -17,17 +17,17 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import Popover from 'design/Popover';
 import styled from 'styled-components';
-import { Box } from 'design';
-
-import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 import { ClusterUri } from 'teleterm/ui/uri';
 
-import { useClusters } from './useClusters';
+import { Box } from 'design';
+import Popover from 'design/Popover';
+
 import { ClusterSelector } from './ClusterSelector/ClusterSelector';
 import { ClustersFilterableList } from './ClustersFilterableList/ClustersFilterableList';
+import { useClusters } from './useClusters';
 
 export function Clusters() {
   const iconRef = useRef();

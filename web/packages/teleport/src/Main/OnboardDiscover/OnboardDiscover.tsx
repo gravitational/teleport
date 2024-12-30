@@ -16,17 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary, ButtonText, Image, Text } from 'design';
+import { ButtonPrimary, ButtonText, H2, Image, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/Dialog';
-
-import { H2 } from 'design';
-
-import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
+import { CaptureEvent } from 'teleport/services/userEvent/types';
 
 import resourcesPng from './resources.png';
 

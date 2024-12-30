@@ -17,17 +17,16 @@
  */
 
 import {
-  Text,
   Box,
-  ButtonSecondary,
-  Link,
-  Indicator,
   ButtonLink,
+  ButtonSecondary,
+  Indicator,
+  Link,
+  Text,
 } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
-
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 
 import { State } from './useAddApp';

@@ -18,16 +18,15 @@
 
 import { Meta } from '@storybook/react';
 import { ComponentProps } from 'react';
-import {
-  makeEmptyAttempt,
-  makeProcessingAttempt,
-  makeErrorAttempt,
-} from 'shared/hooks/useAsync';
-
 import { makeDatabaseGateway } from 'teleterm/services/tshd/testHelpers';
 
-import { OfflineGateway } from '../components/OfflineGateway';
+import {
+  makeEmptyAttempt,
+  makeErrorAttempt,
+  makeProcessingAttempt,
+} from 'shared/hooks/useAsync';
 
+import { OfflineGateway } from '../components/OfflineGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 
 type StoryProps = {

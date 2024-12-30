@@ -17,15 +17,15 @@
  */
 
 import { useState } from 'react';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H2 } from 'design';
 import * as Alerts from 'design/Alert';
-import { Box, Flex, ButtonPrimary, ButtonSecondary, H2 } from 'design';
+import { DialogContent, DialogHeader } from 'design/Dialog';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { DialogContent, DialogHeader } from 'design/Dialog';
 import { useAsync } from 'shared/hooks/useAsync';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { outermostPadding } from '../spacing';
 

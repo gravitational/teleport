@@ -18,15 +18,14 @@
 
 import React, { createContext, useContext, useEffect } from 'react';
 import { useParams } from 'react-router';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import {
   Integration,
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
-
 import useTeleport from 'teleport/useTeleport';
 
 export interface AwsOidcStatusContextState {

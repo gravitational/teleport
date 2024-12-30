@@ -17,6 +17,7 @@
  */
 
 import React, { useState } from 'react';
+
 import { Box, ButtonPrimary, ButtonText, H2, Text } from 'design';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
@@ -26,7 +27,6 @@ import {
   requiredPassword,
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
-
 import { OnboardCard } from 'teleport/components/Onboard';
 
 import { SliderProps, UseTokenState } from './types';

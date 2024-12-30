@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { throttle } from 'shared/utils/highbar';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
-
+import { throttle } from 'shared/utils/highbar';
 import { StatusEnum } from 'teleport/lib/player';
 
 import Client, { TdpClientEvent } from './client';

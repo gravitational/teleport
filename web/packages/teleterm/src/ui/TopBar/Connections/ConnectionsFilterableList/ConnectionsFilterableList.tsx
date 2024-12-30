@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text } from 'design';
-
-import { FilterableList } from 'teleterm/ui/components/FilterableList';
-import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
-import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { VnetConnectionItem, useVnetContext } from 'teleterm/ui/Vnet';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { FilterableList } from 'teleterm/ui/components/FilterableList';
+import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
+import { useVnetContext, VnetConnectionItem } from 'teleterm/ui/Vnet';
+
+import { Text } from 'design';
 
 import { ConnectionItem } from './ConnectionItem';
 

@@ -23,13 +23,11 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
-
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
-import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
-
+import Validation from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 import { EditBotProps } from 'teleport/Bots/types';
 
 export function EditBot({

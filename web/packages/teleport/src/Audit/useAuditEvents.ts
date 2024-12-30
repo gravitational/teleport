@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useMemo } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect, useMemo, useState } from 'react';
 
-import Ctx from 'teleport/teleportContext';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import {
-  getRangeOptions,
   EventRange,
+  getRangeOptions,
 } from 'teleport/components/EventRangePicker';
 import { Event, EventCode, formatters } from 'teleport/services/audit';
+import Ctx from 'teleport/teleportContext';
 
 export default function useAuditEvents(
   ctx: Ctx,

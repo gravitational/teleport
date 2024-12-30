@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
-
+import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 
-import { createMemoryHistory } from 'history';
-
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 import { IntegrationList } from 'teleport/Integrations/IntegrationList';
 import {
   IntegrationKind,

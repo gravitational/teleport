@@ -17,11 +17,10 @@
  */
 
 import {
+  iconNames,
   ResourceIconName,
   resourceIconSpecs,
-  iconNames,
 } from 'design/ResourceIcon';
-
 import { AppSubKind } from 'teleport/services/apps';
 
 import { UnifiedResourceApp } from '../types';

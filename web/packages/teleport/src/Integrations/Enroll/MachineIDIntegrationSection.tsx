@@ -17,9 +17,7 @@
  */
 
 import { Box, H2 } from 'design';
-
 import { P } from 'design/Text/Text';
-
 import { BotTiles } from 'teleport/Bots/Add/AddBotsPicker';
 import useTeleport from 'teleport/useTeleport';
 

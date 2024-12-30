@@ -17,22 +17,21 @@
  */
 
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
-import { Link } from 'react-router-dom';
-import { Flex, Image, TopNav } from 'design';
 import { matchPath, useHistory } from 'react-router';
+import { Link } from 'react-router-dom';
+import styled, { useTheme } from 'styled-components';
+
+import { Flex, Image, TopNav } from 'design';
 import { Theme } from 'design/theme/themes/types';
 import { HoverTooltip } from 'design/Tooltip';
-
-import useTeleport from 'teleport/useTeleport';
-import { UserMenuNav } from 'teleport/components/UserMenuNav';
-import { useFeatures } from 'teleport/FeaturesContext';
-import cfg from 'teleport/config';
-import { useLayout } from 'teleport/Main/LayoutContext';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
-
-import { Notifications } from 'teleport/Notifications';
+import { UserMenuNav } from 'teleport/components/UserMenuNav';
+import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/SideNavigation/zIndexMap';
+import { Notifications } from 'teleport/Notifications';
+import useTeleport from 'teleport/useTeleport';
 
 export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();

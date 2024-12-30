@@ -17,7 +17,6 @@
  */
 
 import { useMemo } from 'react';
-
 import {
   KeyboardShortcutHandlers,
   useKeyboardShortcuts,

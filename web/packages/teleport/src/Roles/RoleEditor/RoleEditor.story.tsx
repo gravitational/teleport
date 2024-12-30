@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
 import { StoryObj } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
+import { useEffect, useState } from 'react';
+
 import { Info } from 'design/Alert';
-import Flex from 'design/Flex';
 import { ButtonPrimary } from 'design/Button';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import cfg from 'teleport/config';
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-import { Access } from 'teleport/services/user';
+import Flex from 'design/Flex';
 import useResources from 'teleport/components/useResources';
+import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Access } from 'teleport/services/user';
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
-import { withDefaults } from './StandardEditor/withDefaults';
 import { RoleEditor } from './RoleEditor';
 import { RoleEditorDialog } from './RoleEditorDialog';
+import { withDefaults } from './StandardEditor/withDefaults';
 
 const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
 

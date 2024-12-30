@@ -19,20 +19,20 @@
 import { useMemo, useRef } from 'react';
 
 import {
-  Flex,
-  Text,
-  ButtonSecondary,
-  Link,
-  Box,
   Alert,
-  Indicator,
+  Box,
+  ButtonSecondary,
+  Flex,
   H1,
+  Indicator,
+  Link,
+  Text,
 } from 'design';
-
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
-import { TextSelectCopy } from 'shared/components/TextSelectCopy';
+
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { PortFieldInput } from '../components/FieldInputs';

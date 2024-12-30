@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { app } from 'electron';
+
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-import { app } from 'electron';
-
-import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
 import { getAvailableShells, getDefaultShell } from './shell';
+import { GrpcServerAddresses, RuntimeSettings } from './types';
 
 const { argv, env } = process;
 

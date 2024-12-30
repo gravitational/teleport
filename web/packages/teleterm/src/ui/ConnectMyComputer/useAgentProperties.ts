@@ -17,11 +17,10 @@
  */
 
 import { useMemo } from 'react';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import * as connectMyComputer from 'shared/connectMyComputer';
-
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function useAgentProperties(): {
   systemUsername: string;

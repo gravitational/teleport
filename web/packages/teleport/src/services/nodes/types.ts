@@ -17,7 +17,6 @@
  */
 
 import { NodeSubKind } from 'shared/services';
-
 import { ResourceLabel } from 'teleport/services/agents';
 
 import { Regions } from '../integrations';

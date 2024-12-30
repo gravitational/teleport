@@ -17,19 +17,17 @@
  */
 
 import { within } from '@testing-library/react';
-import { render, screen, waitFor } from 'design/utils/testing';
-
 import userEvent from '@testing-library/user-event';
 
+import { render, screen, waitFor } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
-import TeleportContext from 'teleport/teleportContext';
-
 import { AccountPage as Account } from 'teleport/Account/Account';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import auth from 'teleport/services/auth/auth';
 import MfaService, { MfaDevice } from 'teleport/services/mfa';
 import { PasswordState } from 'teleport/services/user';
+import TeleportContext from 'teleport/teleportContext';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;

@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import stream from 'node:stream';
-
 import { RingBuffer } from 'ring-buffer-ts';
+
+import stream from 'node:stream';
 
 /**
  * A writeable stream that keeps the last n chunks.

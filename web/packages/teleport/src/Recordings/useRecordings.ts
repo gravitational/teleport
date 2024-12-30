@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect, useMemo, useState } from 'react';
 
-import Ctx from 'teleport/teleportContext';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import {
-  getRangeOptions,
   EventRange,
+  getRangeOptions,
 } from 'teleport/components/EventRangePicker';
 import { Recording } from 'teleport/services/recordings';
+import Ctx from 'teleport/teleportContext';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 export default function useRecordings(ctx: Ctx) {
   const { clusterId } = useStickyClusterId();

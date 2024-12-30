@@ -16,27 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Box, Button, ButtonPrimary, Flex, H3, Indicator, Link } from 'design';
 import { Danger } from 'design/Alert';
-import { Indicator, Box, Flex, ButtonPrimary, Link, Button, H3 } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
-
 import { P } from 'design/Text/Text';
-
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-
 import useResources from 'teleport/components/useResources';
 
+import { emptyPng } from './assets';
 import DeleteTrust from './DeleteTrust';
 import templates from './templates';
 import TrustedList from './TrustedList';
 import useTrustedClusters from './useTrustedClusters';
-import { emptyPng } from './assets';
 
 export default function TrustedClusters() {
   const { items, canCreate, remove, save, attempt } = useTrustedClusters();

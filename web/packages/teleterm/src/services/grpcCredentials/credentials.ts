@@ -21,7 +21,6 @@ import {
   credentials,
   ServerCredentials,
 } from '@grpc/grpc-js';
-
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 export function createClientCredentials(

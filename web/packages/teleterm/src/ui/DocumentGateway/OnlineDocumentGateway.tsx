@@ -17,17 +17,16 @@
  */
 
 import { useMemo, useRef } from 'react';
-import { debounce } from 'shared/utils/highbar';
-import { Alert, Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
-import * as Alerts from 'design/Alert';
 
+import { Alert, Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
+import * as Alerts from 'design/Alert';
+import Validation from 'shared/components/Validation';
 import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
 
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
-
 import { CliCommand } from './CliCommand';
 
 export function OnlineDocumentGateway(props: {

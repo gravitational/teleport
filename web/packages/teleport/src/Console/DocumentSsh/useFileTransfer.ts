@@ -17,19 +17,16 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useFileTransferContext } from 'shared/components/FileTransfer';
 
+import { useFileTransferContext } from 'shared/components/FileTransfer';
+import cfg from 'teleport/config';
 import { DocumentSsh } from 'teleport/Console/stores';
 import { EventType } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
+import { MfaState } from 'teleport/lib/useMfa';
 import { Session } from 'teleport/services/session';
 
-import cfg from 'teleport/config';
-
-import { MfaState } from 'teleport/lib/useMfa';
-
 import { useConsoleContext } from '../consoleContextProvider';
-
 import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 
 export type FileTransferRequest = {

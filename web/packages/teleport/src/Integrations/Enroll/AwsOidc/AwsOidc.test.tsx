@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MemoryRouter } from 'react-router';
+
 import {
   fireEvent,
   render,
@@ -23,12 +25,9 @@ import {
   userEvent,
   waitFor,
 } from 'design/utils/testing';
-import { MemoryRouter } from 'react-router';
-
-import { userEventService } from 'teleport/services/userEvent';
-
-import { integrationService } from 'teleport/services/integrations';
 import { ApiError } from 'teleport/services/api/parseError';
+import { integrationService } from 'teleport/services/integrations';
+import { userEventService } from 'teleport/services/userEvent';
 
 import { AwsOidc } from './AwsOidc';
 

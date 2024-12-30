@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as shared from 'shared/services/types';
-
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
+
+import * as shared from 'shared/services/types';
 
 export type AuthProviderType = shared.AuthProviderType;
 export type AuthType = shared.AuthType;

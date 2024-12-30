@@ -19,13 +19,12 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { Spinner } from 'design/Icon';
 import { Box, Flex, rotate360 } from 'design';
-
-import auth from 'teleport/services/auth';
-import { useParams } from 'teleport/components/Router';
+import { Spinner } from 'design/Icon';
 import HeadlessRequestDialog from 'teleport/components/HeadlessRequestDialog/HeadlessRequestDialog';
+import { useParams } from 'teleport/components/Router';
 import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';
+import auth from 'teleport/services/auth';
 
 export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();

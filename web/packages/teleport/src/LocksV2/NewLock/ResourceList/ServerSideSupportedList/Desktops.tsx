@@ -17,10 +17,9 @@
  */
 
 import { ClickableLabelCell } from 'design/DataTable';
-
 import { Desktop } from 'teleport/services/desktops';
 
-import { ServerSideListProps, StyledTable, renderActionCell } from '../common';
+import { renderActionCell, ServerSideListProps, StyledTable } from '../common';
 
 export function Desktops(props: ServerSideListProps & { desktops: Desktop[] }) {
   const {

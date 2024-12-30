@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 import {
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
 } from 'teleport/services/mfa';
-
-import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
 import { ReAuthenticate, State } from './ReAuthenticate';
 import { ReauthState } from './useReAuthenticate';

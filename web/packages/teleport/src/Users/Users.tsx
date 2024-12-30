@@ -17,18 +17,18 @@
  */
 
 import React from 'react';
-import { Indicator, Text, Flex, Box, Alert, Button, Link } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
 
+import { Alert, Box, Button, Flex, Indicator, Link, Text } from 'design';
+import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 
-import UserList from './UserList';
 import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';
+import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
 

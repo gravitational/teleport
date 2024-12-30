@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
-
+import type * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
 
-import type * as tsh from 'teleterm/services/tshd/types';
+import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
 export type Kind = Document['kind'];
 

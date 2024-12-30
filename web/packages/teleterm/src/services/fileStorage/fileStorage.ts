@@ -17,13 +17,13 @@
  */
 
 // Both versions are imported because some operations need to be sync.
-import fsAsync from 'node:fs/promises';
+import Logger from 'teleterm/logger';
+
 import fs from 'node:fs';
+import fsAsync from 'node:fs/promises';
 import path from 'node:path';
 
 import { debounce } from 'shared/utils/highbar';
-
-import Logger from 'teleterm/logger';
 
 const logger = new Logger('FileStorage');
 

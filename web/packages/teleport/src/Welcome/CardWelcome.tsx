@@ -17,7 +17,6 @@
  */
 
 import { ButtonPrimary, H2, Subtitle2 } from 'design';
-
 import { OnboardCard } from 'teleport/components/Onboard';
 
 export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {

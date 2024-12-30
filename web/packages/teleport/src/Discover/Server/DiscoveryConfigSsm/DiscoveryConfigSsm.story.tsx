@@ -16,29 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse, delay } from 'msw';
-import { Info } from 'design/Alert';
 
+import { Info } from 'design/Alert';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ServerLocation } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  DiscoverProvider,
-  DiscoverContextState,
   AutoDiscovery,
+  DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
-import { ServerLocation } from 'teleport/Discover/SelectResource';
 
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm';
 

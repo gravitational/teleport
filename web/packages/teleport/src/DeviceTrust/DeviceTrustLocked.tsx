@@ -19,27 +19,21 @@
 import styled from 'styled-components';
 
 import { Box, Flex, Link } from 'design';
-
-import { IconCircle } from 'design/Icon/IconCircle';
-
-import { Windows, Linux, Apple, Lock } from 'design/Icon';
-
 import Table, { Cell } from 'design/DataTable';
-
+import { Apple, Linux, Lock, Windows } from 'design/Icon';
+import { IconCircle } from 'design/Icon/IconCircle';
 import { P } from 'design/Text/Text';
-
-import {
-  DeviceListProps,
-  TrustedDeviceOSType,
-} from 'teleport/DeviceTrust/types';
-
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import {
+  DeviceListProps,
+  TrustedDeviceOSType,
+} from 'teleport/DeviceTrust/types';
 import { CtaEvent } from 'teleport/services/userEvent';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 export function DeviceTrustLocked() {
   return (

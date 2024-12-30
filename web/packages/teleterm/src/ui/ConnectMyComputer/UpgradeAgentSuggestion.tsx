@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { RuntimeSettings } from 'teleterm/mainProcess/types';
+
 import { Alert, Text } from 'design';
 import Link from 'design/Link';
-
 import { compareSemVers } from 'shared/utils/semVer';
-
-import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import { checkAgentCompatibility } from './CompatibilityPromise';
 

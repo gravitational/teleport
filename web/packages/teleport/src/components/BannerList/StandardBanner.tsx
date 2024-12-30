@@ -17,11 +17,9 @@
  */
 
 import { Banner } from 'design';
-
 import { Action } from 'design/Alert';
-
-import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
+import { CaptureEvent } from 'teleport/services/userEvent/types';
 
 export type Severity = 'info' | 'warning' | 'danger';
 

@@ -17,23 +17,21 @@
  */
 
 import {
-  Text,
-  Flex,
   AnimatedProgressBar,
   ButtonPrimary,
   ButtonSecondary,
-  H2,
   ButtonWarning,
+  Flex,
+  H2,
+  Text,
 } from 'design';
-import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
-
-import { Timeout } from 'teleport/Discover/Shared/Timeout';
+import * as Icons from 'design/Icon';
+import type { Attempt } from 'shared/hooks/useAttemptNext';
 import { TextIcon } from 'teleport/Discover/Shared';
+import { Timeout } from 'teleport/Discover/Shared/Timeout';
 
 import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
-
-import type { Attempt } from 'shared/hooks/useAttemptNext';
 
 export type CreateDatabaseDialogProps = {
   pollTimeout: number;

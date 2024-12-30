@@ -17,10 +17,9 @@
  */
 
 import { Cell, ClickableLabelCell } from 'design/DataTable';
-
 import { Node } from 'teleport/services/nodes';
 
-import { ServerSideListProps, StyledTable, renderActionCell } from '../common';
+import { renderActionCell, ServerSideListProps, StyledTable } from '../common';
 
 export function Nodes(props: ServerSideListProps & { nodes: Node[] }) {
   const {

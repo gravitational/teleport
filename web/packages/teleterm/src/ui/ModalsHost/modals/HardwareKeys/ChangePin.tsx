@@ -18,23 +18,23 @@
 
 import { useState } from 'react';
 
+import { ButtonPrimary, Flex, P2, Toggle } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
-import { ButtonPrimary, Flex, Toggle, P2 } from 'design';
-import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
+import Validation from 'shared/components/Validation';
+import {
+  requiredAll,
+  requiredField,
+  Rule,
+} from 'shared/components/Validation/rules';
+
 import {
   PromptHardwareKeyPINChangeRequest,
   PromptHardwareKeyPINChangeResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-
-import {
-  requiredField,
-  Rule,
-  requiredAll,
-} from 'shared/components/Validation/rules';
 
 import { CommonHeader } from './CommonHeader';
 

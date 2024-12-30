@@ -17,31 +17,28 @@
  */
 
 import { useState } from 'react';
+
 import { Box, H3, Subtitle3 } from 'design';
-import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
-import ReAuthenticate from 'teleport/components/ReAuthenticate';
-
+import type { KubeImpersonation } from 'teleport/services/agents';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
   ActionButtons,
-  HeaderSubtitle,
-  Header,
   ConnectionDiagnosticResult,
+  Header,
+  HeaderSubtitle,
   StyledBox,
 } from '../../Shared';
-
-import { useTestConnection, State } from './useTestConnection';
-
 import type { AgentStepProps } from '../../types';
-import type { KubeImpersonation } from 'teleport/services/agents';
+import { State, useTestConnection } from './useTestConnection';
 
 /**
  * @deprecated Refactor Discover/Kubernetes/TestConnection away from the container component

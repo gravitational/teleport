@@ -16,62 +16,58 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
+
 import {
   Box,
   ButtonSecondary,
-  Link,
-  Text,
-  Mark,
-  H3,
-  Subtitle3,
   Link as ExternalLink,
   Flex,
+  H3,
+  Link,
+  Mark,
+  Subtitle3,
+  Text,
 } from 'design';
 import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
-
-import { P } from 'design/Text/Text';
-
+import useAttempt from 'shared/hooks/useAttemptNext';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import cfg from 'teleport/config';
 import {
   HintBox,
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import type { Database } from 'teleport/services/databases';
 import { integrationService, Regions } from 'teleport/services/integrations';
-import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import {
   DiscoverEventStatus,
   DiscoverServiceDeployMethod,
   DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import {
   ActionButtons,
+  AlternateInstructionButton,
+  Header,
   HeaderSubtitle,
   TextIcon,
   useShowHint,
-  Header,
-  AlternateInstructionButton,
 } from '../../../Shared';
-import awsEcsLight from '../../aws-ecs-light.svg';
-import awsEcsDark from '../../aws-ecs-dark.svg';
 import awsEcsBblp from '../../aws-ecs-bblp.svg';
-
+import awsEcsDark from '../../aws-ecs-dark.svg';
+import awsEcsLight from '../../aws-ecs-light.svg';
 import { DeployServiceProp } from '../DeployService';
-
 import { SelectSecurityGroups } from './SelectSecurityGroups';
 import { SelectSubnetIds } from './SelectSubnetIds';
-
-import type { Database } from 'teleport/services/databases';
 
 export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const { emitErrorEvent, nextStep, emitEvent, agentMeta, updateAgentMeta } =
