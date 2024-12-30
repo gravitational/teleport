@@ -1,5 +1,13 @@
 # Changelog
 
+## 17.1.2 (12/30/24)
+
+* Fixed a bug in the WebUI that could cause an access denied error when accessing application. [#50611](https://github.com/gravitational/teleport/pull/50611)
+* Improve session playback initial delay caused by an additional events query. [#50592](https://github.com/gravitational/teleport/pull/50592)
+* Fix a bug in the `tbot` Helm chart causing invalid configuration when both default and custom outputs were used. [#50526](https://github.com/gravitational/teleport/pull/50526)
+* Restore the ability to play session recordings in the web UI without specifying the session duration in the URL. [#50459](https://github.com/gravitational/teleport/pull/50459)
+* Fix regression in `tbot` on Linux causing the Kubernetes credential helper to fail. [#50413](https://github.com/gravitational/teleport/pull/50413)
+
 ## 17.1.1 (12/20/24)
 
 **Warning**: 17.1.1 fixes a regression in 17.1.0 that causes SSH server heartbeats
