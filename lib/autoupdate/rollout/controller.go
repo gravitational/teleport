@@ -91,6 +91,7 @@ func (c *Controller) Run(ctx context.Context) error {
 	ticker := interval.New(config)
 	defer ticker.Stop()
 
+	c.log.InfoContext(ctx, "Starting autoupdate_agent_rollout controller", "period", c.period)
 	for {
 		select {
 		case <-ctx.Done():
