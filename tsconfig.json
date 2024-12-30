@@ -28,7 +28,7 @@
       "teleport": ["web/packages/teleport/src/"],
       "teleterm/*": ["web/packages/teleterm/src/*"],
       "e-teleport/*": ["e/web/teleport/src/*"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"],
+      "gen-proto-ts/*": ["gen/proto/ts/*"]
     }
   },
   "exclude": [

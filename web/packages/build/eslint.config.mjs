@@ -24,7 +24,21 @@ import importPlugin from 'eslint-plugin-import';
 import jestPlugin from 'eslint-plugin-jest';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
 import jestDomPlugin from 'eslint-plugin-jest-dom';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import globals from 'globals';
+
+import tsConfigBase from '../../../tsconfig.json' with { type: 'json' };
+
+const ourPackages = new Set(
+  Object.keys(tsConfigBase.compilerOptions.paths).map(
+    // Remove extra '/*' if present in the package name.
+    packageName => packageName.split('/')[0]
+  )
+);
+const appPackages = ['teleport', 'e-teleport', 'teleterm'];
+const libraryPackages = [...ourPackages].filter(
+  pkg => !appPackages.includes(pkg)
+);
 
 export default tseslint.config(
   {
@@ -65,25 +79,50 @@ export default tseslint.config(
     plugins: {
       // There is no flat config available.
       'react-hooks': reactHooksPlugin,
+      'simple-import-sort': simpleImportSort,
     },
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,
-      'import/order': [
+      'import/first': 'error',
+      'import/newline-after-import': 'error',
+      'import/no-duplicates': 'error',
+      'simple-import-sort/imports': [
         'error',
         {
+          // Type imports are put at the end of each group. simple-import-sort appends \u0000 to
+          // type imports. Each import is matched against all regexes on the `from` string. The
+          // import ends up at the regex with the longest match. In case of a tie, the first
+          // matching regex wins.
           groups: [
-            'builtin',
-            'external',
-            'internal',
-            'parent',
-            'sibling',
-            'index',
-            'object',
-            'type',
+            // Side effect imports.
+            ['^\\u0000'],
+            // Node.js builtins prefixed with `node:`.
+            ['^node:', '^node:.*\\u0000$'],
+            // Things that start with a letter (or digit or underscore), or `@` followed by a letter.
+            // Using positive lookahead to keep the match length small so that type imports from our
+            // packages go into the correct group, which uses .* (and thus matches the whole length
+            // of the import).
+            ['^@?\\w', '^@?\\w(?=.*\\u0000$)'],
+            // Our library packages.
+            [
+              `^(${libraryPackages.join('|')})(/|$)`,
+              `^(${libraryPackages.join('|')})(/?.*\\u0000$)`,
+            ],
+            // Our app packages.
+            [
+              `^(${appPackages.join('|')})(/|$)`,
+              `^(${appPackages.join('|')})(/?.*\\u0000$)`,
+            ],
+            // Absolute imports and other imports such as Vue-style `@/foo`.
+            // Anything not matched in another group.
+            ['(?<!\\u0000)$', '(?<=\\u0000)$'],
+            // Relative imports.
+            // Anything that starts with a dot.
+            ['^\\.', '^\\..*\\u0000$'],
           ],
-          'newlines-between': 'always-and-inside-groups',
         },
       ],
+      'simple-import-sort/exports': 'error',
       // typescript-eslint recommends to turn import/no-unresolved off.
       // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#eslint-plugin-import
       'import/no-unresolved': 'off',
