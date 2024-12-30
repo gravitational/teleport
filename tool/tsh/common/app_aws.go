@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -58,7 +59,7 @@ func onAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close AWS app.")
+			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
 		}
 	}()
 
@@ -207,7 +208,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Running command: %q", cmd)
+	logger.DebugContext(a.cf.Context, "Running AWS command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -246,7 +247,7 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 
 	if cf.AWSRole == "" {
 		if len(roles) == 1 {
-			log.Infof("AWS Role %v is selected by default as it is the only role configured for this AWS app.", roles[0].Display)
+			logger.InfoContext(cf.Context, "AWS Role is selected by default as it is the only role configured for this AWS app", "role", roles[0].Display)
 			return roles[0].ARN, nil
 		}
 
@@ -289,13 +290,13 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 func getARNFromRoles(cf *CLIConf, roleGetter services.CurrentUserRoleGetter, profile *client.ProfileStatus, siteName string, app types.Application) []string {
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), siteName, roleGetter)
 	if err != nil {
-		log.WithError(err).Debugf("Failed to fetch user roles.")
+		logger.DebugContext(cf.Context, "Failed to fetch user roles", "error", err)
 		return profile.AWSRolesARNs
 	}
 
 	logins, err := accessChecker.GetAllowedLoginsForResource(app)
 	if err != nil {
-		log.WithError(err).Debugf("Failed to fetch app logins.")
+		logger.DebugContext(cf.Context, "Failed to fetch app logins", "error", err)
 		return profile.AWSRolesARNs
 	}
 
