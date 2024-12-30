@@ -30,19 +30,14 @@ import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 export function AwsOidcTitle({
   integration,
   resource = undefined,
+  tasks = undefined,
 }: {
   integration: Integration;
   resource?: AwsResource;
+  tasks?: boolean;
 }) {
   const { status, labelKind } = getStatusAndLabel(integration);
-
-  const content = {
-    to: !resource
-      ? cfg.routes.integrations
-      : cfg.getIntegrationStatusRoute(integration.kind, integration.name),
-    helper: !resource ? 'Back to integrations' : 'Back to integration',
-    content: !resource ? integration.name : resource.toUpperCase(),
-  };
+  const content = getContent(integration, resource, tasks);
 
   return (
     <Flex alignItems="center" data-testid="aws-oidc-title">
@@ -59,4 +54,32 @@ export function AwsOidcTitle({
       </Label>
     </Flex>
   );
+}
+
+function getContent(
+  integration: Integration,
+  resource?: AwsResource,
+  tasks?: boolean
+): { to: string; helper: string; content: string } {
+  if (resource) {
+    return {
+      to: cfg.getIntegrationStatusRoute(integration.kind, integration.name),
+      helper: 'Back to integration',
+      content: resource.toUpperCase(),
+    };
+  }
+
+  if (tasks) {
+    return {
+      to: cfg.getIntegrationStatusRoute(integration.kind, integration.name),
+      helper: 'Back to integration',
+      content: 'Pending Tasks',
+    };
+  }
+
+  return {
+    to: cfg.routes.integrations,
+    helper: 'Back to integrations',
+    content: integration.name,
+  };
 }

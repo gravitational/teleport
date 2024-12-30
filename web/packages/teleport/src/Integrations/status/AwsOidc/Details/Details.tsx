@@ -26,6 +26,7 @@ import { IntegrationKind } from 'teleport/services/integrations';
 import { Rds } from 'teleport/Integrations/status/AwsOidc/Details/Rds';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
+import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 
 export function Details() {
   const { resourceKind } = useParams<{
@@ -34,17 +35,23 @@ export function Details() {
     resourceKind: AwsResource;
   }>();
 
-  const { integrationAttempt } = useAwsOidcStatus();
+  const { integrationAttempt, tasksAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
+  const { data: tasks } = tasksAttempt;
   return (
     <>
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '30px' }}>
-        {integration && (
-          <AwsOidcTitle integration={integration} resource={resourceKind} />
-        )}
+      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '16px' }}>
+        <>
+          {integration && (
+            <AwsOidcTitle integration={integration} resource={resourceKind} />
+          )}
+          {tasks && tasks.items.length > 0 && (
+            <TaskAlert name={integration.name} total={tasks.items.length} />
+          )}
+        </>
         {resourceKind == AwsResource.ec2 && <Rules />}
         {resourceKind == AwsResource.eks && <Rules />}
         {resourceKind == AwsResource.rds && <Rds />}

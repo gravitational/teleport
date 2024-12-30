@@ -25,6 +25,7 @@ import {
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
+  UserTasksListResponse,
 } from 'teleport/services/integrations';
 
 import useTeleport from 'teleport/useTeleport';
@@ -32,6 +33,7 @@ import useTeleport from 'teleport/useTeleport';
 export interface AwsOidcStatusContextState {
   statsAttempt: Attempt<IntegrationWithSummary>;
   integrationAttempt: Attempt<Integration>;
+  tasksAttempt: Attempt<UserTasksListResponse>;
 }
 
 export const awsOidcStatusContext =
@@ -54,16 +56,22 @@ export function AwsOidcStatusProvider({ children }: React.PropsWithChildren) {
     integrationService.fetchIntegration(name)
   );
 
+  const [tasks, fetchTasks] = useAsync(() =>
+    integrationService.fetchIntegrationUserTasksList(name)
+  );
+
   useEffect(() => {
     if (hasIntegrationReadAccess) {
       fetchIntegrationStats();
       fetchIntegration();
+      fetchTasks();
     }
   }, []);
 
   const value: AwsOidcStatusContextState = {
     statsAttempt: stats,
     integrationAttempt: integration,
+    tasksAttempt: tasks,
   };
 
   return (

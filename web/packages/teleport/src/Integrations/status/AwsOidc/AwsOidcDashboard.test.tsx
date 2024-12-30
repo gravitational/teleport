@@ -77,6 +77,14 @@ test('renders header and stats cards', () => {
             },
           },
         },
+        tasksAttempt: {
+          status: 'success',
+          statusText: '',
+          data: {
+            items: [],
+            nextKey: '',
+          },
+        },
       }}
     >
       <AwsOidcDashboard />

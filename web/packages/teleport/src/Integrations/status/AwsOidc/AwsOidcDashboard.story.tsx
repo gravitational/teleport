@@ -45,6 +45,16 @@ export function DashboardMissingData() {
   state.statsAttempt.data.awseks = undefined;
   state.statsAttempt.data.awsrds = undefined;
   state.statsAttempt.data.awsec2 = undefined;
+  state.tasksAttempt.data.items = [
+    {
+      name: '',
+      taskType: 'ec2',
+      state: '',
+      issueType: 'lost-connection',
+      integration: '',
+      lastStateChange: '',
+    },
+  ];
   return (
     <MockAwsOidcStatusProvider value={state}>
       <AwsOidcDashboard />
@@ -173,6 +183,11 @@ function makeAwsOidcStatusContextState(
           awsrds: makeResourceTypeSummary(),
           awseks: makeResourceTypeSummary(),
         },
+      },
+      tasksAttempt: {
+        status: 'success',
+        statusText: '',
+        data: {},
       },
     },
     overrides

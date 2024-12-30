@@ -28,9 +28,10 @@ import {
   StatCard,
 } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
+import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 
 export function AwsOidcDashboard() {
-  const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
+  const { statsAttempt, integrationAttempt, tasksAttempt } = useAwsOidcStatus();
 
   if (
     statsAttempt.status == 'processing' ||
@@ -50,11 +51,15 @@ export function AwsOidcDashboard() {
   // todo (michellescripts) after routing, ensure this view can be sticky
   const { awsec2, awseks, awsrds } = statsAttempt.data;
   const { data: integration } = integrationAttempt;
+  const { data: tasks } = tasksAttempt;
   return (
     <>
       <AwsOidcHeader integration={integration} />
-      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
+      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '16px' }}>
         {integration && <AwsOidcTitle integration={integration} />}
+        {tasks && tasks.items.length > 0 && (
+          <TaskAlert name={integration.name} total={tasks.items.length} />
+        )}
         <H2 my={3}>Auto-Enrollment</H2>
         <Flex gap={3}>
           <StatCard
