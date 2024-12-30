@@ -30,6 +30,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -802,6 +803,9 @@ func (f *Forwarder) setupContext(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+	if kubeResource != nil && kubeResource.Kind == "CustomResource" {
+		kubeResource.Kind = path.Join(apiResource.apiGroup, apiResource.apiGroupVersion, apiResource.resourceKind)
 	}
 
 	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
