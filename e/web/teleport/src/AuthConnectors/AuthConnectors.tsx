@@ -13,14 +13,16 @@ import {
   MobileDescription,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
+import CTAConnectors from 'teleport/AuthConnectors/ConnectorList/CTAConnectors';
 
-import { P } from 'design/Text/Text';
+import { H2, P } from 'design/Text/Text';
 
-import EmptyList from './EmptyList';
-import ConnectorList from './ConnectorList';
 import AddMenu from './AddMenu';
 import useAuthConnectors, { State } from './useAuthConnectors';
 import templates from './templates';
+
+import AddNewConnectorsList from './AddNewConnectorList/AddNewConnectorList';
+import ConnectorList from './ConnectorList';
 
 export default function Container() {
   const state = useAuthConnectors();
@@ -74,22 +76,20 @@ export function AuthConnectors(props: State) {
       )}
       {attempt.status === 'success' && (
         <Flex alignItems="start">
-          {isEmpty && (
-            <Flex width="100%" justifyContent="center">
-              <EmptyList
-                onCreate={resources.create}
-                showLockedFeature={showAuthConnectorsCTA}
+          <Flex flexDirection="column" width="100%" gap={5}>
+            <Box>
+              <H2 mb={4}>Your Connectors</H2>
+              <ConnectorList
+                items={items}
+                onEdit={resources.edit}
+                onDelete={resources.remove}
               />
-            </Flex>
-          )}
-          {!isEmpty && (
-            <ConnectorList
-              items={items}
-              onEdit={resources.edit}
-              onDelete={resources.remove}
-              showAuthConnectorsCTA={showAuthConnectorsCTA}
-            />
-          )}
+            </Box>
+            {isEmpty && !showAuthConnectorsCTA && (
+              <AddNewConnectorsList onCreate={resources.create} />
+            )}
+            {showAuthConnectorsCTA && <CTAConnectors />}
+          </Flex>
           <DesktopDescription>
             <H3 mb={3}>Auth Connectors</H3>
             <P>{description}</P>
