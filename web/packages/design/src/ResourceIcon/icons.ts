@@ -17,10 +17,10 @@
  */
 
 import activemq from './assets/activemq.svg';
+import adobe from './assets/adobe.svg';
 import adobecreativecloudDark from './assets/adobecreativecloud-dark.svg';
 import adobecreativecloudLight from './assets/adobecreativecloud-light.svg';
 import adobemarketo from './assets/adobemarketo.svg';
-import adobe from './assets/adobe.svg';
 import airbase from './assets/airbase.svg';
 import airtable from './assets/airtable.svg';
 import algoliaDark from './assets/algolia-dark.svg';
@@ -39,16 +39,16 @@ import argocd from './assets/argocd.svg';
 import asana from './assets/asana.svg';
 import assembleDark from './assets/assemble-dark.svg';
 import assembleLight from './assets/assemble-light.svg';
+import atlassian from './assets/atlassian.svg';
 import atlassianbitbucket from './assets/atlassianbitbucket.svg';
 import atlassianjiraservicemanagement from './assets/atlassianjiraservicemanagement.svg';
 import atlassianstatuspage from './assets/atlassianstatuspage.svg';
-import atlassian from './assets/atlassian.svg';
 import auth0Dark from './assets/auth0-dark.svg';
 import auth0Light from './assets/auth0-light.svg';
 import avalara from './assets/avalara.svg';
+import awsAccount from './assets/aws-account.svg';
 import awsDark from './assets/aws-dark.svg';
 import awsLight from './assets/aws-light.svg';
-import awsAccount from './assets/aws-account.svg';
 import azure from './assets/azure.svg';
 import bill from './assets/bill.svg';
 import bonusly from './assets/bonusly.svg';
@@ -64,6 +64,8 @@ import cartaDark from './assets/carta-dark.svg';
 import cartaLight from './assets/carta-light.svg';
 import checkly from './assets/checkly.svg';
 import checkr from './assets/checkr.svg';
+import ciliumDark from './assets/cilium-dark.svg';
+import ciliumLight from './assets/cilium-light.svg';
 import circleciDark from './assets/circleci-dark.svg';
 import circleciLight from './assets/circleci-light.svg';
 import clari from './assets/clari.svg';
@@ -147,8 +149,6 @@ import hackeroneDark from './assets/hackerone-dark.svg';
 import hackeroneLight from './assets/hackerone-light.svg';
 import headliner from './assets/headliner.svg';
 import hootsuite from './assets/hootsuite.svg';
-import ciliumDark from './assets/cilium-dark.svg';
-import ciliumLight from './assets/cilium-light.svg';
 import ibmDark from './assets/ibm-dark.svg';
 import ibmLight from './assets/ibm-light.svg';
 import inkeep from './assets/inkeep.svg';
@@ -305,10 +305,10 @@ import zoominfo from './assets/zoominfo.svg';
 
 export {
   activemq,
+  adobe,
   adobecreativecloudDark,
   adobecreativecloudLight,
   adobemarketo,
-  adobe,
   airbase,
   airtable,
   algoliaDark,
@@ -327,16 +327,16 @@ export {
   asana,
   assembleDark,
   assembleLight,
+  atlassian,
   atlassianbitbucket,
   atlassianjiraservicemanagement,
   atlassianstatuspage,
-  atlassian,
   auth0Dark,
   auth0Light,
   avalara,
+  awsAccount,
   awsDark,
   awsLight,
-  awsAccount,
   azure,
   bill,
   bonusly,
@@ -352,6 +352,8 @@ export {
   cartaLight,
   checkly,
   checkr,
+  ciliumDark,
+  ciliumLight,
   circleciDark,
   circleciLight,
   clari,
@@ -435,8 +437,6 @@ export {
   hackeroneLight,
   headliner,
   hootsuite,
-  ciliumDark,
-  ciliumLight,
   ibmDark,
   ibmLight,
   inkeep,

@@ -16,24 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode } from 'react';
+import '@testing-library/jest-dom';
+import 'jest-styled-components';
+
 import {
-  render as testingRender,
   act,
   fireEvent,
-  waitFor,
-  screen,
-  prettyDOM,
   getByTestId,
+  prettyDOM,
+  render as testingRender,
+  screen,
+  waitFor,
   waitForElementToBeRemoved,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ReactNode } from 'react';
 import { MemoryRouter as Router } from 'react-router-dom';
 
-import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { darkTheme } from 'design/theme';
-import '@testing-library/jest-dom';
-import 'jest-styled-components';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 
 function Providers({ children }: { children: ReactNode }) {
   return (
@@ -71,15 +72,15 @@ type RenderOptions = {
 
 export {
   act,
-  screen,
   fireEvent,
+  getByTestId,
+  prettyDOM,
+  render,
+  Router,
+  screen,
   darkTheme as theme,
   tick,
-  render,
-  prettyDOM,
-  waitFor,
-  getByTestId,
-  Router,
   userEvent,
+  waitFor,
   waitForElementToBeRemoved,
 };

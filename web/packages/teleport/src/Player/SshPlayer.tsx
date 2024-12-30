@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useEffect,useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Flex, Box } from 'design';
+
+import { Box,Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
 import cfg from 'teleport/config';
-import TtyPlayer from 'teleport/lib/term/ttyPlayer';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
+import TtyPlayer from 'teleport/lib/term/ttyPlayer';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';

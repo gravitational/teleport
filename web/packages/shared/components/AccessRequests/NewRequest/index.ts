@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './RequestCheckout';
-export * from './Roles';
-export type { ResourceMap, RequestableResourceKind } from './resource';
-export { getEmptyResourceState } from './resource';
 export { isKubeClusterWithNamespaces } from './kube';
+export * from './RequestCheckout';
+export type { RequestableResourceKind,ResourceMap } from './resource';
+export { getEmptyResourceState } from './resource';
+export * from './Roles';

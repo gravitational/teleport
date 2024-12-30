@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { NewMfaDeviceForm } from './NewMfaDeviceForm';
 export type { NewMfaDeviceFormProps } from './NewMfaDeviceForm';
+export { NewMfaDeviceForm } from './NewMfaDeviceForm';

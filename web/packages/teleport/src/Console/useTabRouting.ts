@@ -17,7 +17,7 @@
  */
 
 import { useMemo } from 'react';
-import { useRouteMatch, useParams, useLocation } from 'react-router';
+import { useLocation,useParams, useRouteMatch } from 'react-router';
 
 import cfg, {
   UrlDbConnectParams,

@@ -16,22 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, KeyboardEvent } from 'react';
+import { KeyboardEvent,useEffect, useState } from 'react';
+
 import {
+  Alert,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
   Link,
   Text,
-  Flex,
-  Alert,
-  ButtonSecondary,
-  ButtonPrimary,
 } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
-import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
+import Validation, { Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
+import cfg from 'teleport/config';
 
 import { State } from './useAddApp';
 

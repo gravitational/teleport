@@ -19,7 +19,6 @@
 import { MemoryRouter } from 'react-router';
 
 import { SetupAccessWrapper } from './SetupAccessWrapper';
-
 import type { Props } from './SetupAccessWrapper';
 
 export default {

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export type { AppConfig, KeyboardShortcutAction } from './appConfigSchema';
 export * from './configService';
 export * from './configServiceClient';
 export * from './migration';
-export type { AppConfig, KeyboardShortcutAction } from './appConfigSchema';

@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { RequestCheckoutWithSlider, RequestCheckout } from './RequestCheckout';
 export type {
-  RequestCheckoutProps,
-  PendingListItem,
   PendingKubeResourceItem,
+  PendingListItem,
+  RequestCheckoutProps,
 } from './RequestCheckout';
-
-export * from './utils';
+export { RequestCheckout,RequestCheckoutWithSlider } from './RequestCheckout';
 export type { ReviewerOption } from './types';
+export * from './utils';

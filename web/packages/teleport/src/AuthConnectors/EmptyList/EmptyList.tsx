@@ -16,19 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Card, Flex, H1, ResourceIcon, Text } from 'design';
+import { Card, Flex, H1, H2,ResourceIcon, Text  } from 'design';
 import { AuthProviderType } from 'shared/services';
 
-import { H2 } from 'design';
-
+import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
 import { ConnectorBox } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
-
 import {
   LockedFeatureButton,
   LockedFeatureContainer,
 } from 'teleport/AuthConnectors/styles/LockedFeatureContainer.styles';
-
-import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
 import { State as ResourceState } from 'teleport/components/useResources';
 import { CtaEvent } from 'teleport/services/userEvent';
 

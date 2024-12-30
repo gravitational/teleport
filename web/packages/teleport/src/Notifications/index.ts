@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Notifications } from './Notifications';
 export { notificationContentFactory } from './notificationContentFactory';
+export { Notifications } from './Notifications';

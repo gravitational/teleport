@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { SelectResource } from './SelectResource';
-export { getResourcePretitle } from './resources';
 export { getDatabaseProtocol, getDefaultDatabasePort } from './databases';
+export { getResourcePretitle } from './resources';
+export { SelectResource } from './SelectResource';
 export * from './types';

@@ -18,7 +18,6 @@
 import { Box } from 'design';
 
 import SSOButtonList from './SsoButtons';
-
 import type { Props } from '../FormLogin';
 
 export const FormSso = ({

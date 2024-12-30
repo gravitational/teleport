@@ -18,6 +18,6 @@
 
 import JoinTokenService from './joinToken';
 
-export * from './types';
 export { INTERNAL_RESOURCE_ID_LABEL_KEY } from './makeJoinToken';
+export * from './types';
 export default JoinTokenService;

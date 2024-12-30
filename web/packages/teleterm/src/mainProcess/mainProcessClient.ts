@@ -18,19 +18,17 @@
 
 import { ipcRenderer } from 'electron';
 
-import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { createConfigServiceClient } from '../services/config';
-
-import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
-
+import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
 import {
-  MainProcessClient,
-  ChildProcessAddresses,
   AgentProcessState,
+  ChildProcessAddresses,
+  MainProcessClient,
   MainProcessIpc,
   RendererIpc,
   WindowsManagerIpc,

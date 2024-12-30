@@ -18,7 +18,7 @@
 
 import { screen } from '@testing-library/react';
 
-import { render, fireEvent } from 'design/utils/testing';
+import { fireEvent,render } from 'design/utils/testing';
 
 import { Sample, Tooltip } from './Popover.story';
 

@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { IconTooltip } from './IconTooltip';
 export { HoverTooltip } from './HoverTooltip';
+export { IconTooltip } from './IconTooltip';

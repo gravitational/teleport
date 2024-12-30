@@ -17,19 +17,14 @@
  */
 
 import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
-import TeleportContext from 'teleport/teleportContext';
-
 import * as stores from 'teleport/Console/stores/types';
-
-import DocumentSsh from './DocumentSsh';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import TeleportContext from 'teleport/teleportContext';
+import type { Session } from 'teleport/services/session';
 
 import { TestLayout } from './../Console.story';
 import ConsoleCtx from './../consoleContext';
-
-import type { Session } from 'teleport/services/session';
+import DocumentSsh from './DocumentSsh';
 
 export const Connected = () => {
   const { ctx, consoleCtx } = getContexts();

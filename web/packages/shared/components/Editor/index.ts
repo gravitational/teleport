@@ -16,6 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { File } from './File';
 export { Editor } from './Editor';
+export { File } from './File';
 export { Language } from './Language';

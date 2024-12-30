@@ -16,15 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { FormEvent, useEffect, useState } from 'react';
+
 import { Alert, OutlineDanger } from 'design/Alert/Alert';
+import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { FormEvent, useEffect, useState } from 'react';
+import { StepComponentProps, StepHeader,StepSlider  } from 'design/StepSlider';
+import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -32,26 +35,17 @@ import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 
-import Box from 'design/Box';
-
-import { StepHeader } from 'design/StepSlider';
-
-import { P } from 'design/Text/Text';
-
+import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import useTeleport from 'teleport/useTeleport';
-
 import {
   DeviceType,
   DeviceUsage,
   getMfaRegisterOptions,
   MfaOption,
 } from 'teleport/services/mfa';
-
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
+import useTeleport from 'teleport/useTeleport';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
-
 import {
   ReauthenticateStep,
   ReauthenticateStepProps,

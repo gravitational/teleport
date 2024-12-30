@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './types';
-export * from '../api/protogen/ptyHostService_pb.grpc-server';
-export * from '../api/protogen/ptyHostService_pb.grpc-client';
 export * from '../api/protogen/ptyHostService_pb';
+export * from '../api/protogen/ptyHostService_pb.grpc-client';
+export * from '../api/protogen/ptyHostService_pb.grpc-server';
+export * from './types';

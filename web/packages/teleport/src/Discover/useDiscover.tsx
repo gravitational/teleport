@@ -16,49 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useContext, useState, useEffect, useCallback } from 'react';
+import React, { useCallback,useContext, useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
-import {
-  DiscoverEventStatus,
-  DiscoverEventStepStatus,
-  DiscoverEvent,
-  DiscoverEventResource,
-  userEventService,
-  DiscoverServiceDeployMethod,
-  DiscoverServiceDeploy,
-  DiscoverServiceDeployType,
-  DiscoverDiscoveryConfigMethod,
-} from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import { DiscoveryConfig } from 'teleport/services/discovery';
 import {
   addIndexToViews,
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
-
-import { ResourceViewConfig, View } from './flow';
-import { viewConfigs } from './resourceViewConfigs';
-import { EViewConfigs } from './types';
-import { ServiceDeployMethod } from './Database/common';
-
-import type { Node } from 'teleport/services/nodes';
-import type { App } from 'teleport/services/apps';
-import type { Kube } from 'teleport/services/kube';
-import type { Database } from 'teleport/services/databases';
+import cfg from 'teleport/config';
+import { DiscoveryConfig } from 'teleport/services/discovery';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEvent,
+  DiscoverEventResource,
+  DiscoverEventStatus,
+  DiscoverEventStepStatus,
+  DiscoverServiceDeploy,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
+  userEventService,
+} from 'teleport/services/userEvent';
 import type { ResourceLabel } from 'teleport/services/agents';
-import type { ResourceSpec } from './SelectResource';
+import type { App } from 'teleport/services/apps';
+import type { Database } from 'teleport/services/databases';
 import type {
   AwsRdsDatabase,
   Ec2InstanceConnectEndpoint,
   Integration,
   Regions,
 } from 'teleport/services/integrations';
-
+import type { Kube } from 'teleport/services/kube';
+import type { Node } from 'teleport/services/nodes';
 import type {
   SamlGcpWorkforce,
   SamlIdpServiceProvider,
 } from 'teleport/services/samlidp/types';
+
+import { ServiceDeployMethod } from './Database/common';
+import { ResourceViewConfig, View } from './flow';
+import { viewConfigs } from './resourceViewConfigs';
+import { EViewConfigs } from './types';
+import type { ResourceSpec } from './SelectResource';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;

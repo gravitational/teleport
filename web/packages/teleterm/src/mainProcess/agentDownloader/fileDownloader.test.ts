@@ -19,13 +19,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { BrowserWindow,DownloadItem } from 'electron';
 import EventEmitter from 'events';
 
 import Logger, { NullService } from 'teleterm/logger';
 
 import { FileDownloader } from './fileDownloader';
-
-import type { DownloadItem, BrowserWindow } from 'electron';
 
 const DOWNLOAD_DIR = '/temp';
 const FILE_NAME = 'teleport-v13.1.0-darwin-arm64-bin.tar.gz';

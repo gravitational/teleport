@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { IntegrationEnroll } from './IntegrationEnroll';
-
-export { IntegrationTiles } from './IntegrationTiles';
-export { getRoutesToEnrollIntegrations } from './IntegrationRoute';
 export * from './common';
+export { IntegrationEnroll } from './IntegrationEnroll';
+export { getRoutesToEnrollIntegrations } from './IntegrationRoute';
+export { IntegrationTiles } from './IntegrationTiles';

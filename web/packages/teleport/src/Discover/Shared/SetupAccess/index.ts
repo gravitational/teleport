@@ -18,6 +18,5 @@
 
 export { AccessInfo } from './AccessInfo';
 export { SetupAccessWrapper } from './SetupAccessWrapper';
-export { useUserTraits, initSelectedOptionsHelper } from './useUserTraits';
-
 export type { State } from './useUserTraits';
+export { initSelectedOptionsHelper,useUserTraits } from './useUserTraits';

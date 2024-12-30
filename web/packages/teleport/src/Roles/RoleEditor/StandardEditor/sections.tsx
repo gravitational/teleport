@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
+import { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import { Minus, Plus, Trash } from 'design/Icon';
 import { H3 } from 'design/Text';
-import { IconTooltip, HoverTooltip } from 'design/Tooltip';
-import { useState } from 'react';
+import { HoverTooltip,IconTooltip } from 'design/Tooltip';
 import { useValidation } from 'shared/components/Validation';
 import { ValidationResult } from 'shared/components/Validation/rules';
-import { useTheme } from 'styled-components';
 
 export type SectionProps<Model, ValidationResult> = {
   value: Model;

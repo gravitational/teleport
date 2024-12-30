@@ -17,5 +17,4 @@
  */
 
 export { integrationService, makeIntegrations } from './integrations';
-
 export * from './types';

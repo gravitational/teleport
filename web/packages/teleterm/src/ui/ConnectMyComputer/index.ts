@@ -16,6 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './DocumentConnectMyComputer';
 export * from './connectMyComputerContext';
+export * from './DocumentConnectMyComputer';
 export { NavigationMenu as ConnectMyComputerNavigationMenu } from './NavigationMenu';

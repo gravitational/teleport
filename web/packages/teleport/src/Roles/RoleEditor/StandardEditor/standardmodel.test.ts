@@ -16,20 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
   CreateHostUserMode,
   KubernetesResource,
-  RequireMFAType,
+ Labels,  RequireMFAType,
   ResourceKind,
   Role,
   Rule,
-  SessionRecordingMode,
-} from 'teleport/services/resources';
-
-import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
-
-import { Labels } from 'teleport/services/resources';
+  SessionRecordingMode } from 'teleport/services/resources';
 
 import {
   KubernetesAccess,

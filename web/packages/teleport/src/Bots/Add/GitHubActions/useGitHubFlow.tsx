@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useContext } from 'react';
-import { Option } from 'shared/components/Select';
+import React, { useContext,useState } from 'react';
 
+import { Option } from 'shared/components/Select';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -33,7 +33,6 @@ import {
   GitHubRepoRule,
   RefType,
 } from 'teleport/services/bot/types';
-
 import useTeleport from 'teleport/useTeleport';
 
 export const GITHUB_HOST = 'github.com';

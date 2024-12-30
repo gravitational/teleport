@@ -17,5 +17,4 @@
  */
 
 export { storageService } from './storageService';
-
 export * from './types';

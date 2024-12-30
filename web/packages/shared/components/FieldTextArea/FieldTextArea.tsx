@@ -21,14 +21,11 @@ import React, {
   HTMLInputAutoCompleteAttribute,
   useId,
 } from 'react';
+
 import { Box, LabelInput, TextArea } from 'design';
-
-import { TextAreaSize } from 'design/TextArea';
-
 import { BoxProps } from 'design/Box';
-
+import { TextAreaSize } from 'design/TextArea';
 import { IconTooltip } from 'design/Tooltip';
-
 import { useRule } from 'shared/components/Validation';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';

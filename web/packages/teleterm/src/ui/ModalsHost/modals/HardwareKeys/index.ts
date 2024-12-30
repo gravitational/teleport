@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './Touch';
 export * from './AskPin';
 export * from './ChangePin';
 export * from './OverwriteSlot';
+export * from './Touch';

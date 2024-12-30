@@ -17,6 +17,6 @@
  */
 
 export * from './keyboardShortcutsService';
+export * from './types';
 export * from './useKeyboardShortcutFormatters';
 export * from './useKeyboardShortcuts';
-export * from './types';

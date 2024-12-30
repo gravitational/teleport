@@ -16,36 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useImperativeHandle, forwardRef, createRef } from 'react';
-import { render, screen } from 'design/utils/testing';
-import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { act } from '@testing-library/react';
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+import { createRef,forwardRef, useImperativeHandle } from 'react';
 
+import { render, screen } from 'design/utils/testing';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
   AvailableResourceMode,
   DefaultTab,
-  ViewMode,
   LabelsViewMode,
+  ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import {
+  makeRootCluster,
+  makeServer,
+  rootClusterUri,
+} from 'teleterm/services/tshd/testHelpers';
+import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import {
   ResourcesContextProvider,
   useResourcesContext,
 } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import {
-  makeRootCluster,
-  rootClusterUri,
-  makeServer,
-} from 'teleterm/services/tshd/testHelpers';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import * as uri from 'teleterm/ui/uri';
 
 const mio = mockIntersectionObserver();

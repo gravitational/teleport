@@ -17,16 +17,16 @@
  */
 
 import React from 'react';
+
 import {
   fireEvent,
-  screen,
   render as testingRender,
+  screen,
 } from 'design/utils/testing';
 
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 
 import { BannerList } from './BannerList';
-
 import type { BannerType } from './BannerList';
 
 function render(banner: React.ReactNode) {

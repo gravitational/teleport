@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { StepSlider } from './StepSlider';
 export { StepHeader } from './StepHeader';
-
-export type { StepComponentProps, NewFlow } from './StepSlider';
+export type { NewFlow,StepComponentProps } from './StepSlider';
+export { StepSlider } from './StepSlider';

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Navigation } from './Navigation';
-export { StepTitle, StepsContainer } from './Shared';
-export { Bullet } from './Bullet';
 export type { Props as BulletProps } from './Bullet';
+export { Bullet } from './Bullet';
+export { Navigation } from './Navigation';
+export { StepsContainer,StepTitle } from './Shared';

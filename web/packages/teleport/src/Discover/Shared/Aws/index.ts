@@ -17,6 +17,6 @@
  */
 
 export { DisableableCell } from './DisableableCell';
-export { Labels, labelMatcher } from './Labels';
+export { labelMatcher,Labels } from './Labels';
 export { RadioCell } from './RadioCell';
 export { StatusCell } from './StatusCell';

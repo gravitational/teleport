@@ -17,8 +17,9 @@
  */
 
 import styled from 'styled-components';
-import { AuthProviderType } from 'shared/services';
+
 import { Box, Flex, ResourceIcon } from 'design';
+import { AuthProviderType } from 'shared/services';
 
 export default function getSsoIcon(kind: AuthProviderType) {
   const desc = formatConnectorTypeDesc(kind);

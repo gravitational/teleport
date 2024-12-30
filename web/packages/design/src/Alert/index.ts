@@ -20,9 +20,9 @@ export {
   type Action,
   ActionButton,
   Alert,
+  Banner,
   Danger,
   Info,
-  Warning,
   Success,
-  Banner,
+  Warning,
 } from './Alert';

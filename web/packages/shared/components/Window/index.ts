@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { WindowTitleBar } from './WindowTitleBar';
 export { Window } from './Window';
 export {
-  WindowContentContainer,
   WindowCode,
   WindowContainer,
+  WindowContentContainer,
   WindowTitleBarButton,
   WindowTitleBarButtons,
   WindowTitleBarContainer,
 } from './WindowComponents';
+export { WindowTitleBar } from './WindowTitleBar';

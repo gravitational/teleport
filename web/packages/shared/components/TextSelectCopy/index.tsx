@@ -21,4 +21,4 @@ import { TextSelectCopyMulti } from './TextSelectCopyMulti';
 
 // TODO (lisa): will remove TextSelectCopy entirely after
 // TextSelectCopyMulti replaces existing use of TextSelectCopy.
-export { TextSelectCopyMulti, TextSelectCopy };
+export { TextSelectCopy,TextSelectCopyMulti };

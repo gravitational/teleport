@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import {
@@ -25,10 +26,9 @@ import {
   MenuLogin,
 } from 'shared/components/MenuLogin';
 
-import { Node } from 'teleport/services/nodes';
-import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
 import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
-
+import { ResourceFilter,ResourceLabel } from 'teleport/services/agents';
+import { Node } from 'teleport/services/nodes';
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
 export function NodeList(props: {

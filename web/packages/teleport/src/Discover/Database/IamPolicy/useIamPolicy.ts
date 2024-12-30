@@ -20,11 +20,11 @@ import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import TeleportContext from 'teleport/teleportContext';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import TeleportContext from 'teleport/teleportContext';
+import type { DatabaseIamPolicyResponse } from 'teleport/services/databases';
 
 import type { AgentStepProps } from '../../types';
-import type { DatabaseIamPolicyResponse } from 'teleport/services/databases';
 
 export function useIamPolicy({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');

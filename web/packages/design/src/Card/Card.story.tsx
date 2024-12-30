@@ -17,7 +17,6 @@
  */
 
 import { Flex, Text } from '..';
-
 import Card from '.';
 
 export default {

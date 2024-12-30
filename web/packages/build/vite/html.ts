@@ -17,13 +17,11 @@
  */
 
 import { readFileSync } from 'fs';
-import { get } from 'https';
-import { resolve } from 'path';
-
-import { JSDOM } from 'jsdom';
-
-import type { Plugin } from 'vite';
 import type { IncomingHttpHeaders } from 'http';
+import { get } from 'https';
+import { JSDOM } from 'jsdom';
+import { resolve } from 'path';
+import type { Plugin } from 'vite';
 
 function getHTML(target: string, headers: IncomingHttpHeaders) {
   return new Promise<{ data: string; headers: IncomingHttpHeaders }>(

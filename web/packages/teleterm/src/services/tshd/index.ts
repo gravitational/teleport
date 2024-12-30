@@ -16,6 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './createClient';
-export { cloneAbortSignal, isTshdRpcError } from './cloneableClient';
 export type { CloneableAbortSignal } from './cloneableClient';
+export { cloneAbortSignal, isTshdRpcError } from './cloneableClient';
+export * from './createClient';

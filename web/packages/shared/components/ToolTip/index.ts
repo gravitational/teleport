@@ -17,9 +17,8 @@
  */
 
 export {
-  /** @deprecated Use `TooltipInfo` from `design/Tooltip` */
-  IconTooltip as ToolTipInfo,
-
   /** @deprecated Use `HoverTooltip` from `design/Tooltip` */
   HoverTooltip,
+  /** @deprecated Use `TooltipInfo` from `design/Tooltip` */
+  IconTooltip as ToolTipInfo,
 } from 'design/Tooltip';

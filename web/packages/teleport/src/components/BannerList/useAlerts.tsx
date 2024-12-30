@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect,useState } from 'react';
+
 import Logger from 'shared/libs/logger';
 
+import cfg from 'teleport/config';
 import { alertNames, fetchClusterAlerts } from 'teleport/services/alerts';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import cfg from 'teleport/config';
-
 import type { ClusterAlert } from 'teleport/services/alerts';
 
 const logger = Logger.create('ClusterAlerts');

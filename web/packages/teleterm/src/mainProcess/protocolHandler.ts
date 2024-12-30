@@ -17,10 +17,10 @@
  */
 
 import { fileURLToPath } from 'node:url';
-import * as path from 'path';
-import fs from 'fs';
 
-import { protocol, app } from 'electron';
+import { app,protocol } from 'electron';
+import fs from 'fs';
+import * as path from 'path';
 
 import Logger from 'teleterm/logger';
 

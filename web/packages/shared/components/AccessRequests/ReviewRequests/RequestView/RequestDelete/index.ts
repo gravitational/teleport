@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { RequestDelete } from './RequestDelete';
 export type { RequestDeleteProps } from './RequestDelete';
+export { RequestDelete } from './RequestDelete';

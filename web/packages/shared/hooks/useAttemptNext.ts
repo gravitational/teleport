@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useCallback } from 'react';
+import { useCallback,useState } from 'react';
 
 import Logger from 'shared/libs/logger';
+
 const logger = Logger.create('shared/hooks/useAttempt');
 
 // This is the next version of existing useAttempt hook

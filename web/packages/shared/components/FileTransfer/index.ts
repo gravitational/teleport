@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export * from './createFileTransferEventsEmitter';
 export { FileTransfer } from './FileTransfer';
+export { FileTransferActionBar } from './FileTransferActionBar';
 export { FileTransferContainer } from './FileTransferContainer';
-export { FileTransferRequests } from './FileTransferRequests';
 export {
   FileTransferContextProvider,
   useFileTransferContext,
 } from './FileTransferContextProvider';
+export { FileTransferRequests } from './FileTransferRequests';
 export type { FileTransferListeners } from './FileTransferStateless/types';
-export { FileTransferActionBar } from './FileTransferActionBar';
-export * from './createFileTransferEventsEmitter';

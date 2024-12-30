@@ -18,8 +18,8 @@
 
 import {
   makeEmptyAttempt,
-  makeProcessingAttempt,
   makeErrorAttemptWithStatusText,
+  makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 

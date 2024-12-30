@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled, { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
@@ -29,30 +31,30 @@ import FieldSelect, {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { precomputed } from 'shared/components/Validation/rules';
-import styled, { useTheme } from 'styled-components';
+
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { SectionProps, SectionBox } from './sections';
+import { SectionBox,SectionProps } from './sections';
 import {
-  ResourceAccessKind,
-  ResourceAccess,
-  ServerAccess,
-  KubernetesAccess,
-  newKubernetesResourceModel,
-  KubernetesResourceModel,
-  kubernetesResourceKindOptions,
-  kubernetesVerbOptions,
   AppAccess,
   DatabaseAccess,
+  KubernetesAccess,
+  kubernetesResourceKindOptions,
+  KubernetesResourceModel,
+  kubernetesVerbOptions,
+  newKubernetesResourceModel,
+  ResourceAccess,
+  ResourceAccessKind,
+  ServerAccess,
   WindowsDesktopAccess,
 } from './standardmodel';
 import {
-  ResourceAccessValidationResult,
-  ServerAccessValidationResult,
-  KubernetesAccessValidationResult,
-  KubernetesResourceValidationResult,
   AppAccessValidationResult,
   DatabaseAccessValidationResult,
+  KubernetesAccessValidationResult,
+  KubernetesResourceValidationResult,
+  ResourceAccessValidationResult,
+  ServerAccessValidationResult,
   WindowsDesktopAccessValidationResult,
 } from './validation';
 

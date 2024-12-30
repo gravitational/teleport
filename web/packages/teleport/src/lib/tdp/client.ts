@@ -19,44 +19,42 @@
 import Logger from 'shared/libs/logger';
 
 import init, {
-  init_wasm_log,
   FastPathProcessor,
+  init_wasm_log,
 } from 'teleport/ironrdp/pkg/ironrdp';
-
-import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import { TermEvent,WebsocketCloseCode } from 'teleport/lib/term/enums';
 
 import Codec, {
-  MessageType,
   FileType,
-  SharedDirectoryErrCode,
+  MessageType,
   Severity,
+  SharedDirectoryErrCode,
 } from './codec';
 import {
   PathDoesNotExistError,
   SharedDirectoryManager,
 } from './sharedDirectoryManager';
-
-import type { FileOrDirInfo } from './sharedDirectoryManager';
 import type {
-  MouseButton,
   ButtonState,
-  ScrollAxis,
   ClientScreenSpec,
-  PngFrame,
   ClipboardData,
+  FileSystemObject,
+  MouseButton,
+  PngFrame,
+  ScrollAxis,
+  SharedDirectoryCreateResponse,
+  SharedDirectoryDeleteResponse,
   SharedDirectoryInfoResponse,
   SharedDirectoryListResponse,
   SharedDirectoryMoveResponse,
   SharedDirectoryReadResponse,
-  SharedDirectoryWriteResponse,
-  SharedDirectoryCreateResponse,
-  SharedDirectoryDeleteResponse,
-  FileSystemObject,
-  SyncKeys,
   SharedDirectoryTruncateResponse,
+  SharedDirectoryWriteResponse,
+  SyncKeys,
 } from './codec';
+import type { FileOrDirInfo } from './sharedDirectoryManager';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',

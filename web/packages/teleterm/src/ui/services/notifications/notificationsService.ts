@@ -17,14 +17,13 @@
  */
 
 import { useStore } from 'shared/libs/stores';
-
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import { unique } from 'teleterm/ui/utils/uid';
-
 import type {
   NotificationItem,
   NotificationItemContent,
 } from 'shared/components/Notification';
+
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { unique } from 'teleterm/ui/utils/uid';
 
 export class NotificationsService extends ImmutableStore<NotificationItem[]> {
   state: NotificationItem[] = [];

@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import FieldInput from 'shared/components/FieldInput';
-import styled from 'styled-components';
 import { forwardRef } from 'react';
-import { FieldInputProps } from 'shared/components/FieldInput';
+import styled from 'styled-components';
+
+import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
 
 export const ConfigFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
   (props, ref) => <FieldInput size="small" ref={ref} {...props} />

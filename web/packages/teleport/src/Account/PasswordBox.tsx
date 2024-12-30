@@ -16,21 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Flex } from 'design';
-import { SingleRowBox } from 'design/MultiRowBox';
 import { useState } from 'react';
 
+import { Box, Flex } from 'design';
 import * as Icon from 'design/Icon';
+import { SingleRowBox } from 'design/MultiRowBox';
 
 import cfg from 'teleport/config';
-
 import { MfaDevice } from 'teleport/services/mfa';
-
 import { PasswordState } from 'teleport/services/user';
 
-import { ActionButtonSecondary, Header } from './Header';
 import { ChangePasswordWizard } from './ChangePasswordWizard';
-import { StatePill, AuthMethodState } from './StatePill';
+import { ActionButtonSecondary, Header } from './Header';
+import { AuthMethodState,StatePill } from './StatePill';
 
 export interface PasswordBoxProps {
   devices: MfaDevice[];

@@ -19,7 +19,6 @@
 import { useTheme } from 'styled-components';
 
 import { SVGIcon } from './SVGIcon';
-
 import type { SVGIconProps } from './common';
 
 export function TeleportGearIcon({ size = 16 }: Omit<SVGIconProps, 'fill'>) {

@@ -17,8 +17,8 @@
  */
 
 export {
-  getUserPreferences,
-  updateUserPreferences,
-  updateUserClusterPreferences,
   getUserClusterPreferences,
+  getUserPreferences,
+  updateUserClusterPreferences,
+  updateUserPreferences,
 } from './userPreferences';

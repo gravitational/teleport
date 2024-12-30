@@ -21,7 +21,6 @@ import { useState } from 'react';
 import { AllUserTraits } from 'teleport/services/user';
 
 import { UserAddEdit } from './UserAddEdit';
-
 import type { TraitsOption } from './TraitsEditor';
 
 export default {

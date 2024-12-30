@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { MultiRowBox, SingleRowBox, Row } from './MultiRowBox';
+export { MultiRowBox, Row,SingleRowBox } from './MultiRowBox';

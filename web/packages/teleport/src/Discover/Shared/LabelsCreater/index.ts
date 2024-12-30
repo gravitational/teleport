@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { LabelsCreater } from './LabelsCreater';
 export type { DiscoverLabel } from './LabelsCreater';
+export { LabelsCreater } from './LabelsCreater';

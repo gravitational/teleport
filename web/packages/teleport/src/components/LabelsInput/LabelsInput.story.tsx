@@ -17,10 +17,11 @@
  */
 
 import { useState } from 'react';
-import Validation from 'shared/components/Validation';
-import { ButtonSecondary } from 'design/Button';
 
-import { LabelsInput, Label } from './LabelsInput';
+import { ButtonSecondary } from 'design/Button';
+import Validation from 'shared/components/Validation';
+
+import { Label,LabelsInput } from './LabelsInput';
 
 export default {
   title: 'Teleport/LabelsInput',

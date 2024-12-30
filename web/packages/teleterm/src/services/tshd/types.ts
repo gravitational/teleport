@@ -30,6 +30,34 @@ export {
   /**
    * @deprecated Import directly from gen-proto-ts instead.
    */
+  AccessList,
+} from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
+export {
+  /**
+   * @deprecated Import directly from gen-proto-ts instead.
+   */
+  AccessRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+export {
+  /**
+   * @deprecated Import directly from gen-proto-ts instead.
+   */
+  App,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+export {
+  /**
+   * @deprecated Import directly from gen-proto-ts instead.
+   */
+  AuthProvider,
+  /**
+   * @deprecated Import directly from gen-proto-ts instead.
+   */
+  AuthSettings,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+export {
+  /**
+   * @deprecated Import directly from gen-proto-ts instead.
+   */
   Cluster,
   /**
    * @deprecated Import directly from gen-proto-ts instead.
@@ -60,20 +88,8 @@ export {
   /**
    * @deprecated Import directly from gen-proto-ts instead.
    */
-  Server,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-export {
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
   Kube,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-export {
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
-  App,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 export {
   /**
    * @deprecated Import directly from gen-proto-ts instead.
@@ -84,24 +100,8 @@ export {
   /**
    * @deprecated Import directly from gen-proto-ts instead.
    */
-  AuthSettings,
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
-  AuthProvider,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
-export {
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
-  AccessRequest,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
-export {
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
-  AccessList,
-} from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
+  Server,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 
 // There's too many re-exports from this file to list them individually.
 // A @deprecated annotation like this Unfortunately has no effect on the language server.

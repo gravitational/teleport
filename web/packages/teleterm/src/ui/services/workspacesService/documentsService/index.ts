@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './documentsService';
-export * from './types';
-export * from './documentsUtils';
-export * from './connectToDatabase';
-export * from './connectToServer';
-export * from './connectToKube';
 export * from './connectToApp';
+export * from './connectToDatabase';
+export * from './connectToKube';
+export * from './connectToServer';
+export * from './documentsService';
+export * from './documentsUtils';
+export * from './types';

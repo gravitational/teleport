@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useMemo, Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction,useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import type { NotificationItem } from 'shared/components/Notification';
 
 import { ButtonState } from 'teleport/lib/tdp';
 import { useMfaTty } from 'teleport/lib/useMfa';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
+import type { UrlDesktopParams } from 'teleport/config';
 
 import useTdpClientCanvas from './useTdpClientCanvas';
-
-import type { UrlDesktopParams } from 'teleport/config';
-import type { NotificationItem } from 'shared/components/Notification';
 
 export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');

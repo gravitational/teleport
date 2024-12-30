@@ -26,10 +26,10 @@ import {
 } from './Layout';
 
 export {
+  AppHorizontalSplit,
+  AppVerticalSplit,
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
-  AppHorizontalSplit,
-  AppVerticalSplit,
   TabItem,
 };

@@ -18,17 +18,16 @@
 
 import { http, HttpResponse } from 'msw';
 
-import { noAccess, getAcl } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
 import {
   getDbMeta,
   getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { getAcl,noAccess } from 'teleport/mocks/contexts';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
 import SetupAccess from './SetupAccess';
 
 export default {

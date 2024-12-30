@@ -18,18 +18,18 @@
 
 import { JSX } from 'react';
 import styled from 'styled-components';
-import { Box, Flex, Text, Label, P3 } from 'design';
+
+import { Box, Flex, Label, P3,Text } from 'design';
 import { ShieldCheck, ShieldWarning } from 'design/Icon';
 import Link from 'design/Link';
 
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 
 import { IdentityRootCluster } from '../useIdentity';
-
-import { IdentityListItem } from './IdentityListItem';
 import { AddNewClusterItem } from './AddNewClusterItem';
+import { IdentityListItem } from './IdentityListItem';
 
 export function IdentityList(props: {
   loggedInUser: LoggedInUser;

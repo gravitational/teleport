@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-import { MemoryRouter } from 'react-router';
 import 'jest-canvas-mock';
+
+import { MemoryRouter } from 'react-router';
+
+import { render, screen } from 'design/utils/testing';
 
 import { allAccessAcl } from 'teleport/mocks/contexts';
 
 import ConsoleContext from '../consoleContext';
 import ConsoleContextProvider from '../consoleContextProvider';
-
 import DocumentSsh from '.';
 
 test('file transfer buttons are disabled if user does not have access', async () => {

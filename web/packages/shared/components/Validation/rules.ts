@@ -360,17 +360,17 @@ export const runRules = <K extends string, M extends Record<K, any>>(
 };
 
 export {
-  requiredToken,
-  requiredPassword,
-  requiredConfirmedPassword,
-  requiredField,
-  requiredRoleArn,
-  requiredIamRoleName,
-  requiredEmailLike,
-  requiredAll,
-  requiredMatchingRoleNameAndRoleArn,
-  validAwsIAMRoleName,
-  requiredPort,
   arrayOf,
   precomputed,
+  requiredAll,
+  requiredConfirmedPassword,
+  requiredEmailLike,
+  requiredField,
+  requiredIamRoleName,
+  requiredMatchingRoleNameAndRoleArn,
+  requiredPassword,
+  requiredPort,
+  requiredRoleArn,
+  requiredToken,
+  validAwsIAMRoleName,
 };

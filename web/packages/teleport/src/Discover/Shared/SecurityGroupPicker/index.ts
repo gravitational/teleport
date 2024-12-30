@@ -16,6 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { SecurityGroupPicker } from './SecurityGroupPicker';
 export type { ViewRulesSelection } from './SecurityGroupPicker';
 export type { SecurityGroupWithRecommendation } from './SecurityGroupPicker';
+export { SecurityGroupPicker } from './SecurityGroupPicker';

@@ -17,7 +17,7 @@
  */
 
 import TdpClient, { TdpClientEvent } from './client';
-import { PlayerClient } from './playerClient';
 import { ButtonState, ScrollAxis } from './codec';
+import { PlayerClient } from './playerClient';
 
-export { TdpClient, TdpClientEvent, PlayerClient, ButtonState, ScrollAxis };
+export { ButtonState, PlayerClient, ScrollAxis,TdpClient, TdpClientEvent };

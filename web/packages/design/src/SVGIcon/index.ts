@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { TeleportGearIcon } from './TeleportGearIcon';
-
-export { SVGIcon } from './SVGIcon';
 export type { SVGIconProps } from './common';
+export { SVGIcon } from './SVGIcon';
+export { TeleportGearIcon } from './TeleportGearIcon';

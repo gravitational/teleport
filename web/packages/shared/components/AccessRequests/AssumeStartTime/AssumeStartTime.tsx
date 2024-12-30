@@ -16,26 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import styled from 'styled-components';
-import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
-import { addMonths } from 'date-fns';
 
-import { Flex, Box, LabelInput, ButtonIcon } from 'design';
-import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
-import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
+import { addMonths } from 'date-fns';
+import { useState } from 'react';
+import { DayPicker } from 'react-day-picker';
+import styled from 'styled-components';
+
+import { Box, ButtonIcon,Flex, LabelInput } from 'design';
 import { ButtonSecondary } from 'design/Button';
 import { displayShortDate } from 'design/datetime';
-
-import Validation from 'shared/components/Validation';
+import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
 import FieldSelect from 'shared/components/FieldSelect';
+import Validation from 'shared/components/Validation';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-
 import { AccessRequest } from 'shared/services/accessRequests';
 
-import { TimeOption } from '../Shared/types';
+import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 
+import { TimeOption } from '../Shared/types';
 import {
   convertStartToTimeOption,
   getMaxAssumableDate,

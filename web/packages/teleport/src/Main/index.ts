@@ -18,8 +18,8 @@
 
 export {
   Main,
+  StyledIndicator,
   useContentMinWidthContext,
   useNoMinWidth,
-  StyledIndicator,
 } from './Main';
 export { MainContainer } from './MainContainer';

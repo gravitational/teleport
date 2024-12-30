@@ -1,6 +1,7 @@
 const { env, platform } = require('process');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
+
 const isMac = platform === 'darwin';
 
 // The following checks make no sense when cross-building because they check the platform of the

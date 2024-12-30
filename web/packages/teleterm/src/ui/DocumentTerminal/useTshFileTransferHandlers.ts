@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import {
-  FileTransferListeners,
   createFileTransferEventsEmitter,
+  FileTransferListeners,
 } from 'shared/components/FileTransfer';
 
-import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
-
+import { retryWithRelogin } from 'teleterm/ui/utils';
 import type * as uri from 'teleterm/ui/uri';
 
 export function useTshFileTransferHandlers() {

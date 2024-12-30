@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './uid';
-export * from './retryWithRelogin';
-export * from './getUserWithClusterName';
 export * from './assertUnreachable';
+export * from './getUserWithClusterName';
+export * from './retryWithRelogin';
+export * from './uid';

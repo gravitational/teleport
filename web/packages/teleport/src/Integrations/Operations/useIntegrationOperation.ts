@@ -23,7 +23,6 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
 import type { Integration, Plugin } from 'teleport/services/integrations';
 
 export function useIntegrationOperation() {

@@ -18,41 +18,35 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 
-import { Box, Indicator, Text, Mark } from 'design';
+import { Box, Indicator, Mark,Text } from 'design';
 import * as Icons from 'design/Icon';
-
 import { P } from 'design/Text/Text';
 
-import cfg from 'teleport/config';
 import { CatchError } from 'teleport/components/CatchError';
-import {
-  clearCachedJoinTokenResult,
-  useJoinTokenSuspender,
-} from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { JoinToken } from 'teleport/services/joinToken';
-
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-
+import cfg from 'teleport/config';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
-
 import {
   HintBox,
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
-
-import { AgentStepProps } from '../../types';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import {
+  clearCachedJoinTokenResult,
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { JoinToken } from 'teleport/services/joinToken';
+import type { Node } from 'teleport/services/nodes';
 
 import {
   ActionButtons,
-  HeaderSubtitle,
   Header,
+  HeaderSubtitle,
   ResourceKind,
   TextIcon,
 } from '../../Shared';
-
-import type { Node } from 'teleport/services/nodes';
+import { AgentStepProps } from '../../types';
 
 const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 

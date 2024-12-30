@@ -17,13 +17,14 @@
  */
 
 import Popover from './Popover';
+
 export {
-  StyledPopover,
-  type Origin,
-  type HorizontalOrigin,
-  type VerticalOrigin,
   type GrowDirections,
+  type HorizontalOrigin,
   type Position as Orientation,
+  type Origin,
+  StyledPopover,
+  type VerticalOrigin,
 } from './Popover';
 
 export default Popover;

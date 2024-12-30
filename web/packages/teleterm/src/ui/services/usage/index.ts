@@ -16,6 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './usageService';
-export * from './setUpUsageReporting';
 export * from './askAboutUserJobRoleIfNeeded';
+export * from './setUpUsageReporting';
+export * from './usageService';

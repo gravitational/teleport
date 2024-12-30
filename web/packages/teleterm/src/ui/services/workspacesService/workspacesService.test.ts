@@ -17,30 +17,28 @@
  */
 
 import {
-  DefaultTab,
-  ViewMode,
-  LabelsViewMode,
   AvailableResourceMode,
+  DefaultTab,
+  LabelsViewMode,
+  ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import type * as tshd from 'teleterm/services/tshd/types';
 
 import { ClustersService } from '../clusters';
-import { StatePersistenceService } from '../statePersistence';
-import { NotificationsService } from '../notifications';
 import { ModalsService } from '../modals';
-
+import { NotificationsService } from '../notifications';
+import { StatePersistenceService } from '../statePersistence';
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
+import { DocumentCluster, DocumentsService } from './documentsService';
 import {
   Workspace,
   WorkspacesService,
   WorkspacesState,
 } from './workspacesService';
-import { DocumentCluster, DocumentsService } from './documentsService';
-
-import type * as tshd from 'teleterm/services/tshd/types';
 
 beforeAll(() => {
   Logger.init(new NullService());

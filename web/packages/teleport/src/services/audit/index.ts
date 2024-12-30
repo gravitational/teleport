@@ -21,4 +21,4 @@ import makeEvent, { formatters } from './makeEvent';
 
 export default service;
 export * from './types';
-export { makeEvent, formatters };
+export { formatters,makeEvent };

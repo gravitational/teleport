@@ -18,25 +18,23 @@
 
 import React from 'react';
 
+import cfg from 'teleport/config';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
 import { SetupAccess } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
-import { AwsAccount, ResourceKind, Finished } from 'teleport/Discover/Shared';
+import { AwsAccount, Finished,ResourceKind } from 'teleport/Discover/Shared';
 import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEvent,
 } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
 
 import { ResourceSpec, ServerLocation } from '../SelectResource';
 import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
-
-import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
 import { CreateEc2Ice } from './CreateEc2Ice/CreateEc2Ice';
-
-import { ServerWrapper } from './ServerWrapper';
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm/DiscoveryConfigSsm';
+import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
+import { ServerWrapper } from './ServerWrapper';
 
 export const ServerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Server,

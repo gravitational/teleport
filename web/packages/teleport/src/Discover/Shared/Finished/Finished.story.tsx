@@ -17,7 +17,6 @@
  */
 
 import { Finished as Component } from './Finished';
-
 import type { AgentStepProps } from '../../types';
 
 export default {

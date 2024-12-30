@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { userEventService as userEventService } from './userEvent';
 export * from './types';
+export { userEventService as userEventService } from './userEvent';

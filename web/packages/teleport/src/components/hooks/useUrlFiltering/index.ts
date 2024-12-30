@@ -16,6 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { useUrlFiltering } from './useUrlFiltering';
-export { encodeUrlQueryParams } from './encodeUrlQueryParams';
 export { decodeUrlQueryParam } from './decodeUrlQueryParam';
+export { encodeUrlQueryParams } from './encodeUrlQueryParams';
+export { useUrlFiltering } from './useUrlFiltering';

@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { screen, render } from '@testing-library/react';
 import '@testing-library/jest-dom';
+
+import { render,screen } from '@testing-library/react';
 
 import Logger, { NullService } from 'teleterm/logger';
 

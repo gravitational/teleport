@@ -16,6 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './types';
 export * from './credentials';
 export * from './files';
+export * from './types';

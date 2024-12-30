@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { AccountPage, Account } from './Account';
+export { Account,AccountPage } from './Account';

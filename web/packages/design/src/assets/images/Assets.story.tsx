@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Image from "design/Image";
-import teleportLogo from "design/assets/images/enterprise-light.svg";
 import cloudCity from "design/assets/images/backgrounds/cloud-city.png"
+import teleportLogo from "design/assets/images/enterprise-light.svg";
+import Image from "design/Image";
 
 export default {
     title: 'Design/Assets',
