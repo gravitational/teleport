@@ -6203,7 +6203,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 			SessionType:  string(sessionTypeFromStartEvent(evt)),
 			Format:       metadata.SessionRecordingFormatFromContext(ctx),
 		}); err != nil {
-			log.WithError(err).Errorf("Failed to emit stream session event audit event")
+			a.authServer.logger.ErrorContext(ctx, "Failed to emit stream session event audit event", "error", err)
 		}
 	}
 
