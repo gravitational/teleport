@@ -1,7 +1,7 @@
 import { Box, Text, Flex, H2 } from 'design';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { HybridUserOption } from '../Shared/Shared';
 import {
@@ -42,7 +42,7 @@ export const MembersSection = ({
     <>
       <Flex alignItems="center" mb={2}>
         <H2 mr={2}>Members (Optional)</H2>
-        <ToolTipInfo
+        <IconTooltip
           children={
             <>
               List members will receive long-term access to roles and traits

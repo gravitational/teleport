@@ -1,6 +1,6 @@
 import styled, { useTheme } from 'styled-components';
 import { Box, Flex, Text } from 'design';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { CycleUsage } from 'e-teleport/UsageSummary/types';
 
@@ -44,7 +44,7 @@ export function UsageBar({
     <Box key={name} width="30%" flex="40% 0" data-testid={name}>
       <Flex flexDirection="row" alignItems="center" gap={2}>
         <h3>{name}</h3>
-        <ToolTipInfo children={<Text>{info}</Text>} />
+        <IconTooltip children={<Text>{info}</Text>} />
       </Flex>
       {calibrating ? (
         <Text style={{ fontStyle: 'italic' }}>Calibrating...</Text>

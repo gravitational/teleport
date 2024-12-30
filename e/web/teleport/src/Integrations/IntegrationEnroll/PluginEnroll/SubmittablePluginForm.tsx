@@ -11,7 +11,7 @@ import {
   H2,
   H3,
 } from 'design';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 import Validation, { Validator } from 'shared/components/Validation';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -148,7 +148,7 @@ export function SubmittablePluginForm({
                       {p.title}
                       {p.description && (
                         <Flex ml={1}>
-                          <ToolTipInfo>{p.description}</ToolTipInfo>
+                          <IconTooltip>{p.description}</IconTooltip>
                         </Flex>
                       )}
                     </Flex>

@@ -12,7 +12,7 @@ import {
   PluginEmailSpec,
 } from 'teleport/services/integrations';
 import { capitalizeFirstLetter } from 'shared/utils/text';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 
 import {
   AccessMonitoringRule,
@@ -242,10 +242,10 @@ const renderInfoCell = (plugin: Plugin) => {
       <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
         <Flex alignItems="center" width="60px">
           <Box css={{ margin: '0 auto' }}>
-            <ToolTipInfo>
+            <IconTooltip>
               Fallback notification rule for Slack. The default channel will
               receive all notifications about access requests. {commonText}
-            </ToolTipInfo>
+            </IconTooltip>
           </Box>
         </Flex>
       </Cell>
@@ -256,11 +256,11 @@ const renderInfoCell = (plugin: Plugin) => {
       <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
         <Flex alignItems="center" width="60px">
           <Box css={{ margin: '0 auto' }}>
-            <ToolTipInfo>
+            <IconTooltip>
               Fallback notification rule for Mattermost. The default email and
               or team/channel will receive all notifications about access
               requests. {commonText}
-            </ToolTipInfo>
+            </IconTooltip>
           </Box>
         </Flex>
       </Cell>
@@ -271,11 +271,11 @@ const renderInfoCell = (plugin: Plugin) => {
       <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
         <Flex alignItems="center" width="60px">
           <Box css={{ margin: '0 auto' }}>
-            <ToolTipInfo>
+            <IconTooltip>
               Fallback notification rule for Microsoft Teams. The default email
               or channel will receive all notifications about access requests.
               {commonText}
-            </ToolTipInfo>
+            </IconTooltip>
           </Box>
         </Flex>
       </Cell>
@@ -286,10 +286,10 @@ const renderInfoCell = (plugin: Plugin) => {
       <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
         <Flex alignItems="center" width="60px">
           <Box css={{ margin: '0 auto' }}>
-            <ToolTipInfo>
+            <IconTooltip>
               Fallback notification rule for Datadog. The default email or team
               will receive all notifications about access requests. {commonText}
-            </ToolTipInfo>
+            </IconTooltip>
           </Box>
         </Flex>
       </Cell>
@@ -300,10 +300,10 @@ const renderInfoCell = (plugin: Plugin) => {
       <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
         <Flex alignItems="center" width="60px">
           <Box css={{ margin: '0 auto' }}>
-            <ToolTipInfo>
+            <IconTooltip>
               Fallback notification rule for Email. The default email will
               receive all notifications about access requests. {commonText}
-            </ToolTipInfo>
+            </IconTooltip>
           </Box>
         </Flex>
       </Cell>

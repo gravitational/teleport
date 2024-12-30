@@ -32,7 +32,7 @@ import {
 
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import Table, { Cell } from 'design/DataTable';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { format } from 'date-fns';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';

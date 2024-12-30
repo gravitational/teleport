@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Box, Flex, H3, Indicator, LabelInput, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { P } from 'design/Text/Text';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { StyledBox } from 'teleport/Discover/Shared';
 
@@ -52,11 +52,11 @@ export function IdpMetadata() {
             <LabelInput>
               <Flex alignItems="center">
                 <Text mr={1}> IdP Entity ID / Issuer URL</Text>
-                <ToolTipInfo>
+                <IconTooltip>
                   IdP Entity ID is a unique identifier of Teleport SAML identity
                   provider, which is responsible for signing the SAML assertion.
                   This is also commonly referred to as an Issuer URL.
-                </ToolTipInfo>
+                </IconTooltip>
               </Flex>
             </LabelInput>
             <TextSelectCopyMulti
@@ -68,11 +68,11 @@ export function IdpMetadata() {
             <LabelInput>
               <Flex alignItems="center">
                 <Text mr={1}> IdP SSO URL</Text>
-                <ToolTipInfo>
+                <IconTooltip>
                   IdP Single Sign-on (SSO) URL is a URL location (usually a
                   Teleport proxy endpoint) where the service provider will
                   redirect users to authenticate with the IdP.
-                </ToolTipInfo>
+                </IconTooltip>
               </Flex>
             </LabelInput>
             <TextSelectCopyMulti
@@ -84,10 +84,10 @@ export function IdpMetadata() {
             <LabelInput>
               <Flex alignItems="center">
                 <Text mr={1}> IdP X.509 Certificate</Text>
-                <ToolTipInfo>
+                <IconTooltip>
                   Service provider verifies that the SAML assertion is signed by
                   Teleport SAML IdP using this IdP X.509 Certificate.
-                </ToolTipInfo>
+                </IconTooltip>
               </Flex>
             </LabelInput>
             <TextSelectCopyMulti

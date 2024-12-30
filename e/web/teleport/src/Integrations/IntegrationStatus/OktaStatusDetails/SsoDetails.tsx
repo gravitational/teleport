@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { Text, Link as ExternalLink, Flex, Box, Mark } from 'design';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 import { NewTab } from 'design/Icon';
 import { Link as InternalLink } from 'react-router-dom';
 
@@ -34,10 +34,10 @@ export function SsoDetails({
       <CenteredFlex>
         <CenteredFlex>
           <PanelTitle>Single Sign-On</PanelTitle>
-          <ToolTipInfo>
+          <IconTooltip>
             A SAML SSO connector that grants Okta users the default role of
             requester
-          </ToolTipInfo>
+          </IconTooltip>
         </CenteredFlex>
         <CustomLabel enabled={spec.enabled} />
       </CenteredFlex>

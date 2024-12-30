@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import { Box, Flex, Text, Label } from 'design';
 import { CircleCheck } from 'design/Icon';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 import { PluginOktaSyncStatusCode } from 'teleport/services/integrations/oktaStatusTypes';
 
 import { getDurationText } from './date';
@@ -94,13 +94,13 @@ export function ErrorTooltip({
 }) {
   if (statusCode === PluginOktaSyncStatusCode.Error) {
     return (
-      <ToolTipInfo kind="error">
+      <IconTooltip kind="error">
         <Text>
           <b>Last Failed:</b> {getDurationText(lastFailed)}
         </Text>
         {/* pre-line required to respect string containing \n\t chars */}
         <Text css={{ whiteSpace: 'pre-line' }}>{error}</Text>
-      </ToolTipInfo>
+      </IconTooltip>
     );
   }
   return null;

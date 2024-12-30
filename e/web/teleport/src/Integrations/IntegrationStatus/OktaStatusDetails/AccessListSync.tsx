@@ -1,7 +1,7 @@
 import { P3, Flex, Label, Text } from 'design';
 import { Link as InternalLink } from 'react-router-dom';
 import { SyncAlt } from 'design/Icon';
-import { ToolTipInfo, HoverTooltip } from 'shared/components/ToolTip';
+import { IconTooltip, HoverTooltip } from 'design/Tooltip';
 
 import { OktaAccessListSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -37,10 +37,10 @@ export function AccessListsSync({
         <CenteredFlex>
           <PanelTitle>Access Lists Sync</PanelTitle>
           {hasAccessList && (
-            <ToolTipInfo>
+            <IconTooltip>
               Access Lists enable simple permissions management and provide
               auditing capabilities.
-            </ToolTipInfo>
+            </IconTooltip>
           )}
         </CenteredFlex>
         <CustomLabel enabled={spec.enabled} />

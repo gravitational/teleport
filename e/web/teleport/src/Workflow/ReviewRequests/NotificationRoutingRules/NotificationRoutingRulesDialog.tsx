@@ -4,7 +4,7 @@ import { useTheme } from 'styled-components';
 import { Text, Flex, Box, ButtonIcon, Alert, Indicator, Button } from 'design';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import Dialog from 'design/Dialog';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { Cross } from 'design/Icon';
 import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';

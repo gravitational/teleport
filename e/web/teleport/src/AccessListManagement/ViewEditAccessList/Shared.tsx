@@ -5,7 +5,7 @@ import { Cell } from 'design/DataTable';
 import { Pencil } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 
 import Link from 'design/Link';
 
@@ -270,9 +270,9 @@ export const UserRevokeButtonCell = ({
       <Flex alignItems="center" justifyContent="flex-end">
         {!hideIneligibleReason && ineligibleReason && (
           <Box mr={3}>
-            <ToolTipInfo kind="warning" position="left">
+            <IconTooltip kind="warning" position="left">
               {ineligibleReason}
-            </ToolTipInfo>
+            </IconTooltip>
           </Box>
         )}
         <ButtonSecondary

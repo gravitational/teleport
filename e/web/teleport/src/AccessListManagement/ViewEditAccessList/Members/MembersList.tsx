@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Flex, Text, Box, ButtonText, ButtonSecondary, H2 } from 'design';
 import Table, { StyledPanel } from 'design/DataTable';
 import { UsersTriple, Add, ArrowRight } from 'design/Icon';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import InputSearch from 'design/DataTable/InputSearch';
 import { StyledTable } from 'design/DataTable/StyledTable';
 import { ClientSidePager } from 'design/DataTable/Pager';
@@ -172,7 +172,7 @@ export const AccessListMemberTable = ({
                   >
                     {title}
                     {!hideIneligibleReason && !rest.accessListExists && (
-                      <ToolTipInfo
+                      <IconTooltip
                         kind="warning"
                         children={`Insufficient permissions to view list '${title}'`}
                         css={`

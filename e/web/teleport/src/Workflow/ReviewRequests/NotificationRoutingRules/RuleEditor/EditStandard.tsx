@@ -235,7 +235,7 @@ export const EditStandard = ({
                   value={recipients ?? []}
                   toolTipContent={
                     configurableFields.pluginOption
-                      ? getRecipientToolTipInfo(
+                      ? getRecipientIconTooltip(
                           configurableFields.pluginOption.value
                         )
                       : null
@@ -304,7 +304,7 @@ const SelectCreateRoles = ({
   );
 };
 
-function getRecipientToolTipInfo(pluginName: string) {
+function getRecipientIconTooltip(pluginName: string) {
   const lowerCasedName = pluginName.toLowerCase();
   if (lowerCasedName.includes('slack')) {
     return (

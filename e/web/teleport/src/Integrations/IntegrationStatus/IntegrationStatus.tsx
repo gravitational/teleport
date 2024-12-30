@@ -13,7 +13,7 @@ import {
 } from 'teleport/services/integrations';
 import { IntegrationStatus as OSSIntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import cfg from 'teleport/config';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { capitalizeFirstLetter } from 'shared/utils/text';
 

@@ -3,7 +3,7 @@ import { Flex, ButtonText, H2 } from 'design';
 import Table from 'design/DataTable';
 import { Wrench, Add } from 'design/Icon';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { AccessListMemberKind } from 'e-teleport/services/accessmanagement/types';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
@@ -101,7 +101,7 @@ export function OwnersList({
                     >
                       {title}
                       {!rest.accessListExists && (
-                        <ToolTipInfo
+                        <IconTooltip
                           kind="warning"
                           children={`Insufficient permissions to view list '${title}'`}
                           css={`

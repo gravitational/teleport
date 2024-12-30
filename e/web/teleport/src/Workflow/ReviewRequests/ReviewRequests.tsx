@@ -11,7 +11,7 @@ import {
 } from 'teleport/components/Layout';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'e-teleport/config';
 

@@ -8,7 +8,7 @@ import {
   StyledBox,
 } from 'teleport/Discover/Shared';
 import FieldInput from 'shared/components/FieldInput';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
   requiredAll,
@@ -392,7 +392,7 @@ function GCPPrerequisites() {
                 </Link>
               </Text>
               <Flex ml={1}>
-                <ToolTipInfo>Always assign least privileged roles.</ToolTipInfo>
+                <IconTooltip>Always assign least privileged roles.</IconTooltip>
               </Flex>
             </Flex>
           </li>

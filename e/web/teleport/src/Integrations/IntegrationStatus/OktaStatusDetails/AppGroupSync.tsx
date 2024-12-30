@@ -1,7 +1,7 @@
 import { Link as InternalLink } from 'react-router-dom';
 import { Flex, Text, P3 } from 'design';
 import { SyncAlt } from 'design/Icon';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { OktaAppGroupSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
 import cfg from 'teleport/config';

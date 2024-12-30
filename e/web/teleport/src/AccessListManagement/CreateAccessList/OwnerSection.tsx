@@ -1,7 +1,7 @@
 import { Text, Box, Flex } from 'design';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { H2 } from 'design';
 
@@ -44,7 +44,7 @@ export const OwnersSection = ({
     <>
       <Flex alignItems="center" mb={2}>
         <H2 mr={2}>List Owners</H2>
-        <ToolTipInfo
+        <IconTooltip
           children={
             <>
               List Owners are responsible for managing members and membership

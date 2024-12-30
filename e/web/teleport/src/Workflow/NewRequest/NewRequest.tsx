@@ -26,7 +26,7 @@ import {
   FilterKind,
   UnifiedResources,
 } from 'shared/components/UnifiedResources';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { TextIcon } from 'teleport/Discover/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {

@@ -6,7 +6,7 @@ import { User, UserList } from 'design/Icon';
 
 import { pluralize } from 'shared/utils/text';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { AccessListType } from 'e-teleport/services/accessmanagement';
 
