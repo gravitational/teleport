@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
  *
@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Mark, MarkInverse } from './Mark';
+export { ResourceLabelTooltip } from './ResourceLabelTooltip';
