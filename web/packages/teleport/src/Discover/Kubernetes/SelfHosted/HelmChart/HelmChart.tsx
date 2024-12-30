@@ -329,7 +329,7 @@ const StepTwo = ({
             </Box>
             <Flex alignItems="center" gap={1} mb={2}>
               <Subtitle3>Add Labels (Optional)</Subtitle3>
-              <ResourceLabelTooltip resourceKind="kube" />
+              <ResourceLabelTooltip resourceKind="kube" toolTipPosition="top" />
             </Flex>
             <Box mb={3}>
               <LabelsCreater
