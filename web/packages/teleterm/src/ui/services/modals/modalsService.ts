@@ -136,26 +136,18 @@ export class ModalsService extends ImmutableStore<State> {
    */
   openImportantDialog(dialog: Dialog): { closeDialog: () => void; id: string } {
     const onCancelDialog = () => dialog['onCancel']?.();
-    const sharedSignal = this.allDialogsController.signal;
-
+    const allDialogsSignal = this.allDialogsController.signal;
     const id = crypto.randomUUID();
-    if (sharedSignal.aborted) {
-      onCancelDialog();
-      return {
-        id,
-        closeDialog: () => {},
-      };
-    }
 
     const close = () => {
-      sharedSignal.removeEventListener('abort', cancelAndClose);
+      allDialogsSignal.removeEventListener('abort', cancelAndClose);
       this.closeImportantDialog(id);
     };
     const cancelAndClose = () => {
       close();
       onCancelDialog();
     };
-    sharedSignal.addEventListener('abort', cancelAndClose);
+    allDialogsSignal.addEventListener('abort', cancelAndClose);
     this.setState(draftState => {
       draftState.important.push({ dialog, id, close });
     });
