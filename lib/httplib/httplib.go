@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -209,6 +210,38 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 		return nil, trace.ConvertSystemError(err)
 	}
 	return re, trace.ReadError(re.Code(), re.Bytes())
+}
+
+type Version struct {
+	Major      int64  `json:"major"`
+	Minor      int64  `json:"minor"`
+	Patch      int64  `json:"patch"`
+	String     string `json:"string"`
+	PreRelease string `json:"preRelease"`
+}
+
+func ReplyRouteNotFoundJSONWithVersionField(w http.ResponseWriter, versionStr string) {
+	SetDefaultSecurityHeaders(w.Header())
+
+	ver, err := semver.NewVersion(versionStr)
+	verObj := Version{}
+	if err == nil {
+		verObj = Version{
+			Major:      ver.Major,
+			Minor:      ver.Minor,
+			Patch:      ver.Patch,
+			String:     versionStr,
+			PreRelease: string(ver.PreRelease),
+		}
+	}
+
+	fields := make(map[string]interface{})
+	fields["proxyVersion"] = verObj
+	errObj := &trace.TraceErr{
+		Err:    trace.NotFound("path not found"),
+		Fields: fields,
+	}
+	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
 }
 
 // ParseBool will parse boolean variable from url query

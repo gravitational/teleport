@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// WebAPIVersion is a current webapi version
-const WebAPIVersion = "v1"
+// WebAPIVersionOne is a current webapi version
+const WebAPIVersionOne = "v1"
 
 const (
 	// SSHAuthSock is the environment variable pointing to the

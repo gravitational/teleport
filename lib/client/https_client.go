@@ -62,7 +62,7 @@ func httpTransport(insecure bool, pool *x509.CertPool) *http.Transport {
 
 func NewWebClient(url string, opts ...roundtrip.ClientParam) (*WebClient, error) {
 	opts = append(opts, roundtrip.SanitizerEnabled(true))
-	clt, err := roundtrip.NewClient(url, teleport.WebAPIVersion, opts...)
+	clt, err := roundtrip.NewClient(url, teleport.WebAPIVersionOne, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

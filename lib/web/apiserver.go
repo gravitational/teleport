@@ -34,6 +34,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -107,6 +108,9 @@ import (
 	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
+
+// apiPrefixRegex matches pathname starting with /vN/webapi or /vN/enterprise
+var apiPrefixRegex = regexp.MustCompile(`^/v(\d+)/(webapi|enterprise)`)
 
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
@@ -446,8 +450,6 @@ func (h *APIHandler) Close() error {
 
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
-	const apiPrefix = "/" + teleport.WebAPIVersion
-
 	cfg.SetDefaults()
 
 	h := &Handler{
@@ -612,13 +614,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.nodeWatcher = cfg.NodeWatcher
 	}
 
-	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// ensure security headers are set for all responses
-		httplib.SetDefaultSecurityHeaders(w.Header())
-
-		// request is going to the API?
-		if strings.HasPrefix(r.URL.Path, apiPrefix) {
-			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
+	notFoundRoutingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Request is going to the API?
+		// If no routes were matched, it could be because certain paths don't expect any version prefixes.
+		// Only prefix "v1" will be stripped to preserve the legacy behavior before introducing v1 + N.
+		if matches := apiPrefixRegex.FindStringSubmatch(r.URL.Path); matches != nil && len(matches) > 1 {
+			versionNum := matches[1]
+			if versionNum == "1" {
+				// Try path matching again with the stripped prefix.
+				http.StripPrefix("/"+teleport.WebAPIVersionOne, h).ServeHTTP(w, r)
+				return
+			}
+			httplib.ReplyRouteNotFoundJSONWithVersionField(w, teleport.Version)
 			return
 		}
 
@@ -671,11 +678,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
 			}
 		} else {
-			http.NotFound(w, r)
+			httplib.ReplyRouteNotFoundJSONWithVersionField(w, teleport.Version)
+			return
 		}
 	})
 
-	h.NotFound = routingHandler
+	h.NotFound = notFoundRoutingHandler
 
 	if cfg.PluginRegistry != nil {
 		if err := cfg.PluginRegistry.RegisterProxyWebHandlers(h); err != nil {
