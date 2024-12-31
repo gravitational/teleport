@@ -1,30 +1,36 @@
+const tsConfigBase = require('./tsconfig.json');
+
+const ourPackages = new Set(
+  Object.keys(tsConfigBase.compilerOptions.paths).map(
+    // Remove extra '/*' if present in the package name.
+    packageName => packageName.split('/')[0]
+  )
+);
+const appPackages = ['teleport', 'e-teleport', 'teleterm'].flatMap(pkg => [
+  pkg,
+  `@gravitational/${pkg}`,
+]);
+const libraryPackages = [...ourPackages]
+  .filter(pkg => !appPackages.includes(pkg))
+  .flatMap(pkg => [pkg, `@gravitational/${pkg}`]);
+
 module.exports = {
   arrowParens: 'avoid',
   printWidth: 80,
   bracketSpacing: true,
-  plugins: [
-    require('@ianvs/prettier-plugin-sort-imports'),
-  ],
+  plugins: [require('@ianvs/prettier-plugin-sort-imports')],
   importOrder: [
-    '<THIRD_PARTY_MODULES>',
-    '',
     '<BUILTIN_MODULES>',
     '',
-    '^e-teleport',
+    '<THIRD_PARTY_MODULES>',
     '',
-    '^(design|build|shared|teleport)',
+    `^(${libraryPackages.join('|')})`,
     '',
-    '^@gravitational/(.*)$',
-    '',
-    'gen-proto-ts',
+    `^(${appPackages.join('|')})`,
     '',
     '^[./]',
   ],
-  importOrderParserPlugins: [
-    'typescript',
-    'jsx',
-    'decorators-legacy',
-  ],
+  importOrderParserPlugins: ['typescript', 'jsx', 'decorators-legacy'],
   importOrderTypeScriptVersion: '5.0.0',
   semi: true,
   singleQuote: true,
