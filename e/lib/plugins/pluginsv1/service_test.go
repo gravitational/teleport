@@ -76,4 +76,13 @@ func TestPluginUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(p, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Test that disabled plugins can't be updated.
+	suite.svc.disabledPlugins = []types.PluginType{plugin.GetType()}
+	got, err = suite.svc.UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{
+		Plugin: got,
+	})
+	require.Error(t, err)
+	require.Nil(t, got)
+	require.True(t, trace.IsBadParameter(err))
 }

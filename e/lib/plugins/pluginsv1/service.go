@@ -57,6 +57,7 @@ func getStaticPlugins() []types.PluginType {
 type ServiceConfig struct {
 	Authorizer                     authz.Authorizer
 	AuthServer                     *auth.Server
+	DisabledPlugins                []types.PluginType
 	PluginAuthorizers              *plugins.AuthorizerSet
 	PluginService                  services.Plugins
 	PluginStaticCredentialsService services.PluginStaticCredentials
@@ -83,6 +84,12 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	staticPlugins := getStaticPlugins()
+	for _, pluginType := range cfg.DisabledPlugins {
+		if !slices.Contains(staticPlugins, pluginType) {
+			return trace.BadParameter("plugin %s is disabled but is not a supported plugin", pluginType)
+		}
+	}
 	return nil
 }
 
@@ -92,6 +99,7 @@ type Service struct {
 
 	authorizer                     authz.Authorizer
 	authServer                     *auth.Server
+	disabledPlugins                []types.PluginType
 	emitter                        apievents.Emitter
 	pluginAuthorizers              *plugins.AuthorizerSet
 	pluginService                  services.Plugins
@@ -108,6 +116,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	return &Service{
 		authorizer:                     cfg.Authorizer,
 		authServer:                     cfg.AuthServer,
+		disabledPlugins:                cfg.DisabledPlugins,
 		emitter:                        cfg.AuthServer,
 		pluginAuthorizers:              cfg.PluginAuthorizers,
 		pluginService:                  cfg.PluginService,
@@ -133,6 +142,11 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	if req.Plugin == nil {
 		return nil, trace.BadParameter("missing plugin")
 	}
+
+	if slices.Contains(s.disabledPlugins, req.Plugin.GetType()) {
+		return nil, trace.BadParameter("plugin %s is disabled", req.Plugin.GetType())
+	}
+
 	_, err = s.pluginService.GetPlugin(ctx, req.GetPlugin().GetName(), false /* withSecrets */)
 	switch {
 	case err == nil:
@@ -275,6 +289,10 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	oldPlugin, err := s.pluginService.GetPlugin(ctx, req.Plugin.GetName(), true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if slices.Contains(s.disabledPlugins, req.Plugin.GetType()) {
+		return nil, trace.BadParameter("plugin %s is disabled", req.Plugin.GetType())
 	}
 
 	// Don't allow to update the plugin state.
@@ -666,6 +684,9 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 	}
 
 	for _, typ := range staticPlugins {
+		if slices.Contains(s.disabledPlugins, typ) {
+			continue
+		}
 		resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{Type: string(typ)})
 	}
 

@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	"github.com/gravitational/teleport/api/types"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
@@ -58,7 +61,8 @@ import (
 )
 
 const (
-	pluginName = "auth.enterprise"
+	pluginName                = "auth.enterprise"
+	envVarNameDisabledPlugins = "TELEPORT_UNSTABLE_DISABLE_PLUGINS"
 )
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, pluginName)
@@ -627,6 +631,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCre
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:                     p.authServer.Authorizer,
 		AuthServer:                     p.authServer.AuthServer,
+		DisabledPlugins:                getDisabledPlugins(),
 		PluginService:                  p.plugins,
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              authorizers,
@@ -698,4 +703,17 @@ func (p *Plugin) getAccountUpgradeWindowStartHour(ctx context.Context) (int64, e
 		return 0, trace.Wrap(err)
 	}
 	return rsp.GetUpgradeWindowStartHour(), nil
+}
+
+func getDisabledPlugins() []types.PluginType {
+	disabledPluginsRaw := os.Getenv(envVarNameDisabledPlugins)
+	var disabledPlugins []types.PluginType
+	for _, disabledPluginRaw := range strings.Split(disabledPluginsRaw, ",") {
+		disabledPlugin := strings.TrimSpace(disabledPluginRaw)
+		if disabledPlugin == "" {
+			continue
+		}
+		disabledPlugins = append(disabledPlugins, types.PluginType(disabledPlugin))
+	}
+	return disabledPlugins
 }
