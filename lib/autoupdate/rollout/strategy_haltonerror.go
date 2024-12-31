@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -39,29 +38,23 @@ const (
 )
 
 type haltOnErrorStrategy struct {
-	log   *slog.Logger
-	clock clockwork.Clock
+	log *slog.Logger
 }
 
 func (h *haltOnErrorStrategy) name() string {
 	return update.AgentsStrategyHaltOnError
 }
 
-func newHaltOnErrorStrategy(log *slog.Logger, clock clockwork.Clock) (rolloutStrategy, error) {
+func newHaltOnErrorStrategy(log *slog.Logger) (rolloutStrategy, error) {
 	if log == nil {
 		return nil, trace.BadParameter("missing log")
 	}
-	if clock == nil {
-		return nil, trace.BadParameter("missing clock")
-	}
 	return &haltOnErrorStrategy{
-		log:   log.With("strategy", update.AgentsStrategyHaltOnError),
-		clock: clock,
+		log: log.With("strategy", update.AgentsStrategyHaltOnError),
 	}, nil
 }
 
-func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
-	now := h.clock.Now()
+func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	// We process every group in order, all the previous groups must be in the DONE state
 	// for the next group to become active. Even if some early groups are not DONE,
 	// later groups might be ACTIVE and need to transition to DONE, so we cannot
