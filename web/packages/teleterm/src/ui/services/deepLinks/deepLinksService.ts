@@ -74,6 +74,14 @@ export class DeepLinksService {
       return;
     }
 
+    // Before we start, let's close any open dialogs, for a few reasons:
+    // 1. Activating a deep link may require changing the workspace, and we don't
+    // want to see dialogs from the previous one.
+    // 2. A login dialog could be covered by an important dialog.
+    // 3. The user could be confused, since Connect My Computer or Authorize Web
+    // Session documents would be displayed below a dialog.
+    this.modalsService.cancelAndCloseAll();
+
     // launchDeepLink cannot throw if it receives a pathname that doesn't match any supported
     // pathnames. The user might simply be using a version of Connect that doesn't support the given
     // pathname yet. Generally, such cases should be caught outside of DeepLinksService by
