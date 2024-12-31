@@ -46,7 +46,8 @@ func ToPointers[T any](in []T) []*T {
 	return out
 }
 
-// FromPointers converts a slice of pointers to values to a slice of values
+// FromPointers converts a slice of pointers to values to a slice of values.
+// Nil pointers are converted to zero-values.
 func FromPointers[T any](in []*T) []T {
 	out := make([]T, len(in))
 	for i := range in {
