@@ -82,17 +82,15 @@ RUN groupadd ci --gid="$GID" -o && \
     chown -R ci /var/lib/teleport
 
 # Install Rust.
-ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=$RUST_VERSION
+    PATH=/usr/local/cargo/bin:$PATH
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
 # Install Rust using the ci user, as that is the user that
 # will run builds using the Rust toolchains we install here.
 USER ci
-RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal && \
     rustup target add arm-unknown-linux-gnueabihf && \
     rustup --version && \
     cargo --version && \

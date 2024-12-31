@@ -16,7 +16,7 @@ You can make production builds locally, or you can use Docker to do that.
 
 ### Local Build
 
-Install Node.js (you can take the version by executing 
+Install Node.js (you can take the version by executing
 `make -C build.assets print-node-version` from the root directory).
 After that, run `corepack enable pnpm` to enable installing a package manager.
 
@@ -27,7 +27,7 @@ pnpm install
 ```
 
 You will also need the following tools installed:
-* The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
+* `Rust` and `Cargo` should be installed via [rustup](https://rustup.rs/)
 * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
   `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
 * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
@@ -296,7 +296,7 @@ not own.
 We use [pnpm workspaces](https://pnpm.io/workspaces) to manage dependencies.
 
 To add a package to the workspace, run `pnpm --filter=<workspace-name> add <package-name>`.
-Alternatively, you can add a line to the workspace's `package.json` file and then 
+Alternatively, you can add a line to the workspace's `package.json` file and then
 run `pnpm install` (or `pnpm i`) from the root of this repository.
 
 Dependencies should generally be added to the specific workspaces that use them.
