@@ -516,7 +516,7 @@ export class FeatureClusters implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.trustedClusters;
+    return cfg.isDashboard || flags.trustedClusters;
   }
 
   navigationItem = {
