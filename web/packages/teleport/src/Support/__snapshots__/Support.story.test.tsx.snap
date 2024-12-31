@@ -22,10 +22,22 @@ exports[`support Cloud 1`] = `
   box-sizing: border-box;
 }
 
+.c23 {
+  box-sizing: border-box;
+  margin-top: 32px;
+}
+
 .c17 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
 }
 
 .c7 {
@@ -64,7 +76,20 @@ exports[`support Cloud 1`] = `
   margin: 0px;
 }
 
-.c28 {
+.c25 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c26 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  font-weight: 600;
+}
+
+.c33 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -90,7 +115,7 @@ exports[`support Cloud 1`] = `
   justify-content: start;
 }
 
-.c24 {
+.c29 {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -144,7 +169,7 @@ exports[`support Cloud 1`] = `
   padding-left: 40px;
 }
 
-.c23 {
+.c28 {
   width: 100vw;
   margin-left: -40px;
 }
@@ -157,11 +182,11 @@ exports[`support Cloud 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c26 {
+.c31 {
   width: 320px;
 }
 
-.c27 {
+.c32 {
   justify-content: space-between;
   flex-wrap: wrap;
   max-width: 70%;
@@ -171,7 +196,7 @@ exports[`support Cloud 1`] = `
   margin-bottom: 16px;
 }
 
-.c29 {
+.c34 {
   display: block;
   color: #FFFFFF;
   border-radius: 4px;
@@ -184,9 +209,13 @@ exports[`support Cloud 1`] = `
   line-height: 16px;
 }
 
-.c29:hover,
-.c29:focus {
+.c34:hover,
+.c34:focus {
   background: rgba(255,255,255,0.07);
+}
+
+.c27 {
+  display: inline;
 }
 
 @media screen and (max-width:656px) {
@@ -204,7 +233,7 @@ exports[`support Cloud 1`] = `
 }
 
 @media screen and (max-width:656px) {
-  .c23 {
+  .c28 {
     border-bottom: 1px solid rgba(255,255,255,0.18);
   }
 }
@@ -217,27 +246,27 @@ exports[`support Cloud 1`] = `
 }
 
 @media screen and (max-width:656px) {
-  .c25 {
+  .c30 {
     flex-direction: column;
     align-items: flex-start;
   }
 }
 
 @media screen and (max-width:656px) {
-  .c26 {
+  .c31 {
     margin-left: 40px;
     margin-top: 8px;
   }
 }
 
 @media screen and (max-width:1056px) {
-  .c27 {
+  .c32 {
     max-width: 100%;
   }
 }
 
 @media screen and (max-width:656px) {
-  .c27 {
+  .c32 {
     flex-direction: column;
     gap: 16px;
     margin-bottom: 16px;
@@ -354,9 +383,57 @@ exports[`support Cloud 1`] = `
           </div>
         </div>
       </div>
+      <div
+        class="c23 c2"
+      >
+        <span
+          class="c24 icon icon-info"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+            />
+            <path
+              d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+        <div
+          class="c25"
+        >
+          Looking for
+           
+          <div
+            class="c26 c27"
+            font-weight="bold"
+          >
+            Scheduled Upgrades?
+          </div>
+           
+          It is now in
+           
+          <a
+            href="/web/clusters/test/manage"
+          >
+            Cluster Management
+          </a>
+           
+          page.
+        </div>
+      </div>
     </div>
     <div
-      class="c23"
+      class="c28"
     />
     <div
       class="c9 c10 c11"
@@ -365,7 +442,7 @@ exports[`support Cloud 1`] = `
         class="c12 c13 c14"
       >
         <div
-          class="c12 c24 c25"
+          class="c12 c29 c30"
         >
           <div
             class="c12 c5"
@@ -403,7 +480,7 @@ exports[`support Cloud 1`] = `
             </h2>
           </div>
           <div
-            class="c12 c26"
+            class="c12 c31"
           />
         </div>
       </div>
@@ -411,18 +488,18 @@ exports[`support Cloud 1`] = `
         class="c12 c13 c14 c19"
       >
         <div
-          class="c12 c2 c27"
+          class="c12 c2 c32"
         >
           <div
             class="c12"
           >
             <h3
-              class="c28"
+              class="c33"
             >
               Support
             </h3>
             <a
-              class="c29"
+              class="c34"
               href="https://github.com/gravitational/teleport/discussions"
               rel="noreferrer"
               target="_blank"
@@ -430,7 +507,7 @@ exports[`support Cloud 1`] = `
               Ask the Community Questions
             </a>
             <a
-              class="c29"
+              class="c34"
               href="https://github.com/gravitational/teleport/issues/new/choose"
               rel="noreferrer"
               target="_blank"
@@ -438,7 +515,7 @@ exports[`support Cloud 1`] = `
               Request a New Feature
             </a>
             <a
-              class="c29"
+              class="c34"
               href="mailto:support@goteleport.com"
               rel="noreferrer"
               target="_blank"
@@ -450,12 +527,12 @@ exports[`support Cloud 1`] = `
             class="c12"
           >
             <h3
-              class="c28"
+              class="c33"
             >
               Resources
             </h3>
             <a
-              class="c29"
+              class="c34"
               href="https://goteleport.com/docs/get-started/?product=teleport&version=oss_13.4.0-dev"
               rel="noreferrer"
               target="_blank"
@@ -463,7 +540,7 @@ exports[`support Cloud 1`] = `
               Get Started Guide
             </a>
             <a
-              class="c29"
+              class="c34"
               href="https://goteleport.com/docs/connect-your-client/tsh/?product=teleport&version=oss_13.4.0-dev"
               rel="noreferrer"
               target="_blank"
@@ -471,7 +548,7 @@ exports[`support Cloud 1`] = `
               tsh User Guide
             </a>
             <a
-              class="c29"
+              class="c34"
               href="https://goteleport.com/docs/management/admin/?product=teleport&version=oss_13.4.0-dev"
               rel="noreferrer"
               target="_blank"
@@ -479,7 +556,7 @@ exports[`support Cloud 1`] = `
               Admin Guides
             </a>
             <a
-              class="c29"
+              class="c34"
               href="https://goteleport.com/docs/management/admin/troubleshooting/?product=teleport&version=oss_13.4.0-dev"
               rel="noreferrer"
               target="_blank"
@@ -487,14 +564,14 @@ exports[`support Cloud 1`] = `
               Troubleshooting Guide
             </a>
             <a
-              class="c29"
+              class="c34"
               href="/web/downloads"
               rel="noreferrer"
             >
               Download Page
             </a>
             <a
-              class="c29"
+              class="c34"
               href="https://goteleport.com/docs/faq?product=teleport&version=oss_13.4.0-dev"
               rel="noreferrer"
               target="_blank"
@@ -506,12 +583,12 @@ exports[`support Cloud 1`] = `
             class="c12"
           >
             <h3
-              class="c28"
+              class="c33"
             >
               Updates
             </h3>
             <a
-              class="c29"
+              class="c34"
               href="https://goteleport.com/docs/changelog?product=teleport&version=oss_13.4.0-dev"
               rel="noreferrer"
               target="_blank"
@@ -519,7 +596,7 @@ exports[`support Cloud 1`] = `
               Product Changelog
             </a>
             <a
-              class="c29"
+              class="c34"
               href="https://goteleport.com/blog/"
               rel="noreferrer"
               target="_blank"
