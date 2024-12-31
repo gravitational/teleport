@@ -37,21 +37,23 @@ func FilterMapUnique[T any, S cmp.Ordered](ts []T, fn func(T) (s S, include bool
 	return slices.Compact(ss)
 }
 
-func SliceToPointerSlice[T any](arr []T) []*T {
-	out := make([]*T, len(arr))
-	for i := range arr {
-		out[i] = &arr[i]
+// SliceToPointerSlice converts a slice of values to a slice of pointers to those values
+func SliceToPointerSlice[T any](in []T) []*T {
+	out := make([]*T, len(in))
+	for i := range in {
+		out[i] = &in[i]
 	}
 	return out
 }
 
-func PointerSliceToSlice[T any](arr []*T) []T {
-	out := make([]T, len(arr))
-	for i := range arr {
-		if arr[i] == nil {
+// PointerSliceToSlice converts a slice of pointers to values to a slice of values
+func PointerSliceToSlice[T any](in []*T) []T {
+	out := make([]T, len(in))
+	for i := range in {
+		if in[i] == nil {
 			continue
 		}
-		out[i] = *arr[i]
+		out[i] = *in[i]
 	}
 	return out
 }
