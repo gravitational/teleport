@@ -19,7 +19,7 @@ env:
   # we want to rebuild the images. Make sure this value is kept
   # up-to-date as new major versions are released. See:
   #   https://github.com/gravitational/teleport/blob/master/docs/postrelease.md
-  TELEPORT_MAJOR_VERSIONS: "v14 v15 v16"
+  TELEPORT_MAJOR_VERSIONS: "v15 v16 v17"
 
 permissions:
   contents: read
@@ -52,7 +52,7 @@ jobs:
             v=$(go run ./cmd/query-latest $major_version || true)
             versions+="$v "
           done
-          echo tags=$versions >> $GITHUB_OUTPUT
+          echo tags="$versions" >> "$GITHUB_OUTPUT"
 
       # GHA wants to know all the exact revision of every single action and
       # workflow being pulled into a workflow run *before* it starts running.
@@ -76,7 +76,7 @@ jobs:
             # missing the workflow to invoke. We don't want to stop *all*
             # the rebuilds because one failed.
             gh workflow run rebuild-teleport-oci-distroless.yml \
-              --repo $GITHUB_REPOSITORY \
+              --repo "$GITHUB_REPOSITORY" \
               --ref $teleport_release_tag \
               --raw-field teleport-release-tag=$teleport_release_tag || true
           done

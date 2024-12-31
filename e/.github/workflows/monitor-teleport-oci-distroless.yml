@@ -1,4 +1,4 @@
-# Defines a workflow that scans all of the Major-Version Distroless Teleport 
+# Defines a workflow that scans all of the Major-Version Distroless Teleport
 # OCI container images with trivy and injects the scan results results into
 # the teleport.e GitHub Security Tab
 #
@@ -6,7 +6,7 @@ name: Monitor Teleport Distroless OCI Container Images
 
 on:
   schedule:
-    # Run daily at 7.17 am UTC. 7am UTC is 0:00 PDT, and the 17 
+    # Run daily at 7.17 am UTC. 7am UTC is 0:00 PDT, and the 17
     # minute offset is not important; just a random offset to
     # stagger jobs.
     - cron: '17 7 * * *'
@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        teleport-major-version: [13, 14, 15]
+        teleport-major-version: [15, 16, 17]
         arch: ['amd64', 'arm64']
         mode: ['debug', 'production']
         release: ['oss', 'enterprise', 'fips']

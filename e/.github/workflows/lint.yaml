@@ -40,7 +40,7 @@ jobs:
               - added|modified:
                 - '.github/workflows/*.yaml'
                 - '.github/workflows/*.yml'
-            
+
   lint-go:
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
@@ -96,14 +96,14 @@ jobs:
 
       - name: Run actionlint
         env:
-          IMAGE_TAG: 'rhysd/actionlint:1.7.1'
+          IMAGE_TAG: 'rhysd/actionlint:1.7.5'
         run: |
           docker run --rm \
             -v "$(pwd):/workflows" -w '/workflows' \
             "${IMAGE_TAG}" \
             -ignore 'label ".+" is unknown' \
             ${{ needs.changes.outputs.workflow_files }}
-  
+
   # This is called "lint" for now to prevent existing workflow checks from breaking
   lint:
     name: Lint
