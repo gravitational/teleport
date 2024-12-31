@@ -23,7 +23,15 @@ import * as Icons from 'design/Icon';
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { ResourceTypeSummary } from 'teleport/services/integrations';
+import styled from 'styled-components';
+
+import history from 'teleport/services/history';
+
+import {
+  IntegrationKind,
+  ResourceTypeSummary,
+} from 'teleport/services/integrations';
+import cfg from 'teleport/config';
 
 export enum AwsResource {
   ec2 = 'ec2',
@@ -32,22 +40,29 @@ export enum AwsResource {
 }
 
 type StatCardProps = {
+  name: string;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
 };
 
-export function StatCard({ resource, summary }: StatCardProps) {
+export function StatCard({ name, resource, summary }: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
   const term = getResourceTerm(resource);
 
   return (
-    <Card
-      width="33%"
-      p={3}
-      bg="levels.surface"
+    <SelectCard
       data-testid={`${resource}-stats`}
+      onClick={() => {
+        history.push(
+          cfg.getIntegrationStatusResourcesRoute(
+            IntegrationKind.AwsOidc,
+            name,
+            resource
+          )
+        );
+      }}
     >
       <Flex
         flexDirection="column"
@@ -96,7 +111,7 @@ export function StatCard({ resource, summary }: StatCardProps) {
           </Text>
         )}
       </Flex>
-    </Card>
+    </SelectCard>
   );
 }
 
@@ -111,3 +126,17 @@ function getResourceTerm(resource: AwsResource): string {
       return 'Instances';
   }
 }
+
+export const SelectCard = styled(Card)`
+  width: 33%;
+  background-color: ${props => props.theme.colors.levels.surface};
+  padding: 12px;
+  border-radius: ${props => props.theme.radii[2]}px;
+  border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
+  cursor: pointer;
+
+  &:hover {
+    background-color: ${props => props.theme.colors.levels.elevated};
+    box-shadow: ${({ theme }) => theme.boxShadow[2]};
+  }
+`;

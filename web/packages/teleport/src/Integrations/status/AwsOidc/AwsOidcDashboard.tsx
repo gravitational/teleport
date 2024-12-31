@@ -27,17 +27,23 @@ import {
   AwsResource,
   StatCard,
 } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
 
 export function AwsOidcDashboard() {
   const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
 
-  if (statsAttempt.status == 'processing') {
+  if (
+    statsAttempt.status == 'processing' ||
+    integrationAttempt.status == 'processing'
+  ) {
     return <Indicator />;
   }
-  if (statsAttempt.status == 'error') {
+
+  if (integrationAttempt.status == 'error') {
     return <Danger>{statsAttempt.statusText}</Danger>;
   }
-  if (!statsAttempt.data) {
+
+  if (!statsAttempt.data || !integrationAttempt.data) {
     return null;
   }
 
@@ -45,14 +51,29 @@ export function AwsOidcDashboard() {
   const { awsec2, awseks, awsrds } = statsAttempt.data;
   const { data: integration } = integrationAttempt;
   return (
-    <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
-      {integration && <AwsOidcHeader integration={integration} />}
-      <H2 my={3}>Auto-Enrollment</H2>
-      <Flex gap={3}>
-        <StatCard resource={AwsResource.ec2} summary={awsec2} />
-        <StatCard resource={AwsResource.rds} summary={awsrds} />
-        <StatCard resource={AwsResource.eks} summary={awseks} />
-      </Flex>
-    </FeatureBox>
+    <>
+      <AwsOidcHeader integration={integration} />
+      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
+        {integration && <AwsOidcTitle integration={integration} />}
+        <H2 my={3}>Auto-Enrollment</H2>
+        <Flex gap={3}>
+          <StatCard
+            name={integration.name}
+            resource={AwsResource.ec2}
+            summary={awsec2}
+          />
+          <StatCard
+            name={integration.name}
+            resource={AwsResource.eks}
+            summary={awseks}
+          />
+          <StatCard
+            name={integration.name}
+            resource={AwsResource.rds}
+            summary={awsrds}
+          />
+        </Flex>
+      </FeatureBox>
+    </>
   );
 }

@@ -49,18 +49,22 @@ export default function generateResourcePath(
   }
 
   const output = path
+    // non-param
     .replace(':clusterId', params.clusterId)
-    .replace(':limit?', params.limit || '')
-    .replace(':startKey?', params.startKey || '')
-    .replace(':query?', processedParams.query || '')
-    .replace(':search?', processedParams.search || '')
-    .replace(':searchAsRoles?', processedParams.searchAsRoles || '')
-    .replace(':sort?', processedParams.sort || '')
+    .replace(':name', params.name || '')
+    // param
     .replace(':kind?', processedParams.kind || '')
     .replace(':kinds?', processedParams.kinds || '')
     .replace(':kubeCluster?', processedParams.kubeCluster || '')
     .replace(':kubeNamespace?', processedParams.kubeNamespace || '')
+    .replace(':limit?', params.limit || '')
     .replace(':pinnedOnly?', processedParams.pinnedOnly || '')
+    .replace(':query?', processedParams.query || '')
+    .replace(':resourceType?', params.resourceType || '')
+    .replace(':search?', processedParams.search || '')
+    .replace(':searchAsRoles?', processedParams.searchAsRoles || '')
+    .replace(':sort?', processedParams.sort || '')
+    .replace(':startKey?', params.startKey || '')
     .replace(
       ':includedResourceMode?',
       processedParams.includedResourceMode || ''

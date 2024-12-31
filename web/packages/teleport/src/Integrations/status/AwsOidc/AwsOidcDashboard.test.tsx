@@ -83,13 +83,20 @@ test('renders header and stats cards', () => {
     </MockAwsOidcStatusProvider>
   );
 
-  expect(screen.getByRole('link', { name: 'back' })).toHaveAttribute(
+  const breadcrumbs = screen.getByTestId('aws-oidc-header');
+  expect(within(breadcrumbs).getByText('integration-one')).toBeInTheDocument();
+
+  const title = screen.getByTestId('aws-oidc-title');
+  expect(within(title).getByRole('link', { name: 'back' })).toHaveAttribute(
     'href',
     '/web/integrations'
   );
-  expect(screen.getByText('integration-one')).toBeInTheDocument();
-  expect(screen.getByLabelText('status')).toHaveAttribute('kind', 'success');
-  expect(screen.getByLabelText('status')).toHaveTextContent('Running');
+  expect(within(title).getByLabelText('status')).toHaveAttribute(
+    'kind',
+    'success'
+  );
+  expect(within(title).getByLabelText('status')).toHaveTextContent('Running');
+  expect(within(title).getByText('integration-one')).toBeInTheDocument();
 
   const ec2 = screen.getByTestId('ec2-stats');
   expect(within(ec2).getByTestId('sync')).toHaveTextContent(
