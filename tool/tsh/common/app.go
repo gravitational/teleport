@@ -623,10 +623,6 @@ type appInfo struct {
 	profile *client.ProfileStatus
 }
 
-func (a *appInfo) appLocalCAPath(cluster string) string {
-	return a.profile.AppLocalCAPath(cluster, a.RouteToApp.Name)
-}
-
 // GetApp returns the cached app or fetches it using the app route and
 // caches the result.
 func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) (types.Application, error) {
