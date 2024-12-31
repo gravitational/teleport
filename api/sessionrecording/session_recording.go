@@ -21,6 +21,7 @@
 package sessionrecording
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -52,6 +53,8 @@ const (
 )
 
 // NewReader returns a new session recording reader
+//
+// It is the caller's responsibility to call Close on the [Reader] when done.
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		reader:    r,
@@ -74,7 +77,8 @@ const (
 
 // Reader reads Teleport's session recordings
 type Reader struct {
-	gzipReader *gzipReader
+	inner      io.Reader
+	gzipReader *gzip.Reader
 	padding    int64
 	reader     io.Reader
 	state      int
@@ -202,10 +206,16 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			r.padding = int64(binary.BigEndian.Uint64(sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(io.LimitReader(r.reader, int64(partSize)))
+			r.inner = io.LimitReader(r.reader, int64(partSize))
+			gzipReader, err := gzip.NewReader(r.inner)
+			// older bugged versions of teleport would sometimes incorrectly inject padding bytes into
+			// the gzip section of the archive. this causes gzip readers with multistream enabled (the
+			// default behavior) to fail. we  disable multistream here in order to ensure that the gzip
+			// reader halts when it reaches the end of the current (only) valid gzip entry.
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}
+			gzipReader.Multistream(false)
 			r.gzipReader = gzipReader
 			r.state = protoReaderStateCurrent
 			continue
@@ -224,7 +234,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				// due to a bug in older versions of teleport it was possible that padding
 				// bytes would end up inside of the gzip section of the archive. we should
 				// skip any dangling data in the gzip secion.
-				n, err := io.CopyBuffer(io.Discard, r.gzipReader.inner, messageBytes[:])
+				n, err := io.CopyBuffer(io.Discard, r.inner, messageBytes[:])
 				if err != nil {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
