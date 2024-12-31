@@ -543,7 +543,11 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 }
 
 func (l *Log) Close() error {
-	return trace.Wrap(l.consumerCloser.Close())
+	// consumerCloser is nil when consumer is disabled.
+	if l.consumerCloser != nil {
+		return trace.Wrap(l.consumerCloser.Close())
+	}
+	return nil
 }
 
 func (l *Log) IsConsumerDisabled() bool {
