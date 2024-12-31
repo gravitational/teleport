@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package azure_sync
+package azuresync
 
 import (
 	"fmt"
