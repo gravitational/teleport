@@ -21,6 +21,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"github.com/gravitational/teleport/lib/utils/slices"
 	"io"
 	"log/slog"
 	"mime"
@@ -151,25 +152,6 @@ func (d *resourceFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 	return d.encode(obj, output)
 }
 
-func arrayToPointerArray[T any](arr []T) []*T {
-	out := make([]*T, len(arr))
-	for i := range arr {
-		out[i] = &arr[i]
-	}
-	return out
-}
-
-func pointerArrayToArray[T any](arr []*T) []T {
-	out := make([]T, len(arr))
-	for i := range arr {
-		if arr[i] == nil {
-			continue
-		}
-		out[i] = *arr[i]
-	}
-	return out
-}
-
 // FilterObj receives a runtime.Object type and filters the resources on it
 // based on allowed and denied rules.
 // After filtering them, the obj is manipulated to hold the filtered information.
@@ -192,10 +174,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.PodList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Secret:
@@ -206,10 +188,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.SecretList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.ConfigMap:
@@ -220,10 +202,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.ConfigMapList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Namespace:
@@ -234,10 +216,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.NamespaceList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Service:
@@ -248,10 +230,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.ServiceList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Endpoints:
@@ -262,10 +244,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.EndpointsList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.ServiceAccount:
@@ -276,10 +258,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.ServiceAccountList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Node:
@@ -290,10 +272,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.NodeList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.PersistentVolume:
@@ -304,10 +286,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.PersistentVolumeList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.PersistentVolumeClaim:
@@ -318,10 +300,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.PersistentVolumeClaimList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -333,10 +315,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *appsv1.DeploymentList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -348,10 +330,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *appsv1.ReplicaSetList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *appsv1.StatefulSet:
@@ -362,10 +344,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *appsv1.StatefulSetList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -377,10 +359,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *appsv1.DaemonSetList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *authv1.ClusterRole:
@@ -391,10 +373,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *authv1.ClusterRoleList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *authv1.Role:
@@ -405,10 +387,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *authv1.RoleList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -420,10 +402,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *authv1.ClusterRoleBindingList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -435,10 +417,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *authv1.RoleBindingList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -450,10 +432,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *batchv1.CronJobList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -465,10 +447,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *batchv1.JobList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -480,10 +462,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *certificatesv1.CertificateSigningRequestList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *networkingv1.Ingress:
@@ -494,10 +476,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *networkingv1.IngressList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *extensionsv1beta1.Ingress:
@@ -508,10 +490,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *extensionsv1beta1.IngressList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -523,10 +505,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *extensionsv1beta1.DaemonSetList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -538,10 +520,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *extensionsv1beta1.DeploymentList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
@@ -553,10 +535,10 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *extensionsv1beta1.ReplicaSetList:
-		o.Items = pointerArrayToArray(
+		o.Items = slices.PointerSliceToSlice(
 			filterResourceList(
 				d.kind, d.verb,
-				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+				slices.SliceToPointerSlice(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 

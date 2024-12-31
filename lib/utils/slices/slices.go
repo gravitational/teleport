@@ -36,3 +36,22 @@ func FilterMapUnique[T any, S cmp.Ordered](ts []T, fn func(T) (s S, include bool
 	slices.Sort(ss)
 	return slices.Compact(ss)
 }
+
+func SliceToPointerSlice[T any](arr []T) []*T {
+	out := make([]*T, len(arr))
+	for i := range arr {
+		out[i] = &arr[i]
+	}
+	return out
+}
+
+func PointerSliceToSlice[T any](arr []*T) []T {
+	out := make([]T, len(arr))
+	for i := range arr {
+		if arr[i] == nil {
+			continue
+		}
+		out[i] = *arr[i]
+	}
+	return out
+}
