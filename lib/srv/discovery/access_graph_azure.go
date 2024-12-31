@@ -35,19 +35,19 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
 )
 
 // reconcileAccessGraphAzure fetches Azure resources, creates a set of resources to delete and upsert based on
 // the previous fetch, and then sends the delete and upsert results to the Access Graph stream
 func (s *Server) reconcileAccessGraphAzure(
 	ctx context.Context,
-	currentTAGResources *azure_sync.Resources,
+	currentTAGResources *azuresync.Resources,
 	stream accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
-	features azure_sync.Features,
+	features azuresync.Features,
 ) error {
 	type fetcherResult struct {
-		result *azure_sync.Resources
+		result *azuresync.Resources
 		err    error
 	}
 
@@ -56,7 +56,7 @@ func (s *Server) reconcileAccessGraphAzure(
 	if len(allFetchers) == 0 {
 		// If there are no fetchers, we don't need to continue.
 		// We will send a delete request for all resources and return.
-		upsert, toDel := azure_sync.ReconcileResults(currentTAGResources, &azure_sync.Resources{})
+		upsert, toDel := azuresync.ReconcileResults(currentTAGResources, &azuresync.Resources{})
 
 		if err := azurePush(stream, upsert, toDel); err != nil {
 			s.Log.ErrorContext(ctx, "Error pushing empty resources to TAGs", "error", err)
@@ -82,7 +82,7 @@ func (s *Server) reconcileAccessGraphAzure(
 	}
 
 	// Collect the results from all fetchers.
-	results := make([]*azure_sync.Resources, 0, len(allFetchers))
+	results := make([]*azuresync.Resources, 0, len(allFetchers))
 	errs := make([]error, 0, len(allFetchers))
 	for i := 0; i < len(allFetchers); i++ {
 		// Each fetcher can return an error and a result.
@@ -100,10 +100,10 @@ func (s *Server) reconcileAccessGraphAzure(
 	if err != nil {
 		s.Log.ErrorContext(ctx, "Error polling TAGs", "error", err)
 	}
-	result := azure_sync.MergeResources(results...)
+	result := azuresync.MergeResources(results...)
 
 	// Merge all results into a single result
-	upsert, toDel := azure_sync.ReconcileResults(currentTAGResources, result)
+	upsert, toDel := azuresync.ReconcileResults(currentTAGResources, result)
 	pushErr := azurePush(stream, upsert, toDel)
 
 	if pushErr != nil {
@@ -191,8 +191,8 @@ func azurePush(
 }
 
 // getAllTAGSyncAzureFetchers returns both static and dynamic TAG Azure fetchers
-func (s *Server) getAllTAGSyncAzureFetchers() []*azure_sync.Fetcher {
-	allFetchers := make([]*azure_sync.Fetcher, 0, len(s.dynamicTAGAzureFetchers))
+func (s *Server) getAllTAGSyncAzureFetchers() []*azuresync.Fetcher {
+	allFetchers := make([]*azuresync.Fetcher, 0, len(s.dynamicTAGAzureFetchers))
 
 	s.muDynamicTAGAzureFetchers.RLock()
 	for _, fetcherSet := range s.dynamicTAGAzureFetchers {
@@ -291,7 +291,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	if len(supportedKinds) == 0 {
 		return trace.BadParameter("TAG Azure service did not return supported kinds")
 	}
-	features := azure_sync.BuildFeatures(supportedKinds...)
+	features := azuresync.BuildFeatures(supportedKinds...)
 
 	// Cancels the context to stop the event watcher if the access graph connection fails
 	var wg sync.WaitGroup
@@ -320,7 +320,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	s.Log.InfoContext(ctx, "Access graph Azure service poll interval", "poll_interval", tickerInterval)
 
 	// Reconciles the resources as they're imported from Azure
-	azureResources := &azure_sync.Resources{}
+	azureResources := &azuresync.Resources{}
 	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 	for {
@@ -386,20 +386,20 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 
 // accessGraphAzureFetchersFromMatchers converts matcher configuration to fetchers for Azure resource synchronization
 func (s *Server) accessGraphAzureFetchersFromMatchers(
-	matchers Matchers, discoveryConfigName string) ([]*azure_sync.Fetcher, error) {
-	var fetchers []*azure_sync.Fetcher
+	matchers Matchers, discoveryConfigName string) ([]*azuresync.Fetcher, error) {
+	var fetchers []*azuresync.Fetcher
 	var errs []error
 	if matchers.AccessGraph == nil {
 		return fetchers, nil
 	}
 	for _, matcher := range matchers.AccessGraph.Azure {
-		fetcherCfg := azure_sync.Config{
+		fetcherCfg := azuresync.Config{
 			CloudClients:        s.CloudClients,
 			SubscriptionID:      matcher.SubscriptionID,
 			Integration:         matcher.Integration,
 			DiscoveryConfigName: discoveryConfigName,
 		}
-		fetcher, err := azure_sync.NewFetcher(fetcherCfg, s.ctx)
+		fetcher, err := azuresync.NewFetcher(fetcherCfg, s.ctx)
 		if err != nil {
 			errs = append(errs, err)
 			continue
