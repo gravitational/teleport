@@ -31,7 +31,6 @@ type gzipReader struct {
 	inner io.ReadCloser
 }
 
-// Close closes file and gzip writer
 func (f *gzipReader) Close() error {
 	var errors []error
 	if f.ReadCloser != nil {
