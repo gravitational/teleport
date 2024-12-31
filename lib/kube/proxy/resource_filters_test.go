@@ -190,43 +190,43 @@ func Test_filterBuffer(t *testing.T) {
 				var resources []string
 				switch o := obj.(type) {
 				case *corev1.SecretList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *appsv1.DeploymentList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *appsv1.DaemonSetList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *appsv1.StatefulSetList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *authv1.RoleBindingList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *batchv1.CronJobList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *batchv1.JobList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *corev1.PodList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *corev1.ConfigMapList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *corev1.ServiceAccountList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *appsv1.ReplicaSetList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *corev1.ServiceList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *corev1.PersistentVolumeClaimList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *authv1.RoleList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *networkingv1.IngressList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *extensionsv1beta1.IngressList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *extensionsv1beta1.DaemonSetList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *extensionsv1beta1.ReplicaSetList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *extensionsv1beta1.DeploymentList:
-					resources = collectResourcesFromResponse(tslices.SliceToPointerSlice(o.Items))
+					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
 				case *metav1.Table:
 					for i := range o.Rows {
 						row := &(o.Rows[i])
