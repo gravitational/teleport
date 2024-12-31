@@ -21,9 +21,9 @@ package rollout
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -35,29 +35,23 @@ const (
 )
 
 type timeBasedStrategy struct {
-	log   *slog.Logger
-	clock clockwork.Clock
+	log *slog.Logger
 }
 
 func (h *timeBasedStrategy) name() string {
 	return update.AgentsStrategyTimeBased
 }
 
-func newTimeBasedStrategy(log *slog.Logger, clock clockwork.Clock) (rolloutStrategy, error) {
+func newTimeBasedStrategy(log *slog.Logger) (rolloutStrategy, error) {
 	if log == nil {
 		return nil, trace.BadParameter("missing log")
 	}
-	if clock == nil {
-		return nil, trace.BadParameter("missing clock")
-	}
 	return &timeBasedStrategy{
-		log:   log.With("strategy", update.AgentsStrategyTimeBased),
-		clock: clock,
+		log: log.With("strategy", update.AgentsStrategyTimeBased),
 	}, nil
 }
 
-func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
-	now := h.clock.Now()
+func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	// We always process every group regardless of the order.
 	var errs []error
 	for _, group := range status.Groups {

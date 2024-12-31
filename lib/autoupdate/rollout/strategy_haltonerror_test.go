@@ -134,7 +134,7 @@ func Test_canStartHaltOnError(t *testing.T) {
 func Test_progressGroupsHaltOnError(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
 	log := utils.NewSlogLoggerForTests()
-	strategy, err := newHaltOnErrorStrategy(log, clock)
+	strategy, err := newHaltOnErrorStrategy(log)
 	require.NoError(t, err)
 
 	fewMinutesAgo := clock.Now().Add(-5 * time.Minute)
@@ -500,7 +500,7 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 				State:     0,
 				StartTime: tt.rolloutStartTime,
 			}
-			err := strategy.progressRollout(ctx, status)
+			err := strategy.progressRollout(ctx, status, clock.Now())
 			require.NoError(t, err)
 			// We use require.Equal instead of Elements match because group order matters.
 			// It's not super important for time-based, but is crucial for halt-on-error.
