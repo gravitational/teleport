@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   Notification,
