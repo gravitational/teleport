@@ -27,12 +27,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -97,6 +100,8 @@ func TestIntegrationsCreateWithAudience(t *testing.T) {
 
 func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	ctx := context.Background()
+	logger := utils.NewSlogLoggerForTests()
+
 	integrationName := "my-integration"
 	integration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: integrationName},
@@ -106,14 +111,33 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	deployedServiceCommand := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+	deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
+		integration: "my-integration",
+		servicesPerRegion: map[string][]*integrationv1.DeployedDatabaseService{
+			"us-west-2": dummyDeployedDatabaseServices(1, deployedServiceCommand),
+		},
+	}
+
 	t.Run("without discovery configs, returns just the integration", func(t *testing.T) {
-		clt := &mockDiscoveryConfigsGetter{
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{},
+			},
+			databases:        make([]types.Database, 0),
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
 		}
 
-		gotSummary, err := collectAWSOIDCAutoDiscoverStats(ctx, integration, clt)
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
 		require.NoError(t, err)
-		expectedSummary := ui.IntegrationWithSummary{
+		expectedSummary := &ui.IntegrationWithSummary{
 			Integration: &ui.Integration{
 				Name:    integrationName,
 				SubKind: "aws-oidc",
@@ -145,7 +169,7 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
 				Integration: integrationName,
 				Types:       []string{"rds"},
-				Regions:     []string{"us-east-1", "us-east-2"},
+				Regions:     []string{"us-east-1", "us-east-2", "us-west-2"},
 			}}},
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
@@ -173,17 +197,26 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 				},
 			},
 		}
-		clt := &mockDiscoveryConfigsGetter{
+		clt := &mockRelevantAWSRegionsClient{
 			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{
 				dcForEC2,
 				dcForRDS,
 				dcForEKS,
 			},
+			databaseServices: &proto.ListResourcesResponse{},
+			databases:        make([]types.Database, 0),
 		}
 
-		gotSummary, err := collectAWSOIDCAutoDiscoverStats(ctx, integration, clt)
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
 		require.NoError(t, err)
-		expectedSummary := ui.IntegrationWithSummary{
+		expectedSummary := &ui.IntegrationWithSummary{
 			Integration: &ui.Integration{
 				Name:    integrationName,
 				SubKind: "aws-oidc",
@@ -197,10 +230,11 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 				DiscoverLastSync:           &syncTime,
 			},
 			AWSRDS: ui.ResourceTypeSummary{
-				RulesCount:                 2,
+				RulesCount:                 3,
 				ResourcesFound:             2,
 				ResourcesEnrollmentFailed:  1,
 				ResourcesEnrollmentSuccess: 1,
+				ECSDatabaseServiceCount:    1,
 				DiscoverLastSync:           &syncTime,
 			},
 			AWSEKS: ui.ResourceTypeSummary{
@@ -220,7 +254,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 	integrationName := "my-integration"
 
 	t.Run("without discovery configs, returns no rules", func(t *testing.T) {
-		clt := &mockDiscoveryConfigsGetter{
+		clt := &mockRelevantAWSRegionsClient{
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
 		}
 
@@ -287,7 +321,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				Tags:        types.Labels{"*": []string{"*"}},
 			}}},
 		}
-		clt := &mockDiscoveryConfigsGetter{
+		clt := &mockRelevantAWSRegionsClient{
 			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{
 				dcForEC2,
 				dcForRDS,
@@ -349,12 +383,4 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 		require.Empty(t, got.NextKey)
 		require.ElementsMatch(t, expectedRules, got.Rules)
 	})
-}
-
-type mockDiscoveryConfigsGetter struct {
-	discoveryConfigs []*discoveryconfig.DiscoveryConfig
-}
-
-func (m *mockDiscoveryConfigsGetter) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
-	return m.discoveryConfigs, "", nil
 }
