@@ -63,13 +63,13 @@ export function parseMfaRegistrationChallengeJson(
 // parseMfaChallengeJson formats fetched authenticate challenge JSON.
 export function parseMfaChallengeJson(
   challenge: MfaAuthenticateChallengeJson
-): MfaAuthenticateChallenge {
+): MfaAuthenticateChallenge | undefined {
   if (
     !challenge.sso_challenge &&
     !challenge.webauthn_challenge &&
     !challenge.totp_challenge
   ) {
-    return null;
+    return;
   }
 
   // WebAuthn challenge contains Base64URL(byte) fields that needs to

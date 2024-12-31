@@ -31,7 +31,7 @@ import {
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import { RoleEditor, RoleEditorProps } from './RoleEditor';
-import { defaultOptions, withDefaults } from './withDefaults';
+import { defaultOptions, withDefaults } from './StandardEditor/withDefaults';
 
 // The Ace editor is very difficult to deal with in tests, especially that for
 // handling its state, we are using input event, which is asynchronous. Thus,

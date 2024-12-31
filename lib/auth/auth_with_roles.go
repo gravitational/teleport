@@ -196,30 +196,14 @@ func (a *ServerWithRoles) actionWithExtendedContext(kind, verb string, extendCon
 // actionForKindSession is a special checker that grants access to session
 // recordings. It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) (types.SessionKind, error) {
-	sessionEnd, err := a.findSessionEndEvent(ctx, sid)
-
-	extendContext := func(ctx *services.Context) error {
-		ctx.Session = sessionEnd
+func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) error {
+	extendContext := func(servicesCtx *services.Context) error {
+		sessionEnd, err := a.findSessionEndEvent(ctx, sid)
+		servicesCtx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
 
-	var sessionKind types.SessionKind
-	switch e := sessionEnd.(type) {
-	case *apievents.SessionEnd:
-		sessionKind = types.SSHSessionKind
-		if e.KubernetesCluster != "" {
-			sessionKind = types.KubernetesSessionKind
-		}
-	case *apievents.DatabaseSessionEnd:
-		sessionKind = types.DatabaseSessionKind
-	case *apievents.AppSessionEnd:
-		sessionKind = types.AppSessionKind
-	case *apievents.WindowsDesktopSessionEnd:
-		sessionKind = types.WindowsDesktopSessionKind
-	}
-
-	return sessionKind, trace.Wrap(a.actionWithExtendedContext(types.KindSession, types.VerbRead, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(types.KindSession, types.VerbRead, extendContext))
 }
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.
@@ -1648,22 +1632,23 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		return nil, trace.Wrap(err)
 	}
 
-	lreq := proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
+	lreq := &proto.ListUnifiedResourcesRequest{
+		Kinds:            []string{types.KindNode},
+		SortBy:           types.SortBy{Field: types.ResourceMetadataName},
 		UseSearchAsRoles: true,
 	}
 	var servers []*types.ServerV2
 	for {
-		// note that we're calling ServerWithRoles.ListResources here rather than some internal method. This method
+		// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
 		// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
-		lrsp, err := a.ListResources(ctx, lreq)
+		lrsp, err := a.ListUnifiedResources(ctx, lreq)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		for _, rsc := range lrsp.Resources {
-			srv, ok := rsc.(*types.ServerV2)
-			if !ok {
+			srv := rsc.GetNode()
+			if srv == nil {
 				log.Warnf("Unexpected resource type %T, expected *types.ServerV2 (skipping)", rsc)
 				continue
 			}
@@ -1685,6 +1670,92 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	return &proto.GetSSHTargetsResponse{
 		Servers: servers,
 	}, nil
+}
+
+// ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
+func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	// try to detect case-insensitive routing setting, but default to false if we can't load
+	// networking config (equivalent to proxy routing behavior).
+	var routeToMostRecent bool
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
+		routeToMostRecent = cfg.GetRoutingStrategy() == types.RoutingStrategy_MOST_RECENT
+	}
+
+	var servers []*types.ServerV2
+	switch {
+	case req.Host != "":
+		if len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0 {
+			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and a resource matcher - ignoring resource matcher")
+		}
+
+		resp, err := a.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+			Host: req.Host,
+			Port: req.Port,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers = resp.Servers
+	case len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0:
+		lreq := &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		}
+		for {
+			// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
+			// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
+			lrsp, err := a.ListUnifiedResources(ctx, lreq)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, rsc := range lrsp.Resources {
+				srv := rsc.GetNode()
+				if srv == nil {
+					log.Warnf("Unexpected resource type %T, expected *types.ServerV2 (skipping)", rsc)
+					continue
+				}
+
+				servers = append(servers, srv)
+			}
+
+			// If the routing strategy doesn't permit ambiguous matches, then abort
+			// early if more than one server has been found already
+			if !routeToMostRecent && len(servers) > 1 {
+				break
+			}
+
+			if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
+				break
+			}
+
+			lreq.StartKey = lrsp.NextKey
+
+		}
+	default:
+		return nil, trace.BadParameter("request did not contain any host information or resource matcher")
+	}
+
+	switch len(servers) {
+	case 1:
+		return &proto.ResolveSSHTargetResponse{Server: servers[0]}, nil
+	case 0:
+		return nil, trace.NotFound("no matching hosts")
+	default:
+		if !routeToMostRecent {
+			return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous)
+		}
+
+		// Return the most recent version of the resource.
+		server := slices.MaxFunc(servers, func(a, b *types.ServerV2) int {
+			return a.Expiry().Compare(b.Expiry())
+		})
+		return &proto.ResolveSSHTargetResponse{Server: server}, nil
+	}
 }
 
 // ListResources returns a paginated list of resources filtered by user access.
@@ -3021,7 +3092,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(ctx, req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3417,14 +3488,14 @@ func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context,
 // is not paramount to the access system itself, but it stops bad attempts from
 // progressing further and provides better feedback than other protocol-specific
 // failures.
-func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
+func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(ctx context.Context, usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
 	// Ignore App or WindowsDeskop requests, they do not support device trust.
 	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop {
 		return nil
 	}
 
 	identity := a.context.Identity.GetIdentity()
-	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
+	return trace.Wrap(dtauthz.VerifyTLSUser(ctx, dt, identity))
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
@@ -6034,29 +6105,25 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
-		e := make(chan error, 1)
-		e <- trace.Wrap(err)
-		return nil, e
-	}
-
 	err := a.localServerAction()
 	isTeleportServer := err == nil
 
-	var sessionType types.SessionKind
-	if !isTeleportServer {
-		var err error
-		sessionType, err = a.actionForKindSession(ctx, sessionID)
-		if err != nil {
-			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-			e <- trace.Wrap(err)
-			return c, e
-		}
+	// StreamSessionEvents can be called internally, and when that
+	// happens we don't want to emit an event or check for permissions.
+	if isTeleportServer {
+		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 	}
 
-	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
-	shouldEmitAuditEvent := !isTeleportServer
-	if shouldEmitAuditEvent {
+	if err := a.actionForKindSession(ctx, sessionID); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	// We can only determine the session type after the streaming started. For
+	// this reason, we delay the emit audit event until the first event or if
+	// the streaming returns an error.
+	cb := func(evt apievents.AuditEvent, _ error) {
 		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
 			Metadata: apievents.Metadata{
 				Type: events.SessionRecordingAccessEvent,
@@ -6064,14 +6131,34 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 			},
 			SessionID:    sessionID.String(),
 			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
-			SessionType:  string(sessionType),
+			SessionType:  string(sessionTypeFromStartEvent(evt)),
 			Format:       metadata.SessionRecordingFormatFromContext(ctx),
 		}); err != nil {
-			return createErrorChannel(err)
+			log.WithError(err).Errorf("Failed to emit stream session event audit event")
 		}
 	}
 
-	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+	return a.alog.StreamSessionEvents(events.ContextWithSessionStartCallback(ctx, cb), sessionID, startIndex)
+}
+
+// sessionTypeFromStartEvent determines the session type given the session start
+// event.
+func sessionTypeFromStartEvent(sessionStart apievents.AuditEvent) types.SessionKind {
+	switch e := sessionStart.(type) {
+	case *apievents.SessionStart:
+		if e.KubernetesCluster != "" {
+			return types.KubernetesSessionKind
+		}
+		return types.SSHSessionKind
+	case *apievents.DatabaseSessionStart:
+		return types.DatabaseSessionKind
+	case *apievents.AppSessionStart:
+		return types.AppSessionKind
+	case *apievents.WindowsDesktopSessionStart:
+		return types.WindowsDesktopSessionKind
+	default:
+		return types.UnknownSessionKind
+	}
 }
 
 // CreateApp creates a new application resource.
@@ -6813,7 +6900,7 @@ func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) er
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(ctx, readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 

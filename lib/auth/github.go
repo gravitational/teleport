@@ -167,8 +167,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	config := newGithubOAuth2Config(connector)
 
 	req.RedirectURL = config.AuthCodeURL(req.StateToken)
-	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
-		"Redirect URL: %v.", req.RedirectURL)
+	a.logger.DebugContext(ctx, "Creating github auth request", "redirect_url", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
 	err = a.Services.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
@@ -197,7 +196,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit GitHub connector create event", "error", err)
 	}
 
 	return upserted, nil
@@ -224,7 +223,7 @@ func (a *Server) createGithubConnector(ctx context.Context, connector types.Gith
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit GitHub connector create event", "error", err)
 	}
 
 	return created, nil
@@ -251,7 +250,7 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector update event.")
+		a.logger.WarnContext(ctx, "Failed to emit GitHub connector update event", "error", err)
 	}
 
 	return updated, nil
@@ -407,7 +406,7 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit GitHub connector delete event", "error", err)
 	}
 
 	return nil
@@ -433,10 +432,10 @@ type githubManager interface {
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
 	diagCtx := NewSSODiagContext(types.KindGithub, a)
-	return validateGithubAuthCallbackHelper(ctx, a, diagCtx, q, a.emitter)
+	return validateGithubAuthCallbackHelper(ctx, a, diagCtx, q, a.emitter, a.logger)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*authclient.GithubAuthResponse, error) {
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter, logger *slog.Logger) (*authclient.GithubAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -456,7 +455,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		attributes, err := apievents.EncodeMapStrings(claims.OrganizationToTeams)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
-			log.WithError(err).Debug("Failed to encode identity attributes.")
+			logger.DebugContext(ctx, "Failed to encode identity attributes", "error", err)
 		} else {
 			event.IdentityAttributes = attributes
 		}
@@ -472,7 +471,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		event.Status.UserMessage = err.Error()
 
 		if err := emitter.EmitAuditEvent(ctx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit GitHub login failed event.")
+			logger.WarnContext(ctx, "Failed to emit GitHub login failed event", "error", err)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -484,7 +483,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 	event.User = auth.Username
 
 	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub login event.")
+		logger.WarnContext(ctx, "Failed to emit GitHub login event", "error", err)
 	}
 
 	return auth, nil
@@ -602,6 +601,16 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to query GitHub API for user claims.")
 	}
+
+	logger.DebugContext(ctx, "Retrieved GitHub claims",
+		slog.Group("claims",
+			slog.String("user_name", claims.Username),
+			slog.String("user_id", claims.UserID),
+			slog.Any("organization_to_teams", claims.Teams),
+			slog.Any("roles", claims.OrganizationToTeams),
+		),
+	)
+
 	diagCtx.Info.GithubClaims = claims
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
@@ -945,9 +954,12 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 }
 
 func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryRun bool) (types.User, error) {
-	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
-		"Generating dynamic GitHub identity %v/%v with roles: %v. Dry run: %v.",
-		p.ConnectorName, p.Username, p.Roles, dryRun)
+	a.logger.DebugContext(ctx, "Generating dynamic GitHub identity",
+		"connector_name", p.ConnectorName,
+		"user_name", p.Username,
+		"role", p.Roles,
+		"dry_run", dryRun,
+	)
 
 	expires := a.GetClock().Now().UTC().Add(p.SessionTTL)
 
@@ -1125,15 +1137,12 @@ func populateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) 
 		return nil, trace.AccessDenied(
 			"list of user teams is empty, did you grant access?")
 	}
-	claims := &types.GithubClaims{
+	return &types.GithubClaims{
 		Username:            user.Login,
 		OrganizationToTeams: orgToTeams,
 		Teams:               teamList,
 		UserID:              user.getIDStr(),
-	}
-	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
-		"Claims: %#v.", claims)
-	return claims, nil
+	}, nil
 }
 
 // githubAPIClient is a tiny wrapper around some of Github APIs
@@ -1223,11 +1232,11 @@ func (c *githubAPIClient) getTeams(ctx context.Context) ([]GithubTeamResponse, e
 		// of pages, print an error when it does happen, and return the results up
 		// to that point.
 		if count > MaxPages {
-			warningMessage := "Truncating list of teams used to populate claims: " +
+			const warningMessage = "Truncating list of teams used to populate claims: " +
 				"hit maximum number pages that can be fetched from GitHub."
 
 			// Print warning to Teleport logs as well as the Audit Log.
-			log.Warn(warningMessage)
+			c.authServer.logger.WarnContext(ctx, warningMessage)
 			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
@@ -1240,7 +1249,7 @@ func (c *githubAPIClient) getTeams(ctx context.Context) ([]GithubTeamResponse, e
 				},
 				ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			}); err != nil {
-				log.WithError(err).Warn("Failed to emit GitHub login failure event.")
+				c.authServer.logger.WarnContext(ctx, "Failed to emit GitHub login failure event", "error", err)
 			}
 			return result, nil
 		}

@@ -2543,7 +2543,7 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
@@ -7028,8 +7028,7 @@ func TestSCP(t *testing.T) {
 				return filepath.Join(dir, targetFile1)
 			},
 			assertion: func(tt require.TestingT, err error, i ...any) {
-				require.Error(tt, err, i...)
-				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+				require.ErrorIs(tt, err, teleport.ErrNodeIsAmbiguous, i...)
 			},
 		},
 		{
@@ -7088,8 +7087,7 @@ func TestSCP(t *testing.T) {
 				return "dev.example.com:" + filepath.Join(dir, targetFile1)
 			},
 			assertion: func(tt require.TestingT, err error, i ...any) {
-				require.Error(tt, err, i...)
-				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+				require.ErrorIs(tt, err, teleport.ErrNodeIsAmbiguous, i...)
 			},
 		},
 		{

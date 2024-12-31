@@ -31,7 +31,7 @@ import { KubernetesResourceKind } from 'teleport/services/resources';
 import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
 
 import {
-  AccessSpec,
+  ResourceAccess,
   KubernetesResourceModel,
   MetadataModel,
   RoleEditorModel,
@@ -49,12 +49,12 @@ const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
 
 export function validateRoleEditorModel({
   metadata,
-  accessSpecs,
+  resources,
   rules,
 }: RoleEditorModel) {
   return {
     metadata: validateMetadata(metadata),
-    accessSpecs: accessSpecs.map(validateAccessSpec),
+    resources: resources.map(validateResourceAccess),
     rules: rules.map(validateAccessRule),
   };
 }
@@ -71,32 +71,32 @@ export type MetadataValidationResult = RuleSetValidationResult<
   typeof metadataRules
 >;
 
-export function validateAccessSpec(
-  spec: AccessSpec
-): AccessSpecValidationResult {
-  const { kind } = spec;
+export function validateResourceAccess(
+  res: ResourceAccess
+): ResourceAccessValidationResult {
+  const { kind } = res;
   switch (kind) {
     case 'kube_cluster':
-      return runRules(spec, kubernetesValidationRules);
+      return runRules(res, kubernetesAccessValidationRules);
     case 'node':
-      return runRules(spec, serverValidationRules);
+      return runRules(res, serverAccessValidationRules);
     case 'app':
-      return runRules(spec, appSpecValidationRules);
+      return runRules(res, appAccessValidationRules);
     case 'db':
-      return runRules(spec, databaseSpecValidationRules);
+      return runRules(res, databaseAccessValidationRules);
     case 'windows_desktop':
-      return runRules(spec, windowsDesktopSpecValidationRules);
+      return runRules(res, windowsDesktopAccessValidationRules);
     default:
       kind satisfies never;
   }
 }
 
-export type AccessSpecValidationResult =
-  | ServerSpecValidationResult
-  | KubernetesSpecValidationResult
-  | AppSpecValidationResult
-  | DatabaseSpecValidationResult
-  | WindowsDesktopSpecValidationResult;
+export type ResourceAccessValidationResult =
+  | ServerAccessValidationResult
+  | KubernetesAccessValidationResult
+  | AppAccessValidationResult
+  | DatabaseAccessValidationResult
+  | WindowsDesktopAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
   const name = requiredField(
@@ -118,12 +118,12 @@ export type KubernetesResourceValidationResult = {
   namespace: ValidationResult;
 };
 
-const kubernetesValidationRules = {
+const kubernetesAccessValidationRules = {
   labels: nonEmptyLabels,
   resources: arrayOf(validKubernetesResource),
 };
-export type KubernetesSpecValidationResult = RuleSetValidationResult<
-  typeof kubernetesValidationRules
+export type KubernetesAccessValidationResult = RuleSetValidationResult<
+  typeof kubernetesAccessValidationRules
 >;
 
 const noWildcard = (message: string) => (value: string) => () => {
@@ -136,15 +136,15 @@ const noWildcardOptions = (message: string) => (options: Option[]) => () => {
   return { valid, message: valid ? '' : message };
 };
 
-const serverValidationRules = {
+const serverAccessValidationRules = {
   labels: nonEmptyLabels,
   logins: noWildcardOptions('Wildcard is not allowed in logins'),
 };
-export type ServerSpecValidationResult = RuleSetValidationResult<
-  typeof serverValidationRules
+export type ServerAccessValidationResult = RuleSetValidationResult<
+  typeof serverAccessValidationRules
 >;
 
-const appSpecValidationRules = {
+const appAccessValidationRules = {
   labels: nonEmptyLabels,
   awsRoleARNs: arrayOf(noWildcard('Wildcard is not allowed in AWS role ARNs')),
   azureIdentities: arrayOf(
@@ -154,23 +154,23 @@ const appSpecValidationRules = {
     noWildcard('Wildcard is not allowed in GCP service accounts')
   ),
 };
-export type AppSpecValidationResult = RuleSetValidationResult<
-  typeof appSpecValidationRules
+export type AppAccessValidationResult = RuleSetValidationResult<
+  typeof appAccessValidationRules
 >;
 
-const databaseSpecValidationRules = {
+const databaseAccessValidationRules = {
   labels: nonEmptyLabels,
   roles: noWildcardOptions('Wildcard is not allowed in database roles'),
 };
-export type DatabaseSpecValidationResult = RuleSetValidationResult<
-  typeof databaseSpecValidationRules
+export type DatabaseAccessValidationResult = RuleSetValidationResult<
+  typeof databaseAccessValidationRules
 >;
 
-const windowsDesktopSpecValidationRules = {
+const windowsDesktopAccessValidationRules = {
   labels: nonEmptyLabels,
 };
-export type WindowsDesktopSpecValidationResult = RuleSetValidationResult<
-  typeof windowsDesktopSpecValidationRules
+export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
+  typeof windowsDesktopAccessValidationRules
 >;
 
 export const validateAccessRule = (accessRule: RuleModel) =>

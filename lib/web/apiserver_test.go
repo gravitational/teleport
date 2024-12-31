@@ -117,6 +117,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -1776,7 +1777,7 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.Term, term.term)
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
-	require.NotNil(t, term.log)
+	require.NotNil(t, term.logger)
 }
 
 func TestUIConfig(t *testing.T) {
@@ -5573,10 +5574,6 @@ func TestCreateAppSession_RequireSessionMFA(t *testing.T) {
 	require.NoError(t, err)
 	mfaResp, err := webauthnDev.SolveAuthn(chal)
 	require.NoError(t, err)
-	mfaRespJSON, err := json.Marshal(mfaResponse{
-		WebauthnAssertionResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
-	})
-	require.NoError(t, err)
 
 	// Extract the session ID and bearer token for the current session.
 	rawCookie := *pack.cookies[0]
@@ -5610,7 +5607,9 @@ func TestCreateAppSession_RequireSessionMFA(t *testing.T) {
 					PublicAddr:  "panel.example.com",
 					ClusterName: "localhost",
 				},
-				MFAResponse: string(mfaRespJSON),
+				MFAResponse: client.MFAChallengeResponse{
+					WebauthnAssertionResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+				},
 			},
 			expectMFAVerified: true,
 		},
@@ -6102,6 +6101,8 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 func TestParseSSORequestParams(t *testing.T) {
 	t.Parallel()
 
+	token := "someMeaninglessTokenString"
+
 	tests := []struct {
 		name, url string
 		wantErr   bool
@@ -6113,6 +6114,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
 				ConnectorID:       "oidc",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -6121,6 +6123,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
 				ConnectorID:       "github",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -6129,6 +6132,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
 				ConnectorID:       "saml",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -6147,6 +6151,11 @@ func TestParseSSORequestParams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
+
+			req.AddCookie(&http.Cookie{
+				Name:  csrf.CookieName,
+				Value: token,
+			})
 
 			params, err := ParseSSORequestParams(req)
 
@@ -8209,7 +8218,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("Mux encountered err serving")
+			slog.ErrorContext(context.Background(), "Mux encountered error serving", "error", err)
 		}
 	}()
 
@@ -8283,7 +8292,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := sshGRPCServer.Serve(mux.TLS()); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("gRPC proxy server terminated unexpectedly")
+			slog.ErrorContext(context.Background(), "gRPC proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
@@ -8358,7 +8367,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(webServer.Close)
 	go func() {
 		if err := proxyServer.Serve(mux.SSH()); err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Error("SSH proxy server terminated unexpectedly")
+			slog.ErrorContext(context.Background(), "SSH proxy server terminated unexpectedly", "error", err)
 		}
 	}()
 
@@ -10677,7 +10686,7 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	// not yet established.
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:     ws,
-		Logger: utils.NewLogger(),
+		Logger: utils.NewSlogLoggerForTests(),
 		Handlers: map[string]terminal.WSHandlerFunc{
 			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope terminal.Envelope) {
 				if envelope.Type != defaults.WebsocketSessionMetadata {

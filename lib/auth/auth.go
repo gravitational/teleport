@@ -652,7 +652,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
-		Log:         log,
+		Log:         as.logger,
 		AccessLists: &as,
 		Access:      &as,
 		UsageEvents: &as,

@@ -35,7 +35,3 @@ lint:
     - RPC_REQUEST_RESPONSE_UNIQUE
     - RPC_REQUEST_STANDARD_NAME
     - RPC_RESPONSE_STANDARD_NAME
-
-breaking:
-  use:
-    - "buf-legacy.yaml should not be used for buf breaking"
