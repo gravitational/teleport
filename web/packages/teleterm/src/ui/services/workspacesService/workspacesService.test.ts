@@ -90,7 +90,7 @@ describe('restoring workspace', () => {
         localClusterUri: testWorkspace.localClusterUri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
-        documentsRestoredOrDiscarded: false,
+        hasDocumentsToReopen: true,
         connectMyComputer: undefined,
         unifiedResourcePreferences: {
           defaultTab: DefaultTab.ALL,
@@ -126,7 +126,7 @@ describe('restoring workspace', () => {
         localClusterUri: cluster.uri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
-        documentsRestoredOrDiscarded: false,
+        hasDocumentsToReopen: false,
         connectMyComputer: undefined,
         unifiedResourcePreferences: {
           defaultTab: DefaultTab.ALL,
