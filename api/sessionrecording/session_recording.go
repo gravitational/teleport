@@ -99,7 +99,7 @@ type ReaderStats struct {
 	TotalEvents int64
 }
 
-// ToFields returns a copy of the stats to be used as log fields
+// LogValue returns a copy of the stats to be used as log fields
 func (p ReaderStats) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.Int64("skipped-events", p.SkippedEvents),
