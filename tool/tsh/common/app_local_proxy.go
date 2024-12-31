@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -35,8 +36,11 @@ import (
 
 // localProxyApp is a generic app that can start local proxies.
 type localProxyApp struct {
-	tc      *client.TeleportClient
-	appInfo *appInfo
+	tc *client.TeleportClient
+	// profile is a cached profile status for the current login session.
+	profile *client.ProfileStatus
+	// routeToApp is a route to the app without TargetPort being set.
+	routeToApp proto.RouteToApp
 	// app is available only when starting a localProxyApp through newLocalProxyAppWithPortMapping.
 	app         types.Application
 	insecure    bool
@@ -49,10 +53,10 @@ type localProxyApp struct {
 type requestMatcher func(req *http.Request) bool
 
 // newLocalProxyApp creates a new generic app proxy.
-func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, insecure bool) (*localProxyApp, error) {
+func newLocalProxyApp(tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, rawLocalPort string, insecure bool) (*localProxyApp, error) {
 	var portMapping client.PortMapping
-	if port != "" {
-		localPort, err := strconv.Atoi(port)
+	if rawLocalPort != "" {
+		localPort, err := strconv.Atoi(rawLocalPort)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing port")
 		}
@@ -61,7 +65,8 @@ func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, 
 
 	return &localProxyApp{
 		tc:          tc,
-		appInfo:     appInfo,
+		profile:     profile,
+		routeToApp:  routeToApp,
 		portMapping: portMapping,
 		insecure:    insecure,
 	}, nil
@@ -69,13 +74,14 @@ func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, 
 
 // newLocalProxyAppWithPortMapping creates a new generic app proxy. Unlike newLocalProxyApp, it
 // accepts a specific port mapping as an argument.
-func newLocalProxyAppWithPortMapping(ctx context.Context, tc *client.TeleportClient, appInfo *appInfo, app types.Application, portMapping client.PortMapping, insecure bool) (*localProxyApp, error) {
+func newLocalProxyAppWithPortMapping(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, app types.Application, portMapping client.PortMapping, insecure bool) (*localProxyApp, error) {
 	if err := validateTargetPort(app, portMapping.TargetPort); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &localProxyApp{
 		tc:          tc,
-		appInfo:     appInfo,
+		profile:     profile,
+		routeToApp:  routeToApp,
 		app:         app,
 		portMapping: portMapping,
 		insecure:    insecure,
@@ -144,16 +150,16 @@ func (a *localProxyApp) Close() error {
 
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping client.PortMapping, withTLS bool, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	routeToApp := a.appInfo.RouteToApp
+	routeToAppWithTargetPort := a.routeToApp
 	if portMapping.TargetPort != 0 {
-		routeToApp.TargetPort = uint32(portMapping.TargetPort)
+		routeToAppWithTargetPort.TargetPort = uint32(portMapping.TargetPort)
 	}
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, routeToApp, nil, client.WithTTL(a.tc.KeyTTL))
+	appCertChecker := client.NewAppCertChecker(a.tc, routeToAppWithTargetPort, nil, client.WithTTL(a.tc.KeyTTL))
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.
-	cert, err := loadAppCertificate(a.tc, routeToApp.Name)
+	cert, err := loadAppCertificate(a.tc, routeToAppWithTargetPort.Name)
 	if err == nil {
 		if a.app != nil && len(a.app.GetTCPPorts()) > 0 {
 			// There are too many cases to cover when dealing with a multi-port app and an existing cert.
@@ -170,7 +176,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping cli
 
 	var listener net.Listener
 	if withTLS {
-		appLocalCAPath := a.appInfo.appLocalCAPath(a.tc.SiteName)
+		appLocalCAPath := a.profile.AppLocalCAPath(a.tc.SiteName, routeToAppWithTargetPort.Name)
 		localCertGenerator, err := client.NewLocalCertGenerator(ctx, appCertChecker, appLocalCAPath)
 		if err != nil {
 			return trace.Wrap(err)

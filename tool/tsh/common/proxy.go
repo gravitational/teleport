@@ -393,17 +393,17 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var (
 		appInfo *appInfo
 		app     types.Application
 	)
 	if err := libclient.RetryWithRelogin(cf.Context, tc, func() error {
 		var err error
-		profile, err := tc.ProfileStatus()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
@@ -421,7 +421,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, appInfo, app, portMapping, cf.InsecureSkipVerify)
+	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
 	}
