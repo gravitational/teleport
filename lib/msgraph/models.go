@@ -28,9 +28,15 @@ type GroupMember interface {
 	isGroupMember()
 }
 
+type Membership struct {
+	Type string `json:"@odata.type"`
+	ID   string `json:"id"`
+}
+
 type DirectoryObject struct {
-	ID          *string `json:"id,omitempty"`
-	DisplayName *string `json:"displayName,omitempty"`
+	ID          *string      `json:"id,omitempty"`
+	DisplayName *string      `json:"displayName,omitempty"`
+	MemberOf    []Membership `json:"memberOf,omitempty"`
 }
 
 type Group struct {
