@@ -43,7 +43,7 @@ export function StatusBar() {
         css={`
           white-space: nowrap;
         `}
-        title={clusterBreadcrumbs}
+        title={clusterBreadcrumbs && `Current cluster: ${clusterBreadcrumbs}`}
       >
         {clusterBreadcrumbs}
       </Text>

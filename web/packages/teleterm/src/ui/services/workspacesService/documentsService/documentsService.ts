@@ -85,19 +85,12 @@ export class DocumentsService {
     };
   }
 
+  /** @deprecated Use createClusterDocument function instead of the method on DocumentsService. */
   createClusterDocument(opts: {
     clusterUri: uri.ClusterUri;
     queryParams?: DocumentClusterQueryParams;
   }): DocumentCluster {
-    const uri = routing.getDocUri({ docId: unique() });
-    const clusterName = routing.parseClusterName(opts.clusterUri);
-    return {
-      uri,
-      clusterUri: opts.clusterUri,
-      title: clusterName,
-      kind: 'doc.cluster',
-      queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
-    };
+    return createClusterDocument(opts);
   }
 
   /**
@@ -507,6 +500,21 @@ export class DocumentsService {
       draft.documents.splice(newIndex, 0, doc);
     });
   }
+}
+
+export function createClusterDocument(opts: {
+  clusterUri: uri.ClusterUri;
+  queryParams?: DocumentClusterQueryParams;
+}): DocumentCluster {
+  const uri = routing.getDocUri({ docId: unique() });
+  const clusterName = routing.parseClusterName(opts.clusterUri);
+  return {
+    uri,
+    clusterUri: opts.clusterUri,
+    title: clusterName,
+    kind: 'doc.cluster',
+    queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
+  };
 }
 
 export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryParams {
