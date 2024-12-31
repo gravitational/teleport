@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// gzipReader wraps file, on close close both gzip writer and file
+// gzipReader wraps an [io.ReadCloser], and closes both the gzip reader and underlying reader
 type gzipReader struct {
 	io.ReadCloser
 	inner io.ReadCloser
