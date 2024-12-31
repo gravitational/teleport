@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -65,15 +66,27 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 		period = defaultReconcilerPeriod
 	}
 
+	log = log.With(teleport.ComponentLabel, teleport.ComponentRolloutController)
+
+	haltOnError, err := newHaltOnErrorStrategy(log)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize halt-on-error strategy")
+	}
+	timeBased, err := newTimeBasedStrategy(log)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize time-based strategy")
+	}
+
 	return &Controller{
 		clock: clock,
 		log:   log,
 		reconciler: reconciler{
-			clt:               client,
-			log:               log,
-			clock:             clock,
+			clt:   client,
+			log:   log,
+			clock: clock,
 			rolloutStrategies: []rolloutStrategy{
-				// TODO(hugoShaka): add the strategies here as we implement them
+				timeBased,
+				haltOnError,
 			},
 		},
 		period: period,
