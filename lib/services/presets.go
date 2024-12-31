@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/common"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -596,7 +595,11 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 			Description: "Access AWS IAM Identity Center resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
-				types.OriginLabel:                  common.OriginAWSIdentityCenter,
+				// OriginLabel should not be set to AWS Identity center because:
+				// - identity center is not the one owning this role, this role
+				//   is part of the Teleport system requirements
+				// - setting the label to a value not support in older agents
+				//   (v16) will cause them to crash.
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -686,6 +689,11 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 		teleport.SystemOktaRequesterRoleName: {
 			types.TeleportInternalResourceType: types.SystemResource,
 			types.OriginLabel:                  types.OriginOkta,
+		},
+		// We unset the OriginLabel on the system AWS IC role because this value
+		// was not supported on v16 agents and this crashes them.
+		teleport.SystemIdentityCenterAccessRoleName: {
+			types.TeleportInternalResourceType: types.SystemResource,
 		},
 		// Group access, reviewer and requester are intentionally not added here as there may be
 		// existing customer defined roles that have these labels.
