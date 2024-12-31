@@ -40,7 +40,7 @@ const (
 // This interface allows us to inject dummy strategies for simpler testing.
 type rolloutStrategy interface {
 	name() string
-	progressRollout(context.Context, *autoupdate.AutoUpdateAgentRolloutStatus) error
+	progressRollout(context.Context, *autoupdate.AutoUpdateAgentRolloutStatus, time.Time) error
 }
 
 func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
