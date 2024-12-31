@@ -26,17 +26,24 @@ export function getWebUiVersion() {
 }
 
 export function withUnsupportedLabelFeatureErrorConversion(
-  err: any
-): Promise<any> {
-  if (err instanceof ApiError) {
-    if (err.response.status === 404) {
+  err: unknown
+): never {
+  if (err instanceof ApiError && err.response.status === 404) {
+    if (err.proxyVersion && err.proxyVersion.string) {
       throw new Error(
         'We could not complete your request. ' +
-          'Your proxy may be behind the minimum required version ' +
-          `(${getWebUiVersion()}) to support adding resource labels. ` +
-          'Upgrade your proxy version or remove labels and try again.'
+          `Your proxy (v${err.proxyVersion.string}) may be behind the minimum required version ` +
+          `(v17.2.0) to support adding resource labels. ` +
+          'Ensure all proxies are upgraded or remove labels and try again.'
       );
     }
+
+    throw new Error(
+      'We could not complete your request. ' +
+        'Your proxy may be behind the minimum required version ' +
+        `(v17.2.0) to support adding resource labels. ` +
+        'Ensure all proxies are upgraded or remove labels and try again.'
+    );
   }
   throw err;
 }

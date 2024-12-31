@@ -125,7 +125,7 @@ test('generate command', async () => {
 
   // Test create is still called with 404 ping error.
   jest.clearAllMocks();
-  let error = new ApiError('', { status: 404 } as Response);
+  let error = new ApiError('', { status: 404 } as Response, null);
   spyPing = jest
     .spyOn(integrationService, 'pingAwsOidcIntegration')
     .mockRejectedValue(error);
@@ -136,7 +136,7 @@ test('generate command', async () => {
 
   // Test create isn't called with non 404 error
   jest.clearAllMocks();
-  error = new ApiError('', { status: 400 } as Response);
+  error = new ApiError('', { status: 400 } as Response, null);
   spyPing = jest
     .spyOn(integrationService, 'pingAwsOidcIntegration')
     .mockRejectedValue(error);

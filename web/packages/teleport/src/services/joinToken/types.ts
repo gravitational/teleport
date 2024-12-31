@@ -126,7 +126,7 @@ export type CreateJoinTokenRequest = {
 export type JoinTokenRequest = {
   // roles is a list of join roles, since there can be more than
   // one role associated with a token.
-  roles: JoinRole[];
+  roles?: JoinRole[];
   // rules is a list of allow rules associated with the join token
   // and the node using this token must match one of the rules.
   rules?: JoinRule[];
