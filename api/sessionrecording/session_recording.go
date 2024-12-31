@@ -202,7 +202,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			r.padding = int64(binary.BigEndian.Uint64(sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
+			gzipReader, err := newGzipReader(io.LimitReader(r.reader, int64(partSize)))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}

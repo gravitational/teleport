@@ -28,7 +28,7 @@ import (
 // gzipReader wraps an [io.ReadCloser], and closes both the gzip reader and underlying reader
 type gzipReader struct {
 	io.ReadCloser
-	inner io.ReadCloser
+	inner io.Reader
 }
 
 func (f *gzipReader) Close() error {
@@ -37,14 +37,11 @@ func (f *gzipReader) Close() error {
 		errors = append(errors, f.ReadCloser.Close())
 		f.ReadCloser = nil
 	}
-	if f.inner != nil {
-		errors = append(errors, f.inner.Close())
-		f.inner = nil
-	}
+	f.inner = nil
 	return trace.NewAggregate(errors...)
 }
 
-func newGzipReader(reader io.ReadCloser) (*gzipReader, error) {
+func newGzipReader(reader io.Reader) (*gzipReader, error) {
 	gzReader, err := gzip.NewReader(reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
