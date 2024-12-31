@@ -61,15 +61,15 @@ func NewReader(r io.Reader) *Reader {
 
 const (
 	// protoReaderStateInit is ready to start reading the next part
-	protoReaderStateInit = 0
+	protoReaderStateInit = iota
 	// protoReaderStateCurrent will read the data from the current part
-	protoReaderStateCurrent = iota
+	protoReaderStateCurrent
 	// protoReaderStateEOF indicates that reader has completed reading
 	// all parts
-	protoReaderStateEOF = iota
+	protoReaderStateEOF
 	// protoReaderStateError indicates that reader has reached internal
 	// error and should close
-	protoReaderStateError = iota
+	protoReaderStateError
 )
 
 // Reader reads Teleport's session recordings
