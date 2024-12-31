@@ -20,7 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
-import { withUnsupportedLabelFeatureErrorConversion } from '../webUiVersion/webUiVersion';
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 
 import makeJoinToken from './makeJoinToken';
 import { JoinRule, JoinToken, JoinTokenRequest } from './types';

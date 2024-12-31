@@ -23,7 +23,7 @@ import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
 import makeNode from '../nodes/makeNode';
-import { withUnsupportedLabelFeatureErrorConversion } from '../webUiVersion/webUiVersion';
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 
 import {
   AwsDatabaseVpcsResponse,

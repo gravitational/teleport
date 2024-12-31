@@ -669,7 +669,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			// The web app will show them the login page in this case.
 			session, _ := h.authenticateWebSession(w, r)
 			session.XCSRF = csrfToken
-			session.Version = teleport.Version
 
 			httplib.SetNoCacheHeaders(w.Header())
 			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
@@ -730,7 +729,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 type webSession struct {
 	Session string
 	XCSRF   string
-	Version string
 }
 
 func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {

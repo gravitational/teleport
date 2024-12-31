@@ -18,13 +18,6 @@
 
 import { ApiError } from '../api/parseError';
 
-export function getWebUiVersion() {
-  const metaTag = document.querySelector<HTMLMetaElement>(
-    '[name=teleport_version]'
-  );
-  return metaTag?.content || '';
-}
-
 export function withUnsupportedLabelFeatureErrorConversion(
   err: unknown
 ): never {
