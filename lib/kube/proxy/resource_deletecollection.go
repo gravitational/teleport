@@ -20,10 +20,11 @@ package proxy
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/utils/slices"
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/gravitational/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // deleteResourcesCollection calls listResources method to list the resources the user

@@ -21,11 +21,12 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"github.com/gravitational/teleport/lib/utils/slices"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
+
+	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // newResourceFilterer creates a wrapper function that once executed creates

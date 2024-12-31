@@ -22,13 +22,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	tslices "github.com/gravitational/teleport/lib/utils/slices"
 	"io"
 	"path"
 	"path/filepath"
 	"slices"
 	"testing"
 	"text/template"
+
+	tslices "github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/utils"
+	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func Test_filterBuffer(t *testing.T) {
