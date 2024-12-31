@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
@@ -227,7 +226,7 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	if rotation.State != types.RotationStateInProgress {
 		return nil
 	}
-	logger := log.WithFields(logrus.Fields{"type": ca.GetType()})
+	logger := a.logger.With("type", ca.GetType())
 	var req *rotationReq
 	switch rotation.Phase {
 	case types.RotationPhaseInit:
@@ -269,7 +268,7 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	default:
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
-	logger.Infof("Setting rotation phase to %q", req.targetPhase)
+	logger.InfoContext(ctx, "Updating rotation phase", "target_phase", req.targetPhase)
 	rotated, err := a.processRotationRequest(ctx, *req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -277,7 +276,7 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	if _, err := a.UpdateCertAuthority(ctx, rotated); err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("Cert authority rotation request is completed")
+	logger.InfoContext(ctx, "Cert authority rotation request is completed")
 	return nil
 }
 
@@ -377,7 +376,7 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 
 	// generate keys and certificates:
 	if len(req.privateKey) != 0 {
-		log.Infof("Generating CA, using pregenerated test private key.")
+		a.logger.InfoContext(ctx, "Generating CA, using pregenerated test private key")
 
 		signer, err := keys.ParsePrivateKey(req.privateKey)
 		if err != nil {

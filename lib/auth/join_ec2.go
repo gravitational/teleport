@@ -338,8 +338,12 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 		return trace.Wrap(err)
 	}
 	if instanceExists {
-		log.Warnf("Server with ID %q and role %q is attempting to join the cluster with a Simplified Node Joining request, but"+
-			" a server with this ID is already present in the cluster.", req.HostID, req.Role)
+		const msg = "Server is attempting to join the cluster with a Simplified Node Joining request, but" +
+			" a server with this ID is already present in the cluster"
+		a.logger.WarnContext(ctx, msg,
+			"host_id", req.HostID,
+			"role", req.Role,
+		)
 		return trace.AccessDenied("server with host ID %q and role %q already exists", req.HostID, req.Role)
 	}
 	return nil
@@ -363,7 +367,7 @@ func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsi
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Received Simplified Node Joining request for host %q", req.HostID)
+	a.logger.DebugContext(ctx, "Received Simplified Node Joining request", "host_id", req.HostID)
 
 	if len(req.EC2IdentityDocument) == 0 {
 		return trace.AccessDenied("this token is only valid for the EC2 join " +

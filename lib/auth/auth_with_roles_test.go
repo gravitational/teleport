@@ -24,7 +24,6 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
-	"io"
 	"net/url"
 	"slices"
 	"strconv"
@@ -38,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -77,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -1823,12 +1820,6 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 func BenchmarkListNodes(b *testing.B) {
 	const nodeCount = 50_000
 	const roleCount = 32
-
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetOutput(io.Discard)
 
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
@@ -6124,12 +6115,6 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	const nodeCount = 150_000
 	const roleCount = 32
 
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.PanicLevel)
-	logger.SetOutput(io.Discard)
-
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
@@ -6256,12 +6241,6 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 func BenchmarkListUnifiedResources(b *testing.B) {
 	const nodeCount = 150_000
 	const roleCount = 32
-
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetOutput(io.Discard)
 
 	ctx := context.Background()
 	srv := newTestTLSServer(b)

@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log/slog"
 	"net"
 	"time"
 
@@ -71,16 +70,19 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 			clientMetadata: req.ClientMetadata,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event")
+			a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 		}
 		return nil, nil, trace.Wrap(err)
 	}
 
 	switch {
 	case username != "" && actualUsername != "" && username != actualUsername:
-		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", username, actualUsername, username)
+		a.logger.WarnContext(ctx, "Authenticate user mismatch, using request user",
+			"username", username,
+			"request_user", actualUsername,
+		)
 	case username == "" && actualUsername != "":
-		log.Debugf("User %q authenticated via passwordless", actualUsername)
+		a.logger.DebugContext(ctx, "User authenticated via passwordless", "username", actualUsername)
 		username = actualUsername
 	}
 
@@ -123,7 +125,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 			checker:        checker,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event")
+			a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -135,7 +137,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		mfaDevice:      mfaDev,
 		checker:        checker,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit login event")
+		a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 	}
 
 	return userState, checker, trace.Wrap(err)
@@ -303,7 +305,7 @@ func (a *Server) authenticateUserInternal(
 	if req.HeadlessAuthenticationID != "" {
 		mfaDev, err = a.authenticateHeadless(ctx, req)
 		if err != nil {
-			slog.DebugContext(ctx, "Headless authenticate failed while waiting for approval",
+			a.logger.DebugContext(ctx, "Headless authenticate failed while waiting for approval",
 				"user", user,
 				"error", err,
 			)
@@ -330,7 +332,7 @@ func (a *Server) authenticateUserInternal(
 	case err != nil:
 		return nil, "", trace.Wrap(err)
 	case u.GetUserType() != types.UserTypeLocal:
-		slog.WarnContext(ctx, "Non-local user attempted local authentication",
+		a.logger.WarnContext(ctx, "Non-local user attempted local authentication",
 			"user", user,
 			"user_type", u.GetUserType(),
 		)
@@ -381,7 +383,7 @@ func (a *Server) authenticateUserInternal(
 		})
 		switch {
 		case err != nil:
-			slog.DebugContext(ctx, "User failed to authenticate.",
+			a.logger.DebugContext(ctx, "User failed to authenticate",
 				"user", user,
 				"error", err,
 			)
@@ -391,7 +393,7 @@ func (a *Server) authenticateUserInternal(
 
 			return nil, "", trace.Wrap(authErr)
 		case mfaDev == nil:
-			slog.DebugContext(ctx, "MFA authentication returned nil device.",
+			a.logger.DebugContext(ctx, "MFA authentication returned nil device",
 				"webauthn", req.Webauthn != nil,
 				"totp", req.OTP != nil,
 				"headless", req.HeadlessAuthenticationID != "",
@@ -420,7 +422,7 @@ func (a *Server) authenticateUserInternal(
 		// Some form of MFA is required but none provided. Either client is
 		// buggy (didn't send MFA response) or someone is trying to bypass
 		// MFA.
-		slog.WarnContext(ctx, "MFA bypass attempt, access denied.", "user", user)
+		a.logger.WarnContext(ctx, "MFA bypass attempt, access denied", "user", user)
 		return nil, "", trace.AccessDenied("missing second factor")
 	case authPreference.IsSecondFactorEnabled():
 		// 2FA is optional. Make sure that a user does not have MFA devices
@@ -430,7 +432,7 @@ func (a *Server) authenticateUserInternal(
 			return nil, "", trace.Wrap(err)
 		}
 		if len(devs) != 0 {
-			slog.WarnContext(ctx, "MFA bypass attempt, access denied.", "user", user)
+			a.logger.WarnContext(ctx, "MFA bypass attempt, access denied", "user", user)
 			return nil, "", trace.AccessDenied("missing second factor authentication")
 		}
 	default:
@@ -444,7 +446,7 @@ func (a *Server) authenticateUserInternal(
 		}
 		// provide obscure message on purpose, while logging the real
 		// error server side
-		slog.DebugContext(ctx, "User failed to authenticate.",
+		a.logger.DebugContext(ctx, "User failed to authenticate",
 			"user", user,
 			"error", err,
 		)
@@ -467,7 +469,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.Au
 	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
 		return nil, "", trace.Wrap(err)
 	case err != nil:
-		log.Debugf("Passwordless authentication failed: %v", err)
+		a.logger.DebugContext(ctx, "Passwordless authentication failed", "error", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}
 
@@ -475,7 +477,10 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.Au
 	// acquire the user lock beforehand (or at all on failures!)
 	// We do grab it here so successful logins go through the regular process.
 	if err := a.WithUserLock(ctx, mfaData.User, func() error { return nil }); err != nil {
-		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", mfaData.User, err)
+		a.logger.DebugContext(ctx, "WithUserLock failed during passwordless authentication",
+			"user", mfaData.User,
+			"error", err,
+		)
 		return nil, mfaData.User, trace.Wrap(authenticateWebauthnError)
 	}
 
@@ -487,7 +492,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	defer func() {
 		if err != nil {
 			if err := a.DeleteHeadlessAuthentication(a.CloseContext(), req.Username, req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
-				log.Debugf("Failed to delete headless authentication: %v", err)
+				a.logger.DebugContext(ctx, "Failed to delete headless authentication", "error", err)
 			}
 		}
 	}()
@@ -773,7 +778,7 @@ func (a *Server) emitNoLocalAuthEvent(username string) {
 			Error:   noLocalAuth,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit no local auth event.")
+		a.logger.WarnContext(a.closeCtx, "Failed to emit no local auth event", "error", err)
 	}
 }
 
@@ -794,7 +799,7 @@ func getErrorByTraceField(err error) error {
 	ok := errors.As(err, &traceErr)
 	switch {
 	case !ok:
-		log.WithError(err).Warn("Unexpected error type, wanted TraceError")
+		logger.WarnContext(context.Background(), "Unexpected error type, wanted TraceError", "error", err)
 		return trace.AccessDenied("an error has occurred")
 	case traceErr.GetFields()[ErrFieldKeyUserMaxedAttempts] != nil:
 		return trace.AccessDenied(MaxFailedAttemptsErrMsg)

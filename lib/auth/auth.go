@@ -123,6 +123,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -538,14 +539,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			if g, ok := connectedResourceGauges[s]; ok {
 				g.Inc()
 			} else {
-				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+				as.logger.WarnContext(closeCtx, "missing connected resources gauge for keep alive (this is a bug)", "keep_alive_type", s)
 			}
 		}),
 		inventory.WithOnDisconnect(func(s string, c int) {
 			if g, ok := connectedResourceGauges[s]; ok {
 				g.Sub(float64(c))
 			} else {
-				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+				as.logger.WarnContext(closeCtx, "missing connected resources gauge for keep alive (this is a bug)", "keep_alive_type", s)
 			}
 		}),
 	)
@@ -666,7 +667,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
 
 	if _, ok := as.getCache(); !ok {
-		log.Warn("Auth server starting without cache (may have negative performance implications).")
+		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
 
 	return &as, nil
@@ -1444,7 +1445,7 @@ func (a *Server) runPeriodicOperations() {
 			Jitter:        retryutils.HalfJitter,
 		})
 	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
-		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
+		a.logger.WarnContext(a.closeCtx, "Can't delete OSS non-AD desktops limit alert", "error", err)
 	}
 
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
@@ -1487,9 +1488,9 @@ func (a *Server) runPeriodicOperations() {
 				go func() {
 					if err := a.AutoRotateCertAuthorities(a.closeCtx); err != nil {
 						if trace.IsCompareFailed(err) {
-							log.Debugf("Cert authority has been updated concurrently: %v.", err)
+							a.logger.DebugContext(a.closeCtx, "Cert authority has been updated concurrently", "error", err)
 						} else {
-							log.Errorf("Failed to perform cert rotation check: %v.", err)
+							a.logger.ErrorContext(a.closeCtx, "Failed to perform cert rotation check", "error", err)
 						}
 					}
 				}()
@@ -1535,7 +1536,7 @@ func (a *Server) runPeriodicOperations() {
 										return false, nil
 									}
 									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
-										log.Warnf("Failed to update node hostname: %v", err)
+										logger.WarnContext(a.closeCtx, "Failed to update node hostname", "error", err)
 									}
 								}
 
@@ -1544,7 +1545,7 @@ func (a *Server) runPeriodicOperations() {
 							req,
 						)
 						if err != nil {
-							log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+							a.logger.ErrorContext(a.closeCtx, "Failed to load nodes for heartbeat metric calculation", "error", err)
 							return
 						}
 
@@ -1662,7 +1663,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	}
 
 	if err := instances.Done(); err != nil {
-		log.Warnf("Failed stream instances for periodics: %v", err)
+		a.logger.WarnContext(ctx, "Failed stream instances for periodics", "error", err)
 		return
 	}
 
@@ -1680,7 +1681,7 @@ func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shou
 
 	if !shouldPrompt {
 		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil && !trace.IsNotFound(err) {
-			log.Warnf("Failed to delete %s alert: %v", upgradeEnrollAlertID, err)
+			a.logger.WarnContext(ctx, "Failed to delete auto-upgrade-enroll alert", "error", err)
 		}
 		return
 	}
@@ -1698,11 +1699,11 @@ func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shou
 		types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
 	)
 	if err != nil {
-		log.Warnf("Failed to build %s alert: %v (this is a bug)", upgradeEnrollAlertID, err)
+		a.logger.WarnContext(ctx, "Failed to build auto-upgrade-enroll alert (this is a bug)", "error", err)
 		return
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-		log.Warnf("Failed to set %s alert: %v", upgradeEnrollAlertID, err)
+		a.logger.WarnContext(ctx, "Failed to set auto-upgrade-enroll alert", "error", err)
 		return
 	}
 }
@@ -1717,7 +1718,7 @@ const (
 // is true it pulls the latest release info from GitHub.  Otherwise, it loads the versions used
 // for the most recent alerts and re-syncs with latest cluster state.
 func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
-	log.Debug("Checking for new teleport releases via github api.")
+	a.logger.DebugContext(ctx, "Checking for new teleport releases via github api")
 
 	// NOTE: essentially everything in this function is going to be
 	// scrapped/replaced once the inventory and version-control systems
@@ -1746,12 +1747,12 @@ func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	if checkRemote {
 		// scrape the github releases API with our visitor
 		if err := github.Visit(&visitor); err != nil {
-			log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
+			a.logger.WarnContext(ctx, "Failed to load github releases (this will not impact teleport functionality)", "error", err)
 			loadFailed = true
 		}
 	} else {
 		if err := a.visitCachedAlertVersions(ctx, &visitor); err != nil {
-			log.Warnf("Failed to load release alert into: %v (this will not impact teleport functionality)", err)
+			a.logger.WarnContext(ctx, "Failed to load release alert info (this will not impact teleport functionality)", "error", err)
 			loadFailed = true
 		}
 	}
@@ -1816,7 +1817,10 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) && !sp.SecurityPatchAltOf(current) {
 		// explicit security patch alerts have a more limited audience, so we generate
 		// them as their own separate alert.
-		log.Warnf("A newer security patch has been detected. current=%s, patch=%s", current.Version(), sp.Version())
+		a.logger.WarnContext(ctx, "A newer security patch has been detected",
+			"current_version", current.Version(),
+			"patch_version", sp.Version(),
+		)
 		secMsg := fmt.Sprintf("A security patch is available for Teleport. Please upgrade your Cluster to %s or newer.", sp.Version())
 
 		alert, err := types.NewClusterAlert(
@@ -1835,18 +1839,18 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 			types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
 		)
 		if err != nil {
-			log.Warnf("Failed to build %s alert: %v (this is a bug)", secAlertID, err)
+			a.logger.WarnContext(ctx, "Failed to build security-patch-available alert (this is a bug)", "error", err)
 			return
 		}
 
 		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-			log.Warnf("Failed to set %s alert: %v", secAlertID, err)
+			a.logger.WarnContext(ctx, "Failed to set security-patch-available alert", "error", err)
 			return
 		}
 	} else if cleanup {
 		err := a.DeleteClusterAlert(ctx, secAlertID)
 		if err != nil && !trace.IsNotFound(err) {
-			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
+			a.logger.WarnContext(ctx, "Failed to delete security-patch-available alert", "error", err)
 		}
 	}
 }
@@ -1900,13 +1904,13 @@ var (
 func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to load remote clusters for status refresh")
+		a.logger.ErrorContext(ctx, "Failed to load remote clusters for status refresh", "error", err)
 		return
 	}
 
 	netConfig, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to load networking config for remote cluster status refresh")
+		a.logger.ErrorContext(ctx, "Failed to load networking config for remote cluster status refresh", "error", err)
 		return
 	}
 
@@ -1926,7 +1930,7 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	var updateCount int
 	for _, remoteCluster := range remoteClusters {
 		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
-			log.WithError(err).Error("Failed to perform remote cluster status refresh")
+			a.logger.ErrorContext(ctx, "Failed to perform remote cluster status refresh", "error", err)
 		} else if updated {
 			updateCount++
 		}
@@ -3483,7 +3487,9 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 		// a serial number in the user's traits, if any are set.
 		registeredSerialNumbers, ok := params.userTraits[serialNumberTraitName]
 		if !ok || len(registeredSerialNumbers) == 0 {
-			log.Debugf("user %q tried to sign in with hardware key support, but has no known hardware keys. A user's known hardware key serial numbers should be set \"in user.traits.%v\"", params.userName, serialNumberTraitName)
+			a.logger.DebugContext(ctx, "A user tried to sign in with hardware key support, but has no known hardware keys set in their traits",
+				"user", params.userName,
+				"expected_trait", "user.traits."+serialNumberTraitName)
 			return attestedKeyPolicy, trace.BadParameter("cannot generate certs for user with no known hardware keys")
 		}
 
@@ -3493,7 +3499,10 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 		if !slices.ContainsFunc(registeredSerialNumbers, func(s string) bool {
 			return slices.Contains(strings.Split(s, ","), attestedSerialNumber)
 		}) {
-			log.Debugf("user %q tried to sign in with hardware key support with an unknown hardware key and was denied: YubiKey serial number %q", params.userName, attestedSerialNumber)
+			a.logger.DebugContext(ctx, "A user tried to sign in with hardware key support with an unknown hardware key and was denied",
+				"user", params.userName,
+				"yubikey_serial_number", attestedSerialNumber,
+			)
 			return attestedKeyPolicy, trace.BadParameter("cannot generate certs for user with unknown hardware key: YubiKey serial number %q", attestedSerialNumber)
 		}
 	}
@@ -3585,7 +3594,7 @@ func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identi
 			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit certificate create event.")
+		a.logger.WarnContext(ctx, "Failed to emit certificate create event", "error", err)
 	}
 }
 
@@ -3610,8 +3619,11 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	status := user.GetStatus()
 	if status.IsLocked {
 		if status.LockExpires.After(a.clock.Now().UTC()) {
-			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
-				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+			a.logger.DebugContext(ctx, "Locking user that exceeded the failed login attempt limit",
+				"user", user.GetName(),
+				"failed_attempt_limit", defaults.MaxLoginAttempts,
+				"locked_until", apiutils.HumanTimeFormat(status.LockExpires),
+			)
 
 			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
@@ -3635,25 +3647,31 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	attempt := services.LoginAttempt{Time: a.clock.Now().UTC(), Success: false}
 	err = a.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "unable to persist failed login attempt", "error", err)
 		return trace.Wrap(fnErr)
 	}
 	loginAttempts, err := a.GetUserLoginAttempts(username)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "unable to retrieve user login attempts", "error", err)
 		return trace.Wrap(fnErr)
 	}
 	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
-		log.Debugf("%v user has less than %v failed login attempts", username, defaults.MaxLoginAttempts)
+		a.logger.DebugContext(ctx, "user has less than the failed login attempt limit",
+			"user", username,
+			"failed_attempt_limit", defaults.MaxLoginAttempts,
+		)
 		return trace.Wrap(fnErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
-	log.Debug(fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
-		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil)))
+	a.logger.DebugContext(ctx, "Locking user that exceeded the failed login attempt limit",
+		"user", username,
+		"failed_attempt_limit", defaults.MaxLoginAttempts,
+		"locked_until", apiutils.HumanTimeFormat(lockUntil),
+	)
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	_, err = a.UpsertUser(ctx, user)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "failed to persist user record", "error", err)
 		return trace.Wrap(fnErr)
 	}
 
@@ -3695,7 +3713,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 				username: username,
 				authErr:  err,
 			}); err != nil {
-				log.WithError(err).Warn("Failed to emit login event")
+				a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 				// err swallowed on purpose.
 			}
 			return nil, trace.Wrap(err)
@@ -3708,11 +3726,11 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
 		token, err := a.GetUserToken(ctx, req.GetRecoveryStartTokenID())
 		if err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "failed to get user token", "error", err)
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart); err != nil {
+		if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryStart); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3747,7 +3765,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.Wrap(err)
 		}
 
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "failed to create MFA challenge", "error", err)
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
 
@@ -3763,7 +3781,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		var err error
 		token, err = a.GetUserToken(ctx, req.GetTokenID())
 		if err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "failed to retrieve user token", "error", err)
 			return nil, trace.AccessDenied("invalid token")
 		}
 
@@ -3774,7 +3792,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 			authclient.UserTokenTypeResetPasswordInvite,
 			authclient.UserTokenTypeRecoveryApproved,
 		}
-		if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
+		if err := a.verifyUserToken(ctx, token, allowedTokenTypes...); err != nil {
 			return nil, trace.AccessDenied("invalid token")
 		}
 		username = token.GetUser()
@@ -3930,11 +3948,11 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 	if req.GetTokenID() != "" {
 		token, err := a.GetUserToken(ctx, req.GetTokenID())
 		if err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "failed to retrieve user token", "error", err)
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved); err != nil {
+		if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryApproved); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3966,12 +3984,12 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 	case req.TokenID != "":
 		token, err := a.GetUserToken(ctx, req.TokenID)
 		if err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "failed to retrieve user token", "error", err)
 			return trace.AccessDenied("invalid token")
 		}
 		user = token.GetUser()
 
-		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
+		if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -4045,7 +4063,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		case *types.MFADevice_Sso:
 			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_SSO]++
 		default:
-			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
+			a.logger.WarnContext(ctx, "Ignoring unknown device type in deletion", "device_type", logutils.TypeAttr(d.Device))
 			continue
 		}
 
@@ -4123,11 +4141,12 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 	case token != "":
 		privilegeToken, err := a.GetUserToken(ctx, token)
 		if err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "failed to retrieve user token", "error", err)
 			return nil, trace.AccessDenied("invalid token")
 		}
 
 		if err := a.verifyUserToken(
+			ctx,
 			privilegeToken,
 			authclient.UserTokenTypePrivilege,
 			authclient.UserTokenTypePrivilegeException,
@@ -4221,7 +4240,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		MFADeviceMetadata:  mfaDeviceEventMetadata(dev),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit add mfa device event.")
+		a.logger.WarnContext(ctx, "Failed to emit add mfa device event", "error", err)
 	}
 
 	return dev, nil
@@ -4590,7 +4609,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	if err := a.limiter.AcquireConnection(req.Role.String()); err != nil {
 		generateThrottledRequestsCount.Inc()
-		log.Debugf("Node %q [%v] is rate limited: %v.", req.NodeName, req.HostID, req.Role)
+		a.logger.DebugContext(ctx, "Rejecting request to generate host certs because host is rate limited",
+			"name", req.NodeName,
+			"host_id", req.HostID,
+			"role", req.Role,
+		)
 		return nil, trace.Wrap(err)
 	}
 	defer a.limiter.ReleaseConnection(req.Role.String())
@@ -4648,7 +4671,10 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// cache is out of sync, this will result in higher read rate
 	// to the backend, which is a fine tradeoff
 	if !req.NoCache && !req.Rotation.IsZero() && !req.Rotation.Matches(ca.GetRotation()) {
-		log.Debugf("Client sent rotation state %v, cache state is %v, using state from the DB.", req.Rotation, ca.GetRotation())
+		a.logger.DebugContext(ctx, "Client sent rotation state and cache state mismatch, retrieving state from the DB",
+			"client_state", req.Rotation,
+			"cache_state", ca.GetRotation(),
+		)
 		ca, err = a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
@@ -4956,7 +4982,7 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 			defer cancel()
 			if err := a.DeleteToken(ctx, tok.GetName()); err != nil {
 				if !trace.IsNotFound(err) {
-					log.Warnf("Unable to delete token from backend: %v.", err)
+					a.logger.WarnContext(ctx, "Unable to delete token from backend", "error", err)
 				}
 			}
 		}()
@@ -5160,7 +5186,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
+	a.logger.DebugContext(ctx, "Creating Access Request",
+		"request_name", req.GetName(),
+		"request_expiry", req.Expiry(),
+	)
 
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
@@ -5171,7 +5200,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		var err error
 		annotations, err = apievents.EncodeMapStrings(sa)
 		if err != nil {
-			log.WithError(err).Debug("Failed to encode access request annotations.")
+			a.logger.DebugContext(ctx, "Failed to encode access request annotations", "error", err)
 		}
 	}
 
@@ -5193,7 +5222,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		Annotations:          annotations,
 	})
 	if err != nil {
-		log.WithError(err).Warn("Failed to emit access request create event.")
+		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
 
 	// Create a notification.
@@ -5238,7 +5267,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		},
 	})
 	if err != nil {
-		log.WithError(err).Warn("Failed to create access request notification")
+		a.logger.WarnContext(ctx, "Failed to create access request notification", "error", err)
 	}
 
 	// calculate the promotions
@@ -5247,7 +5276,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
 		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
-			log.WithError(err).Warn("Failed to update access request with promotions.")
+			a.logger.WarnContext(ctx, "Failed to update access request with promotions", "error", err)
 		}
 	}
 
@@ -5328,7 +5357,7 @@ func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.
-		log.WithError(err).Warn("Failed to generate access list promotions.")
+		a.logger.WarnContext(ctx, "Failed to generate access list promotions", "error", err)
 	}
 	return reqCopy, promotions
 }
@@ -5347,7 +5376,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 	for _, promotion := range promotions.Promotions {
 		allOwners, err := accessLists.GetAccessListOwners(ctx, promotion.AccessListName)
 		if err != nil {
-			log.WithError(err).Warnf("Failed to get nested access list owners for %v, skipping additional reviewers", promotion.AccessListName)
+			logger.WarnContext(ctx, "Failed to get nested access list owners, skipping additional reviewers", "error", err, "access_list", promotion.AccessListName)
 			break
 		}
 
@@ -5374,7 +5403,7 @@ func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		RequestID:    name,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit access request delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit access request delete event", "error", err)
 	}
 	return nil
 }
@@ -5403,7 +5432,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		var err error
 		event.Annotations, err = apievents.EncodeMapStrings(sa)
 		if err != nil {
-			log.WithError(err).Debug("Failed to encode access request annotations.")
+			a.logger.DebugContext(ctx, "Failed to encode access request annotations", "error", err)
 		}
 	}
 
@@ -5414,14 +5443,14 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 	if len(params.Annotations) > 0 {
 		annotations, err := apievents.EncodeMapStrings(params.Annotations)
 		if err != nil {
-			log.WithError(err).Debugf("Failed to encode access request annotations.")
+			a.logger.DebugContext(ctx, "Failed to encode access request annotations", "error", err)
 		} else {
 			event.Annotations = annotations
 		}
 	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {
-		log.WithError(err).Warn("Failed to emit access request update event.")
+		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 	return trace.Wrap(err)
 }
@@ -5498,20 +5527,20 @@ func (a *Server) submitAccessReview(
 	if !req.GetState().IsPending() {
 		_, err = a.Services.CreateUserNotification(ctx, generateAccessRequestReviewedNotification(req, params))
 		if err != nil {
-			log.WithError(err).Debugf("Failed to emit access request reviewed notification.")
+			a.logger.DebugContext(ctx, "Failed to emit access request reviewed notification", "error", err)
 		}
 	}
 
 	if len(params.Review.Annotations) > 0 {
 		annotations, err := apievents.EncodeMapStrings(params.Review.Annotations)
 		if err != nil {
-			log.WithError(err).Debugf("Failed to encode access request annotations.")
+			a.logger.DebugContext(ctx, "Failed to encode access request annotations", "error", err)
 		} else {
 			event.Annotations = annotations
 		}
 	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit access request update event.")
+		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 
 	return req, nil
@@ -5836,7 +5865,7 @@ func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) 
 		return trace.Wrap(err)
 	}
 	if _, err := a.desktopsLimitExceeded(ctx); err != nil {
-		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+		a.logger.WarnContext(ctx, "Can't check OSS non-AD desktops limit", "error", err)
 	}
 	return nil
 }
@@ -5911,7 +5940,7 @@ func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) str
 func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 	exceeded, err := a.desktopsLimitExceeded(ctx)
 	if err != nil {
-		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+		a.logger.WarnContext(ctx, "Can't check OSS non-AD desktops limit", "error", err)
 	}
 	if !exceeded {
 		return
@@ -5924,10 +5953,10 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 		types.WithAlertLabel(types.AlertLinkText, OSSDesktopsAlertLinkText),
 		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
 	if err != nil {
-		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)
+		a.logger.WarnContext(ctx, "Can't create OSS non-AD desktops limit alert", "error", err)
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-		log.Warnf("Can't upsert OSS non-AD desktops limit alert: %v", err)
+		a.logger.WarnContext(ctx, "Can't upsert OSS non-AD desktops limit alert", "error", err)
 	}
 }
 
@@ -5957,7 +5986,7 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
 	roles, err := a.GetRoles(ctx)
 	if err != nil {
-		log.Warnf("Can't get roles: %v", err)
+		a.logger.WarnContext(ctx, "Can't get roles", "error", err)
 	}
 	var rolesWithDynamicDenyLabels bool
 	for _, role := range roles {
@@ -5967,7 +5996,10 @@ func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
 			break
 		}
 		if err != nil {
-			log.Warnf("Error checking labels in role %s: %v", role.GetName(), err)
+			a.logger.WarnContext(ctx, "Error checking labels in role",
+				"role", role.GetName(),
+				"error", err,
+			)
 			continue
 		}
 	}
@@ -5981,10 +6013,10 @@ func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindRole, types.VerbRead)),
 	)
 	if err != nil {
-		log.Warnf("Failed to build %s alert: %v (this is a bug)", dynamicLabelAlertID, err)
+		a.logger.WarnContext(ctx, "Failed to build dynamic-labels-in-deny-rules alert(this is a bug)", "error", err)
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-		log.Warnf("Failed to set %s alert: %v", dynamicLabelAlertID, err)
+		a.logger.WarnContext(ctx, "Failed to set dynamic-labels-in-deny-rules alert", "error", err)
 	}
 }
 
@@ -6002,7 +6034,7 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 		}
 		response, nextKey, err := a.Cache.ListUserNotifications(ctx, 20, userNotificationsPageKey)
 		if err != nil {
-			slog.WarnContext(ctx, "failed to list user notifications for periodic cleanup", "error", err)
+			a.logger.WarnContext(ctx, "failed to list user notifications for periodic cleanup", "error", err)
 		}
 		userNotifications = append(userNotifications, response...)
 		if nextKey == "" {
@@ -6023,7 +6055,7 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 		}
 		response, nextKey, err := a.Cache.ListGlobalNotifications(ctx, 20, globalNotificationsPageKey)
 		if err != nil {
-			slog.WarnContext(ctx, "failed to list global notifications for periodic cleanup", "error", err)
+			a.logger.WarnContext(ctx, "failed to list global notifications for periodic cleanup", "error", err)
 		}
 		globalNotifications = append(globalNotifications, response...)
 		if nextKey == "" {
@@ -6050,7 +6082,7 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 				return
 			}
 			if err := a.DeleteGlobalNotification(ctx, notificationID); err != nil && !trace.IsNotFound(err) {
-				slog.WarnContext(ctx, "encountered error attempting to cleanup global notification", "error", err, "notification_id", notificationID)
+				a.logger.WarnContext(ctx, "encountered error attempting to cleanup global notification", "error", err, "notification_id", notificationID)
 			}
 		} else {
 			nonExpiredGlobalNotificationsByID[notificationID] = gn
@@ -6071,7 +6103,7 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 				return
 			}
 			if err := a.DeleteUserNotification(ctx, user, notificationID); err != nil && !trace.IsNotFound(err) {
-				slog.WarnContext(ctx, "encountered error attempting to cleanup user notification", "error", err, "notification_id", notificationID, "target_user", user)
+				a.logger.WarnContext(ctx, "encountered error attempting to cleanup user notification", "error", err, "notification_id", notificationID, "target_user", user)
 			}
 		} else {
 			nonExpiredUserNotificationsByID[notificationID] = un
@@ -6090,7 +6122,7 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 		}
 		response, nextKey, err := a.ListNotificationStatesForAllUsers(ctx, 20, userNotificationStatesPageKey)
 		if err != nil {
-			slog.WarnContext(ctx, "encountered error attempting to list notification states for cleanup", "error", err)
+			a.logger.WarnContext(ctx, "encountered error attempting to list notification states for cleanup", "error", err)
 		}
 		userNotificationStates = append(userNotificationStates, response...)
 		if nextKey == "" {
@@ -6112,7 +6144,7 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 				return
 			}
 			if err := a.DeleteUserNotificationState(ctx, username, id); err != nil {
-				slog.WarnContext(ctx, "encountered error attempting to cleanup notification state", "error", err, "user", username, "id", id)
+				a.logger.WarnContext(ctx, "encountered error attempting to cleanup notification state", "error", err, "user", username, "id", id)
 			}
 		}
 	}
@@ -6219,7 +6251,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 			AppLabels:     app.GetStaticLabels(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit app create event.")
+		a.logger.WarnContext(ctx, "Failed to emit app create event", "error", err)
 	}
 	return nil
 }
@@ -6245,7 +6277,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 			AppLabels:     app.GetStaticLabels(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit app update event.")
+		a.logger.WarnContext(ctx, "Failed to emit app update event", "error", err)
 	}
 	return nil
 }
@@ -6265,7 +6297,7 @@ func (a *Server) DeleteApp(ctx context.Context, name string) error {
 			Name: name,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit app delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit app delete event", "error", err)
 	}
 	return nil
 }
@@ -6309,7 +6341,7 @@ func (a *Server) CreateDatabase(ctx context.Context, database types.Database) er
 			DatabaseGCPInstanceID:        database.GetGCP().InstanceID,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit database create event.")
+		a.logger.WarnContext(ctx, "Failed to emit database create event", "error", err)
 	}
 	return nil
 }
@@ -6339,7 +6371,7 @@ func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) er
 			DatabaseGCPInstanceID:        database.GetGCP().InstanceID,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit database update event.")
+		a.logger.WarnContext(ctx, "Failed to emit database update event", "error", err)
 	}
 	return nil
 }
@@ -6359,7 +6391,7 @@ func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
 			Name: name,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit database delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit database delete event", "error", err)
 	}
 	return nil
 }
@@ -6427,7 +6459,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 			KubeLabels: kubeCluster.GetStaticLabels(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit kube cluster create event.")
+		a.logger.WarnContext(ctx, "Failed to emit kube cluster create event", "error", err)
 	}
 	return nil
 }
@@ -6454,7 +6486,7 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 			KubeLabels: kubeCluster.GetStaticLabels(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit kube cluster update event.")
+		a.logger.WarnContext(ctx, "Failed to emit kube cluster update event", "error", err)
 	}
 	return nil
 }
@@ -6474,7 +6506,7 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 			Name: name,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit kube cluster delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
 	}
 	return nil
 }
@@ -6573,12 +6605,12 @@ func (a *Server) exportUpgradeWindowsCached(ctx context.Context) (proto.ExportUp
 
 		rsp.KubeControllerSchedule, err = uw.EncodeKubeControllerSchedule(sched)
 		if err != nil {
-			log.Warnf("Failed to encode kube controller maintenance schedule: %v", err)
+			a.logger.WarnContext(ctx, "Failed to encode kube controller maintenance schedule", "error", err)
 		}
 
 		rsp.SystemdUnitSchedule, err = uw.EncodeSystemdUnitSchedule(sched)
 		if err != nil {
-			log.Warnf("Failed to encode systemd unit maintenance schedule: %v", err)
+			a.logger.WarnContext(ctx, "Failed to encode systemd unit maintenance schedule", "error", err)
 		}
 
 		return rsp, nil
@@ -6837,7 +6869,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
 		if !trace.IsAccessDenied(noMFAAccessErr) {
-			log.WithError(noMFAAccessErr).Warn("Could not determine MFA access")
+			a.logger.WarnContext(ctx, "Could not determine MFA access", "error", noMFAAccessErr)
 		}
 
 		// Mask the access denied errors by returning false to prevent resource
@@ -6921,7 +6953,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 			ChallengeScope:      challengeExtensions.Scope.String(),
 			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit CreateMFAAuthChallenge event.")
+			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 		}
 
 		return &proto.MFAAuthenticateChallenge{
@@ -6983,7 +7015,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 		ChallengeScope:      challengeExtensions.Scope.String(),
 		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit CreateMFAAuthChallenge event.")
+		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
 
 	return challenge, nil
@@ -7008,7 +7040,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 		case *types.MFADevice_Sso:
 			res.SSO = dev
 		default:
-			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
+			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
 	return res
@@ -7080,7 +7112,7 @@ func (a *Server) ValidateMFAAuthResponse(
 	// Read ClusterName for audit.
 	var clusterName string
 	if cn, err := a.GetClusterName(); err != nil {
-		log.WithError(err).Warn("Failed to read cluster name")
+		a.logger.WarnContext(ctx, "Failed to read cluster name", "error", err)
 		// err swallowed on purpose.
 	} else {
 		clusterName = cn.GetClusterName()
@@ -7114,7 +7146,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		auditEvent.ChallengeAllowReuse = authData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, auditEvent); err != nil {
-		log.WithError(err).Warn("Failed to emit ValidateMFAAuthResponse event")
+		a.logger.WarnContext(ctx, "Failed to emit ValidateMFAAuthResponse event", "error", err)
 		// err swallowed on purpose.
 	}
 
@@ -7196,7 +7228,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 		}, nil
 
 	case *proto.MFAAuthenticateResponse_TOTP:
-		dev, err := a.checkOTP(user, res.TOTP.Code)
+		dev, err := a.checkOTP(ctx, user, res.TOTP.Code)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7365,7 +7397,7 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Successfully added locally usable additional trusted keys to %s CA.", ca.GetType())
+	a.logger.InfoContext(ctx, "Successfully added locally usable additional trusted keys to CA", "ca_type", ca.GetType())
 	return nil
 }
 
@@ -7458,7 +7490,11 @@ func (a *Server) getProxyPublicAddr() string {
 				continue
 			}
 			if _, err := utils.ParseAddr(addr); err != nil {
-				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				a.logger.WarnContext(a.closeCtx, "Invalid public address found in proxy",
+					"proxy", p.GetName(),
+					"public_addr", addr,
+					"error", err,
+				)
 				continue
 			}
 			return addr

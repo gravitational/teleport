@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport"
@@ -349,7 +348,7 @@ func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client htt
 		if resp != nil {
 			io.Copy(io.Discard, resp.Body)
 			if bodyErr := resp.Body.Close(); bodyErr != nil {
-				logrus.WithError(bodyErr).Error("Error closing response body.")
+				logger.ErrorContext(ctx, "Error closing response body", "error", bodyErr)
 			}
 		}
 		// Handle makeHTTPGetReq errors.
