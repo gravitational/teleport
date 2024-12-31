@@ -85,6 +85,10 @@ type Reader struct {
 
 // ReaderStats contains some reader statistics
 type ReaderStats struct {
+	// SkippedBytes is a counter with encountered bytes that have been skipped for processing.
+	// Typically occurring due to a bug in older Teleport versions having padding bytes
+	// written to the gzip section.
+	SkippedBytes int64
 	// SkippedEvents is a counter with encountered
 	// events recorded several times or events
 	// that have been out of order as skipped
@@ -100,6 +104,7 @@ type ReaderStats struct {
 // LogValue returns a copy of the stats to be used as log fields
 func (p ReaderStats) LogValue() slog.Value {
 	return slog.GroupValue(
+		slog.Int64("skipped-bytes", p.SkippedBytes),
 		slog.Int64("skipped-events", p.SkippedEvents),
 		slog.Int64("out-of-order-events", p.OutOfOrderEvents),
 		slog.Int64("total-events", p.TotalEvents),
@@ -225,6 +230,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				}
 
 				if n != 0 {
+					r.stats.SkippedBytes += n
 					// log the number of bytes that were skipped
 					slog.DebugContext(ctx, "skipped dangling data in session recording section", "length", n)
 				}
