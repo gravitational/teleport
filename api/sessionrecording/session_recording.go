@@ -74,15 +74,13 @@ const (
 
 // Reader reads Teleport's session recordings
 type Reader struct {
-	gzipReader   *gzipReader
-	padding      int64
-	reader       io.Reader
-	sizeBytes    [Int64Size]byte
-	messageBytes [MaxProtoMessageSizeBytes]byte
-	state        int
-	error        error
-	lastIndex    int64
-	stats        ReaderStats
+	gzipReader *gzipReader
+	padding    int64
+	reader     io.Reader
+	state      int
+	error      error
+	lastIndex  int64
+	stats      ReaderStats
 }
 
 // ReaderStats contains some reader statistics
@@ -147,6 +145,8 @@ func (r *Reader) GetStats() ReaderStats {
 
 // Read returns next event or io.EOF in case of the end of the parts
 func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
+	var sizeBytes [Int64Size]byte
+
 	// periodic checks of context after fixed amount of iterations
 	// is an extra precaution to avoid
 	// accidental endless loop due to logic error crashing the system
@@ -172,7 +172,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateInit:
 			// read the part header that consists of the protocol version
 			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
+			_, err := io.ReadFull(r.reader, sizeBytes[:Int64Size])
 			if err != nil {
 				// reached the end of the stream
 				if errors.Is(err, io.EOF) {
@@ -181,22 +181,22 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				}
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			protocolVersion := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
+			protocolVersion := binary.BigEndian.Uint64(sizeBytes[:Int64Size])
 			if protocolVersion != ProtoStreamV1 {
 				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
 			}
 			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
+			_, err = io.ReadFull(r.reader, sizeBytes[:Int64Size])
 			if err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			partSize := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
+			partSize := binary.BigEndian.Uint64(sizeBytes[:Int64Size])
 			// read padding size (could be 0)
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
+			_, err = io.ReadFull(r.reader, sizeBytes[:Int64Size])
 			if err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
+			r.padding = int64(binary.BigEndian.Uint64(sizeBytes[:Int64Size]))
 			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
@@ -206,9 +206,11 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			continue
 			// read the next version from the gzip reader
 		case protoReaderStateCurrent:
+			var messageBytes [MaxProtoMessageSizeBytes]byte
+
 			// the record consists of length of the protobuf encoded
 			// message and the message itself
-			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
+			_, err := io.ReadFull(r.gzipReader, sizeBytes[:Int32Size])
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
 					return nil, r.setError(trace.ConvertSystemError(err))
@@ -217,7 +219,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				// due to a bug in older versions of teleport it was possible that padding
 				// bytes would end up inside of the gzip section of the archive. we should
 				// skip any dangling data in the gzip secion.
-				n, err := io.CopyBuffer(io.Discard, r.gzipReader.inner, r.messageBytes[:])
+				n, err := io.CopyBuffer(io.Discard, r.gzipReader.inner, messageBytes[:])
 				if err != nil {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
@@ -233,7 +235,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
 				if r.padding != 0 {
-					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, r.padding), r.messageBytes[:])
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, r.padding), messageBytes[:])
 					if err != nil {
 						return nil, r.setError(trace.ConvertSystemError(err))
 					}
@@ -247,7 +249,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				r.state = protoReaderStateInit
 				continue
 			}
-			messageSize := binary.BigEndian.Uint32(r.sizeBytes[:Int32Size])
+			messageSize := binary.BigEndian.Uint32(sizeBytes[:Int32Size])
 			// zero message size indicates end of the part
 			// that sometimes is present in partially submitted parts
 			// that have to be filled with zeroes for parts smaller
@@ -255,12 +257,12 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if messageSize == 0 {
 				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
 			}
-			_, err = io.ReadFull(r.gzipReader, r.messageBytes[:messageSize])
+			_, err = io.ReadFull(r.gzipReader, messageBytes[:messageSize])
 			if err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			oneof := apievents.OneOf{}
-			err = oneof.Unmarshal(r.messageBytes[:messageSize])
+			err = oneof.Unmarshal(messageBytes[:messageSize])
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
