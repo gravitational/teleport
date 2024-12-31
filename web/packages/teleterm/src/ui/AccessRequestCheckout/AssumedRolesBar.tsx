@@ -17,10 +17,11 @@
  */
 
 import styled from 'styled-components';
-import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { Box, Flex, Text } from 'design';
 import { pluralize } from 'shared/utils/text';
+
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { useAssumedRolesBar } from './useAssumedRolesBar';
 

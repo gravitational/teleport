@@ -19,6 +19,7 @@
 import Text from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
 import { precomputed } from 'shared/components/Validation/rules';
+
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
 import { SectionBox, SectionProps } from './sections';

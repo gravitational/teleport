@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as nodePTY from 'node-pty';
-import Logger from 'teleterm/logger';
-import which from 'which';
-
 import { exec } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { readlink } from 'node:fs';
 import { promisify } from 'node:util';
 
+import * as nodePTY from 'node-pty';
+import which from 'which';
+
 import { wait } from 'shared/utils/wait';
+
+import Logger from 'teleterm/logger';
 
 import { IPtyProcess, PtyProcessOptions } from './types';
 

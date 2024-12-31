@@ -26,6 +26,7 @@ import Select, {
   ActionMeta,
   Option as BaseOption,
 } from 'shared/components/Select';
+
 import { makeLabelTag } from 'teleport/components/formatters';
 import { Filter } from 'teleport/types';
 

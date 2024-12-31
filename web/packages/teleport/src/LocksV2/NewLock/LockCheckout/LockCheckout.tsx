@@ -38,6 +38,7 @@ import { ArrowBack } from 'design/Icon';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 import { pluralize } from 'shared/utils/text';
+
 import shieldCheck from 'teleport/assets/shield-check.png';
 import cfg from 'teleport/config';
 import { TrashButton } from 'teleport/LocksV2/common';

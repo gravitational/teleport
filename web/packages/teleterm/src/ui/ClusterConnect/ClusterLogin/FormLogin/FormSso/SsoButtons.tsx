@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as types from 'teleterm/ui/services/clusters/types';
-
 import { Flex, Text } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
+
+import * as types from 'teleterm/ui/services/clusters/types';
 
 const SSOBtnList = ({
   providers,

@@ -18,6 +18,7 @@
 
 import Dialog from 'design/Dialog';
 import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+
 import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';

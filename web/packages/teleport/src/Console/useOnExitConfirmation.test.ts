@@ -17,6 +17,7 @@
  */
 
 import renderHook from 'design/utils/renderHook';
+
 import session from 'teleport/services/websession';
 
 import ConsoleContext from './consoleContext';

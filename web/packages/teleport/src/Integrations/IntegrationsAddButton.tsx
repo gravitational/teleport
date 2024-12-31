@@ -21,6 +21,7 @@ import { Link } from 'react-router-dom';
 import { Button } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+
 import cfg from 'teleport/config';
 
 export function IntegrationsAddButton({

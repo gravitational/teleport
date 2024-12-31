@@ -24,6 +24,7 @@ import {
   OverrideUserAgent,
   UserAgent,
 } from 'shared/components/OverrideUserAgent';
+
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';

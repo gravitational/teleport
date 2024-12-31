@@ -31,6 +31,7 @@ import {
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
+
 import { CatchError } from 'teleport/components/CatchError';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';

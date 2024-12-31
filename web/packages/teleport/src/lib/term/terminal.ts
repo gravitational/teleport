@@ -31,6 +31,7 @@ import {
 } from 'shared/components/TerminalSearch';
 import Logger from 'shared/libs/logger';
 import { debounce, isInteger, type DebouncedFunc } from 'shared/utils/highbar';
+
 import cfg from 'teleport/config';
 
 import { TermEvent } from './enums';

@@ -27,6 +27,7 @@ import { StepComponentProps, StepHeader } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
 import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { DeviceType } from 'teleport/services/mfa';
 

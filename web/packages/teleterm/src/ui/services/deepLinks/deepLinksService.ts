@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
+
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RuntimeSettings } from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -24,8 +26,6 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
-
-import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
 
 export class DeepLinksService {
   constructor(

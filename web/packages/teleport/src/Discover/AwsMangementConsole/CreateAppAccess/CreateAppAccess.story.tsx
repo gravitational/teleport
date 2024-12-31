@@ -20,6 +20,7 @@ import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
+
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';

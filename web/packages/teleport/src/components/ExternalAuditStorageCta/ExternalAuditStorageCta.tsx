@@ -26,6 +26,7 @@ import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip';
+
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 import { storageService } from 'teleport/services/storageService';

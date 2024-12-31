@@ -17,6 +17,14 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
+
+import {
+  AvailableResourceMode,
+  DefaultTab,
+  LabelsViewMode,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
@@ -26,13 +34,6 @@ import {
 } from 'teleterm/services/tshd/types';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
-import {
-  AvailableResourceMode,
-  DefaultTab,
-  LabelsViewMode,
-  ViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { useUserPreferences } from './useUserPreferences';
 

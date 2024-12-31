@@ -24,6 +24,7 @@ import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
 import * as Icon from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
+
 import { MfaDevice } from 'teleport/services/mfa';
 
 export interface AuthDeviceListProps {

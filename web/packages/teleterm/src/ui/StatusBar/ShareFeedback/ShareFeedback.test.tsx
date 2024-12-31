@@ -17,6 +17,9 @@
  */
 
 import { screen } from '@testing-library/react';
+
+import { fireEvent, render } from 'design/utils/testing';
+
 import {
   makeLoggedInUser,
   makeRootCluster,
@@ -24,8 +27,6 @@ import {
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { IAppContext } from 'teleterm/ui/types';
-
-import { fireEvent, render } from 'design/utils/testing';
 
 import { ShareFeedback } from './ShareFeedback';
 

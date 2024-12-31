@@ -17,6 +17,7 @@
  */
 
 import { renderHook } from '@testing-library/react';
+
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';

@@ -17,6 +17,7 @@
  */
 
 import { ServerDuplexStream } from '@grpc/grpc-js';
+
 import {
   ptyEventOneOfIsData,
   ptyEventOneOfIsResize,

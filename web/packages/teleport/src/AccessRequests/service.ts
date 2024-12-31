@@ -19,6 +19,7 @@
 import { formatDuration } from 'date-fns';
 
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+
 import {
   AccessRequest,
   AccessRequestResource,

@@ -17,11 +17,12 @@
  */
 
 import { useState } from 'react';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 import { Box } from 'design';
 import { StepComponentProps } from 'design/StepSlider';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 import { useConnectionsContext } from './connectionsContext';
 import { ConnectionsFilterableList } from './ConnectionsFilterableList/ConnectionsFilterableList';

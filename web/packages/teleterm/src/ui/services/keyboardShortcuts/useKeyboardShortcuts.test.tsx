@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import renderHook from 'design/utils/renderHook';
+
 import AppContext from 'teleterm/ui/appContext';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
-
-import renderHook from 'design/utils/renderHook';
 
 import { KeyboardShortcutsService } from './keyboardShortcutsService';
 import { KeyboardShortcutEventSubscriber } from './types';

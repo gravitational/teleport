@@ -25,16 +25,16 @@ import {
   useState,
 } from 'react';
 import styled from 'styled-components';
+
+import { Box } from 'design';
+import Popover from 'design/Popover';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+
 import * as tshd from 'teleterm/services/tshd/types';
 import {
   useKeyboardShortcutFormatters,
   useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
-
-import { Box } from 'design';
-import Popover from 'design/Popover';
-
-import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import { EmptyIdentityList } from './EmptyIdentityList/EmptyIdentityList';
 import { IdentityList } from './IdentityList/IdentityList';

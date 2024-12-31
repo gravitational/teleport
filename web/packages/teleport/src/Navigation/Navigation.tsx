@@ -22,6 +22,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
+
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
 import {

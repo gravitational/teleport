@@ -21,6 +21,9 @@ import 'jest-canvas-mock';
 import { act, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+
+import { render } from 'design/utils/testing';
+
 import Logger, { NullService } from 'teleterm/logger';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -30,8 +33,6 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-
-import { render } from 'design/utils/testing';
 
 import { AppInitializer } from './AppInitializer';
 

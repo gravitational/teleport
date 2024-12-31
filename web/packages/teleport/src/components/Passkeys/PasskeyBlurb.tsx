@@ -17,6 +17,7 @@
  */
 
 import Box from 'design/Box';
+
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 
 export function PasskeyBlurb() {

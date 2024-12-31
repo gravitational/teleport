@@ -24,6 +24,7 @@ import Dialog, {
   DialogTitle,
 } from 'design/DialogConfirmation';
 import TextEditor from 'shared/components/TextEditor';
+
 import { ViewBotProps } from 'teleport/Bots/types';
 import useTeleport from 'teleport/useTeleport';
 

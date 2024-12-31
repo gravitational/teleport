@@ -34,6 +34,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
+
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {

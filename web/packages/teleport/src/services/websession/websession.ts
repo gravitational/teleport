@@ -17,6 +17,7 @@
  */
 
 import Logger from 'shared/libs/logger';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import history from 'teleport/services/history';

@@ -23,6 +23,7 @@ import {
   screen,
   render as testingRender,
 } from 'design/utils/testing';
+
 import cfg from 'teleport/config';
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';

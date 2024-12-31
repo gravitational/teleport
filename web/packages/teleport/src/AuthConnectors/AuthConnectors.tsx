@@ -18,6 +18,7 @@
 
 import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
 import { H2, P } from 'design/Text/Text';
+
 import {
   DesktopDescription,
   MobileDescription,

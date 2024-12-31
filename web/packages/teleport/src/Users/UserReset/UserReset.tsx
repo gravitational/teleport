@@ -26,6 +26,7 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import { useAttemptNext } from 'shared/hooks';
+
 import cfg from 'teleport/config';
 import { ResetToken } from 'teleport/services/user';
 

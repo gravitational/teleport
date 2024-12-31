@@ -28,13 +28,13 @@ import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
+
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
 import type { TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
 
 import {
   CustomNavigationSubcategory,

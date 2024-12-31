@@ -31,6 +31,7 @@ import {
   FeatureSlider,
   Title,
 } from 'shared/components/EmptyState/EmptyState';
+
 import { DisplayTile } from 'teleport/Bots/Add/AddBotsPicker';
 import cfg from 'teleport/config';
 

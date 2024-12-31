@@ -20,6 +20,7 @@ import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import Logger from 'shared/libs/logger';
+
 import cfg, {
   UrlDbConnectParams,
   UrlKubeExecParams,

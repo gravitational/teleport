@@ -17,6 +17,9 @@
  */
 
 import { PropsWithChildren } from 'react';
+
+import renderHook from 'design/utils/renderHook';
+
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
@@ -26,8 +29,6 @@ import {
 import { Document } from 'teleterm/ui/services/workspacesService/documentsService';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
-
-import renderHook from 'design/utils/renderHook';
 
 function getMockDocuments(): Document[] {
   return [

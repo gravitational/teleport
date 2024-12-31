@@ -18,13 +18,14 @@
 
 import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
+
+import { ButtonIcon, Flex, Text } from 'design';
+import { Trash, Unlink } from 'design/Icon';
+
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
-
-import { ButtonIcon, Flex, Text } from 'design';
-import { Trash, Unlink } from 'design/Icon';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 

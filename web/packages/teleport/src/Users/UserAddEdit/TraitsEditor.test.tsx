@@ -18,6 +18,7 @@
 
 import { fireEvent, render, screen } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
+
 import { AllUserTraits } from 'teleport/services/user';
 
 import { emptyTrait, TraitsEditor, type TraitsOption } from './TraitsEditor';

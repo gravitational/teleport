@@ -23,6 +23,7 @@ import { Flex } from 'design';
 import InputSearch from 'design/DataTable/InputSearch';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
+
 import { ResourceFilter } from 'teleport/services/agents';
 
 export function SearchPanel({

@@ -25,6 +25,7 @@ import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
 import { ResourceLabel } from 'teleport/services/agents';
 
 export function LabelsCreater({

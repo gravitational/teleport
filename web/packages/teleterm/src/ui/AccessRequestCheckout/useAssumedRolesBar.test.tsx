@@ -18,6 +18,7 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { useEffect } from 'react';
+
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
   ResourcesContextProvider,

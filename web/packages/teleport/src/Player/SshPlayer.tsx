@@ -21,6 +21,7 @@ import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
+
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import TtyPlayer from 'teleport/lib/term/ttyPlayer';

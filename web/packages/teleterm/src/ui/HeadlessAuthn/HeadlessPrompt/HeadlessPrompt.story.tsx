@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-
 import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import { HeadlessPrompt } from './HeadlessPrompt';
 

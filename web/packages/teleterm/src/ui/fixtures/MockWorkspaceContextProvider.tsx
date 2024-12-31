@@ -17,6 +17,7 @@
  */
 
 import React, { PropsWithChildren } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { RootClusterUri } from 'teleterm/ui/uri';

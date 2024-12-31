@@ -21,6 +21,7 @@ import { formatDistanceStrict } from 'date-fns';
 import { Card, Flex, H2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+
 import { ResourceTypeSummary } from 'teleport/services/integrations';
 
 export enum AwsResource {

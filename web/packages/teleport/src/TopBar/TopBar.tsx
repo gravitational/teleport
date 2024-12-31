@@ -26,6 +26,7 @@ import { Flex, Image, Text, TopNav } from 'design';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { Theme } from 'design/theme/themes/types';
 import { HoverTooltip } from 'design/Tooltip';
+
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import cfg from 'teleport/config';

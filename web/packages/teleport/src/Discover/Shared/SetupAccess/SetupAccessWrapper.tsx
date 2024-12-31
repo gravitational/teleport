@@ -22,6 +22,7 @@ import styled from 'styled-components';
 import { Box, Flex, Indicator } from 'design';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
+
 import {
   ActionButtons,
   ButtonBlueText,

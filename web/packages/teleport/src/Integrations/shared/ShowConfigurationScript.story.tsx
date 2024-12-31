@@ -17,6 +17,7 @@
  */
 
 import { Text } from 'design';
+
 import { StyledBox } from 'teleport/Discover/Shared';
 
 import { ShowConfigurationScript } from './ShowConfigurationScript';

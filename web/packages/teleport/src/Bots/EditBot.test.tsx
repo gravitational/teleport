@@ -19,6 +19,7 @@
 import { waitFor } from '@testing-library/react';
 
 import { render, screen, userEvent } from 'design/utils/testing';
+
 import { EditBot } from 'teleport/Bots/EditBot';
 import { EditBotProps } from 'teleport/Bots/types';
 

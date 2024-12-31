@@ -19,10 +19,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { BrowserWindow, DownloadItem } from 'electron';
-import Logger, { NullService } from 'teleterm/logger';
-
 import EventEmitter from 'events';
+
+import type { BrowserWindow, DownloadItem } from 'electron';
+
+import Logger, { NullService } from 'teleterm/logger';
 
 import { FileDownloader } from './fileDownloader';
 

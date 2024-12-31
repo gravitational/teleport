@@ -17,6 +17,9 @@
  */
 
 import { renderHook } from '@testing-library/react';
+
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import {
   makeKube,
   makeLabelsList,
@@ -27,8 +30,6 @@ import {
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { SearchResult } from 'teleterm/ui/services/resources';
 import { ServerUri } from 'teleterm/ui/uri';
-
-import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
 import { makeResourceResult } from './testHelpers';

@@ -18,6 +18,7 @@
 
 import { ButtonPrimary, Flex } from 'design';
 import * as Icons from 'design/Icon';
+
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import * as stores from 'teleport/Console/stores';
 

@@ -21,6 +21,7 @@ import styled from 'styled-components';
 import { Box, Flex, H3, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import TextEditor from 'shared/components/TextEditor';
+
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 export function ConfigureAwsOidcSummary({

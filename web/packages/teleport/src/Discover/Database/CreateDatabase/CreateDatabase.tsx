@@ -24,6 +24,7 @@ import FieldInput from 'shared/components/FieldInput';
 import TextEditor from 'shared/components/TextEditor';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
 import type { ResourceLabel } from 'teleport/services/agents';
 
 import {

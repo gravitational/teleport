@@ -17,6 +17,7 @@
  */
 
 import { LabelKind } from 'design/Label';
+
 import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
 import {
   getStatusCodeTitle,

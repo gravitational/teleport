@@ -18,6 +18,7 @@
 
 import { Platform } from 'design/platform';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
 import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,

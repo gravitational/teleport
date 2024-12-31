@@ -17,6 +17,7 @@
  */
 
 import { Box, Link } from 'design';
+
 import getDownloadLink from 'teleport/services/links';
 
 export default function DownloadLinks({ isEnterprise, version }: Props) {

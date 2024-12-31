@@ -17,6 +17,7 @@
  */
 
 import { useCallback } from 'react';
+
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { ClusterUri, routing } from 'teleterm/ui/uri';
 

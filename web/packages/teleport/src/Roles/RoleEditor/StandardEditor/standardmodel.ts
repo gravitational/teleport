@@ -18,6 +18,7 @@
 
 import { Option } from 'shared/components/Select';
 import { equalsDeep } from 'shared/utils/highbar';
+
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   KubernetesResource,

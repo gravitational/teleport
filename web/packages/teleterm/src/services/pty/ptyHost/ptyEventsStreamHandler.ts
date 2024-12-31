@@ -17,6 +17,7 @@
  */
 
 import { ClientDuplexStream } from '@grpc/grpc-js';
+
 import {
   ptyEventOneOfIsData,
   ptyEventOneOfIsExit,

@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Logger, { NullService } from 'teleterm/logger';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import type * as tshd from 'teleterm/services/tshd/types';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-
 import {
   AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
+import Logger, { NullService } from 'teleterm/logger';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import type * as tshd from 'teleterm/services/tshd/types';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { ClustersService } from '../clusters';
 import { ModalsService } from '../modals';

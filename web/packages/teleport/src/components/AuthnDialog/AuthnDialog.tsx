@@ -22,6 +22,7 @@ import Dialog, { DialogContent } from 'design/Dialog';
 import { Cross, FingerprintSimple } from 'design/Icon';
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
+
 import { MfaState } from 'teleport/lib/useMfa';
 import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
 

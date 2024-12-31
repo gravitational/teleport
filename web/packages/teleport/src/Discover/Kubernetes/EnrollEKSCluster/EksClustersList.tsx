@@ -18,6 +18,7 @@
 
 import Table from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
+
 import cfg from 'teleport/config';
 import {
   DisableableCell as Cell,

@@ -25,6 +25,7 @@ import { SortType } from 'design/DataTable/types';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import { SearchPanel } from 'shared/components/Search';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+
 import { useServerSidePagination } from 'teleport/components/hooks';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import type {

@@ -17,6 +17,7 @@
  */
 
 import { act, fireEvent, render, screen } from 'design/utils/testing';
+
 import cfg from 'teleport/config';
 import { ComponentWrapper } from 'teleport/Discover/Fixtures/kubernetes';
 import * as discoveryService from 'teleport/services/discovery/discovery';

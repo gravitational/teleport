@@ -24,6 +24,7 @@ import styled, { useTheme } from 'styled-components';
 import { Flex, Image, TopNav } from 'design';
 import { Theme } from 'design/theme/themes/types';
 import { HoverTooltip } from 'design/Tooltip';
+
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import cfg from 'teleport/config';

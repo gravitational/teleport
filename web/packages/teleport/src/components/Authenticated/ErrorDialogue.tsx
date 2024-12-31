@@ -23,6 +23,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+
 import history from 'teleport/services/history';
 
 export function ErrorDialog({ errMsg }: { errMsg: string }) {

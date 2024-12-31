@@ -20,6 +20,7 @@ import styled from 'styled-components';
 
 import { Box, Button, ButtonBorder, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import {
   FileTransferRequest,

@@ -15,12 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { render, screen, userEvent } from 'design/utils/testing';
+import { wait } from 'shared/utils/wait';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
-import { render, screen, userEvent } from 'design/utils/testing';
-import { wait } from 'shared/utils/wait';
 
 import { VnetSliderStepHeader } from './VnetConnectionItem';
 import { VnetContextProvider } from './vnetContext';

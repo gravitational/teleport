@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Box, ButtonBorder, Card, Flex, Text } from 'design';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
-
-import { Box, ButtonBorder, Card, Flex, Text } from 'design';
 
 export function RecentClusters() {
   const ctx = useAppContext();

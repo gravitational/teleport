@@ -17,6 +17,7 @@
  */
 
 import { LoginFailed as CardFailed } from 'design/CardError';
+
 import { LogoHero } from 'teleport/components/LogoHero';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';

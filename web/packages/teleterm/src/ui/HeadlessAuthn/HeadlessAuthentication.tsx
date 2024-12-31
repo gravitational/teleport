@@ -17,13 +17,13 @@
  */
 
 import { useEffect, useRef } from 'react';
+
+import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import { useAsync } from 'shared/hooks/useAsync';
+
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
-
-import { useAsync } from 'shared/hooks/useAsync';
-
-import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
 import { HeadlessPrompt } from './HeadlessPrompt';
 

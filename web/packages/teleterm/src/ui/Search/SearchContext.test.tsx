@@ -28,6 +28,7 @@ import {
   renderHook,
   screen,
 } from '@testing-library/react';
+
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { IAppContext } from 'teleterm/ui/types';

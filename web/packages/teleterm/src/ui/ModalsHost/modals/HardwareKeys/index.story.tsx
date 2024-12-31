@@ -17,6 +17,7 @@
  */
 
 import { Meta } from '@storybook/react';
+
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import { AskPin as AskPinComponent } from './AskPin';

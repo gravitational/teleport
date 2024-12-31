@@ -22,6 +22,7 @@ import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
 import history from 'teleport/services/history';
 

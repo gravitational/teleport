@@ -17,6 +17,7 @@
  */
 
 import { RequestState } from 'shared/services/accessRequests';
+
 import { AllUserTraits } from 'teleport/services/user';
 
 export type RequestFlags = {

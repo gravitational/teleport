@@ -35,6 +35,13 @@ import './unifiedStyles.css';
 
 import { HoverTooltip } from 'design/Tooltip';
 import {
+  AvailableResourceMode,
+  DefaultTab,
+  LabelsViewMode,
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import {
   Attempt as AsyncAttempt,
   hasFinished,
   makeEmptyAttempt,
@@ -47,15 +54,8 @@ import {
   useKeyBasedPagination,
 } from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
-import { ResourcesResponse } from 'teleport/services/agents';
 
-import {
-  AvailableResourceMode,
-  DefaultTab,
-  LabelsViewMode,
-  UnifiedResourcePreferences,
-  ViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import { CardsView } from './CardsView/CardsView';
 import { FilterPanel } from './FilterPanel';

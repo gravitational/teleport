@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
-
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import cfg from 'teleport/config';
 
 import { notificationContentFactory } from './Notifications';
 import { agentService } from './services/agents';

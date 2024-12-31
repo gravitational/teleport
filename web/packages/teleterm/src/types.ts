@@ -17,13 +17,14 @@
  */
 
 import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js';
+
+import { ITshdEventsService } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
+
 import { MainProcessClient, RuntimeSettings } from 'teleterm/mainProcess/types';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { Logger, LoggerService } from 'teleterm/services/logger/types';
 import { PtyServiceClient } from 'teleterm/services/pty';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
-
-import { ITshdEventsService } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
 export type {
   Logger,

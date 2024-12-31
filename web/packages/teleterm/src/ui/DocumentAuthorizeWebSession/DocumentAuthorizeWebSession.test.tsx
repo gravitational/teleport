@@ -17,6 +17,9 @@
  */
 
 import userEvent from '@testing-library/user-event';
+
+import { render, screen } from 'design/utils/testing';
+
 import {
   makeLoggedInUser,
   makeRootCluster,
@@ -26,8 +29,6 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-
-import { render, screen } from 'design/utils/testing';
 
 import { DocumentAuthorizeWebSession } from './DocumentAuthorizeWebSession';
 

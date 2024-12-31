@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
 import {

@@ -18,6 +18,7 @@
 
 import { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+
 import { BotOptionsCellProps } from 'teleport/Bots/types';
 import { BotUiFlow } from 'teleport/services/bot/types';
 

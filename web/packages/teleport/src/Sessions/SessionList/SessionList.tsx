@@ -20,6 +20,7 @@ import styled from 'styled-components';
 
 import Table, { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
+
 import { Participant, Session, SessionKind } from 'teleport/services/session';
 
 import { SessionJoinBtn } from './SessionJoinBtn';

@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react';
 
 import Logger from 'shared/libs/logger';
+
 import cfg from 'teleport/config';
 import {
   alertNames,

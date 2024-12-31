@@ -17,12 +17,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import * as tsh from 'teleterm/services/tshd/types';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
   RequestFlags,
   SubmitReview,
@@ -31,7 +27,11 @@ import {
 import { useAsync } from 'shared/hooks/useAsync';
 import { AccessRequest } from 'shared/services/accessRequests';
 
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import * as tsh from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { makeUiAccessRequest } from '../useAccessRequests';
 

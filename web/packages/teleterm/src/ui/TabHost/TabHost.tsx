@@ -18,6 +18,9 @@
 
 import React, { useCallback } from 'react';
 import styled from 'styled-components';
+
+import { Flex } from 'design';
+
 import { Shell } from 'teleterm/mainProcess/shell';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentsRenderer } from 'teleterm/ui/Documents/DocumentsRenderer';
@@ -27,8 +30,6 @@ import * as types from 'teleterm/ui/services/workspacesService/documentsService/
 import { canDocChangeShell } from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { Tabs } from 'teleterm/ui/Tabs';
 import { IAppContext } from 'teleterm/ui/types';
-
-import { Flex } from 'design';
 
 import { useStoreSelector } from '../hooks/useStoreSelector';
 import { ClusterConnectPanel } from './ClusterConnectPanel/ClusterConnectPanel';

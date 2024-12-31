@@ -17,12 +17,13 @@
  */
 
 import styled from 'styled-components';
+
+import { Text } from 'design';
+
 import { KeyboardShortcutAction } from 'teleterm/services/config';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
-
-import { Text } from 'design';
 
 export function KeyboardShortcutsPanel() {
   const { mainProcessClient } = useAppContext();

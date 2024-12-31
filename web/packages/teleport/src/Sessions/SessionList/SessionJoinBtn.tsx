@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 
 import { Box, ButtonBorder, Flex, H3, Menu, MenuItem, Text } from 'design';
 import { ChevronDown, Warning } from 'design/Icon';
+
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';

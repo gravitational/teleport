@@ -22,6 +22,7 @@ import Dialog, {
   DialogFooter,
   DialogHeader,
 } from 'design/Dialog';
+
 import { userEventService } from 'teleport/services/userEvent';
 import { CaptureEvent } from 'teleport/services/userEvent/types';
 

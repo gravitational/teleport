@@ -48,6 +48,7 @@ import {
   PrimaryAuthType,
 } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
 

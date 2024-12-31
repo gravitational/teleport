@@ -21,6 +21,7 @@ import selectEvent from 'react-select-event';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 import { Validator } from 'shared/components/Validation';
+
 import { ResourceKind } from 'teleport/services/resources';
 
 import { AccessRules } from './AccessRules';

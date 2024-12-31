@@ -20,6 +20,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import {
   BulkAction,
@@ -30,6 +31,7 @@ import {
   UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
@@ -50,8 +52,6 @@ import { UnifiedResource } from 'teleport/services/agents';
 import { FeatureFlags } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ResourceActionButton } from './ResourceActionButton';
 

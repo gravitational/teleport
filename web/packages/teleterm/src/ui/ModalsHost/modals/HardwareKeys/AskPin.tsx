@@ -23,11 +23,10 @@ import DialogConfirmation, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
+import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-
-import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import { CommonHeader } from './CommonHeader';
 

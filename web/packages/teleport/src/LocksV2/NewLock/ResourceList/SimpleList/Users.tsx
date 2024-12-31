@@ -17,6 +17,7 @@
  */
 
 import Table, { Cell, LabelCell } from 'design/DataTable';
+
 import { User } from 'teleport/services/user';
 
 import { renderActionCell, SimpleListProps } from '../common';

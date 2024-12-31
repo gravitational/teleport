@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type * as uri from 'teleterm/ui/uri';
-
 import { SortType } from 'design/DataTable/types';
+
+import type * as uri from 'teleterm/ui/uri';
 
 /*
  *

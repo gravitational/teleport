@@ -25,6 +25,7 @@ import {
   MenuInputType,
   MenuLogin,
 } from 'shared/components/MenuLogin';
+
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';

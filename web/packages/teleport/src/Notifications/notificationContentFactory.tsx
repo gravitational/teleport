@@ -20,6 +20,7 @@ import React from 'react';
 
 import * as Icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
+
 import {
   NotificationSubKind,
   Notification as NotificationType,

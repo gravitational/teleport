@@ -17,6 +17,7 @@
  */
 
 import { MethodInfo, ServiceInfo, UnaryCall } from '@protobuf-ts/runtime-rpc';
+
 import Logger from 'teleterm/logger';
 
 import { loggingInterceptor } from './interceptors';

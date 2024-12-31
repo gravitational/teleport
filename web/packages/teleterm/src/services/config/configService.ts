@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { z, ZodIssue } from 'zod';
+import zodToJsonSchema from 'zod-to-json-schema';
+
 import Logger from 'teleterm/logger';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { FileStorage } from 'teleterm/services/fileStorage';
-import { z, ZodIssue } from 'zod';
-import zodToJsonSchema from 'zod-to-json-schema';
 
 import {
   AppConfig,

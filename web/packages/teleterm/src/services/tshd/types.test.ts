@@ -17,6 +17,7 @@
  */
 
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+
 import { createInsecureClientCredentials } from 'teleterm/services/grpcCredentials';
 
 import { createTshdClient } from './createClient';

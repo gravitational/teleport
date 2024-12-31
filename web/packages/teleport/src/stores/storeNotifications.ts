@@ -18,6 +18,7 @@
 
 import { Store } from 'shared/libs/stores';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
 import { LocalNotificationKind } from 'teleport/services/notifications';
 import { KeysEnum } from 'teleport/services/storageService';
 

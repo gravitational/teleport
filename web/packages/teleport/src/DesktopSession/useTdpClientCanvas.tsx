@@ -22,6 +22,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { debounce } from 'shared/utils/highbar';
+
 import cfg from 'teleport/config';
 import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
 import type { BitmapFrame } from 'teleport/lib/tdp/client';

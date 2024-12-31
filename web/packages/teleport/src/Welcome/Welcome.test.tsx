@@ -23,6 +23,7 @@ import { MemoryRouter, Route, Router } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
+
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import history from 'teleport/services/history';

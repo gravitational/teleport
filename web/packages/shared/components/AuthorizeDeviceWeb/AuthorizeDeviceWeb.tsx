@@ -30,6 +30,7 @@ import {
 } from 'shared/components/DownloadConnect/DownloadConnect';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import { processRedirectUri } from 'shared/redirects';
+
 import cfg from 'teleport/config';
 import history from 'teleport/services/history/history';
 import useTeleport from 'teleport/useTeleport';

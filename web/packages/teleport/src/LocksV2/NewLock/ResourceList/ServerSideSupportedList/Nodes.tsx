@@ -17,6 +17,7 @@
  */
 
 import { Cell, ClickableLabelCell } from 'design/DataTable';
+
 import { Node } from 'teleport/services/nodes';
 
 import { renderActionCell, ServerSideListProps, StyledTable } from '../common';

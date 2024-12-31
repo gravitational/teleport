@@ -23,6 +23,7 @@ import {
   screen,
   render as testingRender,
 } from 'design/utils/testing';
+
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 
 import { BannerList, type BannerType } from './BannerList';

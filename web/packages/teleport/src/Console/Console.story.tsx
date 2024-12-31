@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { Route, Router } from 'react-router';
 
 import { Flex } from 'design';
+
 import cfg from 'teleport/config';
 
 import Console from './Console';

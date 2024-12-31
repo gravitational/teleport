@@ -24,6 +24,7 @@ import {
 } from 'design';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
+
 import { TextIcon } from 'teleport/Discover/Shared';
 
 type EnrollmentDialogProps = {

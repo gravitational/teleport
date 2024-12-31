@@ -17,6 +17,7 @@
  */
 
 import { Fragment } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';

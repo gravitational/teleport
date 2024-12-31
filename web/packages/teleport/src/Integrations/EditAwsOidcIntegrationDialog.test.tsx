@@ -20,6 +20,7 @@ import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+
 import cfg from 'teleport/config';
 import {
   Integration,

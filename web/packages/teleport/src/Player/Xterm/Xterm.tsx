@@ -21,6 +21,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { getPlatformType } from 'design/platform';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
+
 import StyledXterm from 'teleport/Console/StyledXterm';
 import { TermEvent } from 'teleport/lib/term/enums';
 import Terminal from 'teleport/lib/term/terminal';

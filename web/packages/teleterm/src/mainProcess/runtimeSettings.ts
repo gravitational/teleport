@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { app } from 'electron';
-
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+
+import { app } from 'electron';
 
 import { loadInstallationId } from './loadInstallationId';
 import { getAvailableShells, getDefaultShell } from './shell';

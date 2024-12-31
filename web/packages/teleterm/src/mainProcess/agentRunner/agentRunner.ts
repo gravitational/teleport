@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import stripAnsi from 'strip-ansi';
-import Logger from 'teleterm/logger';
-import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
-import { RootClusterUri } from 'teleterm/ui/uri';
-
 import { ChildProcess, fork, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
+
+import stripAnsi from 'strip-ansi';
+
+import Logger from 'teleterm/logger';
+import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { generateAgentConfigPaths } from '../createAgentConfigFile';
 import { terminateWithTimeout } from '../terminateWithTimeout';

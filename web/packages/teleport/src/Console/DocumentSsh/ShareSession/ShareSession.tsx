@@ -23,6 +23,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 export default function ShareSession({ closeShareSession }: Props) {

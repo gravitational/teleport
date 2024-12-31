@@ -25,6 +25,7 @@ import Dialog, {
 } from 'design/Dialog';
 import { NewTab as NewTabIcon } from 'design/Icon';
 import { DbProtocol } from 'shared/services/databases';
+
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';

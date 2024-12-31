@@ -23,6 +23,7 @@ import styled from 'styled-components';
 import { Box, ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
 

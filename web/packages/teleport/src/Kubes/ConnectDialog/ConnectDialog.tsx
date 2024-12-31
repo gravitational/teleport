@@ -23,6 +23,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';

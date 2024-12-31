@@ -22,6 +22,7 @@ import { MemoryRouter } from 'react-router';
 import { withoutQuery } from 'web/packages/build/storybook';
 
 import { Flex, H2 } from 'design';
+
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {

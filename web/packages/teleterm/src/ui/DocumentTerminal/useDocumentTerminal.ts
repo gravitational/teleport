@@ -17,6 +17,10 @@
  */
 
 import { useEffect, useRef } from 'react';
+
+import { useAsync } from 'shared/hooks/useAsync';
+import { runOnce } from 'shared/utils/highbar';
+
 import Logger from 'teleterm/logger';
 import type { Shell } from 'teleterm/mainProcess/shell';
 import {
@@ -41,9 +45,6 @@ import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
 import type * as uri from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-
-import { useAsync } from 'shared/hooks/useAsync';
-import { runOnce } from 'shared/utils/highbar';
 
 export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const logger = useRef(new Logger('useDocumentTerminal'));

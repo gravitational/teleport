@@ -33,6 +33,7 @@ import * as Alerts from 'design/Alert';
 import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
 import TextEditor from 'shared/components/TextEditor';
 import { useAttempt } from 'shared/hooks';
+
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 export default function ResourceEditor(props) {

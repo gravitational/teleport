@@ -23,6 +23,7 @@ import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { Router } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
+
 import { clusters } from 'teleport/Clusters/fixtures';
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';

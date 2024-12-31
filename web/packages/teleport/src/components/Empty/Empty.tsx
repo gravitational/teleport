@@ -27,6 +27,7 @@ import {
   ResourceIcon,
   Text,
 } from 'design';
+
 import cfg from 'teleport/config';
 
 export default function Empty(props: Props) {

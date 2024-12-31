@@ -23,6 +23,7 @@ import { Box, ButtonLink, Flex, Label, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
+
 import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../shared/CopyButton';

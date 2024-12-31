@@ -19,6 +19,7 @@
 import { MemoryRouter } from 'react-router-dom';
 
 import { render, screen } from 'design/utils/testing';
+
 import { ContextProvider } from 'teleport';
 import { allAccessAcl } from 'teleport/mocks/contexts';
 import TeleportContext from 'teleport/teleportContext';

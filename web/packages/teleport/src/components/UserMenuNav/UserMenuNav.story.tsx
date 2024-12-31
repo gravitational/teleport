@@ -19,6 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import * as Icons from 'design/Icon';
+
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { makeUserContext } from 'teleport/services/user';

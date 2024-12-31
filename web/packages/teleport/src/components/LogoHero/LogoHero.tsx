@@ -25,6 +25,7 @@ import CommunityLogoLight from 'design/assets/images/community-light.svg';
 import EnterpriseLogoDark from 'design/assets/images/enterprise-dark.svg';
 import EnterpriseLogoLight from 'design/assets/images/enterprise-light.svg';
 import Image from 'design/Image';
+
 import cfg, { TeleportEdition } from 'teleport/config';
 
 type LogoMap = {

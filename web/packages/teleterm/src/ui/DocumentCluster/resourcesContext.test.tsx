@@ -17,6 +17,7 @@
  */
 
 import { renderHook } from '@testing-library/react';
+
 import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
 
 import {

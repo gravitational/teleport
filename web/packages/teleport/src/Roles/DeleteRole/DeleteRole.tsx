@@ -24,6 +24,7 @@ import Dialog, {
   DialogTitle,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import { State as ResourceState } from 'teleport/components/useResources';
 
 export default function DeleteRoleDialog(props: Props) {

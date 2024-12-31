@@ -22,6 +22,7 @@ import { Icon } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
+
 import { ResourceLabel } from 'teleport/services/agents';
 import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 

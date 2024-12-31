@@ -21,6 +21,7 @@ import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
+
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ServerLocation } from 'teleport/Discover/SelectResource';

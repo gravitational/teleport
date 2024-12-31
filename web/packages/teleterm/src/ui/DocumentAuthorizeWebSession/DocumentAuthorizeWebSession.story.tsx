@@ -17,6 +17,9 @@
  */
 
 import { Meta } from '@storybook/react';
+
+import { wait } from 'shared/utils/wait';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeLoggedInUser,
@@ -27,8 +30,6 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-
-import { wait } from 'shared/utils/wait';
 
 import { DocumentAuthorizeWebSession } from './DocumentAuthorizeWebSession';
 

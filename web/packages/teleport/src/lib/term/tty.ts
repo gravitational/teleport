@@ -17,6 +17,7 @@
  */
 
 import Logger from 'shared/libs/logger';
+
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { MfaChallengeResponse } from 'teleport/services/mfa';

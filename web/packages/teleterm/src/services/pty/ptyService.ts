@@ -17,6 +17,7 @@
  */
 
 import { ChannelCredentials } from '@grpc/grpc-js';
+
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
 

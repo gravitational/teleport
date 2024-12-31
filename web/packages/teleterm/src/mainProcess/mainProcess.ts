@@ -16,6 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ChildProcess, exec, fork, spawn } from 'node:child_process';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { promisify } from 'node:util';
+
 import { ChannelCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import {
@@ -27,6 +32,7 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
+
 import Logger from 'teleterm/logger';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
@@ -51,11 +57,6 @@ import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
-
-import { ChildProcess, exec, fork, spawn } from 'node:child_process';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { promisify } from 'node:util';
 
 import {
   ConfigService,

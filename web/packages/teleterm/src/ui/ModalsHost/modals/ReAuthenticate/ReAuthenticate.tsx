@@ -17,11 +17,6 @@
  */
 
 import { FC, useEffect, useState } from 'react';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
-import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
-import { routing } from 'teleterm/ui/uri';
 
 import {
   Box,
@@ -39,13 +34,18 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import * as icons from 'design/Icon';
+import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
 
-import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
+import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import { routing } from 'teleterm/ui/uri';
 
 export const ReAuthenticate: FC<{
   promptMfaRequest: PromptMFARequest;

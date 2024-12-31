@@ -19,6 +19,7 @@
 import { ButtonBorder } from 'design';
 import { Cell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
+
 import { Event } from 'teleport/services/audit';
 
 export const ActionCell = props => {

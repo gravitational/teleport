@@ -19,6 +19,9 @@
 import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+
+import { Text } from 'design';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ConnectMyComputerContextProvider,
@@ -40,8 +43,6 @@ import {
   Workspace,
 } from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri, RootClusterUri } from 'teleterm/ui/uri';
-
-import { Text } from 'design';
 
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';

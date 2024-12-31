@@ -27,6 +27,7 @@ import {
   FileTransferRequests,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
+
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import * as stores from 'teleport/Console/stores';
 import { useMfa, useMfaTty } from 'teleport/lib/useMfa';

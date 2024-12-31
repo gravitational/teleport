@@ -30,6 +30,7 @@ import { useRefAutoFocus } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions from 'shared/utils/createMfaOptions';
+
 import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 

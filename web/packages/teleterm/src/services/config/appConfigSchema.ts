@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 import { z } from 'zod';
+
+import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 

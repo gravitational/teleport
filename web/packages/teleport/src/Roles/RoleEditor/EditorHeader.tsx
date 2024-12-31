@@ -18,6 +18,7 @@
 
 import { Box, ButtonIcon, Flex, H2, Indicator } from 'design';
 import { Cross } from 'design/Icon';
+
 import { Role } from 'teleport/services/resources';
 
 import { EditorTab, EditorTabs } from './EditorTabs';

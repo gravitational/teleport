@@ -26,6 +26,7 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import TextEditor from 'shared/components/TextEditor';
+
 import { Event } from 'teleport/services/audit';
 
 type EventDialogProps = {

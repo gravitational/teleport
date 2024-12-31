@@ -35,6 +35,8 @@ import {
   UserCircleGear,
   User as UserIcon,
 } from 'design/Icon';
+
+import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg from 'teleport/config';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
@@ -42,8 +44,6 @@ import {
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
-
-import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
 import { LockedAccessRequests } from './AccessRequests';
 import { AccountPage } from './Account';

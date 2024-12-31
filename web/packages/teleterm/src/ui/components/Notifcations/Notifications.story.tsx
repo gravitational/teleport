@@ -17,14 +17,14 @@
  */
 
 import { useState } from 'react';
-import { unique } from 'teleterm/ui/utils/uid';
-
-import { ButtonPrimary, Flex } from 'design';
 
 import type {
   NotificationItem,
   NotificationSeverity,
 } from '@gravitational/shared/components/Notification';
+import { ButtonPrimary, Flex } from 'design';
+
+import { unique } from 'teleterm/ui/utils/uid';
 
 import { Notifications } from '.';
 

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { debounce } from 'shared/utils/highbar';
+
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import { ConfigService } from 'teleterm/services/config';
@@ -42,8 +44,6 @@ import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications
 import { UsageService } from 'teleterm/ui/services/usage';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
 import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
-
-import { debounce } from 'shared/utils/highbar';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';

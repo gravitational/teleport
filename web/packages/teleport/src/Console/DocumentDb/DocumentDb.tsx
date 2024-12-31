@@ -19,6 +19,7 @@ import { useEffect, useRef } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Box, Indicator } from 'design';
+
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import Document from 'teleport/Console/Document';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';

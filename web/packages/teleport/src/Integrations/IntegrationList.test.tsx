@@ -20,6 +20,7 @@ import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+
 import { IntegrationList } from 'teleport/Integrations/IntegrationList';
 import {
   IntegrationKind,

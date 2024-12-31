@@ -23,6 +23,7 @@ import Table, { Cell } from 'design/DataTable';
 import { Apple, Linux, Lock, Windows } from 'design/Icon';
 import { IconCircle } from 'design/Icon/IconCircle';
 import { P } from 'design/Text/Text';
+
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,

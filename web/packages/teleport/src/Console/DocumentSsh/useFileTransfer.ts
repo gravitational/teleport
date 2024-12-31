@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useFileTransferContext } from 'shared/components/FileTransfer';
+
 import cfg from 'teleport/config';
 import { DocumentSsh } from 'teleport/Console/stores';
 import { EventType } from 'teleport/lib/term/enums';

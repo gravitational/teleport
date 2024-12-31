@@ -17,12 +17,13 @@
  */
 
 import { forwardRef } from 'react';
+
+import { Box } from 'design';
+
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
-
-import { Box } from 'design';
 
 import { PamIcon } from './PamIcon';
 import { UserIcon } from './UserIcon';

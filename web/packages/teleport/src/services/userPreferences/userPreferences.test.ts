@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
 import {
   BackendUserPreferences,
   convertBackendUserPreferences,
@@ -27,10 +31,6 @@ import {
   getNextTheme,
   updateFavicon,
 } from 'teleport/ThemeProvider';
-
-import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 test('should convert the old cluster user preferences format to the new one', () => {
   // this is how the backend currently returns cluster preferences - as an array of strings

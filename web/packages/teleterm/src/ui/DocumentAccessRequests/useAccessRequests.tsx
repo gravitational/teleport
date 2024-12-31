@@ -17,13 +17,10 @@
  */
 
 import { useEffect, useState } from 'react';
-import { AssumedRequest } from 'teleterm/services/tshd/types';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-import * as types from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import {
@@ -31,9 +28,12 @@ import {
   makeAccessRequest,
 } from 'shared/services/accessRequests';
 
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
-import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import * as types from 'teleterm/ui/services/workspacesService';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();

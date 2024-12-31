@@ -18,6 +18,7 @@
 import { Dispatch, SetStateAction } from 'react';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { FlatBot } from 'teleport/services/bot/types';
 
 export type BotOptionsCellProps = {

@@ -19,6 +19,7 @@
 import { useState } from 'react';
 
 import Table, { LabelCell } from 'design/DataTable';
+
 import { DeleteBot } from 'teleport/Bots/DeleteBot';
 import { EditBot } from 'teleport/Bots/EditBot';
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';

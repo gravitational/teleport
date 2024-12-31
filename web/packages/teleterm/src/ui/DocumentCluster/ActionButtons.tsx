@@ -17,6 +17,24 @@
  */
 
 import React from 'react';
+
+import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
+import {
+  MenuItemSectionLabel,
+  MenuItemSectionSeparator,
+} from 'design/Menu/MenuItem';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
+import {
+  MenuInputType,
+  MenuLogin,
+  MenuLoginProps,
+} from 'shared/components/MenuLogin';
+
 import {
   formatPortRange,
   getAwsAppLaunchUrl,
@@ -38,24 +56,6 @@ import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
-
-import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
-import {
-  MenuItemSectionLabel,
-  MenuItemSectionSeparator,
-} from 'design/Menu/MenuItem';
-import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import {
-  MenuInputType,
-  MenuLogin,
-  MenuLoginProps,
-} from 'shared/components/MenuLogin';
-
-import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
-import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 
 export function ConnectServerActionButton(props: {
   server: Server;

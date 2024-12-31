@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
+
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type UserConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
-
-import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
 
 import { generateAppHashFile } from './apphash';
 import { htmlPlugin, transformPlugin } from './html';

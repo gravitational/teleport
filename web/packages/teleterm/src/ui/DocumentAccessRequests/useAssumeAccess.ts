@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useAsync } from 'shared/hooks/useAsync';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-
-import { useAsync } from 'shared/hooks/useAsync';
 
 export function useAssumeAccess() {
   const ctx = useAppContext();

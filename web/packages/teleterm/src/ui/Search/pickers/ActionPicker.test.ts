@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
+
 import {
   makeRetryableError,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-
-import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { getActionPickerStatus } from './ActionPicker';
 

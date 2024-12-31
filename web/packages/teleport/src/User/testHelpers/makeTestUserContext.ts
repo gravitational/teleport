@@ -17,6 +17,7 @@
  */
 
 import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+
 import { UserContextValue } from 'teleport/User/UserContext';
 
 export const makeTestUserContext = (

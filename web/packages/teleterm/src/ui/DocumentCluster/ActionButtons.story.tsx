@@ -17,6 +17,9 @@
  */
 
 import { Meta } from '@storybook/react';
+
+import { Box, Flex, Text } from 'design';
+
 import {
   makeApp,
   makeDatabase,
@@ -28,8 +31,6 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-
-import { Box, Flex, Text } from 'design';
 
 import {
   AccessRequestButton,

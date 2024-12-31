@@ -23,6 +23,7 @@ import { P } from 'design/Text/Text';
 import { IconTooltip } from 'design/Tooltip';
 import TextEditor from 'shared/components/TextEditor';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';

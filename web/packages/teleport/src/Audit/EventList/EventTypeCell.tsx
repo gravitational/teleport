@@ -20,6 +20,7 @@ import styled from 'styled-components';
 
 import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
+
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
 const EventIconMap: Record<EventCode, any> = {

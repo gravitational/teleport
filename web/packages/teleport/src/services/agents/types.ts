@@ -18,6 +18,7 @@
 
 import type { Platform } from 'design/platform';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
+
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';

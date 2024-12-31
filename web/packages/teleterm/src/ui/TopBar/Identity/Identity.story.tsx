@@ -17,14 +17,14 @@
  */
 
 import { useEffect, useRef } from 'react';
+
+import Flex from 'design/Flex';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+
 import {
   makeLoggedInUser,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-
-import Flex from 'design/Flex';
-
-import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import { Identity, IdentityHandler, IdentityProps } from './Identity';
 import { IdentityRootCluster } from './useIdentity';

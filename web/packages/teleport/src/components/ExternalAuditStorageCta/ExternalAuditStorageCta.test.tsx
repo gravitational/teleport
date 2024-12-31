@@ -19,6 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
+
 import { clusters } from 'teleport/Clusters/fixtures';
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';

@@ -23,6 +23,10 @@ import {
   useMemo,
   useRef,
 } from 'react';
+
+import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { mapToAction } from 'teleterm/ui/Search/actions';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
@@ -35,9 +39,6 @@ import {
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
-
-import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
-import { debounce } from 'shared/utils/highbar';
 
 import { useDisplayResults } from './useDisplayResults';
 

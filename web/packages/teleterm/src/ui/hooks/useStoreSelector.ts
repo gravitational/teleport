@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useSyncExternalStore } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { IAppContext } from 'teleterm/ui/types';

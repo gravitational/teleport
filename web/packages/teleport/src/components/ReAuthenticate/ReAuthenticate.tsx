@@ -37,6 +37,7 @@ import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
+
 import { MfaOption } from 'teleport/services/mfa';
 
 import useReAuthenticate, {

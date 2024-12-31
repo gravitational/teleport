@@ -26,6 +26,7 @@ import {
   useRef,
   useState,
 } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import {

@@ -18,13 +18,14 @@
 
 import { JSX } from 'react';
 import styled from 'styled-components';
-import { LoggedInUser } from 'teleterm/services/tshd/types';
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 
 import { Box, Flex, Label, P3, Text } from 'design';
 import { ShieldCheck, ShieldWarning } from 'design/Icon';
 import Link from 'design/Link';
+
+import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 
 import { IdentityRootCluster } from '../useIdentity';
 import { AddNewClusterItem } from './AddNewClusterItem';

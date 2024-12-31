@@ -22,6 +22,7 @@ import styled from 'styled-components';
 
 import { Box, Flex, P3, Text } from 'design';
 import { color, height, space } from 'design/system';
+
 import { storageService } from 'teleport/services/storageService';
 
 import { RecentHistory, RecentHistoryItem } from '../RecentHistory';

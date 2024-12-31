@@ -23,6 +23,7 @@ import { Flex, H2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { MenuIcon } from 'shared/components/MenuAction';
+
 import { DocumentSsh } from 'teleport/Console/stores';
 
 export const WARN_THRESHOLD = 150;

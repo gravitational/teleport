@@ -19,6 +19,7 @@
 import styled from 'styled-components';
 
 import { Box } from 'design';
+
 import { State as ResourceState } from 'teleport/components/useResources';
 
 import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';

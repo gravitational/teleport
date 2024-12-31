@@ -17,6 +17,10 @@
  */
 
 import userEvent from '@testing-library/user-event';
+
+import { act, render, screen, waitFor } from 'design/utils/testing';
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
+
 import Logger, { NullService } from 'teleterm/logger';
 import {
   makeRetryableError,
@@ -29,9 +33,6 @@ import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { ClusterUri } from 'teleterm/ui/uri';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-
-import { act, render, screen, waitFor } from 'design/utils/testing';
-import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { SearchAction } from './actions';
 import * as pickers from './pickers/pickers';

@@ -17,6 +17,7 @@
  */
 
 import Logger from 'shared/libs/logger';
+
 import init, {
   FastPathProcessor,
   init_wasm_log,

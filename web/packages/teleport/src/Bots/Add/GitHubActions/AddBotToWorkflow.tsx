@@ -20,6 +20,7 @@ import { H2, Text } from 'design';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import TextEditor from 'shared/components/TextEditor';
+
 import useTeleport from 'teleport/useTeleport';
 
 import { FlowButtons } from '../Shared/FlowButtons';

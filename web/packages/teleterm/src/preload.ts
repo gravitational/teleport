@@ -19,6 +19,7 @@
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import { contextBridge, webUtils } from 'electron';
+
 import Logger from 'teleterm/logger';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import {

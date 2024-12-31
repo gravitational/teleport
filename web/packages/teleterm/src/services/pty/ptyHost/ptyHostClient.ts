@@ -17,6 +17,7 @@
  */
 
 import { ChannelCredentials, Metadata } from '@grpc/grpc-js';
+
 import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
 import {
   PtyHostClient as GrpcClient,

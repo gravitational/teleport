@@ -18,6 +18,7 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { PropsWithChildren } from 'react';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';

@@ -21,6 +21,7 @@ import { ReactElement } from 'react';
 import { NewFlow, StepComponentProps } from 'design/StepSlider';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType, PrimaryAuthType } from 'shared/services';
+
 import { RecoveryCodesProps } from 'teleport/components/RecoveryCodes';
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 import { DeviceUsage } from 'teleport/services/mfa';

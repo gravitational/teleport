@@ -23,6 +23,7 @@ import styled from 'styled-components';
 
 import { ButtonIcon, Flex, H4, P3, Text } from 'design';
 import { Cross } from 'design/Icon';
+
 import { useFeatures } from 'teleport/FeaturesContext';
 import { TeleportFeature } from 'teleport/types';
 

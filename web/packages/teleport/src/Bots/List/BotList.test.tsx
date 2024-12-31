@@ -17,6 +17,7 @@
  */
 
 import { fireEvent, render, screen } from 'design/utils/testing';
+
 import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
 import { BotListProps } from 'teleport/Bots/types';

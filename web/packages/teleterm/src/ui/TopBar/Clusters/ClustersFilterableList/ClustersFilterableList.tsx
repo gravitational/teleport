@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Box, Text } from 'design';
+
 import { Cluster } from 'teleterm/services/tshd/types';
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-
-import { Box, Text } from 'design';
 
 import { ClusterItem } from './ClusterItem';
 

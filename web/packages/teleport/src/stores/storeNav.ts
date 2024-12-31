@@ -17,6 +17,7 @@
  */
 
 import { Store } from 'shared/libs/stores';
+
 import { NavGroup, NavTitle } from 'teleport/types';
 
 export const defaultNavState = {

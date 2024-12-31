@@ -21,6 +21,7 @@ import styled from 'styled-components';
 
 import { Box, Flex, rotate360 } from 'design';
 import { Spinner } from 'design/Icon';
+
 import HeadlessRequestDialog from 'teleport/components/HeadlessRequestDialog/HeadlessRequestDialog';
 import { useParams } from 'teleport/components/Router';
 import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';

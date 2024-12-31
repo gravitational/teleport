@@ -17,6 +17,11 @@
  */
 
 import { useState } from 'react';
+
+import { Flex } from 'design';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
+
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import {
   makeApp,
@@ -29,11 +34,6 @@ import {
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { routing } from 'teleterm/ui/uri';
 import type * as uri from 'teleterm/ui/uri';
-
-import { Flex } from 'design';
-import { makeSuccessAttempt } from 'shared/hooks/useAsync';
-
-import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 
 import { SearchResult, SearchResultApp } from '../searchResult';
 import { makeResourceResult } from '../testHelpers';

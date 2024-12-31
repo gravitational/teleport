@@ -21,15 +21,15 @@ import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import { EncodeUrlQueryParamsProps } from 'teleport/components/hooks/useUrlFiltering/encodeUrlQueryParams';
 import cfg from 'teleport/config';
 import { ResourceIdKind } from 'teleport/services/agents';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import { CustomNavigationSubcategory, NavigationCategory } from './categories';
 import { NavigationSection, NavigationSubsection } from './Navigation';

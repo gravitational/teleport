@@ -21,6 +21,7 @@ import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+
 import { TextIcon } from 'teleport/Discover/Shared/Text';
 
 const HintBoxContainer = styled(Box).attrs<{ maxWidth?: string }>(props => ({

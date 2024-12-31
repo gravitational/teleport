@@ -21,6 +21,7 @@ import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router-dom';
 
 import { render, screen, waitFor } from 'design/utils/testing';
+
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';

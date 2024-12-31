@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { ChildProcess } from 'node:child_process';
+import stream from 'node:stream';
+
 import split2 from 'split2';
 import winston, {
   createLogger as createWinston,
@@ -23,9 +26,6 @@ import winston, {
   transports,
   type Logform,
 } from 'winston';
-
-import type { ChildProcess } from 'node:child_process';
-import stream from 'node:stream';
 
 import { isObject } from 'shared/utils/highbar';
 

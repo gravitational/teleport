@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { RootClusterUri } from 'teleterm/ui/uri';
-
 import { ButtonIcon, ButtonWarning, H2 } from 'design';
 import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
@@ -27,6 +25,8 @@ import DialogConfirmation, {
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
 import { P } from 'design/Text/Text';
+
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useClusterLogout } from './useClusterLogout';
 

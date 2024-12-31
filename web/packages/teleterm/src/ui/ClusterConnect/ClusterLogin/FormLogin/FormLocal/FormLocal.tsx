@@ -17,13 +17,14 @@
  */
 
 import React, { useState } from 'react';
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import { ButtonPrimary, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
+
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import type { Props } from '../FormLogin';
 

@@ -26,6 +26,7 @@ import {
   MenuLogin,
 } from 'shared/components/MenuLogin';
 import { AwsRole } from 'shared/services/apps';
+
 import cfg from 'teleport/config';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';

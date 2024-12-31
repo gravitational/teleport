@@ -20,6 +20,7 @@ import { useState } from 'react';
 
 import { Option } from 'shared/components/Select';
 import { useAttemptNext } from 'shared/hooks';
+
 import { AllUserTraits, ResetToken, User } from 'teleport/services/user';
 
 import type { TraitsOption } from './TraitsEditor';

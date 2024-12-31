@@ -28,12 +28,11 @@ import {
   Link,
   Text,
 } from 'design';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
-
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { PortFieldInput } from '../components/FieldInputs';
 

@@ -17,6 +17,7 @@
  */
 
 import { Flex, Label as Pill } from 'design';
+
 import { Label } from 'teleport/types';
 
 export const Labels = ({ labels }: { labels: Label[] }) => {

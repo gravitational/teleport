@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd';
 import {
@@ -37,8 +39,6 @@ import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
-
-import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 export interface IAppContext {
   clustersService: ClustersService;

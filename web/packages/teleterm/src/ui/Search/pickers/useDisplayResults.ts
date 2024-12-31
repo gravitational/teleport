@@ -17,6 +17,7 @@
  */
 
 import { useMemo } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   DisplayResults,

@@ -21,6 +21,7 @@ import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
 import { gap, GapProps } from 'design/system';
+
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';

@@ -27,6 +27,7 @@ import styled from 'styled-components';
 
 import { Flex } from 'design';
 import { getPlatformType } from 'design/platform';
+
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';

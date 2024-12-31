@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
-
 import { Box, ButtonSecondary, Flex, Text } from 'design';
+
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 export default function PromptSsoStatus(props: Props) {
   return (

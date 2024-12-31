@@ -26,6 +26,15 @@ import {
   useMemo,
   useState,
 } from 'react';
+
+import {
+  Attempt,
+  makeEmptyAttempt,
+  makeSuccessAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
+import { wait } from 'shared/utils/wait';
+
 import type {
   AgentProcessState,
   MainProcessClient,
@@ -39,14 +48,6 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
-
-import {
-  Attempt,
-  makeEmptyAttempt,
-  makeSuccessAttempt,
-  useAsync,
-} from 'shared/hooks/useAsync';
-import { wait } from 'shared/utils/wait';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 import { ConnectMyComputerAccess, getConnectMyComputerAccess } from './access';

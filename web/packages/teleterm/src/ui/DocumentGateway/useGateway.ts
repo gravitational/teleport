@@ -17,16 +17,16 @@
  */
 
 import { useCallback, useEffect } from 'react';
+
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { useAsync } from 'shared/hooks/useAsync';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-
-import { useAsync } from 'shared/hooks/useAsync';
-
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 export function useGateway(doc: DocumentGateway) {
   const ctx = useAppContext();

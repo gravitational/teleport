@@ -19,6 +19,7 @@
 import { createMemoryHistory } from 'history';
 
 import { Flex } from 'design';
+
 import { Route, Router } from 'teleport/components/Router';
 
 import { Player } from './Player';

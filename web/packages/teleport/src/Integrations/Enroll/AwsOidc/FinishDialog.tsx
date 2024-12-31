@@ -28,6 +28,7 @@ import Dialog, {
   DialogHeader,
 } from 'design/Dialog';
 import { CircleCheck } from 'design/Icon';
+
 import cfg from 'teleport/config';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { Integration } from 'teleport/services/integrations';

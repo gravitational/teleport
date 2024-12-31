@@ -17,6 +17,7 @@
  */
 
 import { fireEvent, render, screen } from 'design/utils/testing';
+
 import history from 'teleport/services/history';
 
 import FormLogin, { Props } from './FormLogin';

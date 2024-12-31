@@ -20,6 +20,7 @@ import { Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { displayDate } from 'design/datetime';
 import { dateMatcher } from 'design/utils/match';
+
 import { MfaDevice } from 'teleport/services/mfa/types';
 
 import { renderActionCell, SimpleListProps } from '../common';

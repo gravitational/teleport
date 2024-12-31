@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
+
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';

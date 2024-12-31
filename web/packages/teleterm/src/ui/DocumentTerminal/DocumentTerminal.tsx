@@ -17,10 +17,6 @@
  */
 
 import { useCallback, useState } from 'react';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import Document from 'teleterm/ui/Document';
-import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
-import type * as types from 'teleterm/ui/services/workspacesService';
 
 import {
   FileTransfer,
@@ -28,6 +24,11 @@ import {
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import Document from 'teleterm/ui/Document';
+import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
+import type * as types from 'teleterm/ui/services/workspacesService';
 
 import { Reconnect } from './Reconnect';
 import { Terminal } from './Terminal';

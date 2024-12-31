@@ -22,6 +22,7 @@ import styled from 'styled-components';
 import { Box, Link as ExternalLink, Flex, ResourceIcon, Text } from 'design';
 import { Server } from 'design/Icon';
 import { P } from 'design/Text/Text';
+
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';

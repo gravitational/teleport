@@ -17,6 +17,7 @@
  */
 
 import { platformToGOOS } from 'design/platform';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 

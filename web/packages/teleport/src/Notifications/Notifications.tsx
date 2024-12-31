@@ -31,6 +31,7 @@ import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 import Logger from 'shared/libs/logger';
 import { useStore } from 'shared/libs/stores';
+
 import { useTeleport } from 'teleport';
 import { Dropdown } from 'teleport/components/Dropdown';
 import {

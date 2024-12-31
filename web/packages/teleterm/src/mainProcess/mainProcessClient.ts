@@ -17,6 +17,7 @@
  */
 
 import { ipcRenderer } from 'electron';
+
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';

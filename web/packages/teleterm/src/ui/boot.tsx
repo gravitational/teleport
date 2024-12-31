@@ -18,6 +18,7 @@
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+
 import Logger from 'teleterm/logger';
 import { ElectronGlobals } from 'teleterm/types';
 import { App } from 'teleterm/ui/App';

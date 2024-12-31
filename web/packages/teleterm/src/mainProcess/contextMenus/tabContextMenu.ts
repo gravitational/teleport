@@ -23,6 +23,7 @@ import {
   Menu,
   MenuItemConstructorOptions,
 } from 'electron';
+
 import { makeCustomShellFromPath, Shell } from 'teleterm/mainProcess/shell';
 import { ConfigService } from 'teleterm/services/config';
 import {

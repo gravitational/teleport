@@ -17,6 +17,7 @@
  */
 
 import { useLayoutEffect } from 'react';
+
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 import {

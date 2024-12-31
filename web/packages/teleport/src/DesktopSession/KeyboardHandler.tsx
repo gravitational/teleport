@@ -17,6 +17,7 @@
  */
 
 import { getPlatform, Platform } from 'design/platform';
+
 import { ButtonState, TdpClient } from 'teleport/lib/tdp';
 import { SyncKeys } from 'teleport/lib/tdp/codec';
 

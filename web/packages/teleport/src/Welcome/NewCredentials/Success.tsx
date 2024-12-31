@@ -17,6 +17,7 @@
  */
 
 import { ButtonPrimary, Flex, H2, Image, Text } from 'design';
+
 import shieldCheck from 'teleport/assets/shield-check.png';
 import { OnboardCard } from 'teleport/components/Onboard';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';

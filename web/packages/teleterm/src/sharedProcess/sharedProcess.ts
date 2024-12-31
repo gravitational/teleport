@@ -17,6 +17,7 @@
  */
 
 import { Server, ServerCredentials } from '@grpc/grpc-js';
+
 import Logger from 'teleterm/logger';
 import { RuntimeSettings, TERMINATE_MESSAGE } from 'teleterm/mainProcess/types';
 import {

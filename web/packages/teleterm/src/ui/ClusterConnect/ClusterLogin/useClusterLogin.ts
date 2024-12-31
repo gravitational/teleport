@@ -17,13 +17,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+
+import { useAsync } from 'shared/hooks/useAsync';
+
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import type * as types from 'teleterm/ui/services/clusters/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
-
-import { useAsync } from 'shared/hooks/useAsync';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;

@@ -19,6 +19,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { FetchStatus } from 'design/DataTable/types';
+
 import { UrlResourcesParams } from 'teleport/config';
 
 import { CommonListProps, LockResourceKind } from '../../common';

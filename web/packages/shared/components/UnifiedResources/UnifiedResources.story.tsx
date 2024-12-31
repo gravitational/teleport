@@ -19,15 +19,6 @@
 import { useState } from 'react';
 
 import { ButtonBorder } from 'design';
-import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
-import { apps, moreApps } from 'teleport/Apps/fixtures';
-import { UrlResourcesParams } from 'teleport/config';
-import { databases, moreDatabases } from 'teleport/Databases/fixtures';
-import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
-import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
-import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
-import { ResourcesResponse } from 'teleport/services/agents';
-
 import {
   AvailableResourceMode,
   DefaultTab,
@@ -35,6 +26,15 @@ import {
   UnifiedResourcePreferences,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
+
+import { apps, moreApps } from 'teleport/Apps/fixtures';
+import { UrlResourcesParams } from 'teleport/config';
+import { databases, moreDatabases } from 'teleport/Databases/fixtures';
+import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
+import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
+import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {

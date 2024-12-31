@@ -18,11 +18,12 @@
 
 import { useState } from 'react';
 import styled from 'styled-components';
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Image, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
+
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import type { PasswordlessLoginState } from '../../useClusterLogin';
 import svgHardwareKey from './hardware.svg';

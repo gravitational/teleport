@@ -21,7 +21,6 @@ import { useArgs } from '@storybook/preview-api';
 import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 
 import { Flex } from 'design';
-
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ViewModeSwitch } from './ViewModeSwitch';

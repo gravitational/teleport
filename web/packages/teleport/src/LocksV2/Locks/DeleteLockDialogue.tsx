@@ -25,6 +25,7 @@ import Dialog, {
   DialogTitle,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import { Lock } from 'teleport/services/locks';
 
 import { Pills } from './Locks';

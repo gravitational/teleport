@@ -19,6 +19,7 @@
 import { Box, Mark, Label as Pill } from 'design';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
+
 import { LabelsCreater, TextIcon } from 'teleport/Discover/Shared';
 import { ResourceLabel } from 'teleport/services/agents';
 import { Regions } from 'teleport/services/integrations';

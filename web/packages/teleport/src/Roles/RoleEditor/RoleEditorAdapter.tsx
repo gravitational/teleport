@@ -30,6 +30,7 @@ import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import { H1 } from 'design/Text';
 import { H3, P, P3 } from 'design/Text/Text';
 import { useAsync } from 'shared/hooks/useAsync';
+
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { State as ResourcesState } from 'teleport/components/useResources';
 import cfg from 'teleport/config';

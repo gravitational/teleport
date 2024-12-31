@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { PromptHardwareKeyPINChangeResponse } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+
 import Logger from 'teleterm/logger';
 import { TshdEventContextBridgeService } from 'teleterm/types';
 import { IAppContext } from 'teleterm/ui/types';
-
-import { PromptHardwareKeyPINChangeResponse } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 export function createTshdEventsContextBridgeService(
   ctx: IAppContext

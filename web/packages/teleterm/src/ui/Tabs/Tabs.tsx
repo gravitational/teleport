@@ -17,11 +17,12 @@
  */
 
 import styled from 'styled-components';
-import { Document } from 'teleterm/ui/services/workspacesService';
 
 import { Box } from 'design';
 import { typography } from 'design/system';
 import { TypographyProps } from 'design/system/typography';
+
+import { Document } from 'teleterm/ui/services/workspacesService';
 
 import { NewTabItem, TabItem } from './TabItem';
 

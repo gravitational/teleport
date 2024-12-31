@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Document from 'teleterm/ui/Document';
-import * as types from 'teleterm/ui/services/workspacesService';
-
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 import { Attempt } from 'shared/hooks/useAsync';
 import { AccessRequest } from 'shared/services/accessRequests';
+
+import Document from 'teleterm/ui/Document';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 import { NewRequest } from './NewRequest';
 import { RequestList } from './RequestList/RequestList';

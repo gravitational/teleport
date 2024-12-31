@@ -19,6 +19,7 @@
 import { Link, useLocation } from 'react-router-dom';
 
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
+
 import cfg from 'teleport/config';
 
 import { FlowStepProps } from './GuidedFlow';

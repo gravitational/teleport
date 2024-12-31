@@ -18,11 +18,12 @@
 
 import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
+
+import { Flex, Label, Text } from 'design';
+
 import { Cluster } from 'teleterm/services/tshd/types';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
-
-import { Flex, Label, Text } from 'design';
 
 interface ClusterItemProps {
   index: number;

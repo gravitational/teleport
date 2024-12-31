@@ -17,13 +17,14 @@
  */
 
 import { screen } from '@testing-library/react';
+
+import { render } from 'design/utils/testing';
+
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-
-import { render } from 'design/utils/testing';
 
 import {
   checkAgentCompatibility,

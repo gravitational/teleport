@@ -19,6 +19,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { EventEmitter } from 'node:events';
+
 import {
   ClientStreamingCall,
   DuplexStreamingCall,
@@ -29,8 +31,6 @@ import {
   ServiceInfo,
   UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
-
-import { EventEmitter } from 'node:events';
 
 import {
   cloneAbortSignal,

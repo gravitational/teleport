@@ -17,6 +17,7 @@
  */
 
 import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+
 import {
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,

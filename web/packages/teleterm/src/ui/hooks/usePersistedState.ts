@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useState } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
 

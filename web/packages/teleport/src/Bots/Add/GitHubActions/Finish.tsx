@@ -22,6 +22,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import Image from 'design/Image';
 import Text, { H2 } from 'design/Text';
+
 import cfg from 'teleport/config';
 import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
 

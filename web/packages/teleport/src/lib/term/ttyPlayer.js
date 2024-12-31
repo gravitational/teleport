@@ -18,6 +18,7 @@
 
 import Logger from 'shared/libs/logger';
 import { throttle } from 'shared/utils/highbar';
+
 import { StatusEnum } from 'teleport/lib/player';
 
 import { TermEvent, WebsocketCloseCode } from './enums';

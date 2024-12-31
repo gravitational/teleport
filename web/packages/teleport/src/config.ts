@@ -27,6 +27,7 @@ import type {
   PrimaryAuthType,
 } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
+
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,

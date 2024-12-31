@@ -28,6 +28,7 @@ import {
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
 import type { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { TextIcon } from 'teleport/Discover/Shared';
 import { Timeout } from 'teleport/Discover/Shared/Timeout';
 

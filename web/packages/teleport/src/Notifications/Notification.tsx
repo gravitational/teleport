@@ -33,6 +33,7 @@ import { Theme } from 'design/theme/themes/types';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
 import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
+
 import history from 'teleport/services/history';
 import {
   NotificationState,

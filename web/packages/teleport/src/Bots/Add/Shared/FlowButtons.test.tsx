@@ -20,6 +20,7 @@ import { createMemoryHistory } from 'history';
 import { MemoryRouter, Router } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
+
 import cfg from 'teleport/config';
 
 import { FlowButtons, FlowButtonsProps } from './FlowButtons';

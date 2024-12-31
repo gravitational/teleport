@@ -17,6 +17,7 @@
  */
 
 import Table from 'design/DataTable';
+
 import { RoleResource } from 'teleport/services/resources';
 
 import { renderActionCell, ServerSideListProps } from '../common';

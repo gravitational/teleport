@@ -31,6 +31,7 @@ import {
 } from 'design';
 import * as Icons from 'design/Icon';
 import type { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 import type { ConnectionDiagnostic } from 'teleport/services/agents';
 

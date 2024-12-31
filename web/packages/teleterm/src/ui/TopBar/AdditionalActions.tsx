@@ -18,6 +18,10 @@
 
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
+
+import { Flex, Popover, Text } from 'design';
+import * as icons from 'design/Icon';
+
 import { KeyboardShortcutAction } from 'teleterm/services/config';
 import { Cluster } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -27,9 +31,6 @@ import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService
 import { useNewTabOpener } from 'teleterm/ui/TabHost';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { IAppContext } from 'teleterm/ui/types';
-
-import { Flex, Popover, Text } from 'design';
-import * as icons from 'design/Icon';
 
 type MenuItem = {
   title: string;

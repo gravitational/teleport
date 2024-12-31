@@ -18,6 +18,9 @@
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+
+import { Box, Flex } from 'design';
+
 import { KeyboardShortcutAction } from 'teleterm/services/config';
 import {
   SearchContextProvider,
@@ -27,8 +30,6 @@ import {
   useKeyboardShortcutFormatters,
   useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
-
-import { Box, Flex } from 'design';
 
 import { useAppContext } from '../appContextProvider';
 import { useStoreSelector } from '../hooks/useStoreSelector';

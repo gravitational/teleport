@@ -18,12 +18,13 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { ClusterUri } from 'teleterm/ui/uri';
 
 import { Box } from 'design';
 import Popover from 'design/Popover';
+
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+import { ClusterUri } from 'teleterm/ui/uri';
 
 import { ClusterSelector } from './ClusterSelector/ClusterSelector';
 import { ClustersFilterableList } from './ClustersFilterableList/ClustersFilterableList';

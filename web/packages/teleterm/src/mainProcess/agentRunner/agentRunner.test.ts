@@ -19,13 +19,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Logger, { NullService } from 'teleterm/logger';
-import { RootClusterUri } from 'teleterm/ui/uri';
-
 import childProcess, { ChildProcess } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
+import Logger, { NullService } from 'teleterm/logger';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import * as mocks from '../fixtures/mocks';
 import { AgentProcessState, RuntimeSettings } from '../types';

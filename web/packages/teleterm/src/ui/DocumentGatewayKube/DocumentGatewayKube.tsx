@@ -17,6 +17,9 @@
  */
 
 import { useEffect } from 'react';
+
+import { useAsync } from 'shared/hooks/useAsync';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -24,8 +27,6 @@ import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-
-import { useAsync } from 'shared/hooks/useAsync';
 
 import { OfflineGateway } from '../components/OfflineGateway';
 

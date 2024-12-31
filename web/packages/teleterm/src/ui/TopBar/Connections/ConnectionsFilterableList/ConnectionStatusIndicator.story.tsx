@@ -17,9 +17,10 @@
  */
 
 import styled from 'styled-components';
-import { StaticListItem } from 'teleterm/ui/components/ListItem';
 
 import { Box, Flex, H2, Text } from 'design';
+
+import { StaticListItem } from 'teleterm/ui/components/ListItem';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 

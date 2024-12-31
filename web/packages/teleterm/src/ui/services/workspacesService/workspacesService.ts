@@ -17,6 +17,17 @@
  */
 
 import { Immutable, produce } from 'immer';
+import { z } from 'zod';
+
+import {
+  AvailableResourceMode,
+  DefaultTab,
+  LabelsViewMode,
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { arrayObjectIsEqual } from 'shared/utils/highbar';
+
 import Logger from 'teleterm/logger';
 import {
   identitySelector,
@@ -37,17 +48,6 @@ import {
   RootClusterUri,
   routing,
 } from 'teleterm/ui/uri';
-import { z } from 'zod';
-
-import { arrayObjectIsEqual } from 'shared/utils/highbar';
-
-import {
-  AvailableResourceMode,
-  DefaultTab,
-  LabelsViewMode,
-  UnifiedResourcePreferences,
-  ViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import {
   AccessRequestsService,
