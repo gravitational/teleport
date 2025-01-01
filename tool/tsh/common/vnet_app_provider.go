@@ -29,14 +29,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
-// vnetAppProvider implements [vnet.AppProvider] in order to provide the
+// vnetAppProvider implements [vnet.LocalAppProvider] in order to provide the
 // necessary methods to log in to apps and get clients able to list apps in all
 // clusters in all current profiles.
 type vnetAppProvider struct {
@@ -83,8 +82,8 @@ func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 // was shorter than the cluster cert lifetime, or if the user has already re-logged in to the cluster.
 // If a cluster relogin is completed, the cluster client cache will be cleared for the root cluster and all
 // leaf clusters of that root.
-func (p *vnetAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
-	tc, err := p.newTeleportClient(ctx, profileName, leafClusterName)
+func (p *vnetAppProvider) ReissueAppCert(ctx context.Context, appInfo *vnet.AppInfo, routeToApp *proto.RouteToApp) (tls.Certificate, error) {
+	tc, err := p.newTeleportClient(ctx, appInfo.ProfileName, appInfo.LeafClusterName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -92,7 +91,7 @@ func (p *vnetAppProvider) ReissueAppCert(ctx context.Context, profileName, leafC
 	var cert tls.Certificate
 	err = p.retryWithRelogin(ctx, tc, func() error {
 		var err error
-		cert, err = p.reissueAppCert(ctx, tc, profileName, leafClusterName, routeToApp)
+		cert, err = p.reissueAppCert(ctx, tc, appInfo.ProfileName, appInfo.LeafClusterName, routeToApp)
 		return trace.Wrap(err, "reissuing app cert")
 	})
 	return cert, trace.Wrap(err)
@@ -120,16 +119,17 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 
 // OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do
 // anything extra here.
-func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
+func (p *vnetAppProvider) OnNewConnection(_ context.Context, _ *vnet.AppInfo) error {
 	return nil
 }
 
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 // because the provided port does not match any of the TCP ports in the app spec.
-func (p *vnetAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
+func (p *vnetAppProvider) OnInvalidLocalPort(ctx context.Context, appInfo *vnet.AppInfo, routeToApp *proto.RouteToApp) {
 	msg := fmt.Sprintf("%s: Connection refused, port not included in target ports of app %q.",
 		net.JoinHostPort(routeToApp.PublicAddr, strconv.Itoa(int(routeToApp.TargetPort))), routeToApp.Name)
 
+	tcpPorts := appInfo.App.GetTCPPorts()
 	if len(tcpPorts) <= 10 {
 		msg = fmt.Sprintf("%s Valid ports: %s.", msg, tcpPorts)
 	}
@@ -186,7 +186,7 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 	return client.RetryWithRelogin(ctx, tc, fn, opts...)
 }
 
-func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
+func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, routeToApp *proto.RouteToApp) (tls.Certificate, error) {
 	slog.InfoContext(ctx, "Reissuing cert for app.", "app_name", routeToApp.Name, "profile", profileName, "leaf_cluster", leafClusterName)
 
 	profile, err := tc.ProfileStatus()
@@ -196,7 +196,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
-		RouteToApp:     routeToApp,
+		RouteToApp:     *routeToApp,
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 		TTL:            tc.KeyTTL,

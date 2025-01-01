@@ -31,22 +31,17 @@ import (
 
 // UserProcessConfig provides the necessary configuration to run VNet.
 type UserProcessConfig struct {
-	// AppProvider is a required field providing an interface implementation for [AppProvider].
-	AppProvider AppProvider
-	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
-	// will be created.
+	// LocalAppProvider is a required field providing an interface
+	// implementation for [LocalAppProvider].
+	LocalAppProvider LocalAppProvider
+	// ClusterConfigCache is an optional field providing [ClusterConfigCache].
+	// If empty, a new cache will be created.
 	ClusterConfigCache *ClusterConfigCache
-	// HomePath is the tsh home used for Teleport clients created by VNet. Resolved using the same
-	// rules as HomeDir in tsh.
-	HomePath string
 }
 
 func (c *UserProcessConfig) CheckAndSetDefaults() error {
-	if c.AppProvider == nil {
+	if c.LocalAppProvider == nil {
 		return trace.BadParameter("missing AppProvider")
-	}
-	if c.HomePath == "" {
-		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
 	return nil
 }
@@ -99,7 +94,7 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 			SocketPath: socketPath,
 			IPv6Prefix: ipv6Prefix.String(),
 			DNSAddr:    dnsIPv6.String(),
-			HomePath:   config.HomePath,
+			HomePath:   profile.FullProfilePath(os.Getenv(types.HomeEnvVar)),
 		}
 		return trace.Wrap(execAdminProcess(processCtx, adminConfig))
 	})
@@ -140,7 +135,7 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 		}
 	}
 
-	appResolver, err := newTCPAppResolver(config.AppProvider,
+	appResolver, err := newLocalTCPAppResolver(config.LocalAppProvider,
 		WithClusterConfigCache(config.ClusterConfigCache))
 	if err != nil {
 		return nil, trace.Wrap(err)

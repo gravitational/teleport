@@ -36,8 +36,9 @@ import (
 
 // UserProcessConfig provides the necessary configuration to run VNet.
 type UserProcessConfig struct {
-	// AppProvider is a required field providing an interface implementation for [AppProvider].
-	AppProvider AppProvider
+	// LocalAppProvider is a required field providing an interface
+	// implementation for [LocalAppProvider].
+	LocalAppProvider LocalAppProvider
 	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
 	// will be created.
 	ClusterConfigCache *ClusterConfigCache
@@ -47,8 +48,8 @@ type UserProcessConfig struct {
 }
 
 func (c *UserProcessConfig) CheckAndSetDefaults() error {
-	if c.AppProvider == nil {
-		return trace.BadParameter("missing AppProvider")
+	if c.LocalAppProvider == nil {
+		return trace.BadParameter("missing LocalAppProvider")
 	}
 	if c.HomePath == "" {
 		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))

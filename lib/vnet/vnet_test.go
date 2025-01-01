@@ -76,7 +76,7 @@ type testPack struct {
 
 type testPackConfig struct {
 	clock       clockwork.FakeClock
-	appProvider AppProvider
+	appProvider LocalAppProvider
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
@@ -129,7 +129,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpHandlerResolver, err := newTCPAppResolver(cfg.appProvider, withClock(cfg.clock))
+	tcpHandlerResolver, err := newLocalTCPAppResolver(cfg.appProvider, withClock(cfg.clock))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
@@ -258,7 +258,7 @@ type echoAppProvider struct {
 	onNewConnectionCallCount    atomic.Uint32
 	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
-	requestedRouteToApps   map[string][]proto.RouteToApp
+	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
 }
 
@@ -268,7 +268,7 @@ func newEchoAppProvider(clusterSpecs map[string]testClusterSpec, dialOpts DialOp
 		clusters:             clusterSpecs,
 		dialOpts:             dialOpts,
 		reissueAppCert:       reissueAppCert,
-		requestedRouteToApps: make(map[string][]proto.RouteToApp),
+		requestedRouteToApps: make(map[string][]*proto.RouteToApp),
 	}
 }
 
@@ -307,7 +307,7 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	}, nil
 }
 
-func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
+func (p *echoAppProvider) ReissueAppCert(ctx context.Context, appInfo *AppInfo, routeToApp *proto.RouteToApp) (tls.Certificate, error) {
 	p.requestedRouteToAppsMu.Lock()
 	defer p.requestedRouteToAppsMu.Unlock()
 
@@ -316,12 +316,12 @@ func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafC
 	return p.reissueAppCert(), nil
 }
 
-func (p *echoAppProvider) RequestedRouteToApps(publicAddr string) []proto.RouteToApp {
+func (p *echoAppProvider) RequestedRouteToApps(publicAddr string) []*proto.RouteToApp {
 	p.requestedRouteToAppsMu.RLock()
 	defer p.requestedRouteToAppsMu.RUnlock()
 
 	requestedRoutes := p.requestedRouteToApps[publicAddr]
-	returnedRoutes := make([]proto.RouteToApp, len(requestedRoutes))
+	returnedRoutes := make([]*proto.RouteToApp, len(requestedRoutes))
 	copy(returnedRoutes, requestedRoutes)
 
 	return returnedRoutes
@@ -382,12 +382,12 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 	return cfg, nil
 }
 
-func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
+func (p *echoAppProvider) OnNewConnection(_ context.Context, _ *AppInfo) error {
 	p.onNewConnectionCallCount.Add(1)
 	return nil
 }
 
-func (p *echoAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
+func (p *echoAppProvider) OnInvalidLocalPort(_ context.Context, _ *AppInfo, _ *proto.RouteToApp) {
 	p.onInvalidLocalPortCallCount.Add(1)
 }
 
@@ -662,7 +662,7 @@ func TestDialFakeApp(t *testing.T) {
 						//
 						// Single-port apps are going to be dialed on defaultPort in tests, but certs for them
 						// need to have RouteToApp.TargetPort set to 0.
-						require.True(t, apiutils.All(requestedRoutes, func(route proto.RouteToApp) bool {
+						require.True(t, apiutils.All(requestedRoutes, func(route *proto.RouteToApp) bool {
 							return int(route.TargetPort) == tc.port
 						}), "not all requested certs had RouteToApp.TargetPort set to %d", tc.port)
 					})
@@ -700,7 +700,7 @@ func TestDialFakeApp(t *testing.T) {
 		require.ErrorContains(t, err, "connection was refused")
 
 		requestedRoutes := appProvider.RequestedRouteToApps(app)
-		require.False(t, slices.ContainsFunc(requestedRoutes, func(route proto.RouteToApp) bool {
+		require.False(t, slices.ContainsFunc(requestedRoutes, func(route *proto.RouteToApp) bool {
 			return int(route.TargetPort) == port
 		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
 		require.Equal(t, uint32(1), appProvider.onInvalidLocalPortCallCount.Load(), "unexpected number of calls to OnInvalidLocalPort")
