@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/singleflight"
 
@@ -36,11 +37,34 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
+
+// AppProvider is a generalized interface for getting AppInfo from an app fqdn,
+// getting certs issued for apps, and reporting connections and errors.
+type AppProvider interface {
+	// ResolveAppInfo returns an *AppInfo for the given app fqdn, or an error if
+	// the app is not present in any logged-in cluster.
+	ResolveAppInfo(ctx context.Context, fqdn string) (*AppInfo, error)
+	// ReissueAppCert issues a new app cert.
+	ReissueAppCert(ctx context.Context, appInfo *AppInfo, routeToApp *proto.RouteToApp) (tls.Certificate, error)
+	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
+	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
+	// app.
+	//
+	// The connection won't be established until OnNewConnection returns. Returning an error prevents
+	// the connection from being made.
+	OnNewConnection(ctx context.Context, appInfo *AppInfo) error
+	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
+	// because the provided port does not match any of the TCP ports in the app spec.
+	OnInvalidLocalPort(ctx context.Context, appInfo *AppInfo, routeToApp *proto.RouteToApp)
+}
 
 // AppInfo holds all necessary info for making connections to VNet TCP apps.
 type AppInfo struct {
@@ -80,31 +104,6 @@ type LocalAppProvider interface {
 
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error)
-
-	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
-	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
-	// clients for that cluster so that new working clients will be returned from [GetCachedClient].
-	ReissueAppCert(ctx context.Context, appInfo *AppInfo, routeToApp *proto.RouteToApp) (tls.Certificate, error)
-
-	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
-	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
-	// app.
-	//
-	// The connection won't be established until OnNewConnection returns. Returning an error prevents
-	// the connection from being made.
-	OnNewConnection(ctx context.Context, appInfo *AppInfo) error
-
-	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
-	// because the provided port does not match any of the TCP ports in the app spec.
-	OnInvalidLocalPort(ctx context.Context, appInfo *AppInfo, routeToApp *proto.RouteToApp)
-}
-
-// AppProvider is a generalized interface for getting AppInfo from an app fqdn,
-// getting certs issued for apps, and reporting connections and errors.
-type AppProvider interface {
-	// ResolveAppInfo returns an *AppInfo for the given app fqdn, or an error if
-	// the app is not present in any logged-in cluster.
-	ResolveAppInfo(ctx context.Context, fqdn string) (*AppInfo, error)
 
 	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
 	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
@@ -275,6 +274,80 @@ func (a *localAppProviderAdapter) resolveAppInfoForCluster(
 		DialOptions:     *dialOpts,
 	}
 	return appInfo, nil
+}
+
+type remoteAppProvider struct {
+	clt vnetv1.VnetUserProcessServiceClient
+}
+
+var _ AppProvider = (*remoteAppProvider)(nil)
+
+func (p *remoteAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*AppInfo, error) {
+	resp, err := p.clt.ResolveAppInfo(ctx, &vnetv1.ResolveAppInfoRequest{
+		Fqdn: fqdn,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	protoAppInfo := resp.GetAppInfo()
+	protoDialOptions := protoAppInfo.GetDialOptions()
+	appInfo := &AppInfo{
+		App:             protoAppInfo.GetApp(),
+		IPv4CIDRRange:   protoAppInfo.GetIpv4CidrRange(),
+		ProfileName:     protoAppInfo.GetProfile(),
+		ClusterName:     protoAppInfo.GetRootCluster(),
+		LeafClusterName: protoAppInfo.GetLeafCluster(),
+		DialOptions: DialOptions{
+			WebProxyAddr:            protoDialOptions.GetWebProxyAddr(),
+			ALPNConnUpgradeRequired: protoDialOptions.GetAlpnConnUpgradeRequired(),
+			SNI:                     protoDialOptions.GetSni(),
+			InsecureSkipVerify:      protoDialOptions.GetInsecureSkipVerify(),
+			RootClusterCACertPool:   x509.NewCertPool(),
+		},
+	}
+	_ = appInfo.DialOptions.RootClusterCACertPool.AppendCertsFromPEM(protoDialOptions.GetRootClusterCaCertPool())
+	return appInfo, nil
+}
+
+func (p *remoteAppProvider) ReissueAppCert(ctx context.Context, appInfo *AppInfo, routeToApp *proto.RouteToApp) (tls.Certificate, error) {
+	// TODO(nklaassen): get actual cluster crypto suite, and figure out what to
+	// do when hardware keys are in play.
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "generating app keypair")
+	}
+	pubKeyPEM, err := keys.MarshalPublicKey(signer.Public())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "marshalling public key")
+	}
+	resp, err := p.clt.ReissueAppCert(ctx, &vnetv1.ReissueAppCertRequest{
+		AppInfo: &vnetv1.AppInfo{
+			App:           appInfo.App,
+			Ipv4CidrRange: appInfo.IPv4CIDRRange,
+			Profile:       appInfo.ProfileName,
+			RootCluster:   appInfo.ClusterName,
+			LeafCluster:   appInfo.LeafClusterName,
+		},
+		RouteToApp: routeToApp,
+		PublicKey:  pubKeyPEM,
+	})
+	if err != nil {
+		return tls.Certificate{}, trail.FromGRPC(err)
+	}
+	cert, err := keys.TLSCertificateForSigner(signer, resp.GetCert())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "parsing new app cert")
+	}
+	return cert, nil
+}
+
+func (p *remoteAppProvider) OnNewConnection(ctx context.Context, appInfo *AppInfo) error {
+	// TODO(nklaassen): implement this.
+	return nil
+}
+
+func (p *remoteAppProvider) OnInvalidLocalPort(ctx context.Context, appInfo *AppInfo, routeToApp *proto.RouteToApp) {
+	// TODO(nklaassen): implement this.
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].

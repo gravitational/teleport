@@ -35,6 +35,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	VnetUserProcessService_ResolveAppInfo_FullMethodName      = "/teleport.lib.vnet.v1.VnetUserProcessService/ResolveAppInfo"
+	VnetUserProcessService_ReissueAppCert_FullMethodName      = "/teleport.lib.vnet.v1.VnetUserProcessService/ReissueAppCert"
 	VnetUserProcessService_Ping_FullMethodName                = "/teleport.lib.vnet.v1.VnetUserProcessService/Ping"
 	VnetUserProcessService_AuthenticateProcess_FullMethodName = "/teleport.lib.vnet.v1.VnetUserProcessService/AuthenticateProcess"
 )
@@ -46,6 +48,11 @@ const (
 // VnetUserProcessService is a service the VNet user process provides to the
 // VNet admin process.
 type VnetUserProcessServiceClient interface {
+	// ResolveAppInfo returns info for the given app fqdn, or an error if the app
+	// is not present in any logged-in cluster.
+	ResolveAppInfo(ctx context.Context, in *ResolveAppInfoRequest, opts ...grpc.CallOption) (*ResolveAppInfoResponse, error)
+	// ReissueAppCert issues a new app cert.
+	ReissueAppCert(ctx context.Context, in *ReissueAppCertRequest, opts ...grpc.CallOption) (*ReissueAppCertResponse, error)
 	// Ping is used by the admin process to regularly poll that the user process
 	// is still running, and to share the Teleport version between the two
 	// processes to make sure they are compatible.
@@ -61,6 +68,26 @@ type vnetUserProcessServiceClient struct {
 
 func NewVnetUserProcessServiceClient(cc grpc.ClientConnInterface) VnetUserProcessServiceClient {
 	return &vnetUserProcessServiceClient{cc}
+}
+
+func (c *vnetUserProcessServiceClient) ResolveAppInfo(ctx context.Context, in *ResolveAppInfoRequest, opts ...grpc.CallOption) (*ResolveAppInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveAppInfoResponse)
+	err := c.cc.Invoke(ctx, VnetUserProcessService_ResolveAppInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *vnetUserProcessServiceClient) ReissueAppCert(ctx context.Context, in *ReissueAppCertRequest, opts ...grpc.CallOption) (*ReissueAppCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReissueAppCertResponse)
+	err := c.cc.Invoke(ctx, VnetUserProcessService_ReissueAppCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *vnetUserProcessServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
@@ -90,6 +117,11 @@ func (c *vnetUserProcessServiceClient) AuthenticateProcess(ctx context.Context, 
 // VnetUserProcessService is a service the VNet user process provides to the
 // VNet admin process.
 type VnetUserProcessServiceServer interface {
+	// ResolveAppInfo returns info for the given app fqdn, or an error if the app
+	// is not present in any logged-in cluster.
+	ResolveAppInfo(context.Context, *ResolveAppInfoRequest) (*ResolveAppInfoResponse, error)
+	// ReissueAppCert issues a new app cert.
+	ReissueAppCert(context.Context, *ReissueAppCertRequest) (*ReissueAppCertResponse, error)
 	// Ping is used by the admin process to regularly poll that the user process
 	// is still running, and to share the Teleport version between the two
 	// processes to make sure they are compatible.
@@ -107,6 +139,12 @@ type VnetUserProcessServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedVnetUserProcessServiceServer struct{}
 
+func (UnimplementedVnetUserProcessServiceServer) ResolveAppInfo(context.Context, *ResolveAppInfoRequest) (*ResolveAppInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveAppInfo not implemented")
+}
+func (UnimplementedVnetUserProcessServiceServer) ReissueAppCert(context.Context, *ReissueAppCertRequest) (*ReissueAppCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReissueAppCert not implemented")
+}
 func (UnimplementedVnetUserProcessServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
@@ -133,6 +171,42 @@ func RegisterVnetUserProcessServiceServer(s grpc.ServiceRegistrar, srv VnetUserP
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&VnetUserProcessService_ServiceDesc, srv)
+}
+
+func _VnetUserProcessService_ResolveAppInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveAppInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetUserProcessServiceServer).ResolveAppInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetUserProcessService_ResolveAppInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetUserProcessServiceServer).ResolveAppInfo(ctx, req.(*ResolveAppInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VnetUserProcessService_ReissueAppCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReissueAppCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetUserProcessServiceServer).ReissueAppCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetUserProcessService_ReissueAppCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetUserProcessServiceServer).ReissueAppCert(ctx, req.(*ReissueAppCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _VnetUserProcessService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -178,6 +252,14 @@ var VnetUserProcessService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.lib.vnet.v1.VnetUserProcessService",
 	HandlerType: (*VnetUserProcessServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ResolveAppInfo",
+			Handler:    _VnetUserProcessService_ResolveAppInfo_Handler,
+		},
+		{
+			MethodName: "ReissueAppCert",
+			Handler:    _VnetUserProcessService_ReissueAppCert_Handler,
+		},
 		{
 			MethodName: "Ping",
 			Handler:    _VnetUserProcessService_Ping_Handler,
