@@ -65,6 +65,15 @@ func decide(
 	}
 	d.templatedWorkloadIdentity.Spec.Spiffe.Hint = templated
 
+	for i, san := range wi.GetSpec().GetSpiffe().GetX509Svid().GetDnsSans() {
+		templated, err = templateString(san, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(err, "templating spec.spiffe.x509_svid.dns_sans[%d]", i)
+			return d
+		}
+		d.templatedWorkloadIdentity.Spec.Spiffe.X509Svid.DnsSans[i] = templated
+	}
+
 	// Yay - made it to the end!
 	d.shouldIssue = true
 	return d

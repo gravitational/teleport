@@ -356,6 +356,7 @@ func x509Template(
 	notBefore time.Time,
 	notAfter time.Time,
 	spiffeID spiffeid.ID,
+	dnsSANs []string,
 ) *x509.Certificate {
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
@@ -384,6 +385,9 @@ func x509Template(
 		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
 		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
 		URIs: []*url.URL{spiffeID.URL()},
+		// TODO(noah): Should we validate DNS names are valid before encoding it
+		// into the certificate?
+		DNSNames: dnsSANs,
 	}
 }
 
@@ -484,7 +488,13 @@ func (s *IssuanceService) issueX509SVID(
 
 	certBytes, err := x509.CreateCertificate(
 		rand.Reader,
-		x509Template(certSerial, notBefore, notAfter, spiffeID),
+		x509Template(
+			certSerial,
+			notBefore,
+			notAfter,
+			spiffeID,
+			wid.GetSpec().GetSpiffe().GetX509Svid().GetDnsSans(),
+		),
 		ca.Cert,
 		pubKey,
 		ca.Signer,
