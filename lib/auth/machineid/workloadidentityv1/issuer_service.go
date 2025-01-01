@@ -506,6 +506,7 @@ func (s *IssuanceService) issueX509SVID(
 	evt := baseEvent(ctx, wid, spiffeID)
 	evt.SVIDType = "x509"
 	evt.SerialNumber = serialString
+	evt.DNSSANs = wid.GetSpec().GetSpiffe().GetX509Svid().GetDnsSans()
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.WarnContext(
 			ctx,
