@@ -393,7 +393,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	if sessionID.IsZero() {
 		sessionID = rsession.NewID()
-		scx.Logger.Log(ctx, logutils.TraceLevel, "Session not found, creating a new session", "sessin_id", sessionID)
+		scx.Logger.Log(ctx, logutils.TraceLevel, "Session not found, creating a new session", "session_id", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.

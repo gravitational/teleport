@@ -247,7 +247,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 	}
 
 	if err := sess.SetEnvs(ctx, envs); err != nil {
-		log.WarnContext(ctx, "Failed to set environment variabls", "error", err)
+		log.WarnContext(ctx, "Failed to set environment variables", "error", err)
 	}
 
 	// if agent forwarding was requested (and we have a agent to forward),
