@@ -134,6 +134,15 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"x509_svid": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"dns_sans": {
+								Description: "The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Description: "Configuration specific to X509-SVIDs.",
+							Optional:    true,
+						},
 					}),
 					Description: "Configuration pertaining to the issuance of SPIFFE-compatible workload identity credentials.",
 					Optional:    true,
@@ -498,6 +507,51 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 													t = string(v.Value)
 												}
 												obj.Hint = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["x509_svid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509_svid"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509_svid", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.X509Svid = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.X509Svid = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentitySPIFFEX509SVID{}
+													obj := obj.X509Svid
+													{
+														a, ok := tf.Attrs["dns_sans"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509_svid.dns_sans"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509_svid.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.DnsSans = make([]string, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509_svid.dns_sans", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.DnsSans[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
 											}
 										}
 									}
@@ -1051,6 +1105,91 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = string(obj.Hint)
 											v.Unknown = false
 											tf.Attrs["hint"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["x509_svid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509_svid"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509_svid", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["x509_svid"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.X509Svid == nil {
+													v.Null = true
+												} else {
+													obj := obj.X509Svid
+													tf := &v
+													{
+														a, ok := tf.AttrTypes["dns_sans"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509_svid.dns_sans"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509_svid.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["dns_sans"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
+																	}
+																}
+																if obj.DnsSans != nil {
+																	t := o.ElemType
+																	if len(obj.DnsSans) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
+																	}
+																	for k, a := range obj.DnsSans {
+																		v, ok := tf.Attrs["dns_sans"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																			if err != nil {
+																				diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509_svid.dns_sans", err})
+																			}
+																			v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509_svid.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
+																			v.Null = string(a) == ""
+																		}
+																		v.Value = string(a)
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.DnsSans) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["dns_sans"] = c
+															}
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["x509_svid"] = v
+											}
 										}
 									}
 								}
