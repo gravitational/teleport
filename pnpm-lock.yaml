@@ -421,8 +421,8 @@ importers:
         specifier: ^1.3.1
         version: 1.3.1
       node-pty:
-        specifier: 1.1.0-beta14
-        version: 1.1.0-beta14
+        specifier: 1.1.0-beta27
+        version: 1.1.0-beta27
       ring-buffer-ts:
         specifier: ^1.2.0
         version: 1.2.0
@@ -5453,8 +5453,8 @@ packages:
     resolution: {integrity: sha512-RM5oyBy45cLEoHqCeh+MNuFAxO0vTFBLskvQbOKnEE7YTTSN4tbN8QWDIPQ6L+WvKsB/qLEGpYe2ZZ9d4W9OIQ==}
     engines: {node: '>=8'}
 
-  node-pty@1.1.0-beta14:
-    resolution: {integrity: sha512-w/o/q6UL95azHQhrKvMnIojs1AGiqxnjNgcH3138H/RIRkIpE8S5GvT4dpvQT+ZVbTJxoBFt/DnaBAT1PAN7WQ==}
+  node-pty@1.1.0-beta27:
+    resolution: {integrity: sha512-r0nRVgunspo/cBmf/eR+ultBrclxqldaL6FhiTLEmC4VcyKJxhluRK5d8EtbHYPLt8DqPKMnCakJDxreQynpnw==}
 
   node-releases@2.0.18:
     resolution: {integrity: sha512-d9VeXT4SJ7ZeOqGX6R5EM022wpL+eWPooLI+5UpWn2jCT1aosUQEhQP214x33Wkwx3JQMvIm+tIoVOdodFS40g==}
@@ -12932,7 +12932,7 @@ snapshots:
     dependencies:
       process-on-spawn: 1.1.0
 
-  node-pty@1.1.0-beta14:
+  node-pty@1.1.0-beta27:
     dependencies:
       node-addon-api: 7.1.0
 
