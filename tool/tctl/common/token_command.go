@@ -275,6 +275,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
 				"set_roles":   setRoles,
+				"version":     proxies[0].GetTeleportVersion(),
 			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
