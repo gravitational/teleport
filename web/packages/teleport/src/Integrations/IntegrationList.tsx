@@ -64,7 +64,9 @@ export function IntegrationList(props: Props<IntegrationLike>) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    // todo (michellescripts) temporarily disable view for aws oidc integrations
+    // if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (row.kind !== 'okta') return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
@@ -155,15 +157,16 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                     {/* Currently, only AWS OIDC supports editing & status dash */}
                     {item.kind === IntegrationKind.AwsOidc && (
                       <>
-                        <MenuItem
-                          as={InternalRouteLink}
-                          to={cfg.getIntegrationStatusRoute(
-                            item.kind,
-                            item.name
-                          )}
-                        >
-                          View Status
-                        </MenuItem>
+                        {/*todo (michellescripts) temporarily disable view for aws oidc integrations*/}
+                        {/*<MenuItem*/}
+                        {/*  as={InternalRouteLink}*/}
+                        {/*  to={cfg.getIntegrationStatusRoute(*/}
+                        {/*    item.kind,*/}
+                        {/*    item.name*/}
+                        {/*  )}*/}
+                        {/*>*/}
+                        {/*  View Status*/}
+                        {/*</MenuItem>*/}
                         <MenuItem
                           onClick={() =>
                             props.integrationOps.onEditIntegration(item)
