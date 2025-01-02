@@ -29,8 +29,8 @@ export function DocumentGatewayApp(props: {
   const { doc } = props;
   const {
     gateway,
-    changePort,
-    changePortAttempt,
+    changePort: changeLocalPort,
+    changePortAttempt: changeLocalPortAttempt,
     connected,
     connectAttempt,
     disconnect,
@@ -53,8 +53,8 @@ export function DocumentGatewayApp(props: {
           gateway={gateway}
           disconnect={disconnect}
           disconnectAttempt={disconnectAttempt}
-          changePort={changePort}
-          changePortAttempt={changePortAttempt}
+          changeLocalPort={changeLocalPort}
+          changeLocalPortAttempt={changeLocalPortAttempt}
         />
       )}
     </Document>
