@@ -17,5 +17,6 @@
  */
 
 import CardTerminal, { CardTerminalLogin } from './CardTerminal';
+
 export default CardTerminal;
 export { CardTerminalLogin };

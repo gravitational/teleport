@@ -18,15 +18,14 @@
 
 import React from 'react';
 
-import { Desktop } from 'teleport/services/desktops';
-import { Database } from 'teleport/services/databases';
 import { App } from 'teleport/services/apps';
+import { Database } from 'teleport/services/databases';
+import { Desktop } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';
 import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
 
 import { getEmptyResourceState } from '../resource';
-
 import { ResourceList, ResourceListProps } from './ResourceList';
 
 export default {

@@ -18,8 +18,9 @@
 
 import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
-import { Popover, Flex, Text } from 'design';
-import { JustifyContentProps, FlexBasisProps } from 'design/system';
+
+import { Flex, Popover, Text } from 'design';
+import { FlexBasisProps, JustifyContentProps } from 'design/system';
 
 type OriginProps = {
   vertical: string;

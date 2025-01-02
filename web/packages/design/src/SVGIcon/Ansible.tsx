@@ -18,9 +18,8 @@
 
 import React from 'react';
 
-import { SVGIcon } from './SVGIcon';
-
 import type { SVGIconProps } from './common';
+import { SVGIcon } from './SVGIcon';
 
 export function AnsibleIcon({ size = 100, fill }: SVGIconProps) {
   return (

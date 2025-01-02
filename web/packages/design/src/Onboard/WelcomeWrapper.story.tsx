@@ -18,9 +18,9 @@
 
 import React from 'react';
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
-import { OnboardCard } from 'design/Onboard/OnboardCard';
 import { Text } from 'design';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
 
 export default {
   title: 'Design/Onboard',

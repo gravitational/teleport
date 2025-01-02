@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import Table from 'design/DataTable';
 
 import { RoleResource } from 'teleport/services/resources';

@@ -16,28 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
+
 import {
-  Box,
-  Flex,
-  ButtonText,
-  ButtonPrimary,
-  Image,
-  Text,
   Alert,
+  Box,
+  ButtonPrimary,
+  ButtonText,
+  Flex,
+  Image,
   Input,
+  Text,
 } from 'design';
-import { ArrowBack } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
+import { ArrowBack } from 'design/Icon';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 
-import cfg from 'teleport/config';
-import { lockService } from 'teleport/services/locks';
-import { TrashButton } from 'teleport/LocksV2/common';
 import shieldCheck from 'teleport/assets/shield-check.png';
+import cfg from 'teleport/config';
+import { TrashButton } from 'teleport/LocksV2/common';
+import { lockService } from 'teleport/services/locks';
 
 import {
   LockResource,
@@ -45,8 +47,6 @@ import {
   LockResourceMap,
   ToggleSelectResourceFn,
 } from '../common';
-
-import type { TransitionStatus } from 'react-transition-group';
 
 type Props = {
   onClose(): void;

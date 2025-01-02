@@ -17,17 +17,16 @@
  */
 
 import React from 'react';
+
 import { Card, Flex, ResourceIcon, Text } from 'design';
 import { AuthProviderType } from 'shared/services';
 
+import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
 import { ConnectorBox } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
-
 import {
   LockedFeatureButton,
   LockedFeatureContainer,
 } from 'teleport/AuthConnectors/styles/LockedFeatureContainer.styles';
-
-import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
 import { State as ResourceState } from 'teleport/components/useResources';
 import { CtaEvent } from 'teleport/services/userEvent';
 

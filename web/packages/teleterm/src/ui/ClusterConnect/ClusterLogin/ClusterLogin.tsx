@@ -17,18 +17,19 @@
  */
 
 import React from 'react';
+
+import { Box, ButtonIcon, Indicator, Text } from 'design';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, Indicator, Box } from 'design';
+import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
-import { DialogHeader, DialogContent } from 'design/Dialog';
 import { PrimaryAuthType } from 'shared/services';
 
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
-import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 
 import LoginForm from './FormLogin';
-import useClusterLogin, { State, Props } from './useClusterLogin';
+import useClusterLogin, { Props, State } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   const { reason, ...otherProps } = props;

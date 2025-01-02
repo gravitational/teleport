@@ -17,9 +17,10 @@
  */
 
 import React from 'react';
+
 import { render } from 'design/utils/testing';
 
-import { Local, Sso, LocalWithRequestId } from './ConnectDialog.story';
+import { Local, LocalWithRequestId, Sso } from './ConnectDialog.story';
 
 test('kube connect dialogue local', () => {
   const { baseElement } = render(<Local />);

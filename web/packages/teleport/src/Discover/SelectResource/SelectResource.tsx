@@ -18,43 +18,41 @@
 
 import React, { useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
-
-import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Link, Text } from 'design';
-import { getPlatform, Platform } from 'design/platform';
 
+import { Box, Flex, Link, Text } from 'design';
+import * as Icons from 'design/Icon';
+import { getPlatform, Platform } from 'design/platform';
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
-import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
-import useTeleport from 'teleport/useTeleport';
+import AddApp from 'teleport/Apps/AddApp';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
-import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
+import cfg from 'teleport/config';
+import {
+  BASE_RESOURCES,
+  getResourcePretitle,
+} from 'teleport/Discover/SelectResource/resources';
 import {
   Header,
   HeaderSubtitle,
   PermissionsErrorMessage,
   ResourceKind,
 } from 'teleport/Discover/Shared';
-import {
-  BASE_RESOURCES,
-  getResourcePretitle,
-} from 'teleport/Discover/SelectResource/resources';
-import AddApp from 'teleport/Apps/AddApp';
-import { useUser } from 'teleport/User/UserContext';
-import { storageService } from 'teleport/services/storageService';
-import cfg from 'teleport/config';
-
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
+import { storageService } from 'teleport/services/storageService';
+import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
+import { useUser } from 'teleport/User/UserContext';
+import useTeleport from 'teleport/useTeleport';
 
 import { getMarketingTermMatches } from './getMarketingTermMatches';
 import { DiscoverIcon } from './icons';
-
-import { PrioritizedResources, SearchResource } from './types';
 import { SAML_APPLICATIONS } from './resourcesE';
-
-import type { ResourceSpec } from './types';
+import {
+  PrioritizedResources,
+  SearchResource,
+  type ResourceSpec,
+} from './types';
 
 interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;

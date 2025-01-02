@@ -17,11 +17,8 @@
  */
 
 import React from 'react';
-import { Alert, Box, Flex, Indicator, Link, Text } from 'design';
 
-import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
-import ResourceEditor from 'teleport/components/ResourceEditor';
-import useResources from 'teleport/components/useResources';
+import { Alert, Box, Flex, Indicator, Link, Text } from 'design';
 
 import {
   DesktopDescription,
@@ -29,12 +26,15 @@ import {
   ResponsiveAddButton,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
+import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
+import ResourceEditor from 'teleport/components/ResourceEditor';
+import useResources from 'teleport/components/useResources';
 
-import EmptyList from './EmptyList';
 import ConnectorList from './ConnectorList';
 import DeleteConnectorDialog from './DeleteConnectorDialog';
-import useAuthConnectors, { State } from './useAuthConnectors';
+import EmptyList from './EmptyList';
 import templates from './templates';
+import useAuthConnectors, { State } from './useAuthConnectors';
 
 export function AuthConnectorsContainer() {
   const state = useAuthConnectors();

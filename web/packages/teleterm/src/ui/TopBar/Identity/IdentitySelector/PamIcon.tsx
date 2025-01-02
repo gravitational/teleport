@@ -18,6 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { Image } from 'design';
 
 import pam from './pam.svg';

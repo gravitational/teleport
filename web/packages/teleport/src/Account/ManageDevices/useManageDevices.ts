@@ -17,13 +17,14 @@
  */
 
 import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import auth, { DeviceUsage } from 'teleport/services/auth';
-import { MfaDevice } from 'teleport/services/mfa';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { MfaDevice } from 'teleport/services/mfa';
+import Ctx from 'teleport/teleportContext';
 
 export default function useManageDevices(ctx: Ctx) {
   const [devices, setDevices] = useState<MfaDevice[]>([]);

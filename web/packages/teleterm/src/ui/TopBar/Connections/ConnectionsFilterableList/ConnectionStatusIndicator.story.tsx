@@ -17,7 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Box, Text } from 'design';
+
+import { Box, Flex, Text } from 'design';
 
 import { StaticListItem } from 'teleterm/ui/components/ListItem';
 

@@ -18,8 +18,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text } from 'design';
 
+import { Text } from 'design';
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 export function Expired({ resetMode = false }) {

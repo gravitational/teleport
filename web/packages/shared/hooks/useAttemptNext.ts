@@ -19,6 +19,7 @@
 import React, { useCallback } from 'react';
 
 import Logger from 'shared/libs/logger';
+
 const logger = Logger.create('shared/hooks/useAttempt');
 
 // This is the next version of existing useAttempt hook

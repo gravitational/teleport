@@ -18,8 +18,8 @@
 
 import React from 'react';
 
-import { render, screen } from 'design/utils/testing';
 import { OnboardFooter } from 'design/Onboard/OnboardFooter';
+import { render, screen } from 'design/utils/testing';
 
 test('renders RR, TOS, and PP', () => {
   render(<OnboardFooter />);

@@ -17,15 +17,13 @@
  */
 
 import React from 'react';
-
 import { useTheme } from 'styled-components';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
+import * as SvgIcons from '.';
 import Flex from '../Flex';
 import Text from '../Text';
-
-import * as SvgIcons from '.';
 
 export default {
   title: 'Design/Icon',

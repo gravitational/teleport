@@ -17,14 +17,14 @@
  */
 
 import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, Text } from 'design';
+import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import * as Alerts from 'design/Alert';
-import { ButtonIcon, ButtonPrimary, Text } from 'design';
-
 import { Cross } from 'design/Icon';
 
 import { RootClusterUri } from 'teleterm/ui/uri';

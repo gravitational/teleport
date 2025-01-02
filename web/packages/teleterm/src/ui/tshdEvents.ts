@@ -18,9 +18,9 @@
 
 import { PromptHardwareKeyPINChangeResponse } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
+import Logger from 'teleterm/logger';
 import { TshdEventContextBridgeService } from 'teleterm/types';
 import { IAppContext } from 'teleterm/ui/types';
-import Logger from 'teleterm/logger';
 
 export function createTshdEventsContextBridgeService(
   ctx: IAppContext

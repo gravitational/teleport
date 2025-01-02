@@ -16,36 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
-import { MemoryRouter } from 'react-router';
 import { rest } from 'msw';
 import { mswLoader } from 'msw-storybook-addon';
+import React, { useEffect, useState } from 'react';
+import { MemoryRouter } from 'react-router';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ContextProvider } from 'teleport';
-
-import {
-  INTERNAL_RESOURCE_ID_LABEL_KEY,
-  JoinToken,
-} from 'teleport/services/joinToken';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
+import {
+  INTERNAL_RESOURCE_ID_LABEL_KEY,
+  JoinToken,
+} from 'teleport/services/joinToken';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
-
-import { EnrollmentDialog } from './EnrollmentDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
+import { EnrollmentDialog } from './EnrollmentDialog';
 import { ManualHelmDialog } from './ManualHelmDialog';
 
 export default {

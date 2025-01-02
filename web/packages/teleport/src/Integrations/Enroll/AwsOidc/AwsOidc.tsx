@@ -17,38 +17,38 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Link as InternalRouteLink } from 'react-router-dom';
 import { useLocation } from 'react-router';
+import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Text, Link, Flex, ButtonPrimary } from 'design';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
-import { requiredIamRoleName } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
+import { requiredIamRoleName } from 'shared/components/Validation/rules';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import cfg from 'teleport/config';
+import { Header } from 'teleport/Discover/Shared';
+import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
+import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import { ApiError } from 'teleport/services/api/parseError';
+import {
+  Integration,
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollEventData,
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import { Header } from 'teleport/Discover/Shared';
-import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
-import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import {
-  Integration,
-  IntegrationKind,
-  integrationService,
-} from 'teleport/services/integrations';
-import cfg from 'teleport/config';
-import { ApiError } from 'teleport/services/api/parseError';
-
-import { FinishDialog } from './FinishDialog';
 import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
+import { FinishDialog } from './FinishDialog';
 
 export function AwsOidc() {
   const [integrationName, setIntegrationName] = useState('');

@@ -17,36 +17,32 @@
  */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
 import ReactSelect from 'react-select';
-
-import Box from 'design/Box';
-import Text from 'design/Text';
-import * as Icons from 'design/Icon';
-import { StyledSelect } from 'shared/components/Select';
-import Input from 'design/Input';
-import { ButtonSecondary } from 'design/Button';
-import Validation, { Validator } from 'shared/components/Validation';
-
-import Flex from 'design/Flex';
-import Card from 'design/Card';
-import ButtonIcon from 'design/ButtonIcon';
-import FieldInput from 'shared/components/FieldInput';
+import styled from 'styled-components';
 
 import Alert from 'design/Alert';
-
+import Box from 'design/Box';
+import { ButtonSecondary } from 'design/Button';
+import ButtonIcon from 'design/ButtonIcon';
+import Card from 'design/Card';
+import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
+import Input from 'design/Input';
 import Link from 'design/Link';
+import Text from 'design/Text';
+import FieldInput from 'shared/components/FieldInput';
+import { StyledSelect } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import cfg from 'teleport/config';
 
 import { FlowButtons } from '../Shared/FlowButtons';
 import { FlowStepProps } from '../Shared/GuidedFlow';
-
 import {
   GITHUB_HOST,
+  parseRepoAddress,
   RefTypeOption,
   Rule,
-  parseRepoAddress,
   useGitHubFlow,
 } from './useGitHubFlow';
 

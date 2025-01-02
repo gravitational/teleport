@@ -20,9 +20,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { DatabaseEngine } from '../../SelectResource';
-
 import { MutualTlsView } from './MutualTls';
-
 import type { State } from './useMutualTls';
 
 export default {

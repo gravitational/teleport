@@ -17,25 +17,21 @@
  */
 
 import {
+  resourceOneOfIsApp,
+  resourceOneOfIsDatabase,
+  resourceOneOfIsKube,
+  resourceOneOfIsServer,
+} from 'teleterm/helpers';
+import Logger from 'teleterm/logger';
+import type { TshdClient } from 'teleterm/services/tshd';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import {
   cloneAbortSignal,
   TshdRpcError,
 } from 'teleterm/services/tshd/cloneableClient';
-
-import {
-  resourceOneOfIsServer,
-  resourceOneOfIsDatabase,
-  resourceOneOfIsApp,
-  resourceOneOfIsKube,
-} from 'teleterm/helpers';
-
-import Logger from 'teleterm/logger';
-
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
-
-import type { TshdClient } from 'teleterm/services/tshd';
 import type * as types from 'teleterm/services/tshd/types';
-import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
+import type * as uri from 'teleterm/ui/uri';
 
 export class ResourcesService {
   private logger = new Logger('ResourcesService');

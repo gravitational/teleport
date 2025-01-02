@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { bool, string } from 'prop-types';
 import React from 'react';
 import styled from 'styled-components';
-import { bool, string } from 'prop-types';
 
-import { space, width, height, alignSelf, gap } from 'design/system';
+import { alignSelf, gap, height, space, width } from 'design/system';
 
 const Button = ({ children, setRef = undefined, ...props }) => {
   return (

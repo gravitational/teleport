@@ -18,15 +18,14 @@
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 
-import { routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
-
 import {
-  getWebAppLaunchUrl,
-  isWebApp,
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
+  getWebAppLaunchUrl,
+  isWebApp,
 } from 'teleterm/services/tshd/app';
+import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 

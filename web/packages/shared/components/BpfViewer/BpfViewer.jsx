@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import ace from 'ace-builds/src-min-noconflict/ace';
 import React from 'react';
 import styled from 'styled-components';
-import ace from 'ace-builds/src-min-noconflict/ace';
 
 import 'ace-builds/src-noconflict/theme-monokai';
 import 'ace-builds/src-noconflict/ext-searchbox';
 import './ace-mode-bpf';
+
+import flatFormatter from './flatFormatter';
 import treeBuilder from './treeBuilder';
 import treeFormatter from './treeFormatter';
-import flatFormatter from './flatFormatter';
 
 export default class BpfViewer extends React.Component {
   componentDidMount() {

@@ -19,7 +19,6 @@
 import React from 'react';
 
 import * as Icons from '../Icon';
-
 import SideNav, { SideNavItem, SideNavItemIcon } from './index';
 
 export default {

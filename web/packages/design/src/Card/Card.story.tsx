@@ -18,9 +18,8 @@
 
 import React from 'react';
 
-import { Flex, Text } from '..';
-
 import Card from '.';
+import { Flex, Text } from '..';
 
 export default {
   title: 'Design/Card',

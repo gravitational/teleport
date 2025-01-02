@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { storiesOf } from '@storybook/react';
-import { Flex } from 'design';
 import { createMemoryHistory } from 'history';
-import { Router, Route } from 'react-router';
+import React from 'react';
+import { Route, Router } from 'react-router';
+
+import { Flex } from 'design';
 
 import Console from './Console';
 import ConsoleContext from './consoleContext';

@@ -19,8 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary, Box, Flex, Text } from '../';
-
+import { Box, ButtonPrimary, Flex, Text } from '../';
 import Popover from './../Popover';
 
 export default {

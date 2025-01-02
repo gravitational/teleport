@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Alert, { Danger, Info, Warning, Success } from './Alert';
+import Alert, { Danger, Info, Success, Warning } from './Alert';
+
 export default Alert;
 export { Danger, Info, Warning, Success };

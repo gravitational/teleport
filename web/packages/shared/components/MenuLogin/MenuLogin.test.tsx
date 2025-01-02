@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
+
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import { MenuLogin } from './MenuLogin';
 

@@ -17,18 +17,19 @@
  */
 
 import React from 'react';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import Dialog, {
+  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogContent,
 } from 'design/Dialog';
-import { Text, Box, ButtonSecondary, ButtonPrimary, Flex } from 'design';
 
-import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
-import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import { AuthType } from 'teleport/services/user';
 
 function ConnectDialog(props: Props) {
   const {

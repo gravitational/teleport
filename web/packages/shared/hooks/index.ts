@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import useAttempt from './useAttempt';
-import useFavicon from './useFavicon';
-import useDocTitle from './useDocTitle';
 import useAttemptNext from './useAttemptNext';
-import { useRefAutoFocus } from './useRefAutoFocus';
-import { useInterval } from './useInterval';
+import useDocTitle from './useDocTitle';
+import useFavicon from './useFavicon';
 import { useInfiniteScroll } from './useInfiniteScroll';
+import { useInterval } from './useInterval';
+import { useRefAutoFocus } from './useRefAutoFocus';
 
 export {
   useRef,

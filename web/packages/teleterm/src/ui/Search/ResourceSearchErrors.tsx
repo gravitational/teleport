@@ -17,16 +17,16 @@
  */
 
 import React from 'react';
+
+import { ButtonIcon, ButtonSecondary, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonSecondary, Text } from 'design';
 import { Cross } from 'design/Icon';
 
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-
 import type * as uri from 'teleterm/ui/uri';
 
 export function ResourceSearchErrors(props: {

@@ -17,10 +17,11 @@
  */
 
 import React from 'react';
+
 import { render } from 'design/utils/testing';
 
-import { LockedAccessRequests } from 'teleport/AccessRequests/LockedAccessRequests/LockedAccessRequests';
 import { ContextProvider } from 'teleport';
+import { LockedAccessRequests } from 'teleport/AccessRequests/LockedAccessRequests/LockedAccessRequests';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 test('locked', () => {

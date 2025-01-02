@@ -21,7 +21,6 @@ import React from 'react';
 import { Text } from 'design';
 
 import Validation from '../../components/Validation';
-
 import FieldInput from './FieldInput';
 
 export default {

@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { ButtonPrimary, ButtonText, Image, Text } from 'design';
 import Dialog, {
   DialogContent,
@@ -24,8 +25,8 @@ import Dialog, {
   DialogHeader,
 } from 'design/Dialog';
 
-import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
+import { CaptureEvent } from 'teleport/services/userEvent/types';
 
 import resourcesPng from './resources.png';
 

@@ -67,22 +67,6 @@ module.exports = {
     },
   ],
   rules: {
-    'import/order': [
-      'error',
-      {
-        groups: [
-          'builtin',
-          'external',
-          'internal',
-          'parent',
-          'sibling',
-          'index',
-          'object',
-          'type',
-        ],
-        'newlines-between': 'always-and-inside-groups',
-      },
-    ],
     'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
     '@typescript-eslint/no-unused-vars': ['error'],
 
@@ -109,10 +93,6 @@ module.exports = {
     'comma-dangle': 0,
     'no-mixed-spaces-and-tabs': 0,
     'no-alert': 0,
-    'import/no-named-as-default': 0,
-    'import/default': 2,
-    // XXX Change to a 2 once e pkg imports are removed from teleterm.
-    'import/no-unresolved': 1,
     'no-underscore-dangle': 0,
     'no-case-declarations': 0,
     'prefer-const': 0,

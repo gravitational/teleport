@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Text, Box } from 'design';
+
+import { Box, Text } from 'design';
 
 export default function CardEmpty(props) {
   const { title, children, ...styles } = props;

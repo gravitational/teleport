@@ -16,26 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getPrefersDark } from 'design/ThemeProvider';
+import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
-import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
-import { getPrefersDark } from 'design/ThemeProvider';
-
-import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
-
 import {
   BackendUserPreferences,
   convertBackendUserPreferences,
   isBackendUserPreferences,
 } from 'teleport/services/userPreferences/userPreferences';
+import { BearerToken } from 'teleport/services/websession';
+import type { RecommendFeature } from 'teleport/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
-
-import type { RecommendFeature } from 'teleport/types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [

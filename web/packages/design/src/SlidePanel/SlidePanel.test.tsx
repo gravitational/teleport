@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 
 import { render, screen } from 'design/utils/testing';
+
 import '@testing-library/jest-dom';
 
 import { SlidePanel } from './SlidePanel';

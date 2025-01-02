@@ -15,33 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import React, { useEffect } from 'react';
-
 import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
-import { rest } from 'msw';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import {
-  AwsEksCluster,
-  IntegrationKind,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
 import { createTeleportContext, getUserContext } from 'teleport/mocks/contexts';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import {
+  AwsEksCluster,
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { DiscoverEventResource } from 'teleport/services/userEvent/types';
 import { Kube } from 'teleport/services/kube';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { DiscoverEventResource } from 'teleport/services/userEvent/types';
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 

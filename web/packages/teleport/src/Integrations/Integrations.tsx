@@ -16,23 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+
+import { Alert, Box, Indicator } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Indicator, Box, Alert } from 'design';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import {
+  integrationService,
+  type Integration,
+} from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
-import { integrationService } from 'teleport/services/integrations';
 
-import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationList } from './IntegrationList';
-import { useIntegrationOperation, IntegrationOperations } from './Operations';
-
-import type { Integration } from 'teleport/services/integrations';
+import { IntegrationsAddButton } from './IntegrationsAddButton';
+import { IntegrationOperations, useIntegrationOperation } from './Operations';
 import type { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 
 export function Integrations() {

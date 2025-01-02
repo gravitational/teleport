@@ -18,9 +18,8 @@
 
 import React from 'react';
 
-import { SVGIcon } from './SVGIcon';
-
 import type { SVGIconProps } from './common';
+import { SVGIcon } from './SVGIcon';
 
 export function AWSIcon({ size = 24, fill }: SVGIconProps) {
   return (

@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
 import React from 'react';
 import { Router } from 'react-router';
-import { createMemoryHistory } from 'history';
 
 import * as teleport from 'teleport';
-
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
 import { getOSSFeatures } from 'teleport/features';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 import { ClusterListPage } from './Clusters';
 import * as fixtures from './fixtures';

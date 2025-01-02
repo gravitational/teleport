@@ -18,8 +18,8 @@
 
 import React, { PropsWithChildren } from 'react';
 
+import { ButtonIcon, Flex, Text } from 'design';
 import { ArrowBack } from 'design/Icon';
-import { Text, ButtonIcon, Flex } from 'design';
 
 export const Header: React.FC<PropsWithChildren<unknown>> = ({ children }) => (
   <Text my={1} fontSize="18px" bold>

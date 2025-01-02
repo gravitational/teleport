@@ -16,25 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { rest, setupWorker } from 'msw';
 import { addParameters } from '@storybook/react';
-import {
-  darkTheme,
-  lightTheme,
-  bblpTheme,
-} from './../packages/design/src/theme';
+import { rest, setupWorker } from 'msw';
+import React from 'react';
+
 import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
+import {
+  bblpTheme,
+  darkTheme,
+  lightTheme,
+} from './../packages/design/src/theme';
+
 import '../packages/teleport/src/lib/polyfillRandomUuid';
+
+import { UserContextProvider } from 'teleport/User';
+
+import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
+import history from './../packages/teleport/src/services/history/history';
 import { StaticThemeProvider as TeletermThemeProvider } from './../packages/teleterm/src/ui/ThemeProvider';
 import {
   darkTheme as teletermDarkTheme,
   lightTheme as teletermLightTheme,
 } from './../packages/teleterm/src/ui/ThemeProvider/theme';
-import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
-import history from './../packages/teleport/src/services/history/history';
-import { UserContextProvider } from 'teleport/User';
 
 // Checks we are running non-node environment (browser)
 if (typeof global.process === 'undefined') {

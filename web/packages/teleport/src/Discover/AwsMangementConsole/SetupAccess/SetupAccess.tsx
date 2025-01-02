@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { LabelInput, Text, Link, Mark } from 'design';
+import React, { useEffect, useState } from 'react';
 import { useTheme } from 'styled-components';
-import { Cross } from 'design/Icon';
 
+import { LabelInput, Link, Mark, Text } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
+import { Cross } from 'design/Icon';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
 
-import { Option } from 'teleport/Discover/Shared/SelectCreatable';
-import { IAM_ROLE_ARN_REGEX } from 'teleport/services/integrations/aws';
-import {
-  useUserTraits,
-  SetupAccessWrapper,
-} from 'teleport/Discover/Shared/SetupAccess';
-import { styles } from 'teleport/Discover/Shared/SelectCreatable/SelectCreatable';
 import { AWS_TAG_INFO_LINK } from 'teleport/Discover/Shared/const';
+import { Option } from 'teleport/Discover/Shared/SelectCreatable';
+import { styles } from 'teleport/Discover/Shared/SelectCreatable/SelectCreatable';
+import {
+  SetupAccessWrapper,
+  useUserTraits,
+} from 'teleport/Discover/Shared/SetupAccess';
+import { IAM_ROLE_ARN_REGEX } from 'teleport/services/integrations/aws';
 
 export function SetupAccess() {
   const {
