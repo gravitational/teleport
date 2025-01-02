@@ -290,7 +290,7 @@ export const makeAppGateway = (
   targetUri: appUri,
   localAddress: 'localhost',
   localPort: '1337',
-  targetSubresourceName: 'bar',
+  targetSubresourceName: undefined,
   gatewayCliCommand: {
     path: '',
     preview: 'curl http://localhost:1337',

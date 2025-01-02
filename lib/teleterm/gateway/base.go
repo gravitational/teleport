@@ -161,6 +161,7 @@ func (b *base) TargetSubresourceName() string {
 	return b.cfg.TargetSubresourceName
 }
 
+// TODO: This needs to be implemented per gateway kind.
 func (b *base) SetTargetSubresourceName(value string) {
 	b.cfg.TargetSubresourceName = value
 }

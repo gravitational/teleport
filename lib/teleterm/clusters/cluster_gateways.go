@@ -182,6 +182,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 	gw, err := gateway.New(gateway.Config{
 		LocalPort:                     params.LocalPort,
 		TargetURI:                     params.TargetURI,
+		TargetSubresourceName:         params.TargetSubresourceName,
 		TargetName:                    appName,
 		Cert:                          cert,
 		Protocol:                      app.GetProtocol(),

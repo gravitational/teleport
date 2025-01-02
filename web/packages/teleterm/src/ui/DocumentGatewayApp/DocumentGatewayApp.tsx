@@ -36,6 +36,8 @@ export function DocumentGatewayApp(props: {
     disconnect,
     disconnectAttempt,
     reconnect,
+    changeTargetSubresourceName: changeTargetPort,
+    changeTargetSubresourceNameAttempt: changeTargetPortAttempt,
   } = useGateway(doc);
 
   return (
@@ -47,6 +49,7 @@ export function DocumentGatewayApp(props: {
           targetName={doc.targetName}
           gatewayPort={{ isSupported: true, defaultPort: doc.port }}
           reconnect={reconnect}
+          portFieldLabel="Local Port (optional)"
         />
       ) : (
         <AppGateway
@@ -55,6 +58,8 @@ export function DocumentGatewayApp(props: {
           disconnectAttempt={disconnectAttempt}
           changeLocalPort={changeLocalPort}
           changeLocalPortAttempt={changeLocalPortAttempt}
+          changeTargetPort={changeTargetPort}
+          changeTargetPortAttempt={changeTargetPortAttempt}
         />
       )}
     </Document>

@@ -275,6 +275,61 @@ export function mapAttempt<A, B>(
 }
 
 /**
+ * andMap allows chaining an arbitrary amount of attempts in a type-safe way.
+ *
+ * map2 is already implemented with andMap and implementing map3 would boil down to:
+ *
+ *     andMap(attemptC, andMap(attemptB, mapAttempt(attemptA, curriedMapFunc)))
+ */
+function andMap<A, B>(
+  wrappedValue: Attempt<A>,
+  wrappedFunction: Attempt<(dataA: A) => B>
+): Attempt<B> {
+  if (
+    wrappedFunction.status === 'success' &&
+    wrappedValue.status === 'success'
+  ) {
+    const func = wrappedFunction.data;
+    const value = wrappedValue.data;
+    return makeSuccessAttempt(func(value));
+  }
+
+  if (wrappedFunction.status === 'error') {
+    return wrappedFunction;
+  }
+  if (wrappedValue.status === 'error') {
+    return wrappedValue;
+  }
+
+  if (wrappedFunction.status === 'processing') {
+    return makeProcessingAttempt();
+  }
+  if (wrappedValue.status === 'processing') {
+    return makeProcessingAttempt();
+  }
+
+  if (wrappedFunction.status === '') {
+    return wrappedFunction;
+  }
+  if (wrappedValue.status === '') {
+    return wrappedValue;
+  }
+}
+
+/**
+ * map2 combines two attempts. The resulting attempt will be successful if both attempts are
+ * successful.
+ */
+export function map2<A, B, C>(
+  attemptA: Attempt<A>,
+  attemptB: Attempt<B>,
+  mapFunc: (dataA: A, dataB: B) => C
+): Attempt<C> {
+  const curriedMapFunc = (dataA: A) => (dataB: B) => mapFunc(dataA, dataB);
+  return andMap(attemptB, mapAttempt(attemptA, curriedMapFunc));
+}
+
+/**
  * useDelayedRepeatedAttempt makes it so that on repeated calls to `run`, the attempt changes its
  * state to 'processing' only after a delay. This can be used to mask repeated calls and
  * optimistically show stale results.

@@ -132,6 +132,10 @@ export async function setUpAppGateway(
     origin: telemetry.origin,
     targetName: routing.parseAppUri(target.uri).params.appId,
     targetUser: '',
+    targetSubresourceName:
+      target.tcpPorts.length > 0
+        ? target.tcpPorts[0].port.toString()
+        : undefined,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);

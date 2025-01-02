@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useRef } from 'react';
+import {
+  ChangeEvent,
+  ChangeEventHandler,
+  MutableRefObject,
+  useMemo,
+  useRef,
+} from 'react';
 
 import {
   Alert,
@@ -41,24 +47,37 @@ export function AppGateway(props: {
   disconnectAttempt: Attempt<void>;
   changeLocalPort(port: string): void;
   changeLocalPortAttempt: Attempt<void>;
+  changeTargetPort(port: string): void;
+  changeTargetPortAttempt: Attempt<void>;
   disconnect(): void;
 }) {
   const { gateway } = props;
   const formRef = useRef<HTMLFormElement>();
 
-  const { changeLocalPort } = props;
-  const handleChangeLocalPort = useMemo(() => {
-    return debounce((value: string) => {
-      if (formRef.current.reportValidity()) {
-        changeLocalPort(value);
-      }
-    }, 1000);
-  }, [changeLocalPort]);
+  const { changeLocalPort, changeTargetPort } = props;
+  const handleLocalPortChange = useDebouncedPortChangeHandler(
+    formRef,
+    changeLocalPort
+  );
+  const handleTargetPortChange = useDebouncedPortChangeHandler(
+    formRef,
+    changeTargetPort
+  );
 
   let address = `${gateway.localAddress}:${gateway.localPort}`;
   if (gateway.protocol === 'HTTP') {
     address = `http://${address}`;
   }
+
+  // AppGateway doesn't have access to the app resource itself, so it has to decide whether the
+  // app is multi-port or not in some other way.
+  // For multi-port apps, DocumentGateway comes with targetSubresourceName prefilled to the first
+  // port number found in TCP ports. Single-port apps have this field empty.
+  // So, if targetSubresourceName is present, then the app must be multi-port. In this case, the
+  // user is free to change it and can never provide an empty targetSubresourceName.
+  // When the app is not multi-port, targetSubresourceName is empty and the user cannot change it.
+  const isMultiPort =
+    gateway.protocol === 'TCP' && gateway.targetSubresourceName;
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
@@ -75,14 +94,30 @@ export function AppGateway(props: {
         </Alert>
       )}
 
+      {
+        // TODO: Disable fields while a request is in progress.
+      }
       <Flex as="form" ref={formRef} gap={2}>
         <Validation>
           <PortFieldInput
-            label="Port"
+            label="Local Port"
             defaultValue={gateway.localPort}
-            onChange={e => handleChangeLocalPort(e.target.value)}
+            onChange={handleLocalPortChange}
             mb={2}
           />
+          {
+            // TODO: How do we check if the app is multi-port?
+          }
+          {isMultiPort && (
+            // TODO: We need to show available target ports here.
+            <PortFieldInput
+              label="Target Port"
+              required
+              defaultValue={gateway.targetSubresourceName}
+              onChange={handleTargetPortChange}
+              mb={2}
+            />
+          )}
         </Validation>
         {props.changeLocalPortAttempt.status === 'processing' && (
           <Indicator
@@ -118,3 +153,22 @@ export function AppGateway(props: {
     </Box>
   );
 }
+
+/**
+ * useDebouncedPortChangeHandler returns a debounced change handler that calls the change function
+ * only if the form is valid.
+ */
+const useDebouncedPortChangeHandler = (
+  formRef: MutableRefObject<HTMLFormElement>,
+  changeFunc: (port: string) => void
+): ChangeEventHandler<HTMLInputElement> =>
+  useMemo(
+    () =>
+      debounce((event: ChangeEvent<HTMLInputElement>) => {
+        const value = event.target.value;
+        if (formRef.current.reportValidity()) {
+          changeFunc(value);
+        }
+      }, 1000),
+    [formRef, changeFunc]
+  );
