@@ -58,7 +58,7 @@ const (
 // with the [Reader].
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		reader:    r,
+		rawReader: r,
 		lastIndex: -1,
 	}
 }
@@ -78,10 +78,10 @@ const (
 
 // Reader reads Teleport's session recordings
 type Reader struct {
-	inner      io.Reader
+	partReader io.Reader
 	gzipReader *gzip.Reader
 	padding    int64
-	reader     io.Reader
+	rawReader  io.Reader
 	state      int
 	error      error
 	lastIndex  int64
@@ -137,7 +137,7 @@ func (r *Reader) Reset(reader io.Reader) error {
 		}
 		r.gzipReader = nil
 	}
-	r.reader = reader
+	r.rawReader = reader
 	r.state = protoReaderStateInit
 	return nil
 }
@@ -182,7 +182,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateInit:
 			// read the part header that consists of the protocol version
 			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.reader, sizeBytes[:Int64Size])
+			_, err := io.ReadFull(r.rawReader, sizeBytes[:Int64Size])
 			if err != nil {
 				// reached the end of the stream
 				if errors.Is(err, io.EOF) {
@@ -196,19 +196,19 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
 			}
 			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.reader, sizeBytes[:Int64Size])
+			_, err = io.ReadFull(r.rawReader, sizeBytes[:Int64Size])
 			if err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			partSize := binary.BigEndian.Uint64(sizeBytes[:Int64Size])
 			// read padding size (could be 0)
-			_, err = io.ReadFull(r.reader, sizeBytes[:Int64Size])
+			_, err = io.ReadFull(r.rawReader, sizeBytes[:Int64Size])
 			if err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			r.padding = int64(binary.BigEndian.Uint64(sizeBytes[:Int64Size]))
-			r.inner = io.LimitReader(r.reader, int64(partSize))
-			gzipReader, err := gzip.NewReader(r.inner)
+			r.partReader = io.LimitReader(r.rawReader, int64(partSize))
+			gzipReader, err := gzip.NewReader(r.partReader)
 			// older bugged versions of teleport would sometimes incorrectly inject padding bytes into
 			// the gzip section of the archive. this causes gzip readers with multistream enabled (the
 			// default behavior) to fail. we  disable multistream here in order to ensure that the gzip
@@ -235,7 +235,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				// due to a bug in older versions of teleport it was possible that padding
 				// bytes would end up inside of the gzip section of the archive. we should
 				// skip any dangling data in the gzip secion.
-				n, err := io.CopyBuffer(io.Discard, r.inner, messageBytes[:])
+				n, err := io.CopyBuffer(io.Discard, r.partReader, messageBytes[:])
 				if err != nil {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
@@ -252,7 +252,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
 				if r.padding != 0 {
-					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, r.padding), messageBytes[:])
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.rawReader, r.padding), messageBytes[:])
 					if err != nil {
 						return nil, r.setError(trace.ConvertSystemError(err))
 					}
