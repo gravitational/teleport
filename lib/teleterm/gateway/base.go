@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -89,6 +90,9 @@ func newBase(cfg Config) (*base, error) {
 
 // Close terminates gateway connection. Fails if called on an already closed gateway.
 func (b *base) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.closeCancel()
 
 	var errs []error
@@ -158,10 +162,15 @@ func (b *base) TargetUser() string {
 }
 
 func (b *base) TargetSubresourceName() string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	return b.cfg.TargetSubresourceName
 }
 
 func (b *base) SetTargetSubresourceName(value string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.cfg.TargetSubresourceName = value
 }
 
@@ -187,15 +196,13 @@ func (b *base) LocalPortInt() int {
 }
 
 func (b *base) cloneConfig() Config {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	return *b.cfg
 }
 
-// Gateway describes local proxy that creates a gateway to the remote Teleport resource.
-//
-// Gateway is not safe for concurrent use in itself. However, all access to gateways is gated by
-// daemon.Service which obtains a lock for any operation pertaining to gateways.
-//
-// In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
+// Gateway is a local proxy to a remote Teleport resource.
 type base struct {
 	cfg          *Config
 	localProxy   *alpn.LocalProxy
@@ -206,6 +213,7 @@ type base struct {
 	// that the local proxy is now closed and to release any resources.
 	closeContext context.Context
 	closeCancel  context.CancelFunc
+	mu           sync.RWMutex
 }
 
 type TCPPortAllocator interface {
