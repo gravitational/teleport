@@ -38,11 +38,8 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
-    'plugin:import/errors',
-    'plugin:import/warnings',
-    'plugin:import/typescript',
   ],
-  plugins: ['react', 'babel', 'import', 'react-hooks'],
+  plugins: ['react', 'babel', 'react-hooks'],
   overrides: [
     {
       files: ['**/*.test.{ts,tsx,js,jsx}'],

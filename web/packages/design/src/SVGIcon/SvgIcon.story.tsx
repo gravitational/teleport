@@ -34,7 +34,6 @@ export const CustomIcons = () => {
   return (
     <Flex flexWrap="wrap">
       {icons.map(icon => {
-        // eslint-disable-next-line import/namespace
         const S = SvgIcons[icon];
         const size = 64;
 
