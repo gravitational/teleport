@@ -29,10 +29,12 @@ import (
 
 // gitConfigCommand implements `tsh git config`.
 //
-// This command internally executes `git` commands like `git config xxx`. You
+// This command internally executes `git` commands like `git config xxx`.
 // can generally assume the user has `git` binary installed (otherwise there is
-// no point using the `git` proxy feature). An alternative is to use the
-// `go-git` library.
+// no point using the `git` proxy feature).
+//
+// TODO(greedy52) investigate using `go-git` library instead of calling `git
+// config`.
 type gitConfigCommand struct {
 	*kingpin.CmdClause
 
@@ -65,6 +67,10 @@ func (c *gitConfigCommand) run(cf *CLIConf) error {
 	// Make sure we are in a Git dir.
 	err := execGitWithStdoutAndStderr(cf, io.Discard, io.Discard, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
+		// In case git is not found, return the look path error.
+		if trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
 		// This error message is a slight alternation of the original error
 		// message from the above command.
 		return trace.BadParameter("the current directory is not a Git repository (or any of the parent directories)")

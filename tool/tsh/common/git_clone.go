@@ -29,8 +29,10 @@ import (
 //
 // This command internally executes `git clone` while setting `core.sshcommand`.
 // You can generally assume the user has `git` binary installed (otherwise there
-// is no point using the `git` proxy feature). An alternative is to use the
-// `go-git` library.
+// is no point using the `git` proxy feature).
+//
+// TODO(greedy52) investigate using `go-git` library instead of calling `git
+// config`.
 type gitCloneCommand struct {
 	*kingpin.CmdClause
 
@@ -55,7 +57,7 @@ func (c *gitCloneCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	if !u.isGitHub() {
-		return trace.BadParameter("not a GitHub repository")
+		return trace.BadParameter("%s is not a GitHub repository", c.repository)
 	}
 
 	sshCommand := makeGitCoreSSHCommand(cf.executablePath, u.owner())

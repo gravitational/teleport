@@ -58,9 +58,7 @@ func newGitCommands(app *kingpin.Application) gitCommands {
 	return cmds
 }
 
-type gitSSHURL struct {
-	*transport.Endpoint
-}
+type gitSSHURL transport.Endpoint
 
 func (g gitSSHURL) check() error {
 	switch {
@@ -80,7 +78,11 @@ func (g gitSSHURL) isGitHub() bool {
 // an empty string is returned.
 //
 // For GitHub, owner is either the user or the organization that owns the repo.
+//
+// For example, if the SSH url is git@github.com:gravitational/teleport.git, the
+// owner would be "gravitational".
 func (g gitSSHURL) owner() string {
+	// g.Path may have a preceding "/" from url.Parse.
 	owner, _, ok := strings.Cut(strings.TrimPrefix(g.Path, "/"), "/")
 	if !ok {
 		return ""
@@ -105,14 +107,11 @@ func parseGitSSHURL(originalURL string) (*gitSSHURL, error) {
 	if endpoint.Protocol != "ssh" {
 		return nil, trace.BadParameter("unsupported git ssh URL %s", originalURL)
 	}
-	s := &gitSSHURL{
-		Endpoint: endpoint,
-	}
-
+	s := gitSSHURL(*endpoint)
 	if err := s.check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s, nil
+	return &s, nil
 }
 
 func execGitAndCaptureStdout(cf *CLIConf, args ...string) (string, error) {
@@ -128,8 +127,18 @@ func execGit(cf *CLIConf, args ...string) error {
 }
 
 func execGitWithStdoutAndStderr(cf *CLIConf, stdout, stderr io.Writer, args ...string) error {
-	log.Debugf("Executing 'git' with args: %v", args)
-	cmd := exec.CommandContext(cf.Context, "git", args...)
+	const gitExecutable = "git"
+	gitPath, err := exec.LookPath(gitExecutable)
+	if err != nil {
+		return trace.NotFound(`could not locate the executable %q. The following error occurred:
+%s
+
+tsh requires that the %q executable to be installed.
+You can install it by following the instructions at https://git-scm.com/book/en/v2/Getting-Started-Installing-Git`,
+			gitExecutable, err.Error(), gitExecutable)
+	}
+	log.Debugf("Executing %q with args: %v", gitPath, args)
+	cmd := exec.CommandContext(cf.Context, gitPath, args...)
 	cmd.Stdin = cf.Stdin()
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
