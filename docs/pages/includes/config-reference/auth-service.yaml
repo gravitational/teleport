@@ -158,7 +158,7 @@ auth_service:
         require_session_mfa: false
         
         # second_factors is the list of allowed second factors for the cluster.
-        # Possible values: "otp" and "webauthn". Order does not matter.
+        # Possible values: "otp", "webauthn", and "sso". Order does not matter.
         # Defaults to ["otp"].
         second_factors: ["webauthn", "otp"]
 
