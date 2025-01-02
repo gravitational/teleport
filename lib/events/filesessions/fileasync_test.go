@@ -682,7 +682,11 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 
 	// sort audit events by index
 	slices.SortStableFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) int {
-		return int(a.GetIndex() - b.GetIndex())
+		if a.GetIndex() < b.GetIndex() {
+			return -1
+		}
+
+		return 1
 	})
 
 	// remove any audit events with duplicate indexes
