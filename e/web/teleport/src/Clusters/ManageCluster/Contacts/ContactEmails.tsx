@@ -9,7 +9,7 @@ import Label from 'design/Label';
 import Text, { P3 } from 'design/Text';
 
 import { ShimmerBox } from 'design/ShimmerBox';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { Attempt } from 'shared/hooks/useAsync';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
