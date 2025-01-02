@@ -175,6 +175,19 @@ func TestClose(t *testing.T) {
 	}
 }
 
+func TestConnectionError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	instance, tc := StartWithServer(t, ctx, WithSkipREPLRun())
+
+	// Force the server to be closed
+	tc.CloseServer()
+
+	err := instance.Run(ctx)
+	require.Error(t, err)
+	require.True(t, trace.IsConnectionProblem(err), "expected run to be a connection error but got %T", err)
+}
+
 func writeLine(t *testing.T, c *testCtx, line string) {
 	t.Helper()
 	data := []byte(line + lineBreak)
