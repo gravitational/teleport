@@ -78,14 +78,24 @@ const (
 
 // Reader reads Teleport's session recordings
 type Reader struct {
+	// partReader wraps rawReader and is limited to reading a single
+	// (compressed) part from the session recording
 	partReader io.Reader
+	// gzipReader wraps partReader and decompresses a single part
+	// from the session recording
 	gzipReader *gzip.Reader
-	padding    int64
-	rawReader  io.Reader
-	state      int
-	error      error
-	lastIndex  int64
-	stats      ReaderStats
+	// padding is how many bytes were added to hit a minimum file upload size
+	padding int64
+	// rawReader is the raw data source we read from
+	rawReader io.Reader
+	// state tracks where the Reader is at in consuming a session recording
+	state int
+	// error holds any error encountered while reading a session recording
+	error error
+	// lastIndex stores the last parsed event's index within a session (events found with an index less than or equal to lastIndex are skipped)
+	lastIndex int64
+	// stats contains info about processed events (e.g. total events processed, how many events were skipped)
+	stats ReaderStats
 }
 
 // ReaderStats contains some reader statistics
