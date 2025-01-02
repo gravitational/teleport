@@ -228,6 +228,7 @@ func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certific
 var ErrUserInputRequired = errors.New("user input required")
 
 // reissueCertIfExpired checks if provided certificate has expired and reissues it if needed and replaces in the middleware certs.
+// serverName has a form of <hex-encoded-kube-cluster>.<teleport-cluster>.
 func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, serverName string) error {
 	needsReissue := false
 	if len(cert.Certificate) == 0 {
