@@ -25,9 +25,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// WebAPIVersionOne is a current webapi version
-const WebAPIVersionOne = "v1"
-
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.

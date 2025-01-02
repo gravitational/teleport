@@ -3484,6 +3484,21 @@ func TestEndpointNotFoundHandling(t *testing.T) {
 			endpoint:  "v1/something/else",
 			shouldErr: true,
 		},
+		{
+			name:      "invalid triple version prefixes",
+			endpoint:  "v1/v1/v1/webapi/token",
+			shouldErr: true,
+		},
+		{
+			name:      "invalid just prefix",
+			endpoint:  "v1/",
+			shouldErr: true,
+		},
+		{
+			name:      "invalid prefix",
+			endpoint:  "v1s/webapi/token",
+			shouldErr: true,
+		},
 	}
 
 	for _, tc := range tt {
@@ -5110,7 +5125,7 @@ func TestDeleteMFA(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
-	rclt, err := roundtrip.NewClient(proxy.webURL.String(), teleport.WebAPIVersionOne, opts...)
+	rclt, err := roundtrip.NewClient(proxy.webURL.String(), "", opts...)
 	require.NoError(t, err)
 	clt := client.WebClient{Client: rclt}
 	jar.SetCookies(&proxy.webURL, pack.cookies)

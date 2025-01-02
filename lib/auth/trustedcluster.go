@@ -673,7 +673,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}
 
-	clt, err := roundtrip.NewClient(proxyAddr.String(), teleport.WebAPIVersionOne, opts...)
+	clt, err := roundtrip.NewClient(proxyAddr.String(), "", opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

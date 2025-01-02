@@ -109,8 +109,8 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-// apiPrefixRegex matches pathname starting with /vN/webapi or /vN/enterprise
-var apiPrefixRegex = regexp.MustCompile(`^/v(\d+)/(webapi|enterprise)`)
+// apiPrefixRegex matches pathnames starting with /v<version num>/<any characters>
+var apiPrefixRegex = regexp.MustCompile(`^/v(\d+)/(.+)`)
 
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
@@ -616,13 +616,21 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	notFoundRoutingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Request is going to the API?
-		// If no routes were matched, it could be because certain paths don't expect any version prefixes.
-		// Only prefix "v1" will be stripped to preserve the legacy behavior before introducing v1 + N.
-		if matches := apiPrefixRegex.FindStringSubmatch(r.URL.Path); matches != nil && len(matches) > 1 {
+		// If no routes were matched, it could be because it's a path with `v1` prefix
+		// (eg: the Teleport web app will call "most" endpoints with v1 prefixed).
+		//
+		// `v1` paths are not defined with `v1` prefix. If the path turns out to be prefixed
+		// with `v1`, it will be stripped and served again. Historically, that's how it started
+		// and should be kept that way to prevent breakage.
+		//
+		// v2+ prefixes will be expected by both caller and definition and will not be stripped.
+		if matches := apiPrefixRegex.FindStringSubmatch(r.URL.Path); matches != nil && len(matches) == 3 {
+			postVersionPrefixPath := fmt.Sprintf("/%s", matches[2])
 			versionNum := matches[1]
-			if versionNum == "1" {
-				// Try path matching again with the stripped prefix.
-				http.StripPrefix("/"+teleport.WebAPIVersionOne, h).ServeHTTP(w, r)
+
+			// Regex check the rest of path to ensure we aren't allowing paths like /v1/v2/webapi
+			if matches := apiPrefixRegex.FindStringSubmatch(postVersionPrefixPath); matches == nil && versionNum == "1" {
+				http.StripPrefix("/v1", h).ServeHTTP(w, r)
 				return
 			}
 			httplib.ReplyRouteNotFoundJSONWithVersionField(w, teleport.Version)

@@ -18,8 +18,8 @@
 
 import { Label } from 'teleport/types';
 
-import { Node } from '../nodes';
 import { ResourceLabel } from '../agents';
+import { Node } from '../nodes';
 
 /**
  * type Integration v. type Plugin:

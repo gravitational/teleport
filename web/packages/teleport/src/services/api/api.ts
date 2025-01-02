@@ -23,7 +23,6 @@ import websession from 'teleport/services/websession';
 
 import { MfaChallengeResponse } from '../mfa';
 import { storageService } from '../storageService';
-
 import parseError, { ApiError, parseProxyVersion } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';

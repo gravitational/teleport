@@ -223,24 +223,24 @@ type Version struct {
 func ReplyRouteNotFoundJSONWithVersionField(w http.ResponseWriter, versionStr string) {
 	SetDefaultSecurityHeaders(w.Header())
 
+	errObj := &trace.TraceErr{
+		Err: trace.NotFound("path not found"),
+	}
+
 	ver, err := semver.NewVersion(versionStr)
-	verObj := Version{}
 	if err == nil {
-		verObj = Version{
+		verObj := Version{
 			Major:      ver.Major,
 			Minor:      ver.Minor,
 			Patch:      ver.Patch,
 			String:     versionStr,
 			PreRelease: string(ver.PreRelease),
 		}
+		fields := make(map[string]interface{})
+		fields["proxyVersion"] = verObj
+		errObj.Fields = fields
 	}
 
-	fields := make(map[string]interface{})
-	fields["proxyVersion"] = verObj
-	errObj := &trace.TraceErr{
-		Err:    trace.NotFound("path not found"),
-		Fields: fields,
-	}
 	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
 }
 
