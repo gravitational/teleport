@@ -134,24 +134,6 @@ func (r *Reader) Close() error {
 	return nil
 }
 
-// Reset sets reader to read from the new reader
-// without resetting the stats, could be used
-// to deduplicate the events
-func (r *Reader) Reset(reader io.Reader) error {
-	if r.error != nil {
-		return r.error
-	}
-	if r.gzipReader != nil {
-		if r.error = r.gzipReader.Close(); r.error != nil {
-			return trace.Wrap(r.error)
-		}
-		r.gzipReader = nil
-	}
-	r.rawReader = reader
-	r.state = protoReaderStateInit
-	return nil
-}
-
 func (r *Reader) setError(err error) error {
 	r.state = protoReaderStateError
 	r.error = err
