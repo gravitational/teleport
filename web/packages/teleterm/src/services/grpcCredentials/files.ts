@@ -17,7 +17,7 @@
  */
 
 import path from 'path';
-import { watch } from 'fs';
+import { type Stats, watch } from 'fs';
 import { readFile, writeFile, stat, rename } from 'fs/promises';
 
 import { wait } from 'shared/utils/wait';
@@ -64,7 +64,17 @@ export async function readGrpcCert(
   const abortController = new AbortController();
 
   async function fileExistsAndHasSize(): Promise<boolean> {
-    return !!(await stat(fullPath)).size;
+    let stats: Stats;
+    try {
+      stats = await stat(fullPath);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
+
+    return !!stats.size;
   }
 
   function waitForFile(): Promise<Buffer> {
@@ -94,7 +104,7 @@ export async function readGrpcCert(
 
       fileExistsAndHasSize().then(
         exists => exists && resolve(readFile(fullPath)),
-        () => {} // Ignore err.
+        err => reject(err)
       );
     });
   }
