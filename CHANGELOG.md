@@ -1,5 +1,11 @@
 # Changelog
 
+## 17.1.3 (1/2/25)
+
+* Fixes a bug where v16 Teleport cannot connect to v17.1.0, v17.1.1 and v17.1.2 clusters. [#50658](https://github.com/gravitational/teleport/pull/50658)
+* Prevent panicking during shutdown when SQS consumer is disabled. [#50648](https://github.com/gravitational/teleport/pull/50648)
+* Add a --labels flag to the tctl tokens ls command. [#50624](https://github.com/gravitational/teleport/pull/50624)
+
 ## 17.1.2 (12/30/24)
 
 * Fixed a bug in the WebUI that could cause an access denied error when accessing application. [#50611](https://github.com/gravitational/teleport/pull/50611)
