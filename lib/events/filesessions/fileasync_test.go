@@ -686,27 +686,7 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	})
 
 	// remove any audit events with duplicate indexes
-	return uniqueAuditEvents(outEvents)
-}
-
-// uniqueAuditEvents assumes auditEvents are sorted by index
-//
-// returned audit events are guaranteed to have unique indexes by removing
-// any audit events containing a previously seen index
-func uniqueAuditEvents(auditEvents []apievents.AuditEvent) []apievents.AuditEvent {
-	var uniqAuditEvents []apievents.AuditEvent
-
-	for i, auditEvent := range auditEvents {
-		// always add first audit event
-		if i == 0 {
-			uniqAuditEvents = append(uniqAuditEvents, auditEvent)
-			continue
-		}
-
-		if auditEvent.GetIndex() != auditEvents[i-1].GetIndex() {
-			uniqAuditEvents = append(uniqAuditEvents, auditEvent)
-		}
-	}
-
-	return uniqAuditEvents
+	return slices.CompactFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) bool {
+		return a.GetIndex() == b.GetIndex()
+	})
 }
