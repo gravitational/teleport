@@ -21,16 +21,16 @@ import styled from 'styled-components';
 import {
   alignItems,
   AlignItemsProps,
-  justifyContent,
-  JustifyContentProps,
   flexBasis,
   FlexBasisProps,
-  flexWrap,
-  FlexWrapProps,
   flexDirection,
   FlexDirectionProps,
+  flexWrap,
+  FlexWrapProps,
   gap,
   GapProps,
+  justifyContent,
+  JustifyContentProps,
 } from 'design/system';
 
 import Box, { BoxProps } from '../Box';

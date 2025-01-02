@@ -16,25 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Flex, P3, Text } from 'design';
-import { height, space, color } from 'design/system';
+import { color, height, space } from 'design/system';
 
 import { storageService } from 'teleport/services/storageService';
 
 import { RecentHistory, RecentHistoryItem } from '../RecentHistory';
-
+import { CustomNavigationCategory } from './categories';
 import { NavigationSection, NavigationSubsection } from './Navigation';
 import {
   CustomChildrenSection,
-  RightPanel,
   getSubsectionStyles,
+  RightPanel,
   RightPanelHeader,
 } from './Section';
-import { CustomNavigationCategory } from './categories';
 
 export function SearchSection({
   navigationSections,

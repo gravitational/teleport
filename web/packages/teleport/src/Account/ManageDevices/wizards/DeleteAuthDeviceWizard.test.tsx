@@ -16,21 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-
 import { waitFor } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
-import TeleportContext from 'teleport/teleportContext';
+import { render, screen } from 'design/utils/testing';
+
 import { ContextProvider } from 'teleport';
-import MfaService, { SsoChallenge } from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
-
-import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
-
-import { dummyPasskey, dummyHardwareDevice } from './deviceCases';
+import MfaService, { SsoChallenge } from 'teleport/services/mfa';
+import TeleportContext from 'teleport/teleportContext';
 
 import { DeleteAuthDeviceWizard } from '.';
+import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
+import { dummyHardwareDevice, dummyPasskey } from './deviceCases';
 
 let ctx: TeleportContext;
 let user: UserEvent;

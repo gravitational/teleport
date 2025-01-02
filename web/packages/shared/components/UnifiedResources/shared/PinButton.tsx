@@ -18,13 +18,11 @@
 
 import { useRef } from 'react';
 
-import { PushPinFilled, PushPin } from 'design/Icon';
 import ButtonIcon from 'design/ButtonIcon';
-
+import { PushPin, PushPinFilled } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
 import { PinningSupport } from '../types';
-
 import { PINNING_NOT_SUPPORTED_MESSAGE } from '../UnifiedResources';
 
 export function PinButton({

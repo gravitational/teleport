@@ -18,9 +18,8 @@
 
 import styled, { useTheme } from 'styled-components';
 
-import { Flex, H2, Subtitle2, ButtonSecondary, P3, Box } from 'design';
+import { Box, ButtonSecondary, Flex, H2, P3, Subtitle2 } from 'design';
 import { ArrowRight, CircleCheck, Password } from 'design/Icon';
-
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { AuthType } from 'shared/services';
 

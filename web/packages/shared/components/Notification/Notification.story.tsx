@@ -17,8 +17,9 @@
  */
 
 import { useState } from 'react';
-import { Bots } from 'design/Icon';
+
 import Flex from 'design/Flex';
+import { Bots } from 'design/Icon';
 
 import { Notification } from './Notification';
 

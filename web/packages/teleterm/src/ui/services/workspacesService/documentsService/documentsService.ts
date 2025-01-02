@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { unique } from 'teleterm/ui/utils/uid';
+import type { Shell } from 'teleterm/mainProcess/shell';
+import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
-  ServerUri,
-  paths,
-  routing,
-  RootClusterUri,
   KubeUri,
+  paths,
+  RootClusterUri,
+  routing,
+  ServerUri,
 } from 'teleterm/ui/uri';
+import { unique } from 'teleterm/ui/utils/uid';
 
 import {
   CreateAccessRequestDocumentOpts,
@@ -33,23 +35,20 @@ import {
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
+  DocumentAuthorizeWebSession,
   DocumentCluster,
+  DocumentClusterQueryParams,
   DocumentConnectMyComputer,
   DocumentGateway,
-  DocumentGatewayKube,
   DocumentGatewayCliClient,
+  DocumentGatewayKube,
   DocumentOrigin,
+  DocumentPtySession,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
-  DocumentClusterQueryParams,
-  DocumentPtySession,
   WebSessionRequest,
-  DocumentAuthorizeWebSession,
 } from './types';
-
-import type { Shell } from 'teleterm/mainProcess/shell';
-import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 export class DocumentsService {
   constructor(

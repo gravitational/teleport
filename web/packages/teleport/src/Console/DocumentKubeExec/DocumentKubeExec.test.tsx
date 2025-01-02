@@ -18,7 +18,6 @@
 import { screen } from '@testing-library/react';
 
 import '@testing-library/jest-dom';
-
 import 'jest-canvas-mock';
 
 import { act, render } from 'design/utils/testing';
@@ -26,15 +25,12 @@ import { act, render } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
 import ConsoleCtx from 'teleport/Console/consoleContext';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import Tty from 'teleport/lib/term/tty';
-
-import useKubeExecSession, { Status } from './useKubeExecSession';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import type { Session } from 'teleport/services/session';
 
 import DocumentKubeExec from './DocumentKubeExec';
-
-import type { Session } from 'teleport/services/session';
+import useKubeExecSession, { Status } from './useKubeExecSession';
 
 jest.mock('./useKubeExecSession');
 

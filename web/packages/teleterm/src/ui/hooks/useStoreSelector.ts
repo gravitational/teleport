@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useSyncExternalStore, useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { IAppContext } from 'teleterm/ui/types';
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { IAppContext } from 'teleterm/ui/types';
 
 /**
  * useStoreSelector selects a value out of a store and triggers a component update whenever that

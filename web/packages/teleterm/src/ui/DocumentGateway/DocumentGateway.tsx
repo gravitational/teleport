@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getCliCommandArgv0 } from 'teleterm/services/tshd/gateway';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { getCliCommandArgv0 } from 'teleterm/services/tshd/gateway';
 
 import { OfflineGateway } from '../components/OfflineGateway';
 import { useWorkspaceContext } from '../Documents';
-
-import { useGateway } from './useGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
+import { useGateway } from './useGateway';
 
 export function DocumentGateway(props: {
   visible: boolean;

@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonWarning, ButtonSecondary, Text, Alert } from 'design';
+import { Alert, ButtonSecondary, ButtonWarning, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import { useAttemptNext } from 'shared/hooks';
 

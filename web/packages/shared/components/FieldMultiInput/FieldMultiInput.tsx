@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useRef } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
-import { useRef } from 'react';
-import styled, { useTheme } from 'styled-components';
-
+import { useRule } from 'shared/components/Validation';
 import {
   precomputed,
   Rule,
   ValidationResult,
 } from 'shared/components/Validation/rules';
-import { useRule } from 'shared/components/Validation';
 
 import FieldInput from '../FieldInput';
 

@@ -22,9 +22,9 @@ import { Box } from 'design';
 
 import { State as ResourceState } from 'teleport/components/useResources';
 
-import { State as AuthConnectorState } from '../useAuthConnectors';
 import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
 import getSsoIcon from '../ssoIcons/getSsoIcon';
+import { State as AuthConnectorState } from '../useAuthConnectors';
 
 export default function ConnectorList({ items, onEdit, onDelete }: Props) {
   items = items || [];
