@@ -54,7 +54,8 @@ const (
 
 // NewReader returns a new session recording reader
 //
-// It is the caller's responsibility to call Close on the [Reader] when done.
+// It is the caller's responsibility to call Close on the returned [Reader] from NewReader when done
+// with the [Reader].
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		reader:    r,
