@@ -19,6 +19,7 @@ issues:
       - unused
       path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
     - linters: [govet]
+      path-except: ^e/
       text: "non-constant format string in call to github.com/gravitational/trace."
     - linters: [testifylint]
       text: "suite-thelper: suite helper method must start with"

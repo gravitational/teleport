@@ -260,7 +260,7 @@ exports[`failed state 1`] = `
           class="c13"
           kind="primary"
         >
-          Generate reset url
+          Generate Reset URL
         </button>
         <button
           class="c14"
@@ -508,7 +508,7 @@ exports[`processing state 1`] = `
           disabled=""
           kind="primary"
         >
-          Generate reset url
+          Generate Reset URL
         </button>
         <button
           class="c13"
