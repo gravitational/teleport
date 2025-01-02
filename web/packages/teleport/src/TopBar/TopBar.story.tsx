@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getOSSFeatures } from 'teleport/features';
-import TeleportContext from 'teleport/teleportContext';
-import { makeUserContext } from 'teleport/services/user';
-import { LocalNotificationKind } from 'teleport/services/notifications';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { LocalNotificationKind } from 'teleport/services/notifications';
+import { makeUserContext } from 'teleport/services/user';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { TopBar } from './TopBar';
 

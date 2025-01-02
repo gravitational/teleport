@@ -18,38 +18,39 @@
 
 import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
+
+import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
 import {
   Attempt,
   hasFinished,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
+import { isWebApp } from 'teleterm/services/tshd/app';
+import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
+  DisplayResults,
+  isClusterSearchFilter,
   ResourceMatch,
   ResourceSearchResult,
   SearchFilter,
   SearchResult,
+  SearchResultApp,
   SearchResultCluster,
   SearchResultDatabase,
   SearchResultKube,
-  SearchResultApp,
   SearchResultResourceType,
   SearchResultServer,
-  DisplayResults,
-  isClusterSearchFilter,
 } from 'teleterm/ui/Search/searchResult';
-import * as tsh from 'teleterm/services/tshd/types';
-import * as uri from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
+import * as uri from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
-import { isWebApp } from 'teleterm/services/tshd/app';
+import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { useVnetContext } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from '../actions';
@@ -58,11 +59,10 @@ import {
   CrossClusterResourceSearchResult,
   resourceTypeToReadableName,
 } from '../useSearch';
-
-import { useActionAttempts } from './useActionAttempts';
-import { getParameterPicker } from './pickers';
-import { ResultList, NonInteractiveItem, IconAndContent } from './ResultList';
 import { PickerContainer } from './PickerContainer';
+import { getParameterPicker } from './pickers';
+import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
+import { useActionAttempts } from './useActionAttempts';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();

@@ -26,36 +26,35 @@ import {
   useMemo,
   useState,
 } from 'react';
+
 import {
   Attempt,
+  makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  makeEmptyAttempt,
 } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
-
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { Server } from 'teleterm/services/tshd/types';
-import {
-  cloneAbortSignal,
-  isTshdRpcError,
-} from 'teleterm/services/tshd/cloneableClient';
-import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { useLogger } from 'teleterm/ui/hooks/useLogger';
-
-import { assertUnreachable, retryWithRelogin } from '../utils';
-
-import { ConnectMyComputerAccess, getConnectMyComputerAccess } from './access';
-import {
-  checkAgentCompatibility,
-  AgentCompatibility,
-} from './CompatibilityPromise';
 
 import type {
   AgentProcessState,
   MainProcessClient,
 } from 'teleterm/mainProcess/types';
+import {
+  cloneAbortSignal,
+  isTshdRpcError,
+} from 'teleterm/services/tshd/cloneableClient';
+import { Server } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
+
+import { assertUnreachable, retryWithRelogin } from '../utils';
+import { ConnectMyComputerAccess, getConnectMyComputerAccess } from './access';
+import {
+  AgentCompatibility,
+  checkAgentCompatibility,
+} from './CompatibilityPromise';
 
 export type CurrentAction =
   | {

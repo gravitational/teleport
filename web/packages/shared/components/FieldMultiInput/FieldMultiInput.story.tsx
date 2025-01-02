@@ -19,13 +19,10 @@
 import { useState } from 'react';
 
 import Box from 'design/Box';
-
 import { Button } from 'design/Button';
-
 import Validation from 'shared/components/Validation';
 
 import { arrayOf, requiredField } from '../Validation/rules';
-
 import { FieldMultiInput } from './FieldMultiInput';
 
 export default {

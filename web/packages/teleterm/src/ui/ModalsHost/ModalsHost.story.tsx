@@ -20,9 +20,9 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   DialogDocumentsReopen,
-  ModalsService,
-  DialogHardwareKeyTouch,
   DialogHardwareKeyPin,
+  DialogHardwareKeyTouch,
+  ModalsService,
 } from 'teleterm/ui/services/modals';
 
 import ModalsHost from './ModalsHost';

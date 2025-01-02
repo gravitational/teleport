@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 import React, { useState } from 'react';
+
 import { Flex } from 'design';
 
 import { MultiselectMenu } from './MultiselectMenu';
-
-import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 
 type OptionValue = `option-${number}`;
 

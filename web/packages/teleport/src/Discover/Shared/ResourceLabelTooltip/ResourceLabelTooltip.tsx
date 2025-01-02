@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled from 'styled-components';
+
 import Link from 'design/Link';
 import { MarkInverse } from 'design/Mark';
 import { Position } from 'design/Popover/Popover';
 import { IconTooltip } from 'design/Tooltip';
-import styled from 'styled-components';
 
 /**
  * Returns a IconTooltip component with its tip contents

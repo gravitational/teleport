@@ -22,21 +22,21 @@
 import { EventEmitter } from 'node:events';
 
 import {
-  UnaryCall,
-  RpcError,
   ClientStreamingCall,
-  ServerStreamingCall,
   DuplexStreamingCall,
-  RpcOutputStream,
-  ServiceInfo,
   MethodInfo,
+  RpcError,
+  RpcOutputStream,
+  ServerStreamingCall,
+  ServiceInfo,
+  UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
 import {
   cloneAbortSignal,
-  TshdRpcError,
   cloneClient,
   isTshdRpcError,
+  TshdRpcError,
 } from './cloneableClient';
 
 function getRpcError() {

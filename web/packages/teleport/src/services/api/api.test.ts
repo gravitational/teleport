@@ -17,12 +17,11 @@
  */
 
 import { MfaChallengeResponse } from '../mfa';
-
 import api, {
-  MFA_HEADER,
   defaultRequestOptions,
   getAuthHeaders,
   isRoleNotFoundError,
+  MFA_HEADER,
 } from './api';
 
 describe('api.fetch', () => {

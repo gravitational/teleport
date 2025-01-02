@@ -21,16 +21,15 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
-  resourceKindToJoinRole,
   ResourceKind,
+  resourceKindToJoinRole,
 } from 'teleport/Discover/Shared/ResourceKind';
-
-import { DbMeta, useDiscover } from '../../useDiscover';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import TeleportContext from 'teleport/teleportContext';
 
 import type { AgentStepProps } from '../../types';
+import { DbMeta, useDiscover } from '../../useDiscover';
 
 export function useMutualTls({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');

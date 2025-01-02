@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Text, Flex } from 'design';
+import { Box, Flex, Text } from 'design';
 
 export const MissingPermissionsTooltip = ({
   missingPermissions,

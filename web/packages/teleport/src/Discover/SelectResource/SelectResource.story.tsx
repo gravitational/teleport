@@ -20,21 +20,17 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
+import { ContextProvider } from 'teleport';
 import {
   createTeleportContext,
   getAcl,
   noAccess,
 } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
-
-import { UserContext } from 'teleport/User/UserContext';
-
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-
 import { Acl } from 'teleport/services/user';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import { UserContext } from 'teleport/User/UserContext';
 
 import { SelectResource } from './SelectResource';
 

@@ -16,31 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'styled-components';
 
-import { Indicator, Box } from 'design';
-
+import { Box, Indicator } from 'design';
 import {
-  FileTransferActionBar,
   FileTransfer,
-  FileTransferRequests,
+  FileTransferActionBar,
   FileTransferContextProvider,
+  FileTransferRequests,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
-import * as stores from 'teleport/Console/stores';
-
 import AuthnDialog from 'teleport/components/AuthnDialog';
+import * as stores from 'teleport/Console/stores';
 import { useMfa } from 'teleport/lib/useMfa';
 
-import Document from '../Document';
-
 import { useConsoleContext } from '../consoleContextProvider';
-
+import Document from '../Document';
 import { Terminal, TerminalRef } from './Terminal';
-import useSshSession from './useSshSession';
 import { useFileTransfer } from './useFileTransfer';
+import useSshSession from './useSshSession';
 
 export default function DocumentSshWrapper(props: PropTypes) {
   return (

@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Toggle, Link, Flex, H2 } from 'design';
-
+import { Flex, H2, Link, Text, Toggle } from 'design';
 import { P } from 'design/Text/Text';
-
 import { IconTooltip } from 'design/Tooltip';
 
 const GUIDE_URL =
