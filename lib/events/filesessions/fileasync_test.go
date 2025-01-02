@@ -681,7 +681,7 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	}
 
 	// sort audit events by index
-	slices.SortStableFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) int {
+	slices.SortFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) int {
 		if a.GetIndex() < b.GetIndex() {
 			return -1
 		}
