@@ -52,9 +52,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -616,6 +616,10 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, us
 	})
 	require.NoError(t, err)
 
+	// webauthnLogin is not safe for concurrent use, partly due to the implementation of device, but
+	// mostly because Teleport itself doesn't allow for more than one in-flight MFA challenge. This is
+	// an arbitrary limitation which in theory we could change. But for now, parallel tests that use
+	// webauthnLogin must use a separate user for each test and not trigger parallel MFA prompts.
 	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
@@ -678,20 +682,30 @@ func requireSessionMFARole(ctx context.Context, t *testing.T, authServer *auth.S
 	require.NoError(t, err)
 }
 
-func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.TeleportClient) {
+type makeTCAndWebauthnLoginFunc func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc)
+
+func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc) {
 	ctx := context.Background()
 
 	t.Run("root cluster", func(t *testing.T) {
+		t.Parallel()
+
 		t.Run("web app", func(t *testing.T) {
+			t.Parallel()
+
 			profileName := mustGetProfileName(t, pack.RootWebAddr())
 			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
 
-			testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+			testAppGatewayCertRenewal(ctx, t, pack, makeTCAndWebauthnLogin, appURI)
 		})
 
 		t.Run("TCP app", func(t *testing.T) {
+			t.Parallel()
+
 			profileName := mustGetProfileName(t, pack.RootWebAddr())
 			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPAppName())
+
+			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
 
 			testGatewayCertRenewal(
 				ctx,
@@ -701,14 +715,17 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
 					testGatewayConnectionFunc: makeMustConnectTCPAppGateway(pack.RootTCPMessage()),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             tc.WebauthnLogin,
+					webauthnLogin:             webauthnLogin,
 				},
 			)
 		})
 
 		t.Run("multi-port TCP app", func(t *testing.T) {
+			t.Parallel()
 			profileName := mustGetProfileName(t, pack.RootWebAddr())
 			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPMultiPortAppName())
+
+			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
 
 			testGatewayCertRenewal(
 				ctx,
@@ -723,7 +740,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 						pack.RootTCPMultiPortMessageAlpha(), pack.RootTCPMultiPortAppPortBeta(), pack.RootTCPMultiPortMessageBeta(),
 					),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             tc.WebauthnLogin,
+					webauthnLogin:             webauthnLogin,
 					// First MFA prompt is made when creating the gateway. Then makeMustConnectMultiPortTCPAppGateway
 					// changes the target port twice, which means two more prompts.
 					//
@@ -737,18 +754,26 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 	})
 
 	t.Run("leaf cluster", func(t *testing.T) {
+		t.Parallel()
+
 		t.Run("web app", func(t *testing.T) {
+			t.Parallel()
+
 			profileName := mustGetProfileName(t, pack.RootWebAddr())
 			appURI := uri.NewClusterURI(profileName).
 				AppendLeafCluster(pack.LeafAppClusterName()).
 				AppendApp(pack.LeafAppName())
 
-			testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+			testAppGatewayCertRenewal(ctx, t, pack, makeTCAndWebauthnLogin, appURI)
 		})
 
 		t.Run("TCP app", func(t *testing.T) {
+			t.Parallel()
+
 			profileName := mustGetProfileName(t, pack.RootWebAddr())
 			appURI := uri.NewClusterURI(profileName).AppendLeafCluster(pack.LeafAppClusterName()).AppendApp(pack.LeafTCPAppName())
+
+			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
 
 			testGatewayCertRenewal(
 				ctx,
@@ -758,14 +783,18 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
 					testGatewayConnectionFunc: makeMustConnectTCPAppGateway(pack.LeafTCPMessage()),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             tc.WebauthnLogin,
+					webauthnLogin:             webauthnLogin,
 				},
 			)
 		})
 
 		t.Run("multi-port TCP app", func(t *testing.T) {
+			t.Parallel()
+
 			profileName := mustGetProfileName(t, pack.RootWebAddr())
 			appURI := uri.NewClusterURI(profileName).AppendLeafCluster(pack.LeafAppClusterName()).AppendApp(pack.LeafTCPMultiPortAppName())
+
+			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
 
 			testGatewayCertRenewal(
 				ctx,
@@ -780,7 +809,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 						pack.LeafTCPMultiPortMessageAlpha(), pack.LeafTCPMultiPortAppPortBeta(), pack.LeafTCPMultiPortMessageBeta(),
 					),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             tc.WebauthnLogin,
+					webauthnLogin:             webauthnLogin,
 					// First MFA prompt is made when creating the gateway. Then makeMustConnectMultiPortTCPAppGateway
 					// changes the target port twice, which means two more prompts.
 					//
@@ -794,8 +823,9 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 	})
 }
 
-func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, tc *libclient.TeleportClient, appURI uri.ResourceURI) {
+func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc, appURI uri.ResourceURI) {
 	t.Helper()
+	tc, webauthnLogin := makeTCAndWebauthnLogin(t)
 
 	testGatewayCertRenewal(
 		ctx,
@@ -807,7 +837,7 @@ func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appacces
 			},
 			testGatewayConnectionFunc: mustConnectWebAppGateway,
 			generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-			webauthnLogin:             tc.WebauthnLogin,
+			webauthnLogin:             webauthnLogin,
 		},
 	)
 }
