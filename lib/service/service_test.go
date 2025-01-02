@@ -1844,7 +1844,6 @@ func TestInitDatabaseService(t *testing.T) {
 				_ = eg.Wait()
 				_ = process.Close()
 				require.NoError(t, process.Wait())
-				close(serviceExitedEvents)
 			})
 
 			if !test.expectErr {
