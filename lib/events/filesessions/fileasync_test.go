@@ -25,6 +25,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -660,6 +661,7 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 }
 
 // readStream reads and decodes the audit stream from uploadID
+// Additionally, readStream will remove any duplicate audit events (by index) encountered.
 func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *eventstest.MemoryUploader) []apievents.AuditEvent {
 	t.Helper()
 
@@ -667,18 +669,44 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	require.NoError(t, err)
 
 	var outEvents []apievents.AuditEvent
-	var reader *sessionrecording.Reader
-	for i, part := range parts {
-		if i == 0 {
-			reader = sessionrecording.NewReader(bytes.NewReader(part))
-		} else {
-			err := reader.Reset(bytes.NewReader(part))
-			require.NoError(t, err)
-		}
+	for _, part := range parts {
+		reader := sessionrecording.NewReader(bytes.NewReader(part))
+
 		out, err := reader.ReadAll(ctx)
 		require.NoError(t, err, "part crash %#v", part)
 
+		require.NoError(t, reader.Close(), "error closing session recording reader")
+
 		outEvents = append(outEvents, out...)
 	}
-	return outEvents
+
+	// sort audit events by index
+	slices.SortStableFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) int {
+		return int(a.GetIndex() - b.GetIndex())
+	})
+
+	// remove any audit events with duplicate indexes
+	return uniqueAuditEvents(outEvents)
+}
+
+// uniqueAuditEvents assumes auditEvents are sorted by index
+//
+// returned audit events are guaranteed to have unique indexes by removing
+// any audit events containing a previously seen index
+func uniqueAuditEvents(auditEvents []apievents.AuditEvent) []apievents.AuditEvent {
+	var uniqAuditEvents []apievents.AuditEvent
+
+	for i, auditEvent := range auditEvents {
+		// always add first audit event
+		if i == 0 {
+			uniqAuditEvents = append(uniqAuditEvents, auditEvent)
+			continue
+		}
+
+		if auditEvent.GetIndex() != auditEvents[i-1].GetIndex() {
+			uniqAuditEvents = append(uniqAuditEvents, auditEvent)
+		}
+	}
+
+	return uniqAuditEvents
 }
