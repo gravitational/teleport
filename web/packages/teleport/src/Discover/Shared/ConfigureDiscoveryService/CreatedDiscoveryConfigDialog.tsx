@@ -89,9 +89,7 @@ export function CreatedDiscoveryConfigDialog({
               <>
                 {' '}
                 The discovery service can take a few minutes to finish
-                auto-enrolling resources found in region <Mark>
-                  {region}
-                </Mark>.
+                auto-enrolling resources found in region <Mark>{region}</Mark>.
               </>
             )}
           </Text>
