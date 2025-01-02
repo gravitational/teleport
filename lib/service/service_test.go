@@ -1842,6 +1842,8 @@ func TestInitDatabaseService(t *testing.T) {
 			t.Cleanup(func() {
 				cancel()
 				_ = eg.Wait()
+				_ = process.Close()
+				require.NoError(t, process.Wait())
 				close(serviceExitedEvents)
 			})
 
@@ -1851,6 +1853,7 @@ func TestInitDatabaseService(t *testing.T) {
 				require.NoError(t, process.Close())
 				// Expect Teleport to shutdown without reporting any issue.
 				require.NoError(t, eg.Wait())
+				require.NoError(t, process.Wait())
 				return
 			}
 
