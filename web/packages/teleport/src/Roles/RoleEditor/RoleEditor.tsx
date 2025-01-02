@@ -16,28 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, Box, Flex } from 'design';
 import { useId, useState } from 'react';
+
+import { Alert, Box, Flex } from 'design';
+import Validation, { Validator } from 'shared/components/Validation';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import Validation, { Validator } from 'shared/components/Validation';
-
 import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import {
-  roleEditorModelToRole,
-  newRole,
-  StandardEditorModel,
-  roleToRoleEditorModel as roleToRoleEditorModel,
-} from './StandardEditor/standardmodel';
-import { YamlEditorModel } from './yamlmodel';
-import { EditorTab } from './EditorTabs';
 import { EditorHeader } from './EditorHeader';
+import { EditorTab } from './EditorTabs';
 import { StandardEditor } from './StandardEditor/StandardEditor';
+import {
+  newRole,
+  roleEditorModelToRole,
+  roleToRoleEditorModel,
+  StandardEditorModel,
+} from './StandardEditor/standardmodel';
 import { YamlEditor } from './YamlEditor';
+import { YamlEditorModel } from './yamlmodel';
 
 export type RoleEditorProps = {
   /**

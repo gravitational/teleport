@@ -18,19 +18,18 @@
 
 import { PropsWithChildren, useRef, useState } from 'react';
 
-import { ButtonPrimary } from '../Button';
 import Box from '../Box';
+import { ButtonPrimary } from '../Button';
 import Flex from '../Flex';
 import * as Icons from '../Icon';
-import { H3 } from '../Text';
 import { Origin } from '../Popover';
-
-import MenuItemIcon from './MenuItemIcon';
+import { H3 } from '../Text';
+import Menu from './Menu';
 import MenuItem, {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from './MenuItem';
-import Menu from './Menu';
+import MenuItemIcon from './MenuItemIcon';
 import MenuList from './MenuList';
 
 export default {

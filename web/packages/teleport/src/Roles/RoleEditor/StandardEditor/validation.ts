@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Option } from 'shared/components/Select';
 import {
   arrayOf,
   requiredField,
@@ -24,16 +25,13 @@ import {
   ValidationResult,
 } from 'shared/components/Validation/rules';
 
-import { Option } from 'shared/components/Select';
-
+import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
 import { KubernetesResourceKind } from 'teleport/services/resources';
 
-import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
-
 import {
-  ResourceAccess,
   KubernetesResourceModel,
   MetadataModel,
+  ResourceAccess,
   RoleEditorModel,
   RuleModel,
 } from './standardmodel';

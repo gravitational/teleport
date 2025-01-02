@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Dialog, { DialogContent } from 'design/Dialog';
+import { ButtonIcon, ButtonSecondary, Flex, H2, Text } from 'design';
 import { Danger } from 'design/Alert';
-import { FingerprintSimple, Cross } from 'design/Icon';
-
-import { Text, ButtonSecondary, Flex, ButtonIcon, H2 } from 'design';
-
+import Dialog, { DialogContent } from 'design/Dialog';
+import { Cross, FingerprintSimple } from 'design/Icon';
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 

@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
-import { parseMfaChallengeJson as parseMfaChallenge } from 'teleport/services/mfa/makeMfa';
+import auth from 'teleport/services/auth/auth';
 import {
   MfaAuthenticateChallengeJson,
   SSOChallenge,
 } from 'teleport/services/mfa';
-import auth from 'teleport/services/auth/auth';
+import { parseMfaChallengeJson as parseMfaChallenge } from 'teleport/services/mfa/makeMfa';
 
 export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   const [state, setState] = useState<{

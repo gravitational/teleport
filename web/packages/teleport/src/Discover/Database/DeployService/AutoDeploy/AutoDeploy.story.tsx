@@ -19,20 +19,17 @@
 import { delay, http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
-
-import { ResourceKind } from 'teleport/Discover/Shared';
-
 import {
   ComponentWrapper,
   getDbMeta,
   getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
-
 import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { AutoDeploy } from './AutoDeploy';
 

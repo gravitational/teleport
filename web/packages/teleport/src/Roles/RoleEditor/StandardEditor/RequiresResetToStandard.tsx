@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Info } from 'design/Alert/Alert';
 import { Text } from 'design';
+import { Info } from 'design/Alert/Alert';
 
 export const RequiresResetToStandard = () => (
   <Info>

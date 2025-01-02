@@ -19,7 +19,6 @@
 import { MemoryRouter } from 'react-router';
 
 import { IamPolicyView } from './IamPolicy';
-
 import type { State } from './useIamPolicy';
 
 export default {

@@ -22,8 +22,8 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 import { routing } from 'teleterm/ui/uri';
 
-import { TestContainer, makeProps } from './storyHelpers';
 import { ClusterLoginPresentation } from './ClusterLogin';
+import { makeProps, TestContainer } from './storyHelpers';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin/Reason',

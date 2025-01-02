@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 import React, { useState } from 'react';
-import { Flex } from 'design';
 
+import { Flex } from 'design';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ViewModeSwitch } from './ViewModeSwitch';
-
-import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 
 export default {
   title: 'Shared/Controls/ViewModeSwitch',

@@ -19,24 +19,20 @@
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex, Link as ExternalLink, Text, ResourceIcon } from 'design';
-
+import { Box, Link as ExternalLink, Flex, ResourceIcon, Text } from 'design';
+import { Server } from 'design/Icon';
 import { P } from 'design/Text/Text';
 
-import { Server } from 'design/Icon';
-
+import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
+import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
-
+import { IntegrationTile } from 'teleport/Integrations';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import { IntegrationTile } from 'teleport/Integrations';
-import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
-
 import useTeleport from 'teleport/useTeleport';
-import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 
 import { BotFlowType } from '../types';
 

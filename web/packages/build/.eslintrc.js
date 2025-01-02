@@ -67,25 +67,6 @@ module.exports = {
     },
   ],
   rules: {
-    'import/order': [
-      'error',
-      {
-        groups: [
-          'builtin',
-          'external',
-          'internal',
-          'parent',
-          'sibling',
-          'index',
-          'object',
-          'type',
-        ],
-        'newlines-between': 'always-and-inside-groups',
-      },
-    ],
-    // typescript-eslint recommends to turn import/no-unresolved off.
-    // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#eslint-plugin-import
-    'import/no-unresolved': 0,
     'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
     '@typescript-eslint/no-unused-vars': ['error'],
 
