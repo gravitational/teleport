@@ -20,7 +20,15 @@ import styled from 'styled-components';
 
 import FieldInput from 'shared/components/FieldInput';
 
-export const ConfigFieldInput = styled(FieldInput).attrs({ size: 'small' })``;
+export const ConfigFieldInput = styled(FieldInput).attrs({ size: 'small' })`
+  input {
+    &:invalid,
+    &:invalid:hover {
+      border-color: ${props =>
+        props.theme.colors.interactive.solid.danger.default};
+    }
+  }
+`;
 
 export const PortFieldInput = styled(ConfigFieldInput).attrs({
   type: 'number',
