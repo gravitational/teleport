@@ -685,7 +685,7 @@ func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
 }
 
-func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
+func mustConnectDatabaseGateway(ctx context.Context, t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 	t.Helper()
 
 	dbGateway, err := gateway.AsDatabase(gw)
@@ -708,13 +708,13 @@ func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gate
 
 // mustConnectWebAppGateway verifies that the gateway acts as an unauthenticated proxy that forwards
 // requests to the web app behind it.
-func mustConnectWebAppGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
+func mustConnectWebAppGateway(ctx context.Context, t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 	t.Helper()
 
 	gatewayAddress := net.JoinHostPort(gw.LocalAddress(), gw.LocalPort())
 	gatewayURL := fmt.Sprintf("http://%s", gatewayAddress)
 
-	req, err := http.NewRequest(http.MethodGet, gatewayURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gatewayURL, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}
@@ -726,24 +726,25 @@ func mustConnectWebAppGateway(t *testing.T, _ *daemon.Service, gw gateway.Gatewa
 }
 
 func makeMustConnectMultiPortTCPAppGateway(wantMessage string, otherTargetPort int, otherWantMessage string) testGatewayConnectionFunc {
-	return func(t *testing.T, d *daemon.Service, gw gateway.Gateway) {
+	return func(ctx context.Context, t *testing.T, d *daemon.Service, gw gateway.Gateway) {
 		t.Helper()
 
+		gwURI := gw.URI().String()
 		originalTargetPort := gw.TargetSubresourceName()
-		makeMustConnectTCPAppGateway(wantMessage)(t, d, gw)
+		makeMustConnectTCPAppGateway(wantMessage)(ctx, t, d, gw)
 
 		gw.SetTargetSubresourceName(strconv.Itoa(otherTargetPort))
-		makeMustConnectTCPAppGateway(otherWantMessage)(t, d, gw)
+		makeMustConnectTCPAppGateway(otherWantMessage)(ctx, t, d, gw)
 
 		// Restore the original port, so that the next time the test calls this function after certs
 		// expire, wantMessage is going to match the port that the gateway points to.
 		gw.SetTargetSubresourceName(originalTargetPort)
-		makeMustConnectTCPAppGateway(wantMessage)(t, d, gw)
+		makeMustConnectTCPAppGateway(wantMessage)(ctx, t, d, gw)
 	}
 }
 
 func makeMustConnectTCPAppGateway(wantMessage string) testGatewayConnectionFunc {
-	return func(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
+	return func(ctx context.Context, t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 		t.Helper()
 
 		gatewayAddress := net.JoinHostPort(gw.LocalAddress(), gw.LocalPort())

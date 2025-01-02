@@ -170,8 +170,8 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewa
 				TargetURI:  params.databaseURI.String(),
 				TargetUser: params.pack.Root.User.GetName(),
 			},
-			testGatewayConnectionFunc: mustConnectDatabaseGateway,
-			webauthnLogin:             params.webauthnLogin,
+			testGatewayConnection: mustConnectDatabaseGateway,
+			webauthnLogin:         params.webauthnLogin,
 			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.pack.Root.Cluster.Process,
@@ -186,7 +186,7 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewa
 	)
 }
 
-type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
+type testGatewayConnectionFunc func(context.Context, *testing.T, *daemon.Service, gateway.Gateway)
 
 type generateAndSetupUserCredsFunc func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration)
 
@@ -194,7 +194,7 @@ type gatewayCertRenewalParams struct {
 	tc                        *libclient.TeleportClient
 	albAddr                   string
 	createGatewayParams       daemon.CreateGatewayParams
-	testGatewayConnectionFunc testGatewayConnectionFunc
+	testGatewayConnection     testGatewayConnectionFunc
 	webauthnLogin             libclient.WebauthnLoginFunc
 	generateAndSetupUserCreds generateAndSetupUserCredsFunc
 	wantPromptMFACallCount    int
@@ -280,7 +280,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	gateway, err := daemonService.CreateGateway(ctx, params.createGatewayParams)
 	require.NoError(t, err, trace.DebugReport(err))
 
-	params.testGatewayConnectionFunc(t, daemonService, gateway)
+	params.testGatewayConnection(ctx, t, daemonService, gateway)
 
 	// Advance the fake clock to simulate the db cert expiry inside the middleware.
 	fakeClock.Advance(time.Hour * 48)
@@ -293,7 +293,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	// and then it will attempt to reissue the user cert using an expired user cert.
 	// The mocked tshdEventsClient will issue a valid user cert, save it to disk, and the middleware
 	// will let the connection through.
-	params.testGatewayConnectionFunc(t, daemonService, gateway)
+	params.testGatewayConnection(ctx, t, daemonService, gateway)
 
 	require.Equal(t, uint32(1), tshdEventsService.reloginCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
@@ -525,7 +525,7 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 	})
 	require.NoError(t, err)
 
-	testKubeConnection := func(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
+	testKubeConnection := func(ctx context.Context, t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
 		t.Helper()
 
 		clientOnce.Do(func() {
@@ -550,8 +550,8 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI: params.kubeURI.String(),
 			},
-			testGatewayConnectionFunc: testKubeConnection,
-			webauthnLogin:             params.webauthnLogin,
+			testGatewayConnection: testKubeConnection,
+			webauthnLogin:         params.webauthnLogin,
 			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.suite.root.Process,
@@ -713,7 +713,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauth
 				gatewayCertRenewalParams{
 					tc:                        tc,
 					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
-					testGatewayConnectionFunc: makeMustConnectTCPAppGateway(pack.RootTCPMessage()),
+					testGatewayConnection:     makeMustConnectTCPAppGateway(pack.RootTCPMessage()),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
 					webauthnLogin:             webauthnLogin,
 				},
@@ -736,7 +736,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauth
 						TargetURI:             appURI.String(),
 						TargetSubresourceName: strconv.Itoa(pack.RootTCPMultiPortAppPortAlpha()),
 					},
-					testGatewayConnectionFunc: makeMustConnectMultiPortTCPAppGateway(
+					testGatewayConnection: makeMustConnectMultiPortTCPAppGateway(
 						pack.RootTCPMultiPortMessageAlpha(), pack.RootTCPMultiPortAppPortBeta(), pack.RootTCPMultiPortMessageBeta(),
 					),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
@@ -781,7 +781,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauth
 				gatewayCertRenewalParams{
 					tc:                        tc,
 					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
-					testGatewayConnectionFunc: makeMustConnectTCPAppGateway(pack.LeafTCPMessage()),
+					testGatewayConnection:     makeMustConnectTCPAppGateway(pack.LeafTCPMessage()),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
 					webauthnLogin:             webauthnLogin,
 				},
@@ -805,7 +805,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauth
 						TargetURI:             appURI.String(),
 						TargetSubresourceName: strconv.Itoa(pack.LeafTCPMultiPortAppPortAlpha()),
 					},
-					testGatewayConnectionFunc: makeMustConnectMultiPortTCPAppGateway(
+					testGatewayConnection: makeMustConnectMultiPortTCPAppGateway(
 						pack.LeafTCPMultiPortMessageAlpha(), pack.LeafTCPMultiPortAppPortBeta(), pack.LeafTCPMultiPortMessageBeta(),
 					),
 					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
@@ -835,7 +835,7 @@ func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appacces
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI: appURI.String(),
 			},
-			testGatewayConnectionFunc: mustConnectWebAppGateway,
+			testGatewayConnection:     mustConnectWebAppGateway,
 			generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
 			webauthnLogin:             webauthnLogin,
 		},
