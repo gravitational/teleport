@@ -577,7 +577,7 @@ func (a *agent) handleDrainChannels() error {
 				continue
 			}
 
-			a.logger.DebugContext(a.ctx, "Received trransport request", "channel_type", nch.ChannelType())
+			a.logger.DebugContext(a.ctx, "Received transport request", "channel_type", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
 				a.logger.WarnContext(a.ctx, "Failed to accept transport request", "error", err)
