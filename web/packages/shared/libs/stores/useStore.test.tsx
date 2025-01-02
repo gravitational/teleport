@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { act, render } from 'design/utils/testing';
 
-import useStore from './useStore';
 import Store from './store';
+import useStore from './useStore';
 
 test('components subscribes to store changes and unsubscribes on unmount', async () => {
   const store = new Store();

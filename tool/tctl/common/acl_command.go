@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // ACLCommand implements the `tctl acl` family of commands.
@@ -64,7 +66,7 @@ const (
 )
 
 // Initialize allows ACLCommand to plug itself into the CLI parser
-func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	acl := app.Command("acl", "Manage access lists.").Alias("access-lists")
 
 	c.ls = acl.Command("ls", "List cluster access lists.")
@@ -93,21 +95,29 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 }
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
-func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *ACLCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.ls.FullCommand():
-		err = c.List(ctx, client)
+		commandFunc = c.List
 	case c.get.FullCommand():
-		err = c.Get(ctx, client)
+		commandFunc = c.Get
 	case c.usersAdd.FullCommand():
-		err = c.UsersAdd(ctx, client)
+		commandFunc = c.UsersAdd
 	case c.usersRemove.FullCommand():
-		err = c.UsersRemove(ctx, client)
+		commandFunc = c.UsersRemove
 	case c.usersList.FullCommand():
-		err = c.UsersList(ctx, client)
+		commandFunc = c.UsersList
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 

@@ -190,6 +190,27 @@ func TestSSHServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong{
+					ID: msg.(proto.DownstreamInventoryPing).ID,
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -226,14 +247,13 @@ func TestSSHServerBasics(t *testing.T) {
 	// set up to induce some failures, but not enough to cause the control
 	// stream to be closed.
 	auth.mu.Lock()
-	auth.failUpserts = 1
-	auth.failKeepAlives = 2
+	auth.failUpserts = 2
 	auth.mu.Unlock()
 
 	// keepalive should fail twice, but since the upsert is already known
 	// to have succeeded, we should not see an upsert failure yet.
 	awaitEvents(t, events,
-		expect(sshKeepAliveErr, sshKeepAliveErr),
+		expect(sshKeepAliveErr, sshKeepAliveErr, sshKeepAliveOk),
 		deny(sshUpsertErr, handlerClose),
 	)
 
@@ -249,24 +269,38 @@ func TestSSHServerBasics(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// this explicit upsert will not happen since the server is the same, but
+	// keepalives should work
+	awaitEvents(t, events,
+		expect(sshKeepAliveOk),
+		deny(sshKeepAliveErr, sshUpsertErr, sshUpsertRetryOk, handlerClose),
+	)
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+				Labels: map[string]string{
+					"changed": "changed",
+				},
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
 		expect(sshKeepAliveOk, sshUpsertErr, sshUpsertRetryOk),
 		deny(sshKeepAliveErr, handlerClose),
 	)
-
-	// launch goroutine to respond to a single ping
-	go func() {
-		select {
-		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryPong{
-				ID: msg.(proto.DownstreamInventoryPing).ID,
-			})
-		case <-downstream.Done():
-		case <-ctx.Done():
-		}
-	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -357,6 +391,27 @@ func TestAppServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		controller.Close()
+		upstream.Close()
+		downstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong{
+					ID: msg.(proto.DownstreamInventoryPing).ID,
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -442,18 +497,6 @@ func TestAppServerBasics(t *testing.T) {
 		expect(appKeepAliveOk, appKeepAliveOk, appKeepAliveOk, appUpsertErr, appUpsertRetryOk),
 		deny(appKeepAliveErr, handlerClose),
 	)
-
-	// launch goroutine to respond to a single ping
-	go func() {
-		select {
-		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryPong{
-				ID: msg.(proto.DownstreamInventoryPing).ID,
-			})
-		case <-downstream.Done():
-		case <-ctx.Done():
-		}
-	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -575,6 +618,27 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		controller.Close()
+		upstream.Close()
+		downstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong{
+					ID: msg.(proto.DownstreamInventoryPing).ID,
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -661,18 +725,6 @@ func TestDatabaseServerBasics(t *testing.T) {
 		expect(dbKeepAliveOk, dbKeepAliveOk, dbKeepAliveOk, dbUpsertErr, dbUpsertRetryOk),
 		deny(dbKeepAliveErr, handlerClose),
 	)
-
-	// launch goroutine to respond to a single ping
-	go func() {
-		select {
-		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryPong{
-				ID: msg.(proto.DownstreamInventoryPing).ID,
-			})
-		case <-downstream.Done():
-		case <-ctx.Done():
-		}
-	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -1189,6 +1241,21 @@ func TestKubernetesServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe()
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong{
+					ID: msg.(proto.DownstreamInventoryPing).ID,
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -1276,18 +1343,6 @@ func TestKubernetesServerBasics(t *testing.T) {
 		expect(kubeKeepAliveOk, kubeKeepAliveOk, kubeKeepAliveOk, kubeUpsertErr, kubeUpsertRetryOk),
 		deny(kubeKeepAliveErr, handlerClose),
 	)
-
-	// launch goroutine to respond to a single ping
-	go func() {
-		select {
-		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryPong{
-				ID: msg.(proto.DownstreamInventoryPing).ID,
-			})
-		case <-downstream.Done():
-		case <-ctx.Done():
-		}
-	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -1473,12 +1528,6 @@ func TestTimeReconciliation(t *testing.T) {
 		cancel()
 	})
 
-	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
-		ServerID: serverID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
-	})
-
 	// Launch goroutine to respond to clock request.
 	go func() {
 		for {
@@ -1488,7 +1537,6 @@ func TestTimeReconciliation(t *testing.T) {
 					ID:          msg.(proto.DownstreamInventoryPing).ID,
 					SystemClock: clock.Now().Add(-time.Minute).UTC(),
 				})
-				return
 			case <-downstream.Done():
 				return
 			case <-ctx.Done():
@@ -1497,12 +1545,16 @@ func TestTimeReconciliation(t *testing.T) {
 		}
 	}()
 
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
 	_, ok := controller.GetControlStream(serverID)
 	require.True(t, ok)
 
-	awaitEvents(t, events,
-		expect(timeReconciliationOk),
-	)
+	awaitEvents(t, events, expect(pongOk))
 	awaitEvents(t, events,
 		expect(instanceHeartbeatOk),
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
@@ -1510,6 +1562,8 @@ func TestTimeReconciliation(t *testing.T) {
 	auth.mu.Lock()
 	m := auth.lastInstance.GetLastMeasurement()
 	auth.mu.Unlock()
+
+	require.NotNil(t, m)
 	require.InDelta(t, time.Minute, m.ControllerSystemClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
 }
 

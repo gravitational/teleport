@@ -6,5 +6,5 @@ spec:
     enabled: false
     pinned: false
 status:
-    active_version: ""
-    backup_version: ""
+    active:
+        version: ""

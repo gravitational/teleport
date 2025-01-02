@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ButtonSecondary, ButtonWarning, P1 } from 'design';
 import { Danger } from 'design/Alert';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { Lock } from 'teleport/services/locks';
 

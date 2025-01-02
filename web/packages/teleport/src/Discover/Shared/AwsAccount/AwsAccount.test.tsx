@@ -16,35 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent } from 'design/utils/testing';
+
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import {
-  IntegrationKind,
-  IntegrationStatusCode,
-  integrationService,
-} from 'teleport/services/integrations';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
+import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
+import { ResourceSpec } from 'teleport/Discover/SelectResource';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
+import {
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
+import ResourceService from 'teleport/services/resources';
 import {
   DiscoverEventResource,
   userEventService,
 } from 'teleport/services/userEvent';
-import ResourceService from 'teleport/services/resources';
-import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
-import { ResourceSpec } from 'teleport/Discover/SelectResource';
+import TeleportContext from 'teleport/teleportContext';
 
 import { ResourceKind } from '../ResourceKind';
-
 import { AwsAccount } from './AwsAccount';
 
 beforeEach(() => {

@@ -16,38 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 
-import Box from 'design/Box';
-import { Text } from 'design';
-import * as Icons from 'design/Icon';
-import Select from 'shared/components/Select';
-import Input from 'design/Input';
-import { ButtonSecondary } from 'design/Button';
-import Validation, { Validator } from 'shared/components/Validation';
-
-import Flex from 'design/Flex';
-import Card from 'design/Card';
-import ButtonIcon from 'design/ButtonIcon';
-import FieldInput from 'shared/components/FieldInput';
-
+import { H2, Text } from 'design';
 import { Alert } from 'design/Alert';
-
+import Box from 'design/Box';
+import { ButtonSecondary } from 'design/Button';
+import ButtonIcon from 'design/ButtonIcon';
+import Card from 'design/Card';
+import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
+import Input from 'design/Input';
 import Link from 'design/Link';
-
-import { H2 } from 'design';
+import FieldInput from 'shared/components/FieldInput';
+import Select from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import cfg from 'teleport/config';
 
 import { FlowButtons } from '../Shared/FlowButtons';
 import { FlowStepProps } from '../Shared/GuidedFlow';
-
 import {
   GITHUB_HOST,
+  parseRepoAddress,
   RefTypeOption,
   Rule,
-  parseRepoAddress,
   useGitHubFlow,
 } from './useGitHubFlow';
 

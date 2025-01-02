@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { FC, PropsWithChildren, useEffect } from 'react';
+import { FC, PropsWithChildren, useEffect } from 'react';
 import styled from 'styled-components';
+
 import { ButtonIcon, Flex, Text } from 'design';
 import { CircleCheck, Cross, Warning } from 'design/Icon';
 

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
@@ -43,7 +44,6 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -1875,6 +1875,9 @@ type ClientI interface {
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 
+	// ResolveSSHTarget returns the server that would be resolved in an equivalent ssh dial request.
+	ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error)
+
 	// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
@@ -1892,6 +1895,9 @@ type ClientI interface {
 	// ProvisioningServiceClient returns provisioning service client.
 	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
 
+	// IntegrationsClient returns integrations client.
+	IntegrationsClient() integrationv1.IntegrationServiceClient
+
 	// GitServerClient returns git server client.
-	GitServerClient() gitserverv1.GitServerServiceClient
+	GitServerClient() *gitserver.Client
 }

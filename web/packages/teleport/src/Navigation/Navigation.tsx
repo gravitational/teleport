@@ -16,23 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type * as history from 'history';
+import { matchPath, useHistory, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
-import { matchPath, useLocation, useHistory } from 'react-router';
-import { Box, Text, Flex } from 'design';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { Box, Flex, Text } from 'design';
+import { IconTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
 import {
   NAVIGATION_CATEGORIES,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
-import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
-
-import type * as history from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
 
 const NavigationContainer = styled.div`
@@ -195,9 +192,9 @@ function LicenseFooter({
     <StyledFooterBox py={3} px={4}>
       <Flex alignItems="center" gap={2}>
         <Text>{title}</Text>
-        <ToolTipInfo position="right" sticky>
+        <IconTooltip position="right" sticky>
           {infoContent}
-        </ToolTipInfo>
+        </IconTooltip>
       </Flex>
       <SubText>{subText}</SubText>
     </StyledFooterBox>

@@ -15,17 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React from 'react';
 import {
   AnimatedProgressBar,
   ButtonPrimary,
-  Text,
-  Flex,
   ButtonSecondary,
+  Flex,
+  Text,
 } from 'design';
-
-import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import * as Icons from 'design/Icon';
 
 import { TextIcon } from 'teleport/Discover/Shared';
 

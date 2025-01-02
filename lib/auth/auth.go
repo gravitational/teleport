@@ -100,8 +100,8 @@ import (
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -401,6 +401,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating GitServer service")
 		}
 	}
+	if cfg.WorkloadIdentity == nil {
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
+		}
+		cfg.WorkloadIdentity = workloadIdentity
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -499,6 +506,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		IdentityCenter:            cfg.IdentityCenter,
 		PluginStaticCredentials:   cfg.PluginStaticCredentials,
 		GitServers:                cfg.GitServers,
+		WorkloadIdentities:        cfg.WorkloadIdentity,
 	}
 
 	as := Server{
@@ -618,10 +626,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.tpmValidator = tpm.Validate
 	}
 	if as.k8sTokenReviewValidator == nil {
-		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
+		as.k8sTokenReviewValidator = &kubetoken.TokenReviewValidator{}
 	}
 	if as.k8sJWKSValidator == nil {
-		as.k8sJWKSValidator = kubernetestoken.ValidateTokenWithJWKS
+		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -644,11 +652,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
-		Log:         log,
+		Log:         as.logger,
 		AccessLists: &as,
 		Access:      &as,
 		UsageEvents: &as,
 		Clock:       cfg.Clock,
+		Emitter:     as.emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -718,6 +727,7 @@ type Services struct {
 	services.IdentityCenter
 	services.PluginStaticCredentials
 	services.GitServers
+	services.WorkloadIdentities
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1011,7 +1021,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
-	//the purpose of tests.
+	// the purpose of tests.
 	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
@@ -1394,8 +1404,6 @@ func (a *Server) runPeriodicOperations() {
 
 	defer ticker.Stop()
 
-	missedKeepAliveCount := 0
-
 	// Prevent some periodic operations from running for dashboard tenants.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
@@ -1497,15 +1505,14 @@ func (a *Server) runPeriodicOperations() {
 									return false, nil
 								}
 								if services.NodeHasMissedKeepAlives(srv) {
-									missedKeepAliveCount++
+									heartbeatsMissedByAuth.Inc()
 								}
 
+								if srv.GetSubKind() != types.SubKindOpenSSHNode {
+									return false, nil
+								}
 								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
 								if !validServerHostname(srv.GetHostname()) {
-									if srv.GetSubKind() != types.SubKindOpenSSHNode {
-										return false, nil
-									}
-
 									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
 
 									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
@@ -1518,6 +1525,17 @@ func (a *Server) runPeriodicOperations() {
 
 									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
 										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+									}
+								} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
+									// If the hostname has been replaced by a sanitized version, revert it back to the original
+									// if the original is valid under the most recent rules.
+									logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
+									if err := restoreSanitizedHostname(srv); err != nil {
+										logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
+										return false, nil
+									}
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+										log.Warnf("Failed to update node hostname: %v", err)
 									}
 								}
 
@@ -1535,9 +1553,6 @@ func (a *Server) runPeriodicOperations() {
 							break
 						}
 					}
-
-					// Update prometheus gauge
-					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()
@@ -2212,6 +2227,10 @@ type certRequest struct {
 	appName string
 	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	appURI string
+	// appTargetPort signifies that the cert should grant access to a specific port in a multi-port
+	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
+	// used in other contexts (e.g., access requests).
+	appTargetPort int
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -2460,6 +2479,8 @@ type AppTestCertRequest struct {
 	TTL time.Duration
 	// PublicAddr is the application public address. Used for routing.
 	PublicAddr string
+	// TargetPort is the port to which connections to multi-port TCP apps should be routed to.
+	TargetPort int
 	// ClusterName is the name of the cluster application resides in. Used for routing.
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
@@ -2519,6 +2540,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		appSessionID:      sessionID,
 		appPublicAddr:     req.PublicAddr,
+		appTargetPort:     req.TargetPort,
 		appClusterName:    req.ClusterName,
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
@@ -3197,6 +3219,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
+	var githubUserID, githubUsername string
+	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubUserID = githubIdentities[0].UserID
+		githubUsername = githubIdentities[0].Username
+	}
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3235,6 +3264,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			DeviceID:                req.deviceExtensions.DeviceID,
 			DeviceAssetTag:          req.deviceExtensions.AssetTag,
 			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+			GitHubUserID:            githubUserID,
+			GitHubUsername:          githubUsername,
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {
@@ -3296,6 +3327,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
 			URI:               req.appURI,
+			TargetPort:        req.appTargetPort,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
@@ -5109,47 +5141,11 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// Look for user groups and associated applications to the request.
-	requestedResourceIDs := req.GetRequestedResourceIDs()
-	var additionalResources []types.ResourceID
-
-	var userGroups []types.ResourceID
-	existingApps := map[string]struct{}{}
-	for _, resource := range requestedResourceIDs {
-		switch resource.Kind {
-		case types.KindApp:
-			existingApps[resource.Name] = struct{}{}
-		case types.KindUserGroup:
-			userGroups = append(userGroups, resource)
-		}
+	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
+	if err != nil {
+		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
-
-	for _, resource := range userGroups {
-		if resource.Kind != types.KindUserGroup {
-			continue
-		}
-
-		userGroup, err := a.GetUserGroup(ctx, resource.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, app := range userGroup.GetApplications() {
-			// Only add to the request if we haven't already added it.
-			if _, ok := existingApps[app]; !ok {
-				additionalResources = append(additionalResources, types.ResourceID{
-					ClusterName: resource.ClusterName,
-					Kind:        types.KindApp,
-					Name:        app,
-				})
-				existingApps[app] = struct{}{}
-			}
-		}
-	}
-
-	if len(additionalResources) > 0 {
-		requestedResourceIDs = append(requestedResourceIDs, additionalResources...)
-		req.SetRequestedResourceIDs(requestedResourceIDs)
-	}
+	req.SetRequestedResourceIDs(requestedResourceIDs)
 
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
@@ -5179,7 +5175,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
-	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -5229,6 +5225,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 					},
 				},
 			},
+			// Prevent the requester from seeing the notification for their own access request.
+			ExcludeUsers: []string{req.GetUser()},
 			Notification: &notificationsv1.Notification{
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
@@ -5257,6 +5255,69 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// appendImplicitlyRequiredResources examines the set of requested resources and adds
+// any extra resources that are implicitly required by the request.
+func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
+	addedApps := utils.NewSet[string]()
+	var userGroups []types.ResourceID
+	var accountAssignments []types.ResourceID
+
+	for _, resource := range resources {
+		switch resource.Kind {
+		case types.KindApp:
+			addedApps.Add(resource.Name)
+		case types.KindUserGroup:
+			userGroups = append(userGroups, resource)
+		case types.KindIdentityCenterAccountAssignment:
+			accountAssignments = append(accountAssignments, resource)
+		}
+	}
+
+	for _, resource := range userGroups {
+		userGroup, err := a.GetUserGroup(ctx, resource.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, app := range userGroup.GetApplications() {
+			// Only add to the request if we haven't already added it.
+			if !addedApps.Contains(app) {
+				resources = append(resources, types.ResourceID{
+					ClusterName: resource.ClusterName,
+					Kind:        types.KindApp,
+					Name:        app,
+				})
+				addedApps.Add(app)
+			}
+		}
+	}
+
+	icAccounts := utils.NewSet[string]()
+	for _, resource := range accountAssignments {
+		// The UI needs access to the account associated with an Account Assignment
+		// in order to display the enclosing Account, otherwise the user will not
+		// be able to see their assigned permission sets.
+		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
+		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching identity center account assignment")
+		}
+
+		if icAccounts.Contains(asmt.GetSpec().GetAccountId()) {
+			continue
+		}
+
+		resources = append(resources, types.ResourceID{
+			ClusterName: resource.ClusterName,
+			Kind:        types.KindIdentityCenterAccount,
+			Name:        asmt.GetSpec().GetAccountId(),
+		})
+		icAccounts.Add(asmt.GetSpec().GetAccountId())
+	}
+
+	return resources, nil
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
@@ -5599,7 +5660,7 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 
 const (
 	serverHostnameMaxLen       = 256
-	serverHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]+[a-zA-Z0-9\.-]*$`
 	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
 )
 
@@ -5607,7 +5668,7 @@ var serverHostnameRegex = regexp.MustCompile(serverHostnameRegexPattern)
 
 // validServerHostname returns false if the hostname is longer than 256 characters or
 // does not entirely consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
-// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+// cannot begin with a symbol.
 func validServerHostname(hostname string) bool {
 	return len(hostname) <= serverHostnameMaxLen && serverHostnameRegex.MatchString(hostname)
 }
@@ -5639,6 +5700,26 @@ func sanitizeHostname(server types.Server) error {
 		}
 
 		s.Metadata.Labels[replacedHostnameLabel] = invalidHostname
+	default:
+		return trace.BadParameter("invalid server provided")
+	}
+
+	return nil
+}
+
+// restoreSanitizedHostname restores the original hostname of a server and removes the label.
+func restoreSanitizedHostname(server types.Server) error {
+	oldHostname, ok := server.GetLabels()[replacedHostnameLabel]
+	// if the label is not present or the hostname is invalid under the most recent rules, do nothing.
+	if !ok || !validServerHostname(oldHostname) {
+		return nil
+	}
+
+	switch s := server.(type) {
+	case *types.ServerV2:
+		// restore the original hostname and remove the label.
+		s.Spec.Hostname = oldHostname
+		delete(s.Metadata.Labels, replacedHostnameLabel)
 	default:
 		return trace.BadParameter("invalid server provided")
 	}

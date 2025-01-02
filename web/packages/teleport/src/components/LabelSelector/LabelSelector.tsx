@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, Pill, Popover, Link, Text } from 'design';
+import { Box, Flex, Link, Pill, Popover, Text } from 'design';
 import { Info, Warning } from 'design/Icon';
-
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 import { useEscape } from 'shared/hooks/useEscape';
 

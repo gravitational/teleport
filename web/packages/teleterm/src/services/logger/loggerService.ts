@@ -16,23 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { ChildProcess } from 'node:child_process';
 import stream from 'node:stream';
 
+import split2 from 'split2';
 import winston, {
   createLogger as createWinston,
   format,
   transports,
+  type Logform,
 } from 'winston';
+
 import { isObject } from 'shared/utils/highbar';
 
-import split2 from 'split2';
-
-import { Logger, LoggerService, NodeLoggerService } from './types';
 import { KeepLastChunks } from './keepLastChunks';
-
-import type { Logform } from 'winston';
-
-import type { ChildProcess } from 'node:child_process';
+import { Logger, LoggerService, NodeLoggerService } from './types';
 
 /**
  * stdout logger should be used in child processes.
@@ -46,7 +44,9 @@ export function createStdoutLoggerService(): LoggerService {
     exitOnError: false,
     format: format.combine(
       format.printf(({ level, message, context }) => {
-        const text = stringifier(message as unknown as unknown[]);
+        // `message` is an array because the functions in createLoggerFromWinston
+        // collect all the arguments into an array.
+        const text = stringifier(message as unknown[]);
         return `[${context}] ${level}: ${text}`;
       })
     ),
@@ -76,7 +76,9 @@ export function createFileLoggerService(
         format: 'DD-MM-YY HH:mm:ss',
       }),
       format.printf(({ level, message, timestamp, context }) => {
-        const text = stringifier(message as unknown as unknown[]);
+        // `message` is an array because the functions in createLoggerFromWinston
+        // collect all the arguments into an array.
+        const text = stringifier(message as unknown[]);
         const contextAndLevel = opts.passThroughMode
           ? ''
           : ` [${context}] ${level}:`;
@@ -221,10 +223,11 @@ function getBrowserConsoleTransport(opts: FileLoggerOptions) {
   return new transports.Console({
     log({ level, message, context }: Logform.TransformableInfo, next) {
       const loggerName = getLoggerName(opts);
-
+      // `message` is an array because the functions in createLoggerFromWinston
+      // collect all the arguments into an array.
       const logMessage = opts.passThroughMode
         ? message
-        : [`[${context}] ${level}:`, ...message];
+        : [`[${context}] ${level}:`, ...(message as unknown[])];
 
       const toLog = [loggerName, logMessage].filter(Boolean).flat();
       // We allow level to be only info, warn and error (createLoggerFromWinston).
@@ -240,7 +243,9 @@ function getRegularConsoleTransport(opts: FileLoggerOptions) {
     format: format.printf(({ level, message, context }) => {
       const loggerName = getLoggerName(opts);
 
-      const text = stringifier(message as unknown as unknown[]);
+      // `message` is an array because the functions in createLoggerFromWinston
+      // collect all the arguments into an array.
+      const text = stringifier(message as unknown[]);
       const logMessage = opts.passThroughMode
         ? text
         : `[${context}] ${level}: ${text}`;

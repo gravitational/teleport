@@ -17,15 +17,17 @@
  */
 
 import {
+  iconNames,
   ResourceIconName,
   resourceIconSpecs,
-  iconNames,
 } from 'design/ResourceIcon';
+
+import { AppSubKind } from 'teleport/services/apps';
 
 import { UnifiedResourceApp } from '../types';
 
 export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
-  const { awsConsole = false, name, friendlyName, labels } = resource;
+  const { awsConsole = false, name, friendlyName, labels, subKind } = resource;
 
   // Label matching takes precedence and we can assume it can be a direct lookup
   // since we expect a certain format.
@@ -40,6 +42,9 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
 
   if (awsConsole) {
     return 'aws';
+  }
+  if (subKind === AppSubKind.AwsIcAccount) {
+    return 'awsaccount';
   }
 
   const app = {

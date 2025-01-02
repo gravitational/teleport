@@ -26,12 +26,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 const (
-	reconcilerPeriod = time.Minute
+	defaultReconcilerPeriod = time.Minute
 )
 
 // Controller wakes up every minute to reconcile the autoupdate_agent_rollout resource.
@@ -43,10 +44,14 @@ type Controller struct {
 	reconciler reconciler
 	clock      clockwork.Clock
 	log        *slog.Logger
+	period     time.Duration
 }
 
 // NewController creates a new Controller for the autoupdate_agent_rollout kind.
-func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Controller, error) {
+// The period can be specified to control the sync frequency. This is mainly
+// used to speed up tests or for demo purposes. When empty, the controller picks
+// a sane default value.
+func NewController(client Client, log *slog.Logger, clock clockwork.Clock, period time.Duration) (*Controller, error) {
 	if client == nil {
 		return nil, trace.BadParameter("missing client")
 	}
@@ -56,27 +61,50 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Con
 	if clock == nil {
 		return nil, trace.BadParameter("missing clock")
 	}
+
+	if period <= 0 {
+		period = defaultReconcilerPeriod
+	}
+
+	log = log.With(teleport.ComponentLabel, teleport.ComponentRolloutController)
+
+	haltOnError, err := newHaltOnErrorStrategy(log)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize halt-on-error strategy")
+	}
+	timeBased, err := newTimeBasedStrategy(log)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize time-based strategy")
+	}
+
 	return &Controller{
 		clock: clock,
 		log:   log,
 		reconciler: reconciler{
-			clt: client,
-			log: log,
+			clt:   client,
+			log:   log,
+			clock: clock,
+			rolloutStrategies: []rolloutStrategy{
+				timeBased,
+				haltOnError,
+			},
 		},
+		period: period,
 	}, nil
 }
 
 // Run the autoupdate_agent_rollout controller. This function returns only when its context is canceled.
 func (c *Controller) Run(ctx context.Context) error {
 	config := interval.Config{
-		Duration:      reconcilerPeriod,
-		FirstDuration: reconcilerPeriod,
+		Duration:      c.period,
+		FirstDuration: c.period,
 		Jitter:        retryutils.SeventhJitter,
 		Clock:         c.clock,
 	}
 	ticker := interval.New(config)
 	defer ticker.Stop()
 
+	c.log.InfoContext(ctx, "Starting autoupdate_agent_rollout controller", "period", c.period)
 	for {
 		select {
 		case <-ctx.Done():

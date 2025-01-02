@@ -196,6 +196,8 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
+	t.Run("TrustedClustersSkipNameValidation", suite.bind(testTrustedClustersSkipNameValidation))
+	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
@@ -442,27 +444,9 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			ctx := context.Background()
 
-			// wait 10 seconds for both nodes to show up, otherwise
+			// wait for both nodes to show up, otherwise
 			// we'll have trouble connecting to the node below.
-			waitForNodes := func(site authclient.ClientI, count int) error {
-				tickCh := time.Tick(500 * time.Millisecond)
-				stopCh := time.After(10 * time.Second)
-				for {
-					select {
-					case <-tickCh:
-						nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
-						if err != nil && !trace.IsNotFound(err) {
-							return trace.Wrap(err)
-						}
-						if got, want := len(nodesInSite), count; got == want {
-							return nil
-						}
-					case <-stopCh:
-						return trace.BadParameter("waited 10s, did find %v nodes", count)
-					}
-				}
-			}
-			err = waitForNodes(site, 2)
+			err = teleport.WaitForNodeCount(ctx, helpers.Site, 2)
 			require.NoError(t, err)
 
 			// should have no sessions:
@@ -796,8 +780,6 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	teleportSvr := suite.newTeleport(t, nil, true)
 	defer teleportSvr.StopAll()
 
-	site := teleportSvr.GetSiteAPI(helpers.Site)
-
 	// addNode adds a node to the teleport instance, returning its uuid.
 	// All nodes added this way have the same hostname.
 	addNode := func() (string, error) {
@@ -819,44 +801,17 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	uuid1, err := addNode()
 	require.NoError(t, err)
 
-	uuid2, err := addNode()
+	_, err = addNode()
 	require.NoError(t, err)
 
-	// wait up to 10 seconds for supplied node names to show up.
-	waitForNodes := func(site authclient.ClientI, nodes ...string) error {
-		tickCh := time.Tick(500 * time.Millisecond)
-		stopCh := time.After(10 * time.Second)
-	Outer:
-		for _, nodeName := range nodes {
-			for {
-				select {
-				case <-tickCh:
-					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
-					if err != nil && !trace.IsNotFound(err) {
-						return trace.Wrap(err)
-					}
-					for _, node := range nodesInSite {
-						if node.GetName() == nodeName {
-							continue Outer
-						}
-					}
-				case <-stopCh:
-					return trace.BadParameter("waited 10s, did find node %s", nodeName)
-				}
-			}
-		}
-		return nil
-	}
-
-	err = waitForNodes(site, uuid1, uuid2)
+	// wait  for supplied node names to show up.
+	err = teleportSvr.WaitForNodeCount(ctx, helpers.Site, 3)
 	require.NoError(t, err)
 
 	// attempting to run a command by hostname should generate NodeIsAmbiguous error.
 	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: Host}, 1)
 	require.Error(t, err)
-	if !strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
-		require.FailNowf(t, "Expected %s, got %s", teleport.NodeIsAmbiguous, err.Error())
-	}
+	require.ErrorContains(t, err, "ambiguous")
 
 	// attempting to run a command by uuid should succeed.
 	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: uuid1}, 1)
@@ -975,7 +930,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 	// waitSessionTermination wait until the errCh returns something and assert
 	// it with the provided function.
 	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
-		errorAssertion(t, waitForError(errCh, 10*time.Second))
+		errorAssertion(t, waitForError(errCh, 30*time.Second))
 	}
 
 	// enableDiskFailure changes the OpenFileFunc on filesession package. The
@@ -2150,7 +2105,8 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		tc.concurrentConns = 1
 	}
 
-	waitForNodesToRegister(t, teleport, helpers.Site)
+	err = teleport.WaitForNodeCount(ctx, helpers.Site, 1)
+	require.NoError(t, err)
 
 	asyncErrors := make(chan error, 1)
 
@@ -2169,7 +2125,11 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 				tc.clientConfigOpts(&cc)
 			}
 			cl, err := teleport.NewClient(cc)
-			require.NoError(t, err)
+			if err != nil {
+				asyncErrors <- err
+				return
+			}
+
 			cl.Stdout = person
 			cl.Stdin = person
 
@@ -2625,6 +2585,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 // TestHA tests scenario when auth server for the cluster goes down
 // and we switch to local persistent caches
 func testHA(t *testing.T, suite *integrationTestSuite) {
+	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
 	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
@@ -2785,17 +2746,14 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
@@ -2945,6 +2903,9 @@ type trustedClusterTest struct {
 	// useLabels turns on trusted cluster labels and
 	// verifies RBAC
 	useLabels bool
+	// skipNameValidation uses the deprecated UpsertTrustedCluster and skips
+	// cluster name validation.
+	skipNameValidation bool
 }
 
 // TestTrustedClusters tests remote clusters scenarios
@@ -2981,6 +2942,15 @@ func testTrustedClustersWithLabels(t *testing.T, suite *integrationTestSuite) {
 	trustedClusters(t, suite, trustedClusterTest{multiplex: false, useLabels: true})
 }
 
+// TestTrustedClustersSkipNameValidation tests remote clusters scenarios
+// skipping name validation.
+func testTrustedClustersSkipNameValidation(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	trustedClusters(t, suite, trustedClusterTest{skipNameValidation: true})
+}
+
 // TestJumpTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature using jumphost connection
 func testJumpTrustedClusters(t *testing.T, suite *integrationTestSuite) {
@@ -3008,11 +2978,130 @@ func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: true})
 }
 
+// TestCreateAndUpdateTrustedClusters tests the basic create and update
+// operations for a trusted cluster.
+func testCreateAndUpdateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	createAndUpdateTrustedClusters(t, suite, trustedClusterTest{})
+}
+
 func standardPortsOrMuxSetup(t *testing.T, mux bool, fds *[]*servicecfg.FileDescriptor) *helpers.InstanceListeners {
 	if mux {
 		return helpers.WebReverseTunnelMuxPortSetup(t, fds)
 	}
 	return helpers.StandardListenerSetup(t, fds)
+}
+
+func createAndUpdateTrustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
+	ctx := context.Background()
+	username := suite.Me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	mainCfg := helpers.InstanceConfig{
+		ClusterName: clusterMain,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.Priv,
+		Pub:         suite.Pub,
+		Log:         suite.Log,
+	}
+	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
+	main := helpers.NewInstance(t, mainCfg)
+	aux := suite.newNamedTeleportInstance(t, clusterAux)
+
+	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
+	mainDevs := "main-devs"
+	mainRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	mainAdmins := "main-admins"
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"superuser"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	main.AddUserWithRole(username, mainRole, adminsRole)
+
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *servicecfg.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
+		tconf, err := instance.GenerateConfig(t, nil, tconf)
+		require.NoError(t, err)
+
+		tconf.CachePolicy.Enabled = false
+		return t, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	require.NoError(t, main.CreateWithConf(makeConfig(main, false)))
+	require.NoError(t, aux.CreateWithConf(makeConfig(aux, true)))
+
+	// auxiliary cluster has only a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	require.NoError(t, err)
+
+	trustedClusterToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
+	require.NoError(t, err)
+
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+	})
+
+	require.NoError(t, main.Start())
+	require.NoError(t, aux.Start())
+
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
+
+	// Note that the trusted cluster resource name must match the cluster name.
+	// Modify the trusted cluster resource name and expect the create to fail.
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+	_, err = aux.Process.GetAuthServer().CreateTrustedCluster(ctx, trustedCluster)
+	require.ErrorContains(t, err, "trusted cluster resource name must be the same as the remote cluster name", "expected failure due to tc name mismatch")
+
+	// Modify the trusted cluster resource name back to what it was originally.
+	// Try and create a trusted cluster
+	trustedCluster.SetName(main.Secrets.SiteName)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+
+	// Update the trusted cluster resource with new role mappings.
+	trustedCluster.SetRoleMap(types.RoleMap{
+		{Remote: mainAdmins, Local: []string{auxDevs}},
+	})
+	helpers.TryUpdateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+
+	// stop clusters and remaining nodes
+	require.NoError(t, main.StopAll())
+	require.NoError(t, aux.StopAll())
 }
 
 func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
@@ -3118,17 +3207,25 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
+	// Note that the trusted cluster resource name must match the cluster name.
+	// Modify the trusted cluster resource name and expect the upsert to fail.
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+
+	_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
+	require.ErrorContains(t, err, "trusted cluster resource name must be the same as the remote cluster name", "expected failure due to tc name mismatch")
+
+	if !test.skipNameValidation {
+		// Modify the trusted cluster resource name back to what it was originally.
+		trustedCluster.SetName(main.Secrets.SiteName)
+	}
+
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
@@ -3138,6 +3235,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		"Two clusters do not see each other: tunnels are not working.")
 
 	cmd := []string{"echo", "hello world"}
+
+	// Wait for nodes to be visible before attempting connections
+	err = main.WaitForNodeCount(ctx, clusterAux, 2)
+	require.NoError(t, err)
 
 	// Try and connect to a node in the Aux cluster from the Main cluster using
 	// direct dialing.
@@ -3211,7 +3312,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
 
 	// recreating the trusted cluster should re-establish connection
-	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+	_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 	require.NoError(t, err)
 
 	// check that remote cluster has been re-provisioned
@@ -3223,6 +3324,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
+
+	// Wait for nodes to be visible before attempting connections
+	err = main.WaitForNodeCount(ctx, clusterAux, 2)
+	require.NoError(t, err)
 
 	// connection and client should recover and work again
 	output = &bytes.Buffer{}
@@ -3353,9 +3458,6 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 	// disable cluster
 	trustedCluster.SetEnabled(false)
 
@@ -3365,11 +3467,11 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster while disabled
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 
 	// try to enable disabled cluster
 	trustedCluster.SetEnabled(true)
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
@@ -3493,16 +3595,12 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// change role mapping to ensure updating works
@@ -3510,7 +3608,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
@@ -3523,7 +3621,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 
 	// disable the enabled trusted cluster and ensure it no longer works
 	trustedCluster.SetEnabled(false)
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 
 	// Wait for both cluster to no longer see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 0), 10*time.Second, 1*time.Second,
@@ -3594,17 +3692,14 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
@@ -3630,7 +3725,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = helpers.WaitForNodeCount(ctx, main, clusterAux, 2)
+	err = main.WaitForNodeCount(ctx, clusterAux, 2)
 	require.NoError(t, err)
 
 	cmd := []string{"echo", "hello world"}
@@ -3778,17 +3873,14 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 		{Remote: devsRoleName, Local: []string{devsRoleName}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, leaf.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryUpsertTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Wait for both cluster to see each other via reverse tunnels.
@@ -4026,7 +4118,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
-	waitForNodesToRegister(t, main, "cluster-remote")
+	err = main.WaitForNodeCount(ctx, "cluster-remote", 1)
+	require.NoError(t, err)
 
 	// execute the connection via first proxy
 	cfg := helpers.ClientConfig{
@@ -4077,7 +4170,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
-	waitForNodesToRegister(t, main, "cluster-remote")
+	err = main.WaitForNodeCount(ctx, "cluster-remote", 1)
+	require.NoError(t, err)
 
 	// Requests going via main proxy should succeed.
 	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
@@ -4336,12 +4430,18 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
+	// Wait for the nodes to be visible to both Proxy instances.
+	require.NoError(t, main.WaitForNodeCount(ctx, helpers.Site, 1))
+	instance := helpers.TeleInstance{Tunnel: proxyTunnel}
+	require.NoError(t, instance.WaitForNodeCount(ctx, helpers.Site, 1))
+
 	// Execute the connection via first proxy.
 	cfg := helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    "cluster-main-node",
 	}
+
 	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
@@ -4859,11 +4959,8 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Wait for the node to be visible before continuing.
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				found, err := clt.GetNodes(context.Background(), defaults.Namespace)
-				assert.NoError(t, err)
-				assert.Len(t, found, 2)
-			}, 10*time.Second, 100*time.Millisecond)
+			err = instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
+			require.NoError(t, err)
 
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 
@@ -5611,7 +5708,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryUpsertTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
 	// capture credentials before reload has started to simulate old client
@@ -5956,27 +6054,9 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	clt := teleport.GetSiteAPI(helpers.Site)
 	require.NotNil(t, clt)
 
-	// Wait 10 seconds for both nodes to show up to make sure they both have
+	// Wait for both nodes to show up to make sure they both have
 	// registered themselves.
-	waitForNodes := func(clt authclient.ClientI, count int) error {
-		tickCh := time.Tick(500 * time.Millisecond)
-		stopCh := time.After(10 * time.Second)
-		for {
-			select {
-			case <-tickCh:
-				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace)
-				if err != nil && !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-				if got, want := len(nodesInCluster), count; got == want {
-					return nil
-				}
-			case <-stopCh:
-				return trace.BadParameter("waited 10s, did find %v nodes", count)
-			}
-		}
-	}
-	err = waitForNodes(clt, 2)
+	err = teleport.WaitForNodeCount(ctx, helpers.Site, 2)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -6158,22 +6238,6 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func waitForNodesToRegister(t *testing.T, teleport *helpers.TeleInstance, site string) {
-	t.Helper()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// once the tunnel is established we need to wait until we have a
-		// connection to the remote auth
-		site := teleport.GetSiteAPI(site)
-		if !assert.NotNil(t, site) {
-			return
-		}
-		// we need to wait until we know about the node because direct dial to
-		// unregistered servers is no longer supported
-		_, err := site.GetNode(context.Background(), defaults.Namespace, teleport.Config.HostUUID)
-		assert.NoError(t, err)
-	}, time.Second*30, 250*time.Millisecond)
-}
-
 // TestDataTransfer makes sure that a "session.data" event is emitted at the
 // end of a session that matches the amount of data that was transferred.
 func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
@@ -6187,6 +6251,9 @@ func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
 	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
 
+	err := main.WaitForNodeCount(context.Background(), helpers.Site, 1)
+	require.NoError(t, err)
+
 	// Create a client to the above Teleport cluster.
 	clientConfig := helpers.ClientConfig{
 		Login:   suite.Me.Username,
@@ -6194,8 +6261,6 @@ func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
 		Host:    Host,
 		Port:    helpers.Port(t, main.SSH),
 	}
-
-	waitForNodesToRegister(t, main, helpers.Site)
 
 	// Write 1 MB to stdout.
 	command := []string{"dd", "if=/dev/zero", "bs=1024", "count=1024"}
@@ -7155,6 +7220,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *servicecfg.Config {
 	cfg.Log = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	cfg.DebugService.Enabled = false
 	return cfg
 }
 
@@ -7542,7 +7608,9 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	t.Cleanup(func() { leaf.StopAll() })
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
-	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+
+	const skipNameValidation = false
+	helpers.TryUpsertTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
 
 	_, _, rootProxySSHPort := root.StartNodeAndProxy(t, "root-zero")
@@ -7778,7 +7846,8 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	_, err = authServer.CreateUser(ctx, moderatorUser)
 	require.NoError(t, err)
 
-	waitForNodesToRegister(t, instance, helpers.Site)
+	err = instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
+	require.NoError(t, err)
 
 	// Start a shell so a moderated session is created
 	peerClient, err := instance.NewClient(helpers.ClientConfig{
@@ -8036,7 +8105,8 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		teleport.StopAll()
 	})
 
-	waitForNodesToRegister(t, teleport, helpers.Site)
+	err := teleport.WaitForNodeCount(context.Background(), helpers.Site, 1)
+	require.NoError(t, err)
 
 	teleportClient, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,

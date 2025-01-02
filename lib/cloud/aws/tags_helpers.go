@@ -19,6 +19,8 @@
 package aws
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 
 	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -32,7 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
@@ -67,7 +68,7 @@ func TagsToLabels[Tag ResourceTag](tags []Tag) map[string]string {
 		if types.IsValidLabelKey(key) {
 			labels[key] = value
 		} else {
-			logrus.Debugf("Skipping AWS resource tag %q, not a valid label key.", key)
+			slog.DebugContext(context.Background(), "Skipping AWS resource tag with invalid label key", "key", key)
 		}
 	}
 	return labels

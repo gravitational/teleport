@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import * as Icon from 'design/Icon';
 import { SlideTabs } from 'design/SlideTabs';
 
-const tabs = ['Standard', 'YAML'];
 export enum EditorTab {
   Standard,
   Yaml,
@@ -28,20 +27,42 @@ export enum EditorTab {
 export const EditorTabs = ({
   onTabChange,
   selectedEditorTab,
-  isProcessing,
+  disabled,
+  standardEditorId,
+  yamlEditorId,
 }: {
   onTabChange(t: EditorTab): void;
   selectedEditorTab: EditorTab;
-  isProcessing: boolean;
+  disabled: boolean;
+  standardEditorId: string;
+  yamlEditorId: string;
 }) => {
+  const standardLabel = 'Switch to standard editor';
+  const yamlLabel = 'Switch to YAML editor';
   return (
     <SlideTabs
       appearance="round"
-      tabs={tabs}
+      tabs={[
+        {
+          key: 'standard',
+          icon: Icon.ListAddCheck,
+          tooltip: { content: standardLabel, position: 'bottom' },
+          ariaLabel: standardLabel,
+          controls: standardEditorId,
+        },
+        {
+          key: 'yaml',
+          icon: Icon.Code,
+          tooltip: { content: yamlLabel, position: 'bottom' },
+          ariaLabel: yamlLabel,
+          controls: yamlEditorId,
+        },
+      ]}
       onChange={onTabChange}
-      size="medium"
+      size="small"
+      fitContent
       activeIndex={selectedEditorTab}
-      isProcessing={isProcessing}
+      disabled={disabled}
     />
   );
 };

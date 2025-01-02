@@ -17,12 +17,13 @@
  */
 
 import * as whatwg from 'whatwg-url';
+
 import {
-  CUSTOM_PROTOCOL,
-  Path,
-  DeepURL,
-  ConnectMyComputerDeepURL,
   AuthenticateWebDeviceDeepURL,
+  ConnectMyComputerDeepURL,
+  CUSTOM_PROTOCOL,
+  DeepURL,
+  Path,
 } from 'shared/deepLinks';
 
 export type DeepLinkParseResult =

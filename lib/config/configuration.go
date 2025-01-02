@@ -1754,6 +1754,12 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {
+			subscriptionID := azureMatcher.SubscriptionID
+			tMatcher.Azure = append(tMatcher.Azure, &types.AccessGraphAzureSync{
+				SubscriptionID: subscriptionID,
+			})
+		}
 		if fc.Discovery.AccessGraph.PollInterval > 0 {
 			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
 		}
@@ -2066,6 +2072,17 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ExternalID: application.AWS.ExternalID,
 			}
 		}
+
+		if len(application.TCPPorts) != 0 {
+			app.TCPPorts = make([]servicecfg.PortRange, 0, len(application.TCPPorts))
+			for _, portRange := range application.TCPPorts {
+				app.TCPPorts = append(app.TCPPorts, servicecfg.PortRange{
+					Port:    portRange.Port,
+					EndPort: portRange.EndPort,
+				})
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2734,6 +2751,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
 		cfg.Proxy.QUICProxyPeering = true
+	}
+
+	if rawPeriod := os.Getenv("TELEPORT_UNSTABLE_AGENT_ROLLOUT_SYNC_PERIOD"); rawPeriod != "" {
+		period, err := time.ParseDuration(rawPeriod)
+		if err != nil {
+			return trace.Wrap(err, "invalid agent rollout period %q", rawPeriod)
+		}
+		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
 	return nil

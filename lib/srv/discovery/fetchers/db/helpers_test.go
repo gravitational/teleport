@@ -53,10 +53,10 @@ func makeAWSMatchersForType(matcherType, region string, tags map[string]string) 
 	}}
 }
 
-func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfig string) []common.Fetcher {
+func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfigName string) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAWSFetchers(context.Background(), clients, matchers, discoveryConfig)
+	fetchers, err := MakeAWSFetchers(context.Background(), clients, matchers, discoveryConfigName)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 

@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import TeleportContext from 'teleport/teleportContext';
+import type { UrlListRolesParams } from 'teleport/config';
 import { RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-
-import type { UrlListRolesParams } from 'teleport/config';
+import TeleportContext from 'teleport/teleportContext';
 
 export function useRoles(ctx: TeleportContext) {
+  const rolesAcl = ctx.storeUser.getRoleAccess();
+
   async function create(role: Partial<RoleWithYaml>) {
     return ctx.resourceService.createRole(await toYaml(role));
   }
@@ -45,6 +46,7 @@ export function useRoles(ctx: TeleportContext) {
     create,
     update,
     remove,
+    rolesAcl,
   };
 }
 

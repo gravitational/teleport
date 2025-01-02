@@ -16,31 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
+import { P } from 'design/Text/Text';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
-import { P } from 'design/Text/Text';
 
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import {
-  Regions,
-  Vpc,
-  integrationService,
-} from 'teleport/services/integrations';
-import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
+import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
+import { useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  integrationService,
+  Regions,
+  Vpc,
+} from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import useTeleport from 'teleport/useTeleport';
 
 import { Header } from '../../Shared';
-
-import { VpcOption, VpcSelector } from './VpcSelector';
 import { AutoDiscoverToggle } from './AutoDiscoverToggle';
 import { AutoEnrollment } from './AutoEnrollment';
 import { SingleEnrollment } from './SingleEnrollment';
+import { VpcOption, VpcSelector } from './VpcSelector';
 
 export function EnrollRdsDatabase() {
   const ctx = useTeleport();

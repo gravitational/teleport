@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Info } from 'design/Alert';
 
+import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
 import {
   CreateDatabaseDialog,
   CreateDatabaseDialogProps,
 } from './CreateDatabaseDialog';
-import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
 
 export default {
   title: 'Teleport/Discover/Database/CreateDatabase/Dialog',

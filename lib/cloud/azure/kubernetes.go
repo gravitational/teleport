@@ -21,6 +21,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -30,10 +31,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/rbac/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -195,7 +195,10 @@ func (c *aksClient) ListAll(ctx context.Context) ([]*AKSCluster, error) {
 		for _, s := range page.Value {
 			cluster, err := AKSClusterFromManagedCluster(s)
 			if err != nil {
-				logrus.WithError(err).Debugf("Failed to convert discovered AKS cluster %q to Teleport internal representation.", StringVal(s.Name))
+				slog.DebugContext(ctx, "Failed to convert discovered AKS cluster to Teleport internal representation",
+					"cluster", StringVal(s.Name),
+					"error", err,
+				)
 				continue
 			}
 			servers = append(servers, cluster)
@@ -217,7 +220,10 @@ func (c *aksClient) ListWithinGroup(ctx context.Context, group string) ([]*AKSCl
 		for _, s := range page.Value {
 			cluster, err := AKSClusterFromManagedCluster(s)
 			if err != nil {
-				logrus.WithError(err).Debugf("Failed to convert discovered AKS cluster %q to Teleport internal representation.", StringVal(s.Name))
+				slog.DebugContext(ctx, "Failed to convert discovered AKS cluster to Teleport internal representation",
+					"cluster", StringVal(s.Name),
+					"error", err,
+				)
 				continue
 			}
 			servers = append(servers, cluster)

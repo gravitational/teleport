@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"reflect"
 	"sync"
 	"time"
 
@@ -36,6 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
@@ -456,14 +456,14 @@ func (c *UserNotificationCache) processEventsAndUpdateCurrent(ctx context.Contex
 			// to transform the notification into a legacy resource. We now have to use Unwrap() to get the original RFD153-style notification out and add it to the cache.
 			resource153, ok := event.Resource.(types.Resource153Unwrapper)
 			if !ok {
-				slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", reflect.TypeOf(resource153))
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", logutils.TypeAttr(resource153))
 				continue
 			}
 			resource := resource153.Unwrap()
 
 			notification, ok := resource.(*notificationsv1.Notification)
 			if !ok {
-				slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.Notification)", "resource_type", reflect.TypeOf(resource))
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.Notification)", "resource_type", logutils.TypeAttr(resource))
 				continue
 			}
 			if evicted := cache.Put(notification); evicted > 1 {
@@ -487,14 +487,14 @@ func (c *GlobalNotificationCache) processEventsAndUpdateCurrent(ctx context.Cont
 		case types.OpPut:
 			resource153, ok := event.Resource.(types.Resource153Unwrapper)
 			if !ok {
-				slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", reflect.TypeOf(resource153))
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", logutils.TypeAttr(resource153))
 				continue
 			}
 			resource := resource153.Unwrap()
 
 			globalNotification, ok := resource.(*notificationsv1.GlobalNotification)
 			if !ok {
-				slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.GlobalNotification)", "resource_type", reflect.TypeOf(resource))
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.GlobalNotification)", "resource_type", logutils.TypeAttr(resource))
 				continue
 			}
 			if evicted := cache.Put(globalNotification); evicted > 1 {

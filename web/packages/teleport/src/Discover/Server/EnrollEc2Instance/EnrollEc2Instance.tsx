@@ -16,49 +16,46 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Box, Link as ExternalLink, Text, Toggle } from 'design';
+import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
-import { FetchStatus } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { Box, Link as ExternalLink, Text, Toggle } from 'design';
 import { Danger } from 'design/Alert';
 import { OutlineInfo } from 'design/Alert/Alert';
-
+import { FetchStatus } from 'design/DataTable/types';
+import { IconTooltip } from 'design/Tooltip';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
-import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import {
-  Ec2InstanceConnectEndpoint,
-  Regions,
-  integrationService,
-} from 'teleport/services/integrations';
-import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
-import { Node } from 'teleport/services/nodes';
-
-import {
-  DiscoverEvent,
-  DiscoverEventStatus,
-} from 'teleport/services/userEvent';
-import {
-  DISCOVERY_GROUP_CLOUD,
-  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
-  DiscoveryConfig,
-  createDiscoveryConfig,
-} from 'teleport/services/discovery';
+import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import {
   getAttemptsOneOfErrorMsg,
   isIamPermError,
 } from 'teleport/Discover/Shared/Aws/error';
-import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
+import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { ConfigureDiscoveryServiceDirections } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  createDiscoveryConfig,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+  DISCOVERY_GROUP_CLOUD,
+  DiscoveryConfig,
+} from 'teleport/services/discovery';
+import {
+  Ec2InstanceConnectEndpoint,
+  integrationService,
+  Regions,
+} from 'teleport/services/integrations';
+import { Node } from 'teleport/services/nodes';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons, Header } from '../../Shared';
-
 import { CreateEc2IceDialog } from '../CreateEc2Ice/CreateEc2IceDialog';
-
 import { Ec2InstanceList } from './Ec2InstanceList';
 import { NoEc2IceRequiredDialog } from './NoEc2IceRequiredDialog';
 
@@ -482,11 +479,11 @@ export function EnrollEc2Instance() {
                 <Box ml={2} mr={1}>
                   Auto-enroll all EC2 instances for selected region
                 </Box>
-                <ToolTipInfo>
+                <IconTooltip>
                   Auto-enroll will automatically identify all EC2 instances from
                   the selected region and register them as node resources in
                   your infrastructure.
-                </ToolTipInfo>
+                </IconTooltip>
               </Toggle>
               {wantAutoDiscover && (
                 <OutlineInfo mt={3} linkColor="buttons.link.default">

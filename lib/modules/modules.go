@@ -25,6 +25,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -332,7 +333,10 @@ var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authe
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	if GetModules().Features().Cloud || !IsInsecureTestMode() {
+	// todo(tross): DELETE WHEN ABLE TO [remove env var, leave insecure test mode]
+	if GetModules().Features().Cloud ||
+		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
+
 		switch r := res.(type) {
 		case types.AuthPreference:
 			if !r.IsSecondFactorEnforced() {

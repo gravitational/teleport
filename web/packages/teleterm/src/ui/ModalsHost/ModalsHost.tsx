@@ -16,47 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Fragment } from 'react';
+import { Fragment } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
-import { Dialog } from 'teleterm/ui/services/modals';
 import { HeadlessAuthentication } from 'teleterm/ui/HeadlessAuthn';
+import { Dialog } from 'teleterm/ui/services/modals';
 
 import { ClusterLogout } from '../ClusterLogout';
 import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
 import { assertUnreachable } from '../utils';
-
-import { UsageData } from './modals/UsageData';
-import { UserJobRole } from './modals/UserJobRole';
-import { ReAuthenticate } from './modals/ReAuthenticate';
-import { AuthenticateWebDevice } from './modals/AuthenticateWebDevice/AuthenticateWebDevice';
 import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
+import { ReAuthenticate } from './modals/ReAuthenticate';
+import { UsageData } from './modals/UsageData';
+import { UserJobRole } from './modals/UserJobRole';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
   const { regular: regularDialog, important: importantDialogs } =
     modalsService.useState();
 
-  const closeRegularDialog = () => modalsService.closeRegularDialog();
-
   return (
     <>
-      {renderDialog({
-        dialog: regularDialog,
-        handleClose: closeRegularDialog,
-        hidden: !!importantDialogs.length,
-      })}
-      {importantDialogs.map(({ dialog, id }, index) => {
+      {regularDialog &&
+        renderDialog({
+          dialog: regularDialog.dialog,
+          handleClose: regularDialog.close,
+          hidden: !!importantDialogs.length,
+        })}
+      {importantDialogs.map(({ dialog, id, close }, index) => {
         const isLast = index === importantDialogs.length - 1;
         return (
           <Fragment key={id}>
             {renderDialog({
               dialog: dialog,
-              handleClose: () => modalsService.closeImportantDialog(id),
+              handleClose: close,
               hidden: !isLast,
             })}
           </Fragment>
@@ -87,20 +83,6 @@ function renderDialog({
   }
 
   switch (dialog.kind) {
-    case 'device-trust-authorize': {
-      return (
-        <AuthenticateWebDevice
-          hidden={hidden}
-          rootClusterUri={dialog.rootClusterUri}
-          onAuthorize={dialog.onAuthorize}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onClose={handleClose}
-        />
-      );
-    }
     case 'cluster-connect': {
       return (
         <ClusterConnect
@@ -135,9 +117,9 @@ function renderDialog({
           hidden={hidden}
           rootClusterUri={dialog.rootClusterUri}
           numberOfDocuments={dialog.numberOfDocuments}
-          onCancel={() => {
+          onDiscard={() => {
             handleClose();
-            dialog.onCancel();
+            dialog.onDiscard();
           }}
           onConfirm={() => {
             handleClose();

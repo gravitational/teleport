@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 import { integrationService } from './integrations';
-import { IntegrationStatusCode, IntegrationAudience } from './types';
+import { IntegrationAudience, IntegrationStatusCode } from './types';
 
 test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
@@ -63,6 +63,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
     items: [
       awsOidcIntegration,
       awsOidcIntegrationWithAudience,
+      githubIntegration,
       nonAwsOidcIntegration,
     ],
     nextKey: 'some-key',
@@ -91,6 +92,17 @@ test('fetch integration list: fetchIntegrations()', async () => {
           roleArn: 'arn-12345',
           audience: 'aws-identity-center',
         },
+        statusCode: IntegrationStatusCode.Running,
+      },
+      {
+        kind: 'github',
+        name: 'github-my-org',
+        resourceType: 'integration',
+        spec: {
+          roleArn: undefined,
+          audience: undefined,
+        },
+        details: 'GitHub Organization "my-org"',
         statusCode: IntegrationStatusCode.Running,
       },
       {
@@ -230,6 +242,13 @@ const awsOidcIntegrationWithAudience = {
   awsoidc: {
     roleArn: 'arn-12345',
     audience: IntegrationAudience.AwsIdentityCenter,
+  },
+};
+const githubIntegration = {
+  name: 'github-my-org',
+  subKind: 'github',
+  github: {
+    organization: 'my-org',
   },
 };
 

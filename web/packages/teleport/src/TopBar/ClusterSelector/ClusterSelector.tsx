@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 import { components, ValueContainerProps } from 'react-select';
 import styled from 'styled-components';
+
 import { Box, Flex, Text } from 'design';
 import { SelectAsync } from 'shared/components/Select';
 
@@ -43,8 +44,8 @@ export default function ClusterSelector({
   defaultMenuIsOpen = false,
   ...styles
 }) {
-  const [errorMessage, setError] = React.useState(null);
-  const [options, setOptions] = React.useState<Option[]>([]);
+  const [errorMessage, setError] = useState(null);
+  const [options, setOptions] = useState<Option[]>([]);
 
   const selectedOption = {
     value,

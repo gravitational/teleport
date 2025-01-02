@@ -16,7 +16,7 @@ Implement support for SPIFFE Federation within Teleport Workload Identity,
 including support for a SPIFFE based join method based on the federation
 mechanism.
 
-SPIFFE Federation is a standardised mechanism for exchanging trust bundles 
+SPIFFE Federation is a standardized mechanism for exchanging trust bundles 
 between trust domains. This enables workloads in one trust domain to validate
 the identity of workloads in another trust domain. See
 https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md
@@ -223,7 +223,7 @@ has the following problems:
 - Building the ability to validate X.509 certificates issued by arbitrary
   CAs into our TLS servers is complex and error-prone. We risk a compromised
   CA being able to issue user certificates that would be trusted by Teleport.
-- Traversing TLS-terminating loadbalancers is challenging.
+- Traversing TLS-terminating load balancers is challenging.
 - Incompatibility with renewal mechanisms that rely on an X.509 client
   certificate being presented (e.g BotInstance renewals) as only one client
   certificate can be presented.

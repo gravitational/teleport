@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { ClusterUri, DocumentUri } from 'teleterm/ui/uri';
 import type { Cluster } from 'teleterm/services/tshd/types';
-
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 import type { DocumentClusterResourceKind } from 'teleterm/ui/services/workspacesService';
+import type { ClusterUri, DocumentUri } from 'teleterm/ui/uri';
 
 type ResourceSearchResultBase<
   Result extends resourcesServiceTypes.SearchResult,

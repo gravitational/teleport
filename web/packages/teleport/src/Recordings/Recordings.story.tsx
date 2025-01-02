@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
 import { Context, ContextProvider } from 'teleport';
-
 import { makeRecording } from 'teleport/services/recordings/makeRecording';
 
 import { RecordingsContainer as Recordings } from './Recordings';
