@@ -3817,9 +3817,6 @@ The “teleport-cluster” Helm chart underwent significant refactoring in Telep
 deployments and the new “scratch” chart mode makes it easier to provide a custom
 Teleport config.
 
-“Custom” mode users should follow the [migration
-guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
-
 ### Dropped support for SHA1 in Teleport-protected servers
 
 Newer OpenSSH clients connecting to Teleport 12 clusters no longer need the
@@ -3842,10 +3839,7 @@ Teleport 12 before upgrading.
 
 #### Helm charts
 
-The teleport-cluster Helm chart underwent significant changes in Teleport 12. To
-upgrade from an older version of the Helm chart deployed in “custom” mode,
-follow
-the [migration guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
+The teleport-cluster Helm chart underwent significant changes in Teleport 12.
 
 Additionally, PSPs are removed from the chart when installing on Kubernetes 1.23
 and higher to account for the deprecation/removal of PSPs by Kubernetes.

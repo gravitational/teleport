@@ -445,7 +445,7 @@ You'll need to set up a DNS `A` record for `teleport.example.com`. In our exampl
 (!docs/pages/includes/dns-app-access.mdx!)
 </Details>
 
-Here's how to do this in a hosted zone with AWS Route 53:
+Here's how to do this in a hosted zone with Amazon Route 53:
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -575,7 +575,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 
 ## Step 7/7. Create a Teleport user
 
-Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
+Create a user to be able to log into Teleport. This needs to be done on the Teleport Auth Service,
 so we can run the command using `kubectl`:
 
 <Tabs>
