@@ -170,6 +170,7 @@ message AutoUpdateAgentRolloutSpec {
 }
 
 // AutoUpdateAgentRolloutStatus tracks the current agent rollout status.
+// The status is reset if any spec field changes except the mode.
 message AutoUpdateAgentRolloutStatus {
   repeated AutoUpdateAgentRolloutStatusGroup groups = 1;
   AutoUpdateAgentRolloutState state = 2;
@@ -182,6 +183,11 @@ message AutoUpdateAgentRolloutStatus {
   // before the rollout start time and the maintenance window belongs to the previous rollout.
   // When the timestamp is nil, the controller will ignore the start time and check and allow groups to activate.
   google.protobuf.Timestamp start_time = 3;
+
+  // Time override is an optional timestamp making the autoupdate_agent_rollout controller use a specific time instead
+  // of the system clock when evaluating time-based criteria. This field is used for testing and troubleshooting
+  // purposes.
+  google.protobuf.Timestamp time_override = 4;
 }
 
 // AutoUpdateAgentRolloutStatusGroup tracks the current agent rollout status of a specific group.

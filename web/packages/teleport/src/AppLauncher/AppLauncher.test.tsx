@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, waitFor } from 'design/utils/testing';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
+
+import { render, screen, waitFor } from 'design/utils/testing';
 
 import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';

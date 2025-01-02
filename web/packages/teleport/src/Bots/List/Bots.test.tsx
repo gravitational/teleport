@@ -17,16 +17,17 @@
  */
 
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
-import api from 'teleport/services/api';
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
+import { ContextProvider } from 'teleport/index';
 import {
   allAccessAcl,
   createTeleportContext,
   noAccess,
 } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport/index';
+import api from 'teleport/services/api';
 import TeleportContext from 'teleport/teleportContext';
 
 import { Bots } from './Bots';

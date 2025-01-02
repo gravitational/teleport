@@ -187,7 +187,7 @@ build systems to successfully build Teleport.
 - [ ] Remove `/webassets` submodule
   - This submodule is no longer required as the web UI will be built on-demand.
   - The folder will remain as the output location of the on-demand build but
-    will not be comitted.
+    will not be committed.
 - [ ] Clone the [Webapps repository](https://github.com/gravitational/webapps) into
       the Teleport root. [Maintaining their respective git histories](https://stackoverflow.com/questions/13040958/merge-two-git-repositories-without-breaking-file-history)
   - [ ] This will need to be done for every respective version branch (v9, v10, v11)

@@ -657,10 +657,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.WarnContext(r.Context(), "Failed to generate CSRF token", "error", err)
 			}
 
-			session, err := h.authenticateWebSession(w, r)
-			if err != nil {
-				h.logger.DebugContext(r.Context(), "Could not authenticate", "error", err)
-			}
+			// Ignore errors here, as unauthenticated requests for index.html are common - the user might
+			// not have logged in yet, or their session may have expired.
+			// The web app will show them the login page in this case.
+			session, _ := h.authenticateWebSession(w, r)
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
@@ -724,7 +724,7 @@ type webSession struct {
 }
 
 func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
-	ctx, err := h.AuthenticateRequest(w, r, false)
+	ctx, err := h.AuthenticateRequest(w, r, false /* validate bearer token */)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
@@ -1997,6 +1997,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
@@ -4398,6 +4399,8 @@ type ClusterWebsocketHandler func(w http.ResponseWriter, r *http.Request, p http
 // WithClusterAuth wraps a ClusterHandler to ensure that a request is authenticated to this proxy
 // (the same as WithAuth), as well as to grab the remoteSite (which can represent this local cluster
 // or a remote trusted cluster) as specified by the ":site" url parameter.
+//
+// WithClusterAuth also provides CSRF protection by requiring the bearer token to be present.
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
@@ -4693,6 +4696,7 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 
 // WithAuth ensures that a request is authenticated.
 // Authenticated requests require both a session cookie as well as a bearer token.
+// WithAuth also provides CSRF protection by requiring the bearer token to be present.
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, err := h.AuthenticateRequest(w, r, true /* check bearer token */)
@@ -4705,6 +4709,10 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 
 // WithSession ensures that the request provides a session cookie.
 // It does not check for a bearer token.
+//
+// WithSession does not provide CSRF protection, so it should only
+// be used for non-state-changing requests or when other CSRF mitigations
+// are applied.
 func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, err := h.AuthenticateRequest(w, r, false /* check bearer token */)
@@ -5045,6 +5053,8 @@ type SSORequestParams struct {
 	// ConnectorID identifies the SSO connector to use to log in, from
 	// the connector_id query parameter.
 	ConnectorID string
+	// CSRFToken is used to protect against login-CSRF in SSO flows.
+	CSRFToken string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5077,9 +5087,15 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 
+	csrfToken, err := csrf.ExtractTokenFromCookie(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &SSORequestParams{
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
+		CSRFToken:         csrfToken,
 	}, nil
 }
 
@@ -5109,6 +5125,11 @@ type SSOCallbackResponse struct {
 // error is returned.
 func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *SSOCallbackResponse, verifyCSRF bool) error {
 	if verifyCSRF {
+		// Make sure that the CSRF token provided in this request matches
+		// the token that was used to initiate this SSO attempt.
+		//
+		// This ensures that an attacker cannot perform a login CSRF attack
+		// in order to get the victim to log in to the incorrect account.
 		if err := csrf.VerifyToken(response.CSRFToken, r); err != nil {
 			return trace.Wrap(err)
 		}

@@ -19,7 +19,6 @@
 import styled from 'styled-components';
 
 import { Flex } from '..';
-
 import { RadioButton } from './RadioButton';
 
 export default {

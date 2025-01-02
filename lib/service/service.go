@@ -631,9 +631,6 @@ type TeleportProcess struct {
 	// during in-process reloads.
 	id string
 
-	// log is a process-local logrus.Entry.
-	// Deprecated: use logger instead.
-	log logrus.FieldLogger
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
@@ -1031,13 +1028,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if len(cfg.FileDescriptors) == 0 {
-		cfg.FileDescriptors, err = importFileDescriptors(cfg.Log)
+		cfg.FileDescriptors, err = importFileDescriptors(cfg.Logger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	supervisor := NewSupervisor(processID, cfg.Log)
+	supervisor := NewSupervisor(processID, cfg.Logger)
 	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1183,7 +1180,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		storage:                storage,
 		rotationCache:          rotationCache,
 		id:                     processID,
-		log:                    cfg.Log,
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
