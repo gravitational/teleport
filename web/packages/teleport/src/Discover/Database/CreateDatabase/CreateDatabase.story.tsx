@@ -19,9 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
 import { CreateDatabaseView } from './CreateDatabase';
-
 import type { State } from './useCreateDatabase';
 
 export default {

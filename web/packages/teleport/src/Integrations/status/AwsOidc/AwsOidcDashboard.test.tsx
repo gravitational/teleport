@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { within } from '@testing-library/react';
 import React from 'react';
+
 import { render, screen } from 'design/utils/testing';
 
-import { within } from '@testing-library/react';
-
+import { addHours } from 'teleport/components/BannerList/useAlerts';
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
 import { IntegrationKind } from 'teleport/services/integrations';
-import { addHours } from 'teleport/components/BannerList/useAlerts';
 
 test('renders header and stats cards', () => {
   render(

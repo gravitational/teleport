@@ -18,14 +18,15 @@
 
 import Logger from 'shared/libs/logger';
 
-import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
-import { WebauthnAssertionResponse } from 'teleport/services/mfa';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
-
-import { MfaChallengeResponse } from 'teleport/services/mfa';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import {
+  MfaChallengeResponse,
+  WebauthnAssertionResponse,
+} from 'teleport/services/mfa';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
-import { Protobuf, MessageTypeEnum } from './protobuf';
+import { MessageTypeEnum, Protobuf } from './protobuf';
 
 const logger = Logger.create('Tty');
 

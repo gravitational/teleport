@@ -16,17 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 
 import { ApiError } from 'teleport/services/api/parseError';
-
 import { Node } from 'teleport/services/nodes';
 
-import {
-  useKeyBasedPagination,
-  KeyBasedPaginationOptions,
-} from './useKeyBasedPagination';
 import { newFetchFunc, resourceClusterIds, resourceNames } from './testUtils';
+import {
+  KeyBasedPaginationOptions,
+  useKeyBasedPagination,
+} from './useKeyBasedPagination';
 
 function hookProps(overrides: Partial<KeyBasedPaginationOptions<Node>> = {}) {
   return {

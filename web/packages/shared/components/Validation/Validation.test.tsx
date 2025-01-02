@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, fireEvent, screen, act } from 'design/utils/testing';
+import { act, fireEvent, render, screen } from 'design/utils/testing';
 
-import Validator, { Result, Validation, useValidation } from './Validation';
+import Validator, { Result, useValidation, Validation } from './Validation';
 
 afterEach(() => {
   jest.restoreAllMocks();

@@ -17,13 +17,14 @@
  */
 
 import { useRef } from 'react';
+
 import { Flex } from 'design';
 
 import { AccessRequestCheckout } from 'teleterm/ui/AccessRequestCheckout';
+import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
+import { StatusBar } from 'teleterm/ui/StatusBar';
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
-import { StatusBar } from 'teleterm/ui/StatusBar';
-import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
 
 export function LayoutManager() {
   const topBarContainerRef = useRef<HTMLDivElement>();

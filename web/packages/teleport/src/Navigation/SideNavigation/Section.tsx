@@ -21,15 +21,15 @@ import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
-import { Theme } from 'design/theme';
 import { ArrowLineLeft } from 'design/Icon';
+import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 
+import { CategoryIcon } from './CategoryIcon';
 import { NavigationSection, NavigationSubsection } from './Navigation';
 import { zIndexMap } from './zIndexMap';
-import { CategoryIcon } from './CategoryIcon';
 
 type SharedSectionProps = {
   section: NavigationSection;

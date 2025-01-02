@@ -21,9 +21,9 @@ import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
 import { IconProps } from 'design/Icon/Icon';
-import { HoverTooltip } from 'design/Tooltip';
 import { Position } from 'design/Popover/Popover';
 import { StatusIcon, StatusKind } from 'design/StatusIcon';
+import { HoverTooltip } from 'design/Tooltip';
 
 export function SlideTabs({
   appearance = 'square',

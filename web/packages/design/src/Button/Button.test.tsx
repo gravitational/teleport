@@ -22,14 +22,14 @@ import React, {
   PropsWithChildren,
 } from 'react';
 
-import { render, theme, screen } from 'design/utils/testing';
+import { render, screen, theme } from 'design/utils/testing';
 
 import {
   Button,
   ButtonPrimary,
   ButtonSecondary,
-  ButtonWarning,
   ButtonSize,
+  ButtonWarning,
 } from './index';
 
 describe('design/Button', () => {

@@ -19,7 +19,6 @@
 import { Restore } from 'design/Icon';
 
 import { Box } from '..';
-
 import { Alert, AlertProps, Banner } from './Alert';
 
 export default {

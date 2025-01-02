@@ -17,18 +17,19 @@
  */
 
 import { Meta } from '@storybook/react';
+
 import { wait } from 'shared/utils/wait';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
-  makeRootCluster,
   makeLoggedInUser,
+  makeRootCluster,
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { DocumentAuthorizeWebSession } from './DocumentAuthorizeWebSession';
 

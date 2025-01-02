@@ -17,10 +17,10 @@
  */
 
 import { Dialog } from './Dialog';
-import DialogTitle from './DialogTitle';
-import DialogHeader from './DialogHeader';
 import DialogContent from './DialogContent';
 import DialogFooter from './DialogFooter';
+import DialogHeader from './DialogHeader';
+import DialogTitle from './DialogTitle';
 
 export default Dialog;
 export { DialogTitle, DialogContent, DialogFooter, DialogHeader };

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 import { Flex, Image, P2 } from 'design';
-
+import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';

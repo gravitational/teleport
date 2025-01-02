@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import Logger from '../../libs/logger';
-
 import { useValidation } from './Validation';
 
 const logger = Logger.create('validation');
