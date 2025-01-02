@@ -17,11 +17,12 @@
  */
 
 import React from 'react';
+
 import { Flex, Text } from 'design';
 
-import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
-import { ShareFeedback } from './ShareFeedback';
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
+import { ShareFeedback } from './ShareFeedback';
+import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
 export function StatusBar() {
   const clusterBreadcrumbs = useActiveDocumentClusterBreadcrumbs();

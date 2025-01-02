@@ -1,91 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`kube connect dialogue local 1`] = `
-.c1 {
-  z-index: -1;
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-  background-color: rgba(0,0,0,0.5);
-  opacity: 1;
-  touch-action: none;
-}
-
-.c0 {
-  position: fixed;
-  z-index: 1200;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-}
-
-.c2 {
-  height: 100%;
-  outline: none;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  will-change: opacity;
-  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
-}
-
-.c3 {
-  padding: 32px;
-  padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow-y: auto;
-  max-height: calc(100% - 96px);
-  min-height: 400px;
-  max-width: 600px;
-  width: 100%;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -141,31 +56,6 @@ exports[`kube connect dialogue local 1`] = `
 
 .c23 {
   box-sizing: border-box;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
-}
-
-.c13 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c15 {
-  display: flex;
-}
-
-.c21 {
-  display: flex;
-  justify-content: space-between;
 }
 
 .c17 {
@@ -248,6 +138,116 @@ exports[`kube connect dialogue local 1`] = `
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-top: 4px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c13 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c15 {
+  display: flex;
+}
+
+.c21 {
+  display: flex;
+  justify-content: space-between;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #222C59;
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  min-height: 400px;
+  max-width: 600px;
+  width: 100%;
 }
 
 <body>
@@ -468,91 +468,6 @@ exports[`kube connect dialogue local 1`] = `
 `;
 
 exports[`kube connect dialogue local with requestId 1`] = `
-.c1 {
-  z-index: -1;
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-  background-color: rgba(0,0,0,0.5);
-  opacity: 1;
-  touch-action: none;
-}
-
-.c0 {
-  position: fixed;
-  z-index: 1200;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-}
-
-.c2 {
-  height: 100%;
-  outline: none;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  will-change: opacity;
-  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
-}
-
-.c3 {
-  padding: 32px;
-  padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow-y: auto;
-  max-height: calc(100% - 96px);
-  min-height: 400px;
-  max-width: 600px;
-  width: 100%;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -614,31 +529,6 @@ exports[`kube connect dialogue local with requestId 1`] = `
 
 .c24 {
   box-sizing: border-box;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
-}
-
-.c13 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c15 {
-  display: flex;
-}
-
-.c22 {
-  display: flex;
-  justify-content: space-between;
 }
 
 .c17 {
@@ -721,6 +611,116 @@ exports[`kube connect dialogue local with requestId 1`] = `
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-top: 4px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c13 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c15 {
+  display: flex;
+}
+
+.c22 {
+  display: flex;
+  justify-content: space-between;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #222C59;
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  min-height: 400px;
+  max-width: 600px;
+  width: 100%;
 }
 
 <body>
@@ -977,91 +977,6 @@ exports[`kube connect dialogue local with requestId 1`] = `
 `;
 
 exports[`kube connect dialogue sso 1`] = `
-.c1 {
-  z-index: -1;
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-  background-color: rgba(0,0,0,0.5);
-  opacity: 1;
-  touch-action: none;
-}
-
-.c0 {
-  position: fixed;
-  z-index: 1200;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-}
-
-.c2 {
-  height: 100%;
-  outline: none;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  will-change: opacity;
-  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
-}
-
-.c3 {
-  padding: 32px;
-  padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow-y: auto;
-  max-height: calc(100% - 96px);
-  min-height: 400px;
-  max-width: 600px;
-  width: 100%;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
-}
-
 .c4 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -1117,31 +1032,6 @@ exports[`kube connect dialogue sso 1`] = `
 
 .c23 {
   box-sizing: border-box;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
-}
-
-.c13 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c15 {
-  display: flex;
-}
-
-.c21 {
-  display: flex;
-  justify-content: space-between;
 }
 
 .c17 {
@@ -1224,6 +1114,116 @@ exports[`kube connect dialogue sso 1`] = `
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-top: 4px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c13 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c15 {
+  display: flex;
+}
+
+.c21 {
+  display: flex;
+  justify-content: space-between;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #222C59;
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  min-height: 400px;
+  max-width: 600px;
+  width: 100%;
 }
 
 <body>

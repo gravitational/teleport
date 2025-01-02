@@ -18,8 +18,8 @@
 
 import React from 'react';
 
-import Flex from './Flex';
 import Box from './../Box';
+import Flex from './Flex';
 
 export default {
   title: 'Design/Flex',

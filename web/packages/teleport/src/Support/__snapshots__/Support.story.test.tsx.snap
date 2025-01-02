@@ -1329,6 +1329,13 @@ exports[`support Enterprise with CTA 1`] = `
   border-bottom: 1px solid rgba(255,255,255,0.18);
 }
 
+.c28 {
+  color: inherit;
+  font-weight: 500;
+  font-size: 15px;
+  margin-right: 10px;
+}
+
 .c6 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
@@ -1352,13 +1359,6 @@ exports[`support Enterprise with CTA 1`] = `
 .c3::after {
   content: ' ';
   padding-bottom: 24px;
-}
-
-.c28 {
-  color: inherit;
-  font-weight: 500;
-  font-size: 15px;
-  margin-right: 10px;
 }
 
 .c19 {
@@ -2499,6 +2499,13 @@ exports[`support OSSWithCTA 1`] = `
   border-bottom: 1px solid rgba(255,255,255,0.18);
 }
 
+.c28 {
+  color: inherit;
+  font-weight: 500;
+  font-size: 15px;
+  margin-right: 10px;
+}
+
 .c6 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
@@ -2522,13 +2529,6 @@ exports[`support OSSWithCTA 1`] = `
 .c3::after {
   content: ' ';
   padding-bottom: 24px;
-}
-
-.c28 {
-  color: inherit;
-  font-weight: 500;
-  font-size: 15px;
-  margin-right: 10px;
 }
 
 .c19 {

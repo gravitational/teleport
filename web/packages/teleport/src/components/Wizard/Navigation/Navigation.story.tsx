@@ -17,10 +17,10 @@
  */
 
 import React from 'react';
+
 import { Box } from 'design';
 
 import { addIndexToViews } from '../flow';
-
 import { Navigation } from './Navigation';
 
 export default {

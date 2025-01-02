@@ -16,19 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { PropsWithChildren } from 'react';
-import { renderHook, waitFor, act } from '@testing-library/react';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { IAppContext } from 'teleterm/ui/types';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { IAppContext } from 'teleterm/ui/types';
 
 import {
+  useVnetContext,
   VnetContextProvider,
   VnetStatus,
   VnetStoppedReason,
-  useVnetContext,
 } from './vnetContext';
 
 describe('autostart', () => {

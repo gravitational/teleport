@@ -16,43 +16,39 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { FetchStatus, SortType } from 'design/DataTable/types';
-
+import {
+  Cluster,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
-import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 
-import {
-  ShowResources,
-  Cluster,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import {
-  makeDatabase,
-  makeServer,
-  makeKube,
-} from 'teleterm/ui/services/clusters';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import type {
+  ResourceLabel,
+  ResourcesResponse,
+  UnifiedResource,
+  ResourceFilter as WeakAgentFilter,
+} from 'teleport/services/agents';
+import type * as teleportApps from 'teleport/services/apps';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import {
   GetResourcesParams,
   App as tshdApp,
 } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import {
+  makeDatabase,
+  makeKube,
+  makeServer,
+} from 'teleterm/ui/services/clusters';
 import { toResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-
-import type {
-  ResourceLabel,
-  ResourceFilter as WeakAgentFilter,
-  ResourcesResponse,
-  UnifiedResource,
-} from 'teleport/services/agents';
-import type * as teleportApps from 'teleport/services/apps';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 const pageSize = 10;
 

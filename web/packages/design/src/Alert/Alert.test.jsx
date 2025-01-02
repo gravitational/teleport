@@ -20,7 +20,7 @@ import React from 'react';
 
 import { render, theme } from 'design/utils/testing';
 
-import Alert, { Danger, Info, Warning, Success } from './index';
+import Alert, { Danger, Info, Success, Warning } from './index';
 
 describe('design/Alert', () => {
   it('respects default "kind" prop == danger', () => {

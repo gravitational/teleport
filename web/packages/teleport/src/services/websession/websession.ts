@@ -19,8 +19,8 @@
 import Logger from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 import api from 'teleport/services/api';
+import history from 'teleport/services/history';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 import makeBearerToken from './makeBearerToken';

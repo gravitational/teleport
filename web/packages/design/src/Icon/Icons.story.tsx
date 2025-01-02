@@ -18,11 +18,9 @@
 
 import React from 'react';
 
-import { Text } from '..';
-
-import Flex from './../Flex';
-
 import * as Icon from '.';
+import { Text } from '..';
+import Flex from './../Flex';
 
 export default {
   title: 'Design/Icon',

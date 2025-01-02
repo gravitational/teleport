@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { screen } from '@testing-library/react';
+import React from 'react';
+
 import { fireEvent, render } from 'design/utils/testing';
 
+import { Cluster } from 'teleterm/services/tshd/types';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { IAppContext } from 'teleterm/ui/types';
-import { Cluster } from 'teleterm/services/tshd/types';
 
 import { ShareFeedback } from './ShareFeedback';
 

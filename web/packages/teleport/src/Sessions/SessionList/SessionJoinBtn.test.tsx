@@ -17,10 +17,10 @@
  */
 
 import React from 'react';
+
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { SessionJoinBtn } from './SessionJoinBtn';

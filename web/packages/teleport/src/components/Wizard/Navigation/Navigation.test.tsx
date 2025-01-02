@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { render, screen } from 'design/utils/testing';
 
 import { Navigation } from './Navigation';

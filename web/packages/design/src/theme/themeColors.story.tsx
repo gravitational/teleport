@@ -19,7 +19,7 @@
 import React from 'react';
 import { useTheme } from 'styled-components';
 
-import { Flex, Box, Text, Link } from '..';
+import { Box, Flex, Link, Text } from '..';
 
 export default {
   title: 'Design/Theme/Colors',

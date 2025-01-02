@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
 
 import {
   OverrideUserAgent,
@@ -28,9 +28,9 @@ import {
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { UserContext } from 'teleport/User/UserContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import { UserContext } from 'teleport/User/UserContext';
 
 import { SetupConnect } from './SetupConnect';
 

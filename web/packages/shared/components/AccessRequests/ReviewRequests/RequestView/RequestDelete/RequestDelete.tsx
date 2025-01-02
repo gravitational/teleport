@@ -17,21 +17,20 @@
  */
 
 import React from 'react';
-import { ButtonWarning, ButtonSecondary, Flex, Text, Alert } from 'design';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
+import { Alert, ButtonSecondary, ButtonWarning, Flex, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-
 import { Attempt } from 'shared/hooks/useAsync';
+import type { RequestState } from 'shared/services/accessRequests';
+
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 import RolesRequested from '../RolesRequested';
-
-import type { RequestState } from 'shared/services/accessRequests';
 
 export interface RequestDeleteProps {
   requestId: string;

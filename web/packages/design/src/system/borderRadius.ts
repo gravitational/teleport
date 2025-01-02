@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Property } from 'csstype';
 import {
-  style,
-  px,
   compose,
-  BorderRadiusProps as StyledSystemBorderRadiusProps,
+  px,
   ResponsiveValue,
+  style,
+  BorderRadiusProps as StyledSystemBorderRadiusProps,
   TLengthStyledSystem,
 } from 'styled-system';
-import { Property } from 'csstype';
 
 export interface BorderRadiusProps<TLength = TLengthStyledSystem>
   extends StyledSystemBorderRadiusProps<TLength> {

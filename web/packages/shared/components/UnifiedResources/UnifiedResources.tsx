@@ -17,67 +17,65 @@
  */
 
 import React, {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
   Children,
   PropsWithChildren,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
-
 import styled from 'styled-components';
+
 import {
   Box,
-  Flex,
+  ButtonBorder,
   ButtonLink,
   ButtonSecondary,
+  Flex,
   Text,
-  ButtonBorder,
 } from 'design';
-import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
+import { Icon, Magnifier, PushPin } from 'design/Icon';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse } from 'teleport/services/agents';
-
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
+  Attempt as AsyncAttempt,
+  hasFinished,
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  Attempt as AsyncAttempt,
-  hasFinished,
 } from 'shared/hooks/useAsync';
-import {
-  useKeyBasedPagination,
-  useInfiniteScroll,
-} from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import {
+  useInfiniteScroll,
+  useKeyBasedPagination,
+} from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+import { ResourcesResponse } from 'teleport/services/agents';
+
+import { CardsView } from './CardsView/CardsView';
+import { FilterPanel } from './FilterPanel';
+import { ListView } from './ListView/ListView';
+import { ResourceTab } from './ResourceTab';
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
-  SharedUnifiedResource,
+  IncludedResourceMode,
   PinningSupport,
+  SharedUnifiedResource,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
-  IncludedResourceMode,
 } from './types';
-
-import { ResourceTab } from './ResourceTab';
-import { FilterPanel } from './FilterPanel';
-import { CardsView } from './CardsView/CardsView';
-import { ListView } from './ListView/ListView';
-import { mapResourceToViewItem } from './shared/viewItemsFactory';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;

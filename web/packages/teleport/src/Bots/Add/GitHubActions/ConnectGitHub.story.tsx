@@ -20,11 +20,9 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
-
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
-
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubFlowProvider } from './useGitHubFlow';
 

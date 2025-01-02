@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex } from 'design';
 import React from 'react';
+
+import { Flex } from 'design';
 
 import { DisableableCell as Cell } from 'teleport/Discover/Shared';
 
-import { StatusLight, ItemStatus } from '../StatusLight';
+import { ItemStatus, StatusLight } from '../StatusLight';
 
 export const StatusCell = ({
   status,

@@ -19,6 +19,7 @@
 import React from 'react';
 import { components } from 'react-select';
 import styled from 'styled-components';
+
 import { Box, Flex, Text } from 'design';
 import { SelectAsync } from 'shared/components/Select';
 

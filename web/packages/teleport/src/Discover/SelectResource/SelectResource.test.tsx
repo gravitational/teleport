@@ -17,19 +17,16 @@
  */
 
 import { Platform, UserAgent } from 'design/platform';
-
 import {
   OnboardUserPreferences,
   Resource,
 } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-
 import { OnboardDiscover } from 'teleport/services/user';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import { ResourceKind } from '../Shared';
 import { resourceKindToPreferredResource } from '../Shared/ResourceKind';
-
 import { filterResources, sortResources } from './SelectResource';
 import { ResourceSpec } from './types';
 

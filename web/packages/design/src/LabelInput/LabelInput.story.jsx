@@ -18,8 +18,8 @@
 
 import React from 'react';
 
-import LabelInput from './LabelInput';
 import InputComp from './../Input';
+import LabelInput from './LabelInput';
 
 export default {
   title: 'Design/LabelInput',

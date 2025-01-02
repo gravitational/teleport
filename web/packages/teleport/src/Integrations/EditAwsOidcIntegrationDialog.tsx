@@ -18,36 +18,36 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
+
 import {
-  ButtonSecondary,
-  ButtonPrimary,
-  ButtonBorder,
   Alert,
-  Text,
   Box,
+  ButtonBorder,
+  ButtonPrimary,
+  ButtonSecondary,
   Link,
+  Text,
 } from 'design';
+import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
+import { CheckboxInput } from 'design/Checkbox';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
-import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
 import FieldInput from 'shared/components/FieldInput';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredRoleArn } from 'shared/components/Validation/rules';
-import { CheckboxInput } from 'design/Checkbox';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { Integration } from 'teleport/services/integrations';
-
 import cfg from 'teleport/config';
+import { Integration } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
+import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 
 type Props = {
   close(): void;

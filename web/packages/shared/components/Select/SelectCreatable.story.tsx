@@ -17,9 +17,10 @@
  */
 
 import React from 'react';
-import { Flex, Box } from 'design';
 
-import { SelectCreatable, Option } from '../Select';
+import { Box, Flex } from 'design';
+
+import { Option, SelectCreatable } from '../Select';
 
 export default {
   title: 'Shared/SelectCreatable',

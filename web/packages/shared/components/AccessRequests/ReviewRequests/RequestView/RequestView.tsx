@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { format } from 'date-fns';
 import React from 'react';
 import styled from 'styled-components';
-import { format } from 'date-fns';
+
 import {
   Alert,
   Box,
@@ -26,51 +27,45 @@ import {
   ButtonPrimary,
   Flex,
   Indicator,
+  Label,
   LabelState,
   Text,
-  Label,
 } from 'design';
+import Table from 'design/DataTable';
 import {
+  ArrowFatLinesUp,
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
-  ArrowFatLinesUp,
 } from 'design/Icon';
-import { TeleportGearIcon } from 'design/SVGIcon';
-import Table from 'design/DataTable';
-
 import { LabelKind } from 'design/LabelState/LabelState';
-
+import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'shared/components/ToolTip';
-import { hasFinished, Attempt } from 'shared/hooks/useAsync';
 import cfg from 'shared/config';
-
+import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 import {
-  canAssumeNow,
+  AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
+  canAssumeNow,
   RequestState,
   Resource,
-  AccessRequest,
 } from 'shared/services/accessRequests';
-
-import {
-  PromotedMessage,
-  getAssumeStartTimeTooltipText,
-} from '../../Shared/Shared';
-import { getFormattedDurationTxt } from '../../Shared/utils';
-
-import { formattedName } from '../formattedName';
-
-import RequestReview from './RequestReview';
-import RolesRequested from './RolesRequested';
-import { SuggestedAccessList } from './types';
-import { RequestDelete } from './RequestDelete';
 
 import type {
   RequestFlags,
   SubmitReview,
 } from '../../ReviewRequests/RequestView/types';
+import {
+  getAssumeStartTimeTooltipText,
+  PromotedMessage,
+} from '../../Shared/Shared';
+import { getFormattedDurationTxt } from '../../Shared/utils';
+import { formattedName } from '../formattedName';
+import { RequestDelete } from './RequestDelete';
+import RequestReview from './RequestReview';
+import RolesRequested from './RolesRequested';
+import { SuggestedAccessList } from './types';
 
 export interface RequestViewProps {
   user: string;

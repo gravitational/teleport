@@ -17,12 +17,12 @@
  */
 
 import {
-  makeRootCluster,
   makeAppGateway,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 
-import { VnetClient, TshdClient } from '../createClient';
 import { MockedUnaryCall } from '../cloneableClient';
+import { TshdClient, VnetClient } from '../createClient';
 
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });

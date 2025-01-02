@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatTabs, formatCmd, formatNetwork, formatFile } from './formatters';
+import { formatCmd, formatFile, formatNetwork, formatTabs } from './formatters';
 
 export default function formatTree(tree, events, buffer) {
   if (!tree) {

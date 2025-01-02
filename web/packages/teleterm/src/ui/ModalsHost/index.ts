@@ -17,4 +17,5 @@
  */
 
 import ModalsHost from './ModalsHost';
+
 export default ModalsHost;

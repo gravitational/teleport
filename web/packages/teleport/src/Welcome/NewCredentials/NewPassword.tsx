@@ -17,8 +17,10 @@
  */
 
 import React, { useState } from 'react';
+
 import { Box, ButtonPrimary, ButtonText, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -26,8 +28,6 @@ import {
   requiredPassword,
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { SliderProps, UseTokenState } from './types';
 

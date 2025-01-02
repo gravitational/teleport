@@ -17,8 +17,9 @@
  */
 
 import React, { useState } from 'react';
-import { Info, Warning } from 'design/Icon';
+
 import Flex from 'design/Flex';
+import { Info, Warning } from 'design/Icon';
 
 import { Notification } from './Notification';
 

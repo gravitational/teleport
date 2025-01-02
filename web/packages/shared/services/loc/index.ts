@@ -17,9 +17,10 @@
  */
 
 import {
+  dateToUtc,
   displayDate,
   displayDateTime,
   displayUnixDate,
-  dateToUtc,
 } from './loc';
+
 export { displayDate, displayDateTime, displayUnixDate, dateToUtc };

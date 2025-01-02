@@ -19,7 +19,6 @@
 import React from 'react';
 
 import Validation from '../../components/Validation';
-
 import { FieldTextArea } from './FieldTextArea';
 
 export default {

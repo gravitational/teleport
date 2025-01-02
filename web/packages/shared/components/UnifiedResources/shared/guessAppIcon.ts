@@ -17,9 +17,9 @@
  */
 
 import {
+  iconNames,
   ResourceIconName,
   resourceIconSpecs,
-  iconNames,
 } from 'design/ResourceIcon';
 
 import { UnifiedResourceApp } from '../types';

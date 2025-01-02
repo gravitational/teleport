@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { displayDate, displayDateTime, dateTimeShortFormat } from './loc';
+import { dateTimeShortFormat, displayDate, displayDateTime } from './loc';
 
 const testDate = new Date('2022-01-28T16:00:44.309Z');
 

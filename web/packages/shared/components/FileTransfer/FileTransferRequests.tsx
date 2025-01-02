@@ -18,13 +18,15 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonBorder, Box, Flex, Text } from 'design';
+
+import { Box, ButtonBorder, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+
+import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import {
   FileTransferRequest,
   isOwnRequest,
 } from 'teleport/Console/DocumentSsh/useFileTransfer';
-import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { UserContext } from 'teleport/services/user';
 
 type FileTransferRequestsProps = {

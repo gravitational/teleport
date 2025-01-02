@@ -17,14 +17,15 @@
  */
 
 import React from 'react';
+
+import { ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { Danger } from 'design/Alert';
 import Dialog, {
+  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogContent,
 } from 'design/Dialog';
-import { Danger } from 'design/Alert';
-import { Text, ButtonPrimary, ButtonSecondary } from 'design';
 
 export default function AuthnDialog({
   onContinue,

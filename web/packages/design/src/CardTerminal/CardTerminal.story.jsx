@@ -17,10 +17,9 @@
  */
 
 import React from 'react';
-
 import { MemoryRouter } from 'react-router';
-import { Route } from 'teleport/components/Router';
 
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 import CardTerminal, { CardTerminalLogin } from './index';

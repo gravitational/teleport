@@ -19,20 +19,20 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { Context as TeleportContext, ContextProvider } from 'teleport';
+import { ContextProvider, Context as TeleportContext } from 'teleport';
 import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { getUserContext } from 'teleport/mocks/contexts';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import {
-  DiscoverProvider,
   DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { getUserContext } from 'teleport/mocks/contexts';
 
 import ManualDeploy from './ManualDeploy';
 

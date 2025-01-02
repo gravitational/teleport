@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { watch, type Stats } from 'fs';
+import { readFile, rename, stat, writeFile } from 'fs/promises';
 import path from 'path';
-import { type Stats, watch } from 'fs';
-import { readFile, writeFile, stat, rename } from 'fs/promises';
 
 import { wait } from 'shared/utils/wait';
 

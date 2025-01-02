@@ -116,14 +116,6 @@ exports[`failed state 1`] = `
   margin: 0px;
 }
 
-.c17 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
 .c6 {
   display: flex;
   flex-direction: column;
@@ -137,6 +129,14 @@ exports[`failed state 1`] = `
 .c14 {
   display: flex;
   align-items: center;
+}
+
+.c17 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c18 {
@@ -415,14 +415,6 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c16 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
 .c5 {
   display: flex;
   flex-direction: column;
@@ -436,6 +428,14 @@ exports[`loaded state 1`] = `
 .c13 {
   display: flex;
   align-items: center;
+}
+
+.c16 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c17 {

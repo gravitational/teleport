@@ -26,41 +26,38 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
+
 import { Box, Indicator } from 'design';
 import { Failed } from 'design/CardError';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
-
-import { matchPath, useHistory } from 'react-router';
-
 import Dialog from 'design/Dialog';
 import { sharedStyles } from 'design/theme/themes/sharedStyles';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { Redirect, Route, Switch } from 'teleport/components/Router';
-import { CatchError } from 'teleport/components/CatchError';
-import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { TopBar } from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
-import { storageService } from 'teleport/services/storageService';
-import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
+import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
+import { CatchError } from 'teleport/components/CatchError';
+import { Redirect, Route, Switch } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
+import { NavigationCategory } from 'teleport/Navigation/categories';
 import {
   getFirstRouteForCategory,
   Navigation,
 } from 'teleport/Navigation/Navigation';
-import { NavigationCategory } from 'teleport/Navigation/categories';
+import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
+import { storageService } from 'teleport/services/storageService';
+import { TopBar } from 'teleport/TopBar';
 import { TopBarProps } from 'teleport/TopBar/TopBar';
+import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
+import useTeleport from 'teleport/useTeleport';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
-
-import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];

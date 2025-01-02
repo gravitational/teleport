@@ -17,9 +17,9 @@
  */
 
 import React from 'react';
-import { render, userEvent, screen } from 'design/utils/testing';
-import * as copyModule from 'design/utils/copyToClipboard';
 
+import * as copyModule from 'design/utils/copyToClipboard';
+import { render, screen, userEvent } from 'design/utils/testing';
 import * as downloadsModule from 'shared/utils/download';
 
 import TextEditor from '.';

@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MainProcessClient } from 'teleterm/types';
-import { ReloginRequest } from 'teleterm/services/tshdEvents';
-import {
-  ModalsService,
-  ClusterConnectReason,
-} from 'teleterm/ui/services/modals';
-import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
   reloginReasonOneOfIsGatewayCertExpired,
   reloginReasonOneOfIsVnetCertExpired,
 } from 'teleterm/helpers';
+import { ReloginRequest } from 'teleterm/services/tshdEvents';
+import { MainProcessClient } from 'teleterm/types';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import {
+  ClusterConnectReason,
+  ModalsService,
+} from 'teleterm/ui/services/modals';
 
 export class ReloginService {
   constructor(

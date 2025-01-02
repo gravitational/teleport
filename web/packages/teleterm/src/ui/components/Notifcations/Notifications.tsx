@@ -18,10 +18,12 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Notification } from 'shared/components/Notification';
-import { Info, Warning } from 'design/Icon';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import { Info, Warning } from 'design/Icon';
+import {
+  Notification,
+  type NotificationItem,
+} from 'shared/components/Notification';
 
 interface NotificationsProps {
   items: NotificationItem[];

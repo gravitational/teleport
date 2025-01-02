@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { FormEvent, useEffect, useState } from 'react';
+
 import { OutlineDanger } from 'design/Alert/Alert';
+import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
+import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
 import Text from 'design/Text';
-import React, { useState, useEffect, FormEvent } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -34,18 +36,12 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import Box from 'design/Box';
-
-import { StepHeader } from 'design/StepSlider';
-
-import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/auth';
+import auth from 'teleport/services/auth/auth';
+import { MfaDevice } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 
-import { MfaDevice } from 'teleport/services/mfa';
-
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
-
 import {
   ReauthenticateStep,
   ReauthenticateStepProps,

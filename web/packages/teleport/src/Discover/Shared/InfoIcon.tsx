@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Info } from 'design/Icon';
 
 export const InfoIcon = styled(Info)`

@@ -1,12 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render ConsoleTabs 1`] = `
-.c10 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .c0 {
   box-sizing: border-box;
   margin: -16px;
@@ -58,6 +52,12 @@ exports[`render ConsoleTabs 1`] = `
 
 .c13:not(:disabled):active {
   background: rgba(255,255,255,0.18);
+}
+
+.c10 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c8 {

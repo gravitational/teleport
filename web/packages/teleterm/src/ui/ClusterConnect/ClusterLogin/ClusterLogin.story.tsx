@@ -21,12 +21,12 @@ import React, { PropsWithChildren } from 'react';
 import { Box } from 'design';
 import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
 
-import * as types from 'teleterm/ui/services/clusters/types';
 import {
   appUri,
   makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
+import * as types from 'teleterm/ui/services/clusters/types';
 
 import {
   ClusterLoginPresentation,

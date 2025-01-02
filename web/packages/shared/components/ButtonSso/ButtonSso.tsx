@@ -18,10 +18,10 @@
 
 import React, { forwardRef } from 'react';
 import styled from 'styled-components';
-import Button from 'design/Button';
-import { darken, lighten } from 'design/theme/utils/colorManipulator';
-import * as Icons from 'design/Icon';
 
+import Button from 'design/Button';
+import * as Icons from 'design/Icon';
+import { darken, lighten } from 'design/theme/utils/colorManipulator';
 import { AuthProviderType } from 'shared/services';
 
 const ButtonSso = forwardRef<HTMLInputElement, Props>((props: Props, ref) => {

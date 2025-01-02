@@ -16,14 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useState } from 'react';
 import styled from 'styled-components';
+
 import { OutlineDanger } from 'design/Alert/Alert';
+import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
-import { StepComponentProps, StepSlider, StepHeader } from 'design/StepSlider';
-import React, { useState } from 'react';
+import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -33,8 +35,6 @@ import {
 } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 import { Auth2faType } from 'shared/services';
-
-import Box from 'design/Box';
 
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';

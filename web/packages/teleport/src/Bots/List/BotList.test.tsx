@@ -18,9 +18,9 @@
 
 import { fireEvent, render, screen } from 'design/utils/testing';
 
+import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
 import { BotListProps } from 'teleport/Bots/types';
-import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotUiFlow } from 'teleport/services/bot/types';
 
 const makeProps = (): BotListProps => ({

@@ -19,7 +19,6 @@
 import React from 'react';
 
 import { FileTransferContainer } from '../FileTransferContainer';
-
 import {
   FileTransferStateless,
   FileTransferStatelessProps,

@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
-
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import { unique } from 'teleterm/ui/utils/uid';
-
 import type {
   NotificationItem,
   NotificationItemContent,
 } from 'shared/components/Notification';
+import { useStore } from 'shared/libs/stores';
+
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { unique } from 'teleterm/ui/utils/uid';
 
 export class NotificationsService extends ImmutableStore<NotificationItem[]> {
   state: NotificationItem[] = [];

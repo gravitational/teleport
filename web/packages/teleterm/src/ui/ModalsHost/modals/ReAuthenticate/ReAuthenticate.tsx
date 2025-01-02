@@ -18,35 +18,32 @@
 
 import { FC, useState } from 'react';
 
-import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-
+import {
+  Box,
+  ButtonIcon,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Image,
+  Text,
+} from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import {
-  ButtonIcon,
-  ButtonPrimary,
-  ButtonSecondary,
-  Text,
-  Image,
-  Flex,
-  Box,
-} from 'design';
 import * as icons from 'design/Icon';
-import Validation from 'shared/components/Validation';
-import { requiredToken } from 'shared/components/Validation/rules';
+import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
-
 import { Option } from 'shared/components/Select';
-
+import Validation from 'shared/components/Validation';
+import { requiredToken } from 'shared/components/Validation/rules';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { routing } from 'teleterm/ui/uri';
 

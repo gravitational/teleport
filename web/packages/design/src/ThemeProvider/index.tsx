@@ -18,18 +18,16 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  StyleSheetManager,
   ThemeProvider as StyledThemeProvider,
+  StyleSheetManager,
 } from 'styled-components';
-
-import { KeysEnum, storageService } from 'teleport/services/storageService';
-
-import cfg from 'teleport/config';
 
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
-import { darkTheme, lightTheme, bblpTheme } from '../theme';
+import cfg from 'teleport/config';
+import { KeysEnum, storageService } from 'teleport/services/storageService';
 
+import { bblpTheme, darkTheme, lightTheme } from '../theme';
 import { GlobalStyle } from './globals';
 
 function themePreferenceToTheme(themePreference: Theme) {

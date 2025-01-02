@@ -18,8 +18,7 @@
 
 import React, { useState } from 'react';
 
-import { Box, ButtonLink, ButtonPrimary, Text, Card } from 'design';
-
+import { Box, ButtonLink, ButtonPrimary, Card, Text } from 'design';
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';

@@ -17,17 +17,18 @@
  */
 
 import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import { Cross } from 'design/Icon';
 import { pluralize } from 'shared/utils/text';
 
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export function DocumentsReopen(props: {
   rootClusterUri: RootClusterUri;

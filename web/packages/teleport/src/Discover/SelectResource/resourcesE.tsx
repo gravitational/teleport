@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared';
-
 import { ResourceSpec } from './types';
 
 export const SAML_APPLICATIONS: ResourceSpec[] = [

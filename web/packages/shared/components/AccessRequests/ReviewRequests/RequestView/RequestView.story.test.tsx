@@ -21,10 +21,10 @@ import React from 'react';
 import { render } from 'design/utils/testing';
 
 import {
-  LoadedSearchPending,
-  LoadedRolePending,
   LoadedRoleApproved,
   LoadedRoleDenied,
+  LoadedRolePending,
+  LoadedSearchPending,
 } from './RequestView.story';
 
 test('loaded pending role based request state', () => {

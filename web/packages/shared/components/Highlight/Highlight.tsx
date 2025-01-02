@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { findAll } from 'highlight-words-core';
+import React from 'react';
 
 /**
  * Highlight wraps the keywords found in the text in <mark> tags.

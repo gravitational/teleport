@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import { useVirtualScrollNodes } from './useVirtualScrollNodes';
 import { VirtualScrollProps } from './types';
+import { useVirtualScrollNodes } from './useVirtualScrollNodes';
 
 export function VirtualScroll<T>(props: VirtualScrollProps<T>) {
   // consider using `content-visibility: auto` https://github.com/gravitational/webapps/pull/595#pullrequestreview-880424544

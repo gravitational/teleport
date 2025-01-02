@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { space, color } from 'design/system';
+import { color, space } from 'design/system';
 
 function Link({ ...props }) {
   return <StyledButtonLink {...props} />;

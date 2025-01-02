@@ -16,20 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter, Route, Router } from 'react-router';
+import { act } from '@testing-library/react';
+import { userEvent, UserEvent } from '@testing-library/user-event';
 import { createMemoryHistory } from 'history';
+import { MemoryRouter, Route, Router } from 'react-router';
+
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 
-import { act } from '@testing-library/react';
-import { userEvent, UserEvent } from '@testing-library/user-event';
-
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
-
+import history from 'teleport/services/history';
 import { userEventService } from 'teleport/services/userEvent';
-
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import { Welcome } from './Welcome';

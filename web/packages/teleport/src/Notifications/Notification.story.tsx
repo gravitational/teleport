@@ -16,26 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { subDays, subHours, subMinutes, subSeconds } from 'date-fns';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { subSeconds, subMinutes, subHours, subDays } from 'date-fns';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
 
 import { Flex } from 'design';
 
+import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   NotificationSubKind,
   UpsertNotificationStateRequest,
 } from 'teleport/services/notifications';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import cfg from 'teleport/config';
 
 import { ContextProvider } from '..';
-
+import { notifications as mockNotifications } from './fixtures';
 import { Notification } from './Notification';
 import { Notifications as NotificationsListComponent } from './Notifications';
-import { notifications as mockNotifications } from './fixtures';
 
 export default {
   title: 'Teleport/Notifications',

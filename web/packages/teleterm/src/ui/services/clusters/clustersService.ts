@@ -16,6 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import {
+  Cluster,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import {
+  CreateAccessRequestRequest,
+  CreateGatewayRequest,
+  PasswordlessPrompt,
+  PromoteAccessRequestRequest,
+  ReviewAccessRequestRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useStore } from 'shared/libs/stores';
 import {
   DbProtocol,
@@ -24,32 +40,14 @@ import {
 } from 'shared/services/databases';
 import { pipe } from 'shared/utils/pipe';
 
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
-import {
-  Cluster,
-  ShowResources,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
-import {
-  CreateAccessRequestRequest,
-  ReviewAccessRequestRequest,
-  PromoteAccessRequestRequest,
-  PasswordlessPrompt,
-  CreateGatewayRequest,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import type { CloneableAbortSignal, TshdClient } from 'teleterm/services/tshd';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
+import * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-
 import type * as types from './types';
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 
 const { routing } = uri;
 
