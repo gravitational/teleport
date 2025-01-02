@@ -821,15 +821,17 @@ func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
 func (c *CLICommandBuilder) getOracleAlternativeCommands() []CommandAlternative {
 	var commands []CommandAlternative
 
-	c.options.log.Debugf("Building Oracle commands.")
-	c.options.log.Debugf("Found servers with TCP support: %v.", c.options.oracle.hasTCPServers)
-	c.options.log.Debugf("All servers support TCP: %v.", c.options.oracle.canUseTCP)
+	ctx := context.Background()
 
-	c.options.log.Debugf("Connection strings:")
-	c.options.log.Debugf("- JDBC: %s", c.getOracleJDBCConnectionString())
+	c.options.logger.DebugContext(ctx, "Building Oracle commands.")
+	c.options.logger.DebugContext(ctx, "Found servers with TCP support", "count", c.options.oracle.hasTCPServers)
+	c.options.logger.DebugContext(ctx, "All servers support TCP", "all_servers_support_tcp", c.options.oracle.canUseTCP)
+
+	c.options.logger.DebugContext(ctx, "Connection strings:")
+	c.options.logger.DebugContext(ctx, "- JDBC: "+c.getOracleJDBCConnectionString())
 	if c.options.oracle.hasTCPServers {
-		c.options.log.Debugf("- TNS descriptor: %s", c.getOracleTNSDescriptorString())
-		c.options.log.Debugf("- Direct: %s", c.getOracleDirectConnectionString())
+		c.options.logger.DebugContext(ctx, "- TNS descriptor: "+c.getOracleTNSDescriptorString())
+		c.options.logger.DebugContext(ctx, "- Direct: "+c.getOracleDirectConnectionString())
 	}
 
 	const oneShotLogin = "-L"
