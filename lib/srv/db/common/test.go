@@ -160,6 +160,16 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	}, nil
 }
 
+// ClientOption represents a database client config option.
+type ClientOption func(config *TestClientConfig)
+
+// WithParams set client config params.
+func WithParams(params map[string]string) ClientOption {
+	return func(config *TestClientConfig) {
+		config.Params = params
+	}
+}
+
 // TestClientConfig combines parameters for a test Postgres/MySQL client.
 type TestClientConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
@@ -176,6 +186,9 @@ type TestClientConfig struct {
 	PinnedIP string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+	// Params contains parameters used during the session. This can hold, for
+	// example, PostgreSQL runtime parameters.
+	Params map[string]string
 }
 
 // MakeTestClientTLSCert returns TLS certificate suitable for configuring test
