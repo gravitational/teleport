@@ -34,7 +34,7 @@ import (
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client/db/postgres/repl/testdata"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestStart(t *testing.T) {

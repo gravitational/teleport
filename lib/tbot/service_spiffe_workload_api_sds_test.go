@@ -53,7 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 

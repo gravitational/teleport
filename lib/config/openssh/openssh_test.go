@@ -24,7 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestWriteSSHConfig(t *testing.T) {

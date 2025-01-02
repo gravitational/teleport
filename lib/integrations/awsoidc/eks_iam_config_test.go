@@ -29,7 +29,7 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestEKSIAMConfigReqDefaults(t *testing.T) {
