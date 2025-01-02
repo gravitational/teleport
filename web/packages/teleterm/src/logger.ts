@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as types from 'teleterm/types';
 import { LoggerService } from 'teleterm/services/logger/types';
+import * as types from 'teleterm/types';
 
 export default class Logger {
   private static service: types.LoggerService;

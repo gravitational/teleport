@@ -114,7 +114,7 @@ func (l *TLSListener) Serve() error {
 			tlsConn, ok := conn.(*tls.Conn)
 			if !ok {
 				conn.Close()
-				l.log.LogAttrs(l.context, slog.LevelError, "Recevied a non-TLS connection",
+				l.log.LogAttrs(l.context, slog.LevelError, "Received a non-TLS connection",
 					slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
 					slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
 					slog.Any("conn_type", logutils.TypeAttr(conn)),

@@ -16,32 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
-import { Text, Box, Flex, Mark } from 'design';
+import { useEffect, useState } from 'react';
 
-import Validation, { Validator } from 'shared/components/Validation';
-import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
-import TextEditor from 'shared/components/TextEditor';
-
+import { Box, Flex, Mark, Text } from 'design';
 import { P } from 'design/Text/Text';
+import FieldInput from 'shared/components/FieldInput';
+import TextEditor from 'shared/components/TextEditor';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 
-import {
-  ActionButtons,
-  HeaderSubtitle,
-  LabelsCreater,
-  Header,
-} from '../../Shared';
-import { dbCU } from '../../yamlTemplates';
+import type { ResourceLabel } from 'teleport/services/agents';
+
 import {
   getDatabaseProtocol,
   getDefaultDatabasePort,
 } from '../../SelectResource';
-
-import { useCreateDatabase, State } from './useCreateDatabase';
+import {
+  ActionButtons,
+  Header,
+  HeaderSubtitle,
+  LabelsCreater,
+} from '../../Shared';
+import { dbCU } from '../../yamlTemplates';
 import { CreateDatabaseDialog } from './CreateDatabaseDialog';
-
-import type { ResourceLabel } from 'teleport/services/agents';
+import { State, useCreateDatabase } from './useCreateDatabase';
 
 export function CreateDatabase() {
   const state = useCreateDatabase();

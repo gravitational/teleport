@@ -17,6 +17,7 @@
  */
 
 import { CSSProp } from 'styled-components';
+
 import 'react';
 
 import { Theme } from 'design/theme/themes/types';

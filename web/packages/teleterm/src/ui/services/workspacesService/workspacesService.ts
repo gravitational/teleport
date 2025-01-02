@@ -16,26 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Immutable, produce } from 'immer';
 import { z } from 'zod';
-import { arrayObjectIsEqual } from 'shared/utils/highbar';
-import { produce, Immutable } from 'immer';
 
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-import { ModalsService } from 'teleterm/ui/services/modals';
+import Logger from 'teleterm/logger';
+import {
+  identitySelector,
+  useStoreSelector,
+} from 'teleterm/ui/hooks/useStoreSelector';
 import { ClustersService } from 'teleterm/ui/services/clusters';
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { ModalsService } from 'teleterm/ui/services/modals';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   StatePersistenceService,
   WorkspacesPersistedState,
 } from 'teleterm/ui/services/statePersistence';
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   ClusterOrResourceUri,
   ClusterUri,
@@ -45,26 +50,19 @@ import {
 } from 'teleterm/ui/uri';
 
 import {
-  identitySelector,
-  useStoreSelector,
-} from 'teleterm/ui/hooks/useStoreSelector';
-import Logger from 'teleterm/logger';
-
-import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
   PendingAccessRequest,
 } from './accessRequestsService';
-
 import {
+  createClusterDocument,
   Document,
-  DocumentsService,
-  getDefaultDocumentClusterQueryParams,
   DocumentCluster,
   DocumentGateway,
+  DocumentsService,
   DocumentTshKube,
   DocumentTshNode,
-  createClusterDocument,
+  getDefaultDocumentClusterQueryParams,
 } from './documentsService';
 
 export interface WorkspacesState {

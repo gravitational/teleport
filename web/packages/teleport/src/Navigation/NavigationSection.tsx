@@ -18,9 +18,8 @@
 
 import styled from 'styled-components';
 
-import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
-
+import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import type { TeleportFeature } from 'teleport/types';
 
 interface NavigationSectionProps {

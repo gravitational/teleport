@@ -16,23 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Preview } from '@storybook/react';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import { ComponentType, PropsWithChildren } from 'react';
 
-import { Preview } from '@storybook/react';
-
-import { initialize, mswLoader } from 'msw-storybook-addon';
-
-import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
-import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
 import Box from '../packages/design/src/Box';
+import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
+import { Theme } from '../packages/design/src/theme/themes/types';
+import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
+import history from '../packages/teleport/src/services/history/history';
+import { UserContextProvider } from '../packages/teleport/src/User';
 import { StaticThemeProvider as TeletermThemeProvider } from '../packages/teleterm/src/ui/ThemeProvider';
 import {
   darkTheme as teletermDarkTheme,
   lightTheme as teletermLightTheme,
 } from '../packages/teleterm/src/ui/ThemeProvider/theme';
-import history from '../packages/teleport/src/services/history/history';
-import { UserContextProvider } from '../packages/teleport/src/User';
-import { Theme } from '../packages/design/src/theme/themes/types';
 
 initialize();
 

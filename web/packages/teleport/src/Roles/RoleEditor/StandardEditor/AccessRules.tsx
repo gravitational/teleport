@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Flex from 'design/Flex';
+import { components, MultiValueProps } from 'react-select';
+import styled from 'styled-components';
 
 import { ButtonSecondary } from 'design/Button';
+import Flex from 'design/Flex';
 import { Plus } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import {
   FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { precomputed } from 'shared/components/Validation/rules';
-import { components, MultiValueProps } from 'react-select';
-import { HoverTooltip } from 'design/Tooltip';
-import styled from 'styled-components';
 
-import { AccessRuleValidationResult } from './validation';
+import { SectionBox, SectionProps } from './sections';
 import {
   newRuleModel,
   ResourceKindOption,
@@ -38,7 +38,7 @@ import {
   RuleModel,
   verbOptions,
 } from './standardmodel';
-import { SectionBox, SectionProps } from './sections';
+import { AccessRuleValidationResult } from './validation';
 
 export function AccessRules({
   value,

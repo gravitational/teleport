@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 import {
   DeviceType,
   DeviceUsage,
@@ -25,25 +25,23 @@ import {
   MfaChallengeResponse,
   SsoChallenge,
 } from 'teleport/services/mfa';
-
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
-  parseMfaChallengeJson,
-  parseMfaRegistrationChallengeJson,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
+  parseMfaChallengeJson,
+  parseMfaRegistrationChallengeJson,
 } from '../mfa/makeMfa';
-
-import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
+import makePasswordToken from './makePasswordToken';
 import {
+  ChangePasswordReq,
+  CreateAuthenticateChallengeRequest,
+  CreateNewHardwareDeviceRequest,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
-  ChangePasswordReq,
-  CreateNewHardwareDeviceRequest,
-  CreateAuthenticateChallengeRequest,
 } from './types';
 
 const auth = {

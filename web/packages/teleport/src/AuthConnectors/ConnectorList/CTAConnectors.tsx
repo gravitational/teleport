@@ -19,10 +19,10 @@
 import styled from 'styled-components';
 
 import Box from 'design/Box';
-import { ResourceIcon } from 'design/ResourceIcon';
-import { H2, Subtitle2 } from 'design/Text';
 import Flex from 'design/Flex';
 import { RocketLaunch } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
+import { H2, Subtitle2 } from 'design/Text';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';

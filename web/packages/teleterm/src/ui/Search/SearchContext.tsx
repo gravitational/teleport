@@ -17,19 +17,18 @@
  */
 
 import {
-  useContext,
-  useState,
-  FC,
-  useCallback,
   createContext,
-  useRef,
+  FC,
   MutableRefObject,
   PropsWithChildren,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
 } from 'react';
 
-import { SearchFilter } from 'teleterm/ui/Search/searchResult';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import {
   Document,
   DocumentClusterQueryParams,

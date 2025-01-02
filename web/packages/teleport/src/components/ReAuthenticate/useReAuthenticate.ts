@@ -17,11 +17,11 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import {
   DeviceType,
   DeviceUsage,
