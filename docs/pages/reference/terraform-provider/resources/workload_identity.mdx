@@ -91,9 +91,9 @@ Optional:
 
 - `hint` (String) A freeform text field which is provided to workloads along with a credential produced by this WorkloadIdentity. This can be used to provide additional context that can be used to select between multiple credentials.
 - `id` (String) The path of the SPIFFE ID that will be issued to the workload.  This should be prefixed with a forward-slash ("/").  This field supports templating using attributes.
-- `x509_svid` (Attributes) Configuration specific to X509-SVIDs. (see [below for nested schema](#nested-schema-for-specspiffex509_svid))
+- `x509` (Attributes) Configuration specific to X509-SVIDs. (see [below for nested schema](#nested-schema-for-specspiffex509))
 
-### Nested Schema for `spec.spiffe.x509_svid`
+### Nested Schema for `spec.spiffe.x509`
 
 Optional:
 

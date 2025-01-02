@@ -218,7 +218,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 				Id:   "/example/{{user.name}}/{{ workload.kubernetes.namespace }}/{{ workload.kubernetes.service_account }}",
 				Hint: "Wow - what a lovely hint, {{user.name}}!",
-				X509Svid: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509SVID{
+				X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
 					DnsSans: []string{
 						"example.com",
 						"{{user.name}}.example.com",

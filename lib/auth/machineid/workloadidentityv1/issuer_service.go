@@ -493,7 +493,7 @@ func (s *IssuanceService) issueX509SVID(
 			notBefore,
 			notAfter,
 			spiffeID,
-			wid.GetSpec().GetSpiffe().GetX509Svid().GetDnsSans(),
+			wid.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
 		),
 		ca.Cert,
 		pubKey,
@@ -506,7 +506,7 @@ func (s *IssuanceService) issueX509SVID(
 	evt := baseEvent(ctx, wid, spiffeID)
 	evt.SVIDType = "x509"
 	evt.SerialNumber = serialString
-	evt.DNSSANs = wid.GetSpec().GetSpiffe().GetX509Svid().GetDnsSans()
+	evt.DNSSANs = wid.GetSpec().GetSpiffe().GetX509().GetDnsSans()
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.WarnContext(
 			ctx,

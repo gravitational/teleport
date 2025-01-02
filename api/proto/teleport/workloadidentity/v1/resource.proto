@@ -61,7 +61,7 @@ message WorkloadIdentityRules {
 }
 
 // Configuration specific to the issuance of X509-SVIDs.
-message WorkloadIdentitySPIFFEX509SVID {
+message WorkloadIdentitySPIFFEX509 {
   // The DNS Subject Alternative Names (SANs) that should be included in an
   // X509-SVID issued using this WorkloadIdentity.
   //
@@ -83,7 +83,7 @@ message WorkloadIdentitySPIFFE {
   // additional context that can be used to select between multiple credentials.
   string hint = 2;
   // Configuration specific to X509-SVIDs.
-  WorkloadIdentitySPIFFEX509SVID x509_svid = 3;
+  WorkloadIdentitySPIFFEX509 x509 = 3;
 }
 
 // The spec for the WorkloadIdentity resource.

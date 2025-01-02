@@ -65,13 +65,14 @@ func decide(
 	}
 	d.templatedWorkloadIdentity.Spec.Spiffe.Hint = templated
 
-	for i, san := range wi.GetSpec().GetSpiffe().GetX509Svid().GetDnsSans() {
+	for i, san := range wi.GetSpec().GetSpiffe().GetX509().GetDnsSans() {
 		templated, err = templateString(san, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(err, "templating spec.spiffe.x509_svid.dns_sans[%d]", i)
 			return d
 		}
-		d.templatedWorkloadIdentity.Spec.Spiffe.X509Svid.DnsSans[i] = templated
+		// TODO(Noah): Validate the generated DNS SAN here.
+		d.templatedWorkloadIdentity.Spec.Spiffe.X509.DnsSans[i] = templated
 	}
 
 	// Yay - made it to the end!
