@@ -185,7 +185,11 @@ func (a *App) initBot(ctx context.Context) error {
 	a.log.InfoContext(ctx, "Preloading recipient data...")
 
 	for _, recipient := range a.conf.Recipients.GetAllRawRecipients() {
-		recipientData, err := a.bot.FetchRecipient(ctx, recipient)
+		fullRecipient, err := a.bot.FetchRecipient(ctx, recipient)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		recipientData, err := getRecipientData(fullRecipient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -193,7 +197,7 @@ func (a *App) initBot(ctx context.Context) error {
 			slog.Group("recipient",
 				"raw", recipient,
 				"recipient_chat_id", recipientData.Chat.ID,
-				"recipient_kind", recipientData.Kind,
+				"recipient_kind", fullRecipient.Kind,
 			),
 		)
 	}
