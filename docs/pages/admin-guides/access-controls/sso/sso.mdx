@@ -419,9 +419,9 @@ This allows Teleport users to use MFA devices and custom flows configured in the
 to carry out privileged actions in Teleport, such as:
 
 - MFA device management (e.g. register or delete a webauthn device in Teleport)
-- [Per-session MFA](./per-session-mfa.mdx)
-- [Moderated sessions](./moderated-sessions.mdx)
-- [Admin actions](./mfa-for-admin-actions.mdx)
+- [Per-session MFA](../guides/per-session-mfa.mdx)
+- [Moderated sessions](../guides/moderated-sessions.mdx)
+- [Admin actions](../guides/mfa-for-admin-actions.mdx)
 
 <Admonition type="warning">
   SSO MFA is an enterprise feature. Only OIDC and SAML auth connectors are supported.
@@ -433,9 +433,8 @@ Administrators may want to consider enabling this feature for the following bene
 
 - All authentication (login and MFA) goes through the IDP, reducing administrative overhead
 - Make custom MFA flows, such as prompting for 2 distinct devices for a single MFA check
-- Integrate with non-webauthn devices supported directly by your IDP.
-- Enable new SSO users to carry out MFA-reliant actions, such as [Per-session MFA](./per-session-mfa.mdx),
-without requiring them to register their device through Teleport first.
+- Integrate with non-webauthn devices supported directly by your IDP
+- Enable new SSO users to carry out privileged actions without requiring them to register their device through Teleport first
 
 ### Configure the IDP App / Client
 
