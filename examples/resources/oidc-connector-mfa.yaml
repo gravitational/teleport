@@ -1,4 +1,5 @@
 kind: oidc
+version: v3
 metadata:
   name: oidc_connector
 spec:
@@ -29,5 +30,3 @@ spec:
     # only be set to a non-zero value if the IdP is setup to perform MFA checks on
     # top of active user sessions.
     max_age: 0
-    
-version: v3
