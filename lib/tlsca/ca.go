@@ -906,7 +906,12 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	if id.JoinAttributes != nil {
-		encoded, err := protojson.Marshal(id.JoinAttributes)
+		encoded, err := protojson.MarshalOptions{
+			// Use the proto field names as this is what we use in the
+			// templating engine and this being consistent for any user who
+			// inspects the cert is kind.
+			UseProtoNames: true,
+		}.Marshal(id.JoinAttributes)
 		if err != nil {
 			return pkix.Name{}, trace.Wrap(err, "encoding join attributes as protojson")
 		}
