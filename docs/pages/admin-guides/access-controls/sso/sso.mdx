@@ -413,9 +413,10 @@ At this time, the `spec.provider` field should not be set for any other identity
 
 ## Configuring SSO for MFA checks
 
-Teleport MFA checks can be delegated to your SSO provider. This allows Teleport
-users to use MFA devices and custom flows configured in the SSO provider to carry out
-privileged actions in Teleport, such as:
+Teleport administrators can configure Teleport to delegate MFA checks to an 
+SSO provider as an alternative to registering MFA devices directly with the Teleport Cluster.
+This allows Teleport users to use MFA devices and custom flows configured in the SSO provider
+to carry out privileged actions in Teleport, such as:
 
 - MFA device management (e.g. register or delete a webauthn device in Teleport)
 - [Per-session MFA](./per-session-mfa.mdx)
@@ -430,16 +431,16 @@ privileged actions in Teleport, such as:
 
 Administrators may want to consider enabling this feature for the following benefits:
 
-- All authentication (login and MFA) goes through the IdP, consolidating monitoring
+- All authentication (login and MFA) goes through the IDP, reducing administrative overhead
 - Make custom MFA flows, such as prompting for 2 distinct devices for a single MFA check
-- Integrate with non-webauthn devices supported directly by your IdP.
+- Integrate with non-webauthn devices supported directly by your IDP.
 - Enable new SSO users to carry out MFA-reliant actions, such as [Per-session MFA](./per-session-mfa.mdx),
 without requiring them to register their device through Teleport first.
 
-### Configure the IdP App / Client
+### Configure the IDP App / Client
 
 There is no standardized MFA flow unlike there is with SAML/OIDC login, so
-each IdP may offer zero, one, or more ways to offer MFA checks.
+each IDP may offer zero, one, or more ways to offer MFA checks.
 
 Teleport does not make any assumptions as to how the MFA app is configured.
 If desired, you could even use your basic login flow with username, password,
