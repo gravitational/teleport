@@ -29,8 +29,6 @@ import (
 	"testing"
 	"text/template"
 
-	tslices "github.com/gravitational/teleport/lib/utils/slices"
-
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"

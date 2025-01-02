@@ -26,8 +26,6 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/utils/slices"
-
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"

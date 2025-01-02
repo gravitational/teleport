@@ -24,8 +24,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/utils/slices"
-
 	"github.com/gravitational/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
