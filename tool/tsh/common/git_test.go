@@ -21,7 +21,6 @@ package common
 import (
 	"testing"
 
-	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,13 +35,11 @@ func Test_parseGitSSHURL(t *testing.T) {
 			name:  "github ssh format",
 			input: "org-1234567@github.com:some-org/some-repo.git",
 			wantOut: &gitSSHURL{
-				Endpoint: &transport.Endpoint{
-					Protocol: "ssh",
-					Host:     "github.com",
-					User:     "org-1234567",
-					Path:     "some-org/some-repo.git",
-					Port:     22,
-				},
+				Protocol: "ssh",
+				Host:     "github.com",
+				User:     "org-1234567",
+				Path:     "some-org/some-repo.git",
+				Port:     22,
 			},
 		},
 		{
@@ -54,12 +51,10 @@ func Test_parseGitSSHURL(t *testing.T) {
 			name:  "ssh schema format",
 			input: "ssh://git@github.com/some-org/some-repo.git",
 			wantOut: &gitSSHURL{
-				Endpoint: &transport.Endpoint{
-					Protocol: "ssh",
-					Host:     "github.com",
-					User:     "git",
-					Path:     "/some-org/some-repo.git",
-				},
+				Protocol: "ssh",
+				Host:     "github.com",
+				User:     "git",
+				Path:     "/some-org/some-repo.git",
 			},
 		},
 		{

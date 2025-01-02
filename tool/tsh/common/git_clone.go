@@ -32,7 +32,7 @@ import (
 // is no point using the `git` proxy feature).
 //
 // TODO(greedy52) investigate using `go-git` library instead of calling `git
-// config`.
+// clone`.
 type gitCloneCommand struct {
 	*kingpin.CmdClause
 
