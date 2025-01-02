@@ -172,7 +172,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 		// migrated to that model.
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", authCtx.User.GetName(), req.Name)
-			s.logger.WarnContext(ctx, "use does not have permission to read user with sercrets", "error", err)
+			s.logger.WarnContext(ctx, "user does not have permission to read user with secrets", "error", err)
 			if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
@@ -556,7 +556,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 		// migrated to that model.
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", authCtx.User.GetName())
-			s.logger.WarnContext(ctx, "use does not have permission to read all users with sercrets", "error", err)
+			s.logger.WarnContext(ctx, "user does not have permission to read all users with secrets", "error", err)
 			if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
