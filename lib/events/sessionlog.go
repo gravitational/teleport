@@ -26,13 +26,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// gzipWriter wraps file, on close close both gzip writer and file
+// gzipWriter wraps io.Writer and gzip.Writer, on close closes the gzip writer
 type gzipWriter struct {
 	*gzip.Writer
-	inner io.WriteCloser
+	inner io.Writer
 }
 
-// Close closes gzip writer and file
+// Close closes gzip writer
 func (f *gzipWriter) Close() error {
 	var errors []error
 	if f.Writer != nil {
@@ -41,10 +41,7 @@ func (f *gzipWriter) Close() error {
 		writerPool.Put(f.Writer)
 		f.Writer = nil
 	}
-	if f.inner != nil {
-		errors = append(errors, f.inner.Close())
-		f.inner = nil
-	}
+	f.inner = nil
 	return trace.NewAggregate(errors...)
 }
 
@@ -59,7 +56,7 @@ var writerPool = sync.Pool{
 	},
 }
 
-func newGzipWriter(writer io.WriteCloser) *gzipWriter {
+func newGzipWriter(writer io.Writer) *gzipWriter {
 	g := writerPool.Get().(*gzip.Writer)
 	g.Reset(writer)
 	return &gzipWriter{
