@@ -21,6 +21,7 @@ package clusters
 import (
 	"context"
 	"crypto/tls"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -170,6 +171,13 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		ClusterName: c.clusterClient.SiteName,
 		URI:         app.GetURI(),
 	}
+	if params.TargetSubresourceName != "" {
+		targetPort, err := parseTargetPort(params.TargetSubresourceName)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		routeToApp.TargetPort = targetPort
+	}
 
 	var cert tls.Certificate
 	if err := AddMetadataToRetryableError(ctx, func() error {
@@ -182,6 +190,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 	gw, err := gateway.New(gateway.Config{
 		LocalPort:                     params.LocalPort,
 		TargetURI:                     params.TargetURI,
+		TargetSubresourceName:         params.TargetSubresourceName,
 		TargetName:                    appName,
 		Cert:                          cert,
 		Protocol:                      app.GetProtocol(),
@@ -195,6 +204,9 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
 		ClusterName:                   c.Name,
 		Username:                      c.status.Username,
+		// For multi-port TCP apps, the target port is stored in the target subresource name. Whenever
+		// that field is updated, the local proxy needs to generate a new cert which includes that port.
+		ClearCertsOnTargetSubresourceNameChange: true,
 	})
 	return gw, trace.Wrap(err)
 }
@@ -224,6 +236,13 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 			ClusterName: c.clusterClient.SiteName,
 			URI:         app.GetURI(),
 		}
+		if g.TargetSubresourceName() != "" {
+			targetPort, err := parseTargetPort(g.TargetSubresourceName())
+			if err != nil {
+				return tls.Certificate{}, trace.BadParameter(err.Error())
+			}
+			routeToApp.TargetPort = targetPort
+		}
 
 		// The cert is returned from this function and finally set on LocalProxy by the middleware.
 		cert, err := c.ReissueAppCert(ctx, clusterClient, routeToApp)
@@ -231,4 +250,12 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 	default:
 		return tls.Certificate{}, trace.NotImplemented("ReissueGatewayCerts does not support this gateway kind %v", g.TargetURI().String())
 	}
+}
+
+func parseTargetPort(rawTargetPort string) (uint32, error) {
+	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 32)
+	if err != nil {
+		return 0, trace.BadParameter(err.Error())
+	}
+	return uint32(targetPort), nil
 }

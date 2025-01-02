@@ -20,6 +20,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -172,6 +173,11 @@ func (b *base) SetTargetSubresourceName(value string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.cfg.TargetSubresourceName = value
+
+	if b.cfg.ClearCertsOnTargetSubresourceNameChange {
+		b.Log().InfoContext(b.closeContext, "Clearing cert")
+		b.localProxy.SetCert(tls.Certificate{})
+	}
 }
 
 func (b *base) Log() *slog.Logger {
