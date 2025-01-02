@@ -105,7 +105,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 		Host:   "sts.amazonaws.com",
 		Path:   "/?Action=GetCallerIdentity&Version=2011-06-15",
 	}
-	sts := &mocks.STSMock{
+	sts := &mocks.STSClientV1{
 		// u is used to presign the request
 		// here we just verify the pre-signed request includes this url.
 		URL: u,

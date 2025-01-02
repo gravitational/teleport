@@ -31,14 +31,23 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ConvertRequestFailureError converts `error` into AWS RequestFailure errors
-// to trace errors. If the provided error is not an `RequestFailure` it returns
-// the error without modifying it.
+// ConvertRequestFailureError converts `err` into AWS errors to trace errors.
+// If the provided error is not a [awserr.RequestFailure] it delegates
+// error conversion to [ConvertRequestFailureErrorV2] for SDK v2 compatibility.
+// Prefer using [ConvertRequestFailureErrorV2] directly for AWS SDK v2 client
+// errors.
 func ConvertRequestFailureError(err error) error {
 	var requestErr awserr.RequestFailure
 	if errors.As(err, &requestErr) {
 		return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
 	}
+	return ConvertRequestFailureErrorV2(err)
+}
+
+// ConvertRequestFailureErrorV2 converts AWS SDK v2 errors to trace errors.
+// If the provided error is not a [awshttp.ResponseError] it returns the error
+// without modifying it.
+func ConvertRequestFailureErrorV2(err error) error {
 	var re *awshttp.ResponseError
 	if errors.As(err, &re) {
 		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)

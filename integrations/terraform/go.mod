@@ -100,6 +100,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.36.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.92.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/redshift v1.53.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.71.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.7 // indirect

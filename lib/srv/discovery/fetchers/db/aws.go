@@ -23,13 +23,20 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+// maxAWSPages is the maximum number of pages to iterate over when fetching aws
+// databases.
+const maxAWSPages = 10
 
 // awsFetcherPlugin defines an interface that provides database type specific
 // functions for use by the common AWS database fetcher.
@@ -46,6 +53,11 @@ type awsFetcherPlugin interface {
 type awsFetcherConfig struct {
 	// AWSClients are the AWS API clients.
 	AWSClients cloud.AWSClients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+	// IntegrationCredentialProviderFn is a required function that provides
+	// credentials via AWS OIDC integration.
+	IntegrationCredentialProviderFn awsconfig.IntegrationCredentialProviderFunc
 	// Type is the type of DB matcher, for example "rds", "redshift", etc.
 	Type string
 	// AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -64,12 +76,18 @@ type awsFetcherConfig struct {
 	// Might be empty when the fetcher is using static matchers:
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
 	DiscoveryConfigName string
+
+	// redshiftClientProviderFn provides an AWS Redshift client.
+	redshiftClientProviderFn RedshiftClientProviderFunc
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 	if cfg.AWSClients == nil {
 		return trace.BadParameter("missing parameter AWSClients")
+	}
+	if cfg.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
 	}
 	if cfg.Type == "" {
 		return trace.BadParameter("missing parameter Type")
@@ -92,6 +110,12 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 			"role", cfg.AssumeRole,
 			"credentials", credentialsSource,
 		)
+	}
+
+	if cfg.redshiftClientProviderFn == nil {
+		cfg.redshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
+			return redshift.NewFromConfig(cfg, optFns...)
+		}
 	}
 	return nil
 }
@@ -179,7 +203,3 @@ func (f *awsFetcher) String() string {
 	return fmt.Sprintf("awsFetcher(Type: %v, Region=%v, Labels=%v)",
 		f.cfg.Type, f.cfg.Region, f.cfg.Labels)
 }
-
-// maxAWSPages is the maximum number of pages to iterate over when fetching aws
-// databases.
-const maxAWSPages = 10
