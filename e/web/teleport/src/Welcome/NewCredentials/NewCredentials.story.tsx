@@ -1,9 +1,7 @@
-import { WelcomeWrapper } from 'teleport/components/Onboard';
-
-import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
-import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials';
-
 import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
+import { WelcomeWrapper } from 'teleport/components/Onboard';
+import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials';
+import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
 
 export default {
   title: 'TeleportE/Welcome/NewCredentials',

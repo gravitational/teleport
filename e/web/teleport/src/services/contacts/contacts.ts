@@ -1,9 +1,8 @@
+import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 
-import cfg from 'e-teleport/config';
-
-import { Contact, ContactType } from './types';
 import { makeContact } from './make';
+import { Contact, ContactType } from './types';
 
 export const contactsService = {
   fetchContacts(clusterId: string): Promise<Contact[]> {

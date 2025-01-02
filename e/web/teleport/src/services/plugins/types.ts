@@ -1,10 +1,11 @@
-import { JSX, FunctionComponent } from 'react';
-import { BaseView } from 'teleport/components/Wizard/flow';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-import { IntegrationEnrollKind } from 'teleport/services/userEvent';
+import { FunctionComponent, JSX } from 'react';
 
-import { PluginKind } from 'teleport/services/integrations';
 import { ResourceIconName } from 'design/ResourceIcon';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import { BaseView } from 'teleport/components/Wizard/flow';
+import { PluginKind } from 'teleport/services/integrations';
+import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 
 /**
  * View describes the UI for a single configuration

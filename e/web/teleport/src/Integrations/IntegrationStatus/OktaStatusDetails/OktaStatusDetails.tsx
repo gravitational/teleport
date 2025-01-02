@@ -1,15 +1,15 @@
-import { Box, Flex, Text, ButtonWarning, Link as ExternalLink } from 'design';
-import { Trash, NewTab } from 'design/Icon';
+import { Box, ButtonWarning, Link as ExternalLink, Flex, Text } from 'design';
+import { NewTab, Trash } from 'design/Icon';
 
+import { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
-import { PluginOktaSpec, Plugin } from 'teleport/services/integrations';
 
-import { AppGroupSync } from './AppGroupSync';
-import { UserSync } from './UserSync';
 import { AccessListsSync } from './AccessListSync';
+import { AppGroupSync } from './AppGroupSync';
 import { Scim } from './Scim';
-import { SsoDetails } from './SsoDetails';
 import { FlexWrap } from './Shared';
+import { SsoDetails } from './SsoDetails';
+import { UserSync } from './UserSync';
 
 export function OktaStatusDetails({
   plugin,

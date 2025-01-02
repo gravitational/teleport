@@ -1,6 +1,8 @@
 import { Link as InternalLink } from 'react-router-dom';
-import { Text, ButtonPrimary, Link as ExternalLink, Flex } from 'design';
+
+import { ButtonPrimary, Link as ExternalLink, Flex, Text } from 'design';
 import { Info } from 'design/Alert/Alert';
+
 import cfg from 'teleport/config';
 
 export function RequiresEnrollingPlugin() {

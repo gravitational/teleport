@@ -1,16 +1,15 @@
 import React from 'react';
+
 import { Box, Link, Text } from 'design';
 
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
-import { useSamlApplication } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
-
 import {
-  ConfigureServiceProvider,
   AddMetadataGeneric,
+  ConfigureServiceProvider,
   UPDATE_NOTE,
 } from 'e-teleport/SamlApplication/components/ConfigureServiceProvider';
+import { useSamlApplication } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { useDiscover } from 'teleport/Discover/useDiscover';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 export function Container() {
   const { prevStep, nextStep, updateAgentMeta, agentMeta, isUpdateFlow } =

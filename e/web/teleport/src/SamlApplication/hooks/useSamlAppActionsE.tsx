@@ -1,21 +1,21 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+
+import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+
+import useTeleportE from 'e-teleport/useTeleportE';
 import { ResourceSpec } from 'teleport/Discover/SelectResource';
-import useTeleport from 'teleport/useTeleport';
-import { useAsync, makeEmptyAttempt } from 'shared/hooks/useAsync';
 import { SamlMeta } from 'teleport/Discover/useDiscover';
+import {
+  SamlAppActionContext,
+  type SamlAppAction,
+  type SamlAppActionMode,
+} from 'teleport/SamlApplications/useSamlAppActions';
 import {
   SamlIdpServiceProvider,
   SamlServiceProviderPreset,
+  type SamlAppToDelete,
 } from 'teleport/services/samlidp/types';
-import { SamlAppActionContext } from 'teleport/SamlApplications/useSamlAppActions';
-
-import useTeleportE from 'e-teleport/useTeleportE';
-
-import type {
-  SamlAppAction,
-  SamlAppActionMode,
-} from 'teleport/SamlApplications/useSamlAppActions';
-import type { SamlAppToDelete } from 'teleport/services/samlidp/types';
+import useTeleport from 'teleport/useTeleport';
 
 export function SamlAppActionProvider({
   children,

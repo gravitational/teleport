@@ -1,21 +1,19 @@
-import { NewLockView } from 'teleport/LocksV2/NewLock/NewLock';
+import { AccessRequest } from 'e-teleport/services/workflow';
+import useTeleportE from 'e-teleport/useTeleportE';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
 import {
-  LockResourceOption,
   baseResourceKindOpts,
   LockResourceKind,
+  LockResourceOption,
 } from 'teleport/LocksV2/NewLock/common';
+import { NewLockView } from 'teleport/LocksV2/NewLock/NewLock';
 import {
   HybridListProps,
   SimpleListProps,
 } from 'teleport/LocksV2/NewLock/ResourceList/common';
 
-import { TrustedDevice } from 'teleport/DeviceTrust/types';
-
-import useTeleportE from 'e-teleport/useTeleportE';
-import { AccessRequest } from 'e-teleport/services/workflow';
-
-import { AccessRequests } from './SimpleList/AccessRequests';
 import { TrustedDevices } from './HybridList/TrustedDevices';
+import { AccessRequests } from './SimpleList/AccessRequests';
 
 export function NewLock() {
   const ctx = useTeleportE();

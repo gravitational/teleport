@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 
-import { Text, Box } from 'design';
+import { Box, Text } from 'design';
 
 export type FeatureProps = {
   isSliding: boolean;

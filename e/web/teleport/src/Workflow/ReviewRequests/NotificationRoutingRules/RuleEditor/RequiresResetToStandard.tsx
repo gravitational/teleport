@@ -1,5 +1,5 @@
-import { OutlineInfo } from 'design/Alert/Alert';
 import { ButtonSecondary, Text } from 'design';
+import { OutlineInfo } from 'design/Alert/Alert';
 
 export const RequiresResetToStandard = ({ reset }: { reset(): void }) => (
   <OutlineInfo mt={5}>

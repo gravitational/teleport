@@ -1,31 +1,22 @@
 import { useEffect, useState } from 'react';
+import { useParams } from 'react-router';
 import styled from 'styled-components';
 
+import Indicator from 'design/Indicator';
 import { useAttemptNext } from 'shared/hooks';
 
-import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import { useParams } from 'react-router';
-
-import Indicator from 'design/Indicator';
-
 import { REPORT_VIEW_CONFIGS } from 'e-teleport/AccessMonitoring/Report/config';
-
 import { Header } from 'e-teleport/AccessMonitoring/Report/Header';
-
+import { ReportContent } from 'e-teleport/AccessMonitoring/Report/ReportContent';
 import {
   getReport,
   getReportState,
   runReport,
 } from 'e-teleport/AccessMonitoring/service';
-
 import { Days } from 'e-teleport/AccessMonitoring/Timeframe';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { ReportContent } from 'e-teleport/AccessMonitoring/Report/ReportContent';
-
-import { ReportState } from '../types';
-
-import type { Report } from '../types';
+import { ReportState, type Report } from '../types';
 
 const Container = styled.div`
   display: flex;

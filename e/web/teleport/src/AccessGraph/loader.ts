@@ -1,11 +1,10 @@
+import * as propTypes from 'prop-types';
 import React, { ComponentType } from 'react';
 import ReactDOM from 'react-dom';
-
-import * as styledComponents from 'styled-components';
-import * as jsxRuntime from 'react/jsx-runtime';
 import * as reactIs from 'react-is';
+import * as jsxRuntime from 'react/jsx-runtime';
+import * as styledComponents from 'styled-components';
 import * as whatwgFetch from 'whatwg-fetch';
-import * as propTypes from 'prop-types';
 
 const ASSETS_PREFIX = '/enterprise/accessgraph/static';
 const STYLE_URL = `${ASSETS_PREFIX}/style.css`;
@@ -40,7 +39,6 @@ export function loadAccessGraph<T>(
       continue;
     }
 
-    // eslint-disable-next-line import/namespace
     styled[key] = styledComponents[key];
   }
 

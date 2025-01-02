@@ -1,26 +1,26 @@
 import { MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
-import { ContentMinWidth } from 'teleport/Main/Main';
-import { allAccessAcl } from 'teleport/mocks/contexts';
-import { UnifiedResource, ResourcesResponse } from 'teleport/services/agents';
-import cfg from 'teleport/config';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
+
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-import { UserContext } from 'teleport/User/UserContext';
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
-  mockSamlIdpServiceProvider,
   idpMetadata,
+  mockSamlIdpServiceProvider,
 } from 'e-teleport/SamlApplication/fixtures';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import {
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { allAccessAcl } from 'teleport/mocks/contexts';
+import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
+import type { Access } from 'teleport/services/user/types';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import { UserContext } from 'teleport/User/UserContext';
 
 import { UnifiedResourcesE } from './UnifiedResourcesE';
-
-import type { Access } from 'teleport/services/user/types';
 
 export default {
   title: 'TeleportE/UnifiedResources',

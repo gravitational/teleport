@@ -1,20 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ButtonPrimary, Indicator } from 'design';
-import Validation, { Validator } from 'shared/components/Validation';
 
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import * as service from 'teleport/services/userPreferences';
-
-import {
-  LocalStorageSurvey,
-  storageService,
-} from 'teleport/services/storageService';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
-
+import { ButtonPrimary, H2, Indicator } from 'design';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
-import { H2 } from 'design';
+import Validation, { Validator } from 'shared/components/Validation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
   MarketingParamData,
@@ -22,18 +11,23 @@ import {
   SurveyCompanyResponse,
 } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { surveyService } from 'e-teleport/services/survey';
-
 import { getMarketingResources } from 'e-teleport/Welcome/Questionnaire/getMarketingResources';
+import {
+  LocalStorageSurvey,
+  storageService,
+} from 'teleport/services/storageService';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import * as service from 'teleport/services/userPreferences';
 
+import { Company } from './Company';
+import { resourceMapping } from './constants';
+import { Resources } from './Resources';
+import { Role } from './Role';
 import {
   QuestionnaireFormFields,
   QuestionnaireProps,
   ResourceOption,
 } from './types';
-import { Company } from './Company';
-import { Role } from './Role';
-import { Resources } from './Resources';
-import { resourceMapping } from './constants';
 
 export const Questionnaire = ({
   onboard,

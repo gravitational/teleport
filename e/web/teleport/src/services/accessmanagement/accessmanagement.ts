@@ -1,21 +1,19 @@
+import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
+import auth from 'teleport/services/auth/auth';
 import { makeTraits } from 'teleport/services/user/makeUser';
 
-import auth from 'teleport/services/auth/auth';
-
-import cfg from 'e-teleport/config';
-
 import {
-  UpsertAccessListRequest,
   AccessList,
   AccessListMember,
   AccessListOwner,
-  IneligibleStatus,
+  AccessListType,
   AddMembersToAccessListRequest,
+  IneligibleStatus,
+  ReviewAccessListRequest,
   ReviewFrequency,
   ReviewFrequencyBackendParsableValue,
-  ReviewAccessListRequest,
-  AccessListType,
+  UpsertAccessListRequest,
 } from './types';
 
 export const accessManagementService = {

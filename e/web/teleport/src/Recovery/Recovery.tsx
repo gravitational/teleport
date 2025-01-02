@@ -1,11 +1,9 @@
+import cfg from 'e-teleport/config';
+import { LogoHero } from 'teleport/components/LogoHero';
 import { Route, Switch } from 'teleport/components/Router';
 
-import { LogoHero } from 'teleport/components/LogoHero';
-
-import cfg from 'e-teleport/config';
-
-import RecoveryStart from './RecoveryStart';
 import RecoveryFlow from './RecoveryFlow';
+import RecoveryStart from './RecoveryStart';
 
 export function Recovery() {
   return (

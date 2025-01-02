@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useHistory } from 'react-router';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { Option } from 'shared/components/Select';
+
 import {
   Alert,
   Box,
@@ -13,39 +12,37 @@ import {
   H2,
 } from 'design';
 import { Cross } from 'design/Icon';
+import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
-import { FeatureBox } from 'teleport/components/Layout';
-import { Navigation } from 'teleport/components/Wizard/Navigation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
+import {
+  getReviewDayOfMonthOption,
+  getReviewFrequencyOption,
+} from 'e-teleport/AccessListManagement/Shared/Audit';
+import cfg from 'e-teleport/config';
 import {
   AccessList,
   AccessListMember,
   AccessListMemberKind,
   AccessListRequires,
+  AccessListType,
   accessManagementService,
   ReviewAccessListRequest,
-  AccessListType,
 } from 'e-teleport/services/accessmanagement';
-import cfg from 'e-teleport/config';
-import {
-  getReviewDayOfMonthOption,
-  getReviewFrequencyOption,
-} from 'e-teleport/AccessListManagement/Shared/Audit';
+import { FeatureBox } from 'teleport/components/Layout';
+import { Navigation } from 'teleport/components/Wizard/Navigation';
 
 import { convertTraitLabelsToAllUserTraits } from '../../Traits';
-
-import { RoleAndTraitLabels } from '../Shared';
-
+import { RoleAndTraitLabels, type AccessListModified } from '../Shared';
+import { ReviewMembers } from './ReviewMembers';
 import {
   MembershipRequires,
   ReviewMembershipRequires,
 } from './ReviewMembershipRequires';
-import { ReviewMembers } from './ReviewMembers';
-import { Summary } from './Summary';
 import { EditedRecurrence, ReviewStep } from './Shared';
+import { Summary } from './Summary';
 import { getMembersDeleted } from './utils';
-
-import type { AccessListModified } from '../Shared';
 
 export const views = [
   {

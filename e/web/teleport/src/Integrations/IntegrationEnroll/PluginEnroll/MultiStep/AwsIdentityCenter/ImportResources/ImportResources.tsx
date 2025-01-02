@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+
 import {
   Box,
   ButtonPrimary,
@@ -8,36 +9,33 @@ import {
   Indicator,
   Text,
 } from 'design';
+import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+
+import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { pluginsService } from 'e-teleport/services/plugins';
+import {
+  AwsIcResourceTypes,
+  PluginConfigAwsIc,
+  type AwsIcAccounts,
+  type AwsIcGroupsWithAssignment,
+  type AwsIcPermissionSets,
+} from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
-import { Danger } from 'design/Alert';
 import userService, { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
-
-import { pluginsService } from 'e-teleport/services/plugins';
-import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
-import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
-import {
-  PluginConfigAwsIc,
-  AwsIcResourceTypes,
-} from 'e-teleport/services/plugins/types';
 
 import {
   AccountsTable,
   GroupsWithAssignmentTable,
   PermissionSetsTable,
 } from './ResourceTable';
-
-import type {
-  AwsIcAccounts,
-  AwsIcPermissionSets,
-  AwsIcGroupsWithAssignment,
-} from 'e-teleport/services/plugins/types';
 
 export function AwsIcImportResources() {
   const ctx = useTeleport();

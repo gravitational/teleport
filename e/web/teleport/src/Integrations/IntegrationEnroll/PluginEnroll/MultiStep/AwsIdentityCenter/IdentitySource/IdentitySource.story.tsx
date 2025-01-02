@@ -1,14 +1,13 @@
 import { MemoryRouter } from 'react-router';
+
+import { PluginProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
+import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 import { ContextProvider } from 'teleport';
 
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
-import { PluginProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
-import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
-
 import { AwsIcConfigureIdentitySource } from './IdentitySource';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export default {
   title: 'TeleportE/Integrations/Enroll/AWSIdentityCenter/IdentitySource',

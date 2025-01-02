@@ -1,10 +1,9 @@
 import { Box, Indicator } from 'design';
-
 import { OutlineDanger } from 'design/Alert/Alert';
 
 import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
 
-import useNewRecoveryCodes, { State, Props } from './useNewRecoveryCodes';
+import useNewRecoveryCodes, { Props, State } from './useNewRecoveryCodes';
 
 export default function Container(props: Props) {
   const state = useNewRecoveryCodes(props);

@@ -1,6 +1,6 @@
 import { render } from 'design/utils/testing';
 
-import { Loaded, LoadedFirstTime, Failed } from './RecoveryCodesDialog.story';
+import { Failed, Loaded, LoadedFirstTime } from './RecoveryCodesDialog.story';
 
 // TODO(bl-nero): Snapshost tests have been removed, replace them with Storybook smoke tests.
 // See https://github.com/gravitational/teleport/issues/19185.

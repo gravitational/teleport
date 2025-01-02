@@ -1,18 +1,16 @@
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { DiscoverEvent } from 'teleport/services/userEvent';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
-import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
-
-import { AddServiceProvider, DownloadMetadata } from './Generic';
 import { Finished } from './Finished';
-
-import { DownloadMetadataGrafana, AddGrafanaSaml } from './Grafana';
 import {
-  ConfigureWorkforcePool,
   AddWorkforcePoolToTeleport,
+  ConfigureWorkforcePool,
 } from './GcpWorkforce';
+import { AddServiceProvider, DownloadMetadata } from './Generic';
+import { AddGrafanaSaml, DownloadMetadataGrafana } from './Grafana';
 
 export const SamlApplicationResource: ResourceViewConfig = {
   kind: ResourceKind.SamlApplication,

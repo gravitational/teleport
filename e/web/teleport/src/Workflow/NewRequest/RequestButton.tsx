@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { components, MenuListProps } from 'react-select';
 import styled from 'styled-components';
+
 import { ButtonBorder, ButtonPrimary, Flex, Text } from 'design';
-import Select from 'shared/components/Select';
 import { HoverTooltip } from 'design/Tooltip';
-import { App, AppSubKind, PermissionSet } from 'teleport/services/apps';
-
 import { ResourceMap } from 'shared/components/AccessRequests/NewRequest';
-
 import {
   CheckableOptionComponent,
   Option,
 } from 'shared/components/AccessRequests/NewRequest/CheckableOption';
+import Select from 'shared/components/Select';
 
-import { requestItems } from 'e-teleport/Workflow/NewRequest/useNewRequest';
-
-import type { RequestItem } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+import {
+  requestItems,
+  type RequestItem,
+} from 'e-teleport/Workflow/NewRequest/useNewRequest';
+import { App, AppSubKind, PermissionSet } from 'teleport/services/apps';
 
 function getButtonText(addText: string, requestStarted: boolean): string {
   if (addText) {

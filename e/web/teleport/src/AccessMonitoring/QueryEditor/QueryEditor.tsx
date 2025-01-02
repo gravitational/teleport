@@ -1,30 +1,30 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
-
-import CodeMirror from '@uiw/react-codemirror';
+import { Completion } from '@codemirror/autocomplete';
 import { sql, SQLDialect } from '@codemirror/lang-sql';
 import { EditorView } from '@codemirror/view';
-import { darkTheme, lightTheme } from 'design/theme';
 import { tags as t } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
-import { Completion } from '@codemirror/autocomplete';
+import CodeMirror from '@uiw/react-codemirror';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
+import styled, { useTheme } from 'styled-components';
+
 import { Button, Flex } from 'design';
-import { useAttemptNext } from 'shared/hooks';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 import Indicator from 'design/Indicator';
+import { darkTheme, lightTheme } from 'design/theme';
 import { Theme } from 'design/theme/themes/types';
+import { useAttemptNext } from 'shared/hooks';
 
-import { getSchema, runQuery } from 'e-teleport/AccessMonitoring/service';
 import { Result } from 'e-teleport/AccessMonitoring/QueryEditor/Result';
+import { getSchema, runQuery } from 'e-teleport/AccessMonitoring/service';
 import { Days, Timeframe } from 'e-teleport/AccessMonitoring/Timeframe';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import cube from './icons/cube.svg';
-import object from './icons/object.svg';
-import variable from './icons/variable.svg';
-import keyword from './icons/keyword.svg';
-import table from './icons/table.svg';
 import column from './icons/column.svg';
+import cube from './icons/cube.svg';
+import keyword from './icons/keyword.svg';
+import object from './icons/object.svg';
+import table from './icons/table.svg';
+import variable from './icons/variable.svg';
 
 const CustomDialect = SQLDialect.define({
   keywords:

@@ -1,6 +1,7 @@
+import { useTheme } from 'styled-components';
+
 import { Warning } from 'design/Alert';
 import Link from 'design/Link';
-import { useTheme } from 'styled-components';
 
 export function UserAccountWarning({
   inIdentitySourceScreen,

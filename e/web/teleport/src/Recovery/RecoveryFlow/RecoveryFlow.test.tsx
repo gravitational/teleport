@@ -1,13 +1,13 @@
-import { Router } from 'react-router';
-import { createMemoryHistory } from 'history';
-import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
-import history from 'teleport/services/history';
-import MfaService from 'teleport/services/mfa';
-
 import { act } from '@testing-library/react';
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
+
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import RecoveryService from 'e-teleport/services/recovery';
+import history from 'teleport/services/history';
+import MfaService from 'teleport/services/mfa';
 
 import { Recovery } from '../Recovery';
 

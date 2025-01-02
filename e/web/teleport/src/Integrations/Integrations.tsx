@@ -1,4 +1,4 @@
-import { Indicator, Box, Alert } from 'design';
+import { Alert, Box, Indicator } from 'design';
 
 import {
   FeatureBox,
@@ -7,15 +7,14 @@ import {
 } from 'teleport/components/Layout';
 import { IntegrationList } from 'teleport/Integrations';
 import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButton';
-import { Integration, Plugin } from 'teleport/services/integrations';
 import { IntegrationOperations } from 'teleport/Integrations/Operations';
-
 import { ExternalAuditStorageOpType } from 'teleport/Integrations/Operations/useIntegrationOperation';
+import { Integration, Plugin } from 'teleport/services/integrations';
 
-import { useIntegrations, State } from './useIntegrations';
-import { PluginDelete } from './PluginDelete';
-import { IntegrationsSplash } from './IntegrationsSplash';
 import { ExternalAuditStorageDelete } from './ExternalAuditStorageDelete';
+import { IntegrationsSplash } from './IntegrationsSplash';
+import { PluginDelete } from './PluginDelete';
+import { State, useIntegrations } from './useIntegrations';
 
 export default function Container() {
   const state = useIntegrations();

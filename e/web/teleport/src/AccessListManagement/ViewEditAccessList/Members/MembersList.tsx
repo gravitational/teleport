@@ -1,33 +1,33 @@
 import { useState } from 'react';
-import { Flex, Text, Box, ButtonText, ButtonSecondary, H2 } from 'design';
-import Table, { StyledPanel } from 'design/DataTable';
-import { UsersTriple, Add, ArrowRight } from 'design/Icon';
-import { HoverTooltip, IconTooltip } from 'design/Tooltip';
-import InputSearch from 'design/DataTable/InputSearch';
-import { StyledTable } from 'design/DataTable/StyledTable';
-import { ClientSidePager } from 'design/DataTable/Pager';
-import { getPagerPosition } from 'design/DataTable/Table';
-import { useClientSidePager } from 'design/DataTable/Pager/ClientSidePager/useClientSidePager';
 
+import { Box, ButtonSecondary, ButtonText, Flex, H2, Text } from 'design';
+import Table, { StyledPanel } from 'design/DataTable';
+import InputSearch from 'design/DataTable/InputSearch';
+import { ClientSidePager } from 'design/DataTable/Pager';
+import { useClientSidePager } from 'design/DataTable/Pager/ClientSidePager/useClientSidePager';
+import { StyledTable } from 'design/DataTable/StyledTable';
+import { getPagerPosition } from 'design/DataTable/Table';
+import type { PagedTableProps } from 'design/DataTable/types';
+import { Add, ArrowRight, UsersTriple } from 'design/Icon';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+
+import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
+import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
+import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import {
   AccessListMember,
   AccessListMemberKind,
+  type AccessList,
 } from 'e-teleport/services/accessmanagement';
-import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
-import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 
-import { NestedListLink } from '../../Shared/Shared';
-
-import { CustomCell, UserRevokeButtonCell } from '../Shared';
+import { NestedListLink, type UserOption } from '../../Shared/Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-
+import {
+  CustomCell,
+  UserRevokeButtonCell,
+  type AccessListModified,
+} from '../Shared';
 import { EnrollNewMembers } from './EnrollNewMembers';
-
-import type { PagedTableProps } from 'design/DataTable/types';
-import type { AccessListModified } from '../Shared';
-import type { UserOption } from '../../Shared/Shared';
-import type { AccessList } from 'e-teleport/services/accessmanagement';
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 
 const genericNoAccessMsg = 'You do not have access to edit members';
 

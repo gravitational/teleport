@@ -1,22 +1,23 @@
-import { requiredField } from 'shared/components/Validation/rules';
-import { Option } from 'shared/components/Select';
+import styled from 'styled-components';
 
 import {
   FieldSelectCreatable,
   FieldSelectCreatableAsync,
 } from 'shared/components/FieldSelect/FieldSelectCreatable';
+import { Option } from 'shared/components/Select';
+import { requiredField } from 'shared/components/Validation/rules';
 
-import styled from 'styled-components';
-
-import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListMemberKind,
+  type AccessList,
+} from 'e-teleport/services/accessmanagement';
 
 import {
   ReactSelectAccessListMultiValue,
   ReactSelectAccessListOption,
+  type EditKind,
+  type HybridUserOption,
 } from '../Shared/Shared';
-
-import type { AccessList } from 'e-teleport/services/accessmanagement';
-import type { EditKind, HybridUserOption } from '../Shared/Shared';
 
 export function convertAccessListsToUserOptions(
   acls: AccessList[],

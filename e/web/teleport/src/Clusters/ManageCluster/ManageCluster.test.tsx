@@ -1,12 +1,11 @@
 import { MemoryRouter, Route } from 'react-router-dom';
 
-import { render, waitFor, screen } from 'design/utils/testing';
-
-import { ContextProvider } from 'teleport/index';
-import { ContentMinWidth } from 'teleport/Main/Main';
-import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
+import { render, screen, waitFor } from 'design/utils/testing';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
+import { ContextProvider } from 'teleport/index';
+import { ContentMinWidth } from 'teleport/Main/Main';
 
 import { ManageCluster } from './ManageCluster';
 

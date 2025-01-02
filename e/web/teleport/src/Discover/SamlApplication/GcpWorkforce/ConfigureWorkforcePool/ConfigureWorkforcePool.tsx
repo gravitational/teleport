@@ -1,5 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Box, ButtonBorder, Link, Text, Toggle, Flex } from 'design';
+import React, { useEffect, useState } from 'react';
+
+import { Box, ButtonBorder, Flex, Link, Text, Toggle } from 'design';
+import { IconTooltip } from 'design/Tooltip';
+import FieldInput from 'shared/components/FieldInput';
+import Validation, { Validator } from 'shared/components/Validation';
+import {
+  requiredAll,
+  requiredField,
+  Rule,
+} from 'shared/components/Validation/rules';
+
+import { IdpMetadata } from 'e-teleport/SamlApplication/components/IdpMetadata';
+import {
+  checkDefaultAttributePerPreset,
+  genEntityIDAndAcsUrlForGcpWorkforce,
+  useSamlApplication,
+} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import {
   ActionButtons,
@@ -7,24 +24,8 @@ import {
   HeaderSubtitle,
   StyledBox,
 } from 'teleport/Discover/Shared';
-import FieldInput from 'shared/components/FieldInput';
-import { IconTooltip } from 'design/Tooltip';
-import Validation, { Validator } from 'shared/components/Validation';
-import {
-  requiredAll,
-  requiredField,
-  Rule,
-} from 'shared/components/Validation/rules';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { useDiscover, SamlMeta } from 'teleport/Discover/useDiscover';
+import { SamlMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
-import {
-  useSamlApplication,
-  genEntityIDAndAcsUrlForGcpWorkforce,
-  checkDefaultAttributePerPreset,
-} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
-import { IdpMetadata } from 'e-teleport/SamlApplication/components/IdpMetadata';
 
 export function Container() {
   const { prevStep, nextStep, isUpdateFlow, agentMeta } = useDiscover();

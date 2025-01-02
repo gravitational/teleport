@@ -1,14 +1,14 @@
 import { MemoryRouter } from 'react-router';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import {
-  DiscoverProvider,
   DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
-
-import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import { DownloadMetadata as DownloadMetadataComponent } from './DownloadMetadata';
 

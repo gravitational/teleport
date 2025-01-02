@@ -1,8 +1,9 @@
+import React from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import React from 'react';
-import styled, { useTheme } from 'styled-components';
 
 import type { OS } from 'e-teleport/services/downloads';
 

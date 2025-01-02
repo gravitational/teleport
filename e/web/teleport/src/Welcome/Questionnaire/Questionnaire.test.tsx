@@ -6,16 +6,13 @@ import {
   waitFor,
 } from 'design/utils/testing';
 
-import { userEventService } from 'teleport/services/userEvent';
-import api from 'teleport/services/api';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-
-import cfg from 'teleport/config';
-
 import { surveyService } from 'e-teleport/services/survey';
-
 import { EmployeeSelectOptions } from 'e-teleport/Welcome/Questionnaire/constants';
+import cfg from 'teleport/config';
+import api from 'teleport/services/api';
+import { userEventService } from 'teleport/services/userEvent';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { Questionnaire } from './Questionnaire';
 import { QuestionnaireProps } from './types';

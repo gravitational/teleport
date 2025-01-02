@@ -1,14 +1,13 @@
-import React, { useState, useContext } from 'react';
+import React, { useContext, useState } from 'react';
 
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+
+import useTeleportE from 'e-teleport/useTeleportE';
 import {
   ExternalAuditStorage,
   Integration,
   integrationService,
 } from 'teleport/services/integrations';
-
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
-
-import useTeleportE from 'e-teleport/useTeleportE';
 
 export enum Step {
   SelectIntegration = 0,

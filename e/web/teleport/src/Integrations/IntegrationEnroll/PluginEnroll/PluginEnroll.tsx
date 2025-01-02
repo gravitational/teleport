@@ -1,12 +1,14 @@
 import { useParams } from 'react-router';
+
 import { NotFound } from 'design/CardError';
+
 import { Plugin, PluginKind } from 'teleport/services/integrations';
 
-import { pluginMap } from './plugins';
-import { PluginEnrollOAuth } from './PluginEnrollOauth';
-import { PluginEnrollSingleStep } from './PluginEnrollSingleStep';
 import { PluginProvider } from './MultiStep/usePlugin';
 import { PluginEnrollMultiStep } from './PluginEnrollMultiStep';
+import { PluginEnrollOAuth } from './PluginEnrollOauth';
+import { PluginEnrollSingleStep } from './PluginEnrollSingleStep';
+import { pluginMap } from './plugins';
 
 export type OAuthPluginRegistered = {
   name: string;

@@ -1,17 +1,18 @@
 import { useMemo } from 'react';
-import { Indicator, Box } from 'design';
+
+import { Box, Indicator } from 'design';
+
+import cfg from 'e-teleport/config';
+import RecoveryService from 'e-teleport/services/recovery/recovery';
 import { Route, Switch } from 'teleport/components/Router';
 
-import RecoveryService from 'e-teleport/services/recovery/recovery';
-import cfg from 'e-teleport/config';
-
-import Invalid from './InvalidLink';
-import VerifyUser from './VerifyUser';
-import NewPassword from './NewPassword';
-import NewMfaDevice from './NewMfaDevice';
 import Devices from './Devices';
+import Invalid from './InvalidLink';
+import NewMfaDevice from './NewMfaDevice';
+import NewPassword from './NewPassword';
 import NewRecoveryCodes from './NewRecoveryCodes';
 import useRecoveryFlow, { State } from './useRecoveryFlow';
+import VerifyUser from './VerifyUser';
 
 export default function Container() {
   const recoveryService = useMemo(() => new RecoveryService(), []);

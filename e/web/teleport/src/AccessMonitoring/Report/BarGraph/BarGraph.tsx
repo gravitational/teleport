@@ -1,26 +1,22 @@
+import { ResponsiveBar } from '@nivo/bar';
+import { BarTooltipProps } from '@nivo/bar/dist/types/types';
+import { timeFormat } from 'd3-time-format';
 import { useMemo, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { timeFormat } from 'd3-time-format';
-
-import { ResponsiveBar } from '@nivo/bar';
-
-import { BarTooltipProps } from '@nivo/bar/dist/types/types';
-
+import { Box } from 'design';
 import { Info } from 'design/Icon';
 
-import { Box } from 'design';
-
-import { ReportResult } from 'e-teleport/AccessMonitoring/types';
-import { BarGraphConfig } from 'e-teleport/AccessMonitoring/Report/config';
+import { COLORS } from 'e-teleport/AccessMonitoring/const';
+import { Overview } from 'e-teleport/AccessMonitoring/Report/BarGraph/Overview';
 import {
   convertResultToData,
   getTimescale,
   getXAxisTicks,
   MAX_RESULTS,
 } from 'e-teleport/AccessMonitoring/Report/BarGraph/utils';
-import { COLORS } from 'e-teleport/AccessMonitoring/const';
-import { Overview } from 'e-teleport/AccessMonitoring/Report/BarGraph/Overview';
+import { BarGraphConfig } from 'e-teleport/AccessMonitoring/Report/config';
+import { ReportResult } from 'e-teleport/AccessMonitoring/types';
 
 interface BarGraphProps {
   reportResult: ReportResult;

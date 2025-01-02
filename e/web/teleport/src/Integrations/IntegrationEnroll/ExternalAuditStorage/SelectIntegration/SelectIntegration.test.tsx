@@ -1,20 +1,17 @@
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
-
 import { render, screen, waitFor } from 'design/utils/testing';
-import { allAccessAcl } from 'teleport/mocks/contexts';
-
-import {
-  IntegrationKind,
-  IntegrationStatusCode,
-  integrationService,
-} from 'teleport/services/integrations';
 
 import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import { allAccessAcl } from 'teleport/mocks/contexts';
+import {
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 
 import { ExternalAuditStorageProvider } from '../useExternalAuditStorage';
-
 import { SelectIntegration } from './SelectIntegration';
 
 describe('selectIntegration', () => {

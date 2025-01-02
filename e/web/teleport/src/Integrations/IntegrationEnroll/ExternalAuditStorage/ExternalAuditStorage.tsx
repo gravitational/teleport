@@ -1,33 +1,29 @@
-import { useState, useEffect } from 'react';
-import { Prompt, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Prompt, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { Link } from 'react-router-dom';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { Header } from 'teleport/Discover/Shared';
+
 import {
-  Text,
+  Alert,
   Box,
   ButtonPrimary,
-  Alert,
-  Flex,
   ButtonSecondary,
-  Image,
+  Flex,
   H2,
+  Image,
+  Text,
 } from 'design';
 import { Notification as IconNotification } from 'design/Icon';
-
-import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
-
-import cfg from 'teleport/config';
-
-import useTeleport from 'teleport/useTeleport';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+import cfg from 'teleport/config';
+import { Header } from 'teleport/Discover/Shared';
+import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
+import useTeleport from 'teleport/useTeleport';
 
 import { ConfigurePermissions } from './ConfigurePermissions';
-import { TestConnection } from './TestConnection';
-
 import { SelectIntegration } from './SelectIntegration';
+import { TestConnection } from './TestConnection';
 import { Step, useExternalAuditStorage } from './useExternalAuditStorage';
 
 export function ExternalAuditStorage() {

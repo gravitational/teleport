@@ -1,5 +1,4 @@
 import { addWeeks, subWeeks } from 'date-fns';
-import { Access, makeUserContext } from 'teleport/services/user';
 
 import {
   AccessList,
@@ -7,6 +6,7 @@ import {
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
+import { Access, makeUserContext } from 'teleport/services/user';
 
 import { StoreNotificationsE } from './storeNotificationsE';
 

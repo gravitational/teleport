@@ -1,22 +1,17 @@
 import { useEffect, useState } from 'react';
-import styled, { css } from 'styled-components';
-import { Lock } from 'design/Icon';
 import { Link } from 'react-router-dom';
+import styled, { css } from 'styled-components';
+
+import { Alert, H1, H2 } from 'design';
+import { Lock } from 'design/Icon';
+import { ShimmerBox } from 'design/ShimmerBox';
 import { useAttemptNext } from 'shared/hooks';
 
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { ShimmerBox } from 'design/ShimmerBox';
-
-import { Alert } from 'design';
-
-import { H1, H2 } from 'design';
-
-import { getReports } from 'e-teleport/AccessMonitoring/service';
-
-import cfg from 'e-teleport/config';
 import { DEFAULT_TIMEFRAME } from 'e-teleport/AccessMonitoring/const';
-
 import { REPORT_VIEW_CONFIGS } from 'e-teleport/AccessMonitoring/Report/config';
+import { getReports } from 'e-teleport/AccessMonitoring/service';
+import cfg from 'e-teleport/config';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ReportOverview } from './types';
 

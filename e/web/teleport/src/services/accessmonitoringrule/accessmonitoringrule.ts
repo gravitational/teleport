@@ -1,13 +1,12 @@
-import api from 'teleport/services/api';
-import { ResourcesResponse } from 'teleport/services/agents';
-
 import cfg from 'e-teleport/config';
+import { ResourcesResponse } from 'teleport/services/agents';
+import api from 'teleport/services/api';
 
 import {
   AccessMonitoringRuleFilter,
   AccessMonitoringRulePage,
-  AccessMonitoringRuleUpsertRequest,
   AccessMonitoringRuleSubject,
+  AccessMonitoringRuleUpsertRequest,
   AccessMonitoringRuleWithYaml,
 } from './types';
 

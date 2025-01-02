@@ -1,12 +1,11 @@
-import styled from 'styled-components';
-import { Link } from 'react-router-dom';
-
 import Highlight from 'react-highlight';
+import { Link } from 'react-router-dom';
+import styled from 'styled-components';
 
 import { ChevronRight, Code } from 'design/Icon';
 
-import cfg from 'e-teleport/config';
 import { PopoverHeader } from 'e-teleport/AccessMonitoring/shared/Popover';
+import cfg from 'e-teleport/config';
 
 interface QueryInfoProps {
   query: string;

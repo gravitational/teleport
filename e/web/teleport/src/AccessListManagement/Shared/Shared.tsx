@@ -1,33 +1,35 @@
 import React, { PropsWithChildren, useState } from 'react';
-import styled from 'styled-components';
-import { components } from 'react-select';
-import { Label, Popover, Text } from 'design';
-import Link from 'design/Link';
-import { User as UserIcon, UserList } from 'design/Icon';
-import ResourceService from 'teleport/services/resources';
-import { yamlService } from 'teleport/services/yaml';
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-
+import type { useHistory } from 'react-router-dom';
 import {
-  AccessListMemberKind,
-  AccessListType,
-} from 'e-teleport/services/accessmanagement';
+  components,
+  type GroupBase,
+  type MultiValueProps,
+  type OptionProps,
+} from 'react-select';
+import styled from 'styled-components';
+
+import { Label, Popover, Text } from 'design';
+import type { SortDir } from 'design/DataTable/types';
+import { User as UserIcon, UserList } from 'design/Icon';
+import Link from 'design/Link';
+import type { Theme } from 'design/theme/themes/types';
+import type { Option } from 'shared/components/Select';
+import type useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
   AccessListFilters,
   AccessListSort,
 } from 'e-teleport/AccessListManagement/AccessListManagementContext';
-
-import type { Option } from 'shared/components/Select';
-import type { AllUserTraits, User } from 'teleport/services/user';
-import type { GroupBase, OptionProps, MultiValueProps } from 'react-select';
-import type { AccessList } from 'e-teleport/services/accessmanagement';
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
-import type { useHistory } from 'react-router-dom';
-import type { Theme } from 'design/theme/themes/types';
-import type useAttempt from 'shared/hooks/useAttemptNext';
-import type { Role } from 'teleport/services/resources';
-import type { SortDir } from 'design/DataTable/types';
+import {
+  AccessListMemberKind,
+  AccessListType,
+  type AccessList,
+} from 'e-teleport/services/accessmanagement';
+import ResourceService, { type Role } from 'teleport/services/resources';
+import type { AllUserTraits, User } from 'teleport/services/user';
+import { yamlService } from 'teleport/services/yaml';
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 // HybridUserOption
 //

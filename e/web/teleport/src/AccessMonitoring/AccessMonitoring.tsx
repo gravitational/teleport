@@ -1,21 +1,17 @@
 import { Suspense, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box } from 'design';
-import { Redirect, Route, Switch } from 'teleport/components/Router';
 
-import { useLocation } from 'react-router';
-import { NavLink } from 'react-router-dom';
-
-import { useTeleport } from 'teleport';
-
-import config from 'e-teleport/config';
-
+import QueryEditor from 'e-teleport/AccessMonitoring/QueryEditor';
+import Report from 'e-teleport/AccessMonitoring/Report';
 // keep the report list in the bundle as it's the default page
 import { ReportList } from 'e-teleport/AccessMonitoring/ReportList';
-
-import Report from 'e-teleport/AccessMonitoring/Report';
-import QueryEditor from 'e-teleport/AccessMonitoring/QueryEditor';
+import config from 'e-teleport/config';
+import { useTeleport } from 'teleport';
+import { Redirect, Route, Switch } from 'teleport/components/Router';
 
 const Container = styled.div``;
 

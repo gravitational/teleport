@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
-import { Card, Box, ButtonPrimary, Indicator, P3 } from 'design';
-import MfaService from 'teleport/services/mfa';
-import MfaDeviceList, { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
+import { Box, ButtonPrimary, Card, Indicator, P3 } from 'design';
+import { OutlineDanger } from 'design/Alert/Alert';
 import { StepHeader } from 'design/StepSlider';
 
-import { OutlineDanger } from 'design/Alert/Alert';
+import MfaDeviceList, { RemoveDialog } from 'teleport/components/MfaDeviceList';
+import MfaService from 'teleport/services/mfa';
 
-import useDevices, { State, Props } from './useDevices';
+import useDevices, { Props, State } from './useDevices';
 
 export default function Container(props: Props) {
   const mfaService = useMemo(() => new MfaService(), []);

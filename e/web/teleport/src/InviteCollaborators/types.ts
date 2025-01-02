@@ -1,5 +1,6 @@
-import { User } from 'teleport/services/user';
 import { Option } from 'shared/components/Select';
+
+import { User } from 'teleport/services/user';
 
 /**
  * An option type for roles that makes descriptions available, for use with

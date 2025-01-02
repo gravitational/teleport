@@ -1,10 +1,11 @@
 import { useState } from 'react';
+
 import Validation from 'shared/components/Validation';
+
+import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { AttributeMapping } from './AttributeMapping';
-
-import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
 export default {
   title: 'TeleportE/SamlApplication/components/AttributeMapping',

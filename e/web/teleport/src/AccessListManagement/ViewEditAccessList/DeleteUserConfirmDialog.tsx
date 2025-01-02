@@ -1,12 +1,12 @@
-import { ButtonSecondary, ButtonWarning, Text, Alert, P1, Box } from 'design';
+import { Alert, Box, ButtonSecondary, ButtonWarning, P1, Text } from 'design';
+import { OutlineWarn } from 'design/Alert/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { OutlineWarn } from 'design/Alert/Alert';
 
 import {
   AccessList,

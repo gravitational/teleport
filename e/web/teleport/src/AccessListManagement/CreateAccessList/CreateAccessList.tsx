@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
+
 import {
   Alert,
   Box,
@@ -11,17 +12,12 @@ import {
   Indicator,
 } from 'design';
 import { ArrowBack } from 'design/Icon';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
-import Validation, { Validator } from 'shared/components/Validation';
-import useTeleport from 'teleport/useTeleport';
 import { Option } from 'shared/components/Select';
-import { AllUserTraits } from 'teleport/services/user';
+import Validation, { Validator } from 'shared/components/Validation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import cfg from 'e-teleport/config';
 import {
   AccessListMemberKind,
   accessManagementService,
@@ -29,28 +25,32 @@ import {
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
-import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
-import cfg from 'e-teleport/config';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
+import { AllUserTraits } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
 import { NoAccessState } from '../NoAccessState';
+import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
+import {
+  FeatureLimitReached,
+  featureLimitReachedBlurCss,
+} from '../Shared/FeatureLimitReached';
 import {
   HybridUserOption,
   matchRoles,
   matchTraits,
   UserOption,
 } from '../Shared/Shared';
-import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
-import {
-  FeatureLimitReached,
-  featureLimitReachedBlurCss,
-} from '../Shared/FeatureLimitReached';
-
-import { Spec, SpecSection } from './SpecSection';
+import { Grant, GrantSection } from './GrantSection';
 import { Members, MembersSection } from './MemberSection';
 import { Owners, OwnersSection } from './OwnerSection';
-import { Grant, GrantSection } from './GrantSection';
 import { convertAccessListsToUserOptions } from './Shared';
+import { Spec, SpecSection } from './SpecSection';
 
 export function CreateAccessList() {
   const [featureLimitReached, setFeatureLimitReached] = useState(false);

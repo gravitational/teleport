@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { Text, Alert, Box, Indicator } from 'design';
+import { Alert, Box, H2, Indicator, Text } from 'design';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -10,10 +11,6 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'teleport/config';
 import { useTeleport } from 'teleport/index';
 import userService, { User } from 'teleport/services/user';
-
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
-
-import { H2 } from 'design';
 
 import { FormDataField } from './types';
 

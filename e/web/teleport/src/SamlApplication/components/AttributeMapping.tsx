@@ -1,18 +1,19 @@
 import React from 'react';
-import { Box, ButtonIcon, Flex, Text, LabelInput, Link, H2 } from 'design';
+import styled from 'styled-components';
+
+import { Box, ButtonIcon, Flex, H2, LabelInput, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
+import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import {
   FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
-import styled from 'styled-components';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-import { P } from 'design/Text/Text';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 export function AttributeMapping({
   spConfig,

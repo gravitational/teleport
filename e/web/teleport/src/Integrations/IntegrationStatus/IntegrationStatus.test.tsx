@@ -1,10 +1,10 @@
-import { render, screen } from 'design/utils/testing';
 import { MemoryRouter, Route } from 'react-router';
-import { IntegrationKind } from 'teleport/services/integrations';
 
-import cfg from 'teleport/config';
+import { render, screen } from 'design/utils/testing';
 
 import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus/IntegrationStatus';
+import cfg from 'teleport/config';
+import { IntegrationKind } from 'teleport/services/integrations';
 
 test('okta does not show unsupported message', () => {
   render(

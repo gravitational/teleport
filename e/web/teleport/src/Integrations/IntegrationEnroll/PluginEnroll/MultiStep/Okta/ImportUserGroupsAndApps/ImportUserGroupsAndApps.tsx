@@ -1,25 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import styled from 'styled-components';
+
 import {
+  Alert,
   Box,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Indicator,
   Text,
   Toggle,
-  Alert,
-  H2,
 } from 'design';
-import styled from 'styled-components';
-import { PluginOktaSpec } from 'teleport/services/integrations';
-import useTeleport from 'teleport/useTeleport';
-import useAttempt, { State as AttemptState } from 'shared/hooks/useAttemptNext';
-import { Option } from 'shared/components/Select';
-import userService, { User } from 'teleport/services/user';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
-import { requiredField } from 'shared/components/Validation/rules';
+import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
-import { ApiError } from 'teleport/services/api/parseError';
+import { requiredField } from 'shared/components/Validation/rules';
+import useAttempt, { State as AttemptState } from 'shared/hooks/useAttemptNext';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { pluginsService } from 'e-teleport/services/plugins';
@@ -27,16 +24,18 @@ import {
   PluginConfigOktaApp,
   PluginConfigOktaGroup,
 } from 'e-teleport/services/plugins/types';
+import { ApiError } from 'teleport/services/api/parseError';
+import { PluginOktaSpec } from 'teleport/services/integrations';
+import userService, { User } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
 import { Header } from '../../Shared';
 import { usePlugin } from '../../usePlugin';
-
 import { FormDataField } from '../types';
-
 import { CreateFilters } from './CreateFilters';
-import { FilterOption, FormDataFilterField } from './types';
-import { AppTable, UserGroupsTable } from './FilterTable';
 import { FailedAttempt } from './FailedAttempt';
+import { AppTable, UserGroupsTable } from './FilterTable';
+import { FilterOption, FormDataFilterField } from './types';
 
 type UserOption = Option<User>;
 

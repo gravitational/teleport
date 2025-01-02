@@ -1,18 +1,16 @@
-import { cloneElement } from 'react';
 import { format } from 'date-fns';
+import { cloneElement } from 'react';
 import styled from 'styled-components';
-import { Flex, Box, Text } from 'design';
+
+import { Box, Flex, Text } from 'design';
 import { User, UserList } from 'design/Icon';
-
-import { pluralize } from 'shared/utils/text';
-
 import { HoverTooltip } from 'design/Tooltip';
+import { pluralize } from 'shared/utils/text';
 
 import { AccessListType } from 'e-teleport/services/accessmanagement';
 
 import { TruncatingLabel } from '../Shared/Shared';
 import { TypeBadge } from '../Shared/TypeBadge';
-
 import { AccessListWithModifiedGrants } from './AccessLists';
 
 export type Props = {

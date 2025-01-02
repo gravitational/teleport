@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
-import { Card, ButtonPrimary, Box } from 'design';
+
+import { Box, ButtonPrimary, Card } from 'design';
+import { OutlineDanger } from 'design/Alert/Alert';
+import { StepHeader } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
-  requiredPassword,
   requiredConfirmedPassword,
+  requiredPassword,
 } from 'shared/components/Validation/rules';
 
-import { StepHeader } from 'design/StepSlider';
-
-import { OutlineDanger } from 'design/Alert/Alert';
-
-import useNewPassword, { State, Props } from './useNewPassword';
+import useNewPassword, { Props, State } from './useNewPassword';
 
 export default function Container(props: Props) {
   const state = useNewPassword(props);

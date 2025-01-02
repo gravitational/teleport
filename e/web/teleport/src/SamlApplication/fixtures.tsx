@@ -1,16 +1,16 @@
 import Validation from 'shared/components/Validation';
-import { ContextProvider } from 'teleport';
-import { SamlMeta } from 'teleport/Discover/useDiscover';
-import {
-  SamlIdpServiceProvider,
-  SamlServiceProviderPreset,
-} from 'teleport/services/samlidp/types';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   emptyUpsertRequest,
   SamlApplicationProvider,
 } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { ContextProvider } from 'teleport';
+import { SamlMeta } from 'teleport/Discover/useDiscover';
+import {
+  SamlIdpServiceProvider,
+  SamlServiceProviderPreset,
+} from 'teleport/services/samlidp/types';
 
 export const idpMetadata = {
   entityID: 'https://tele.dev/enterprise/saml-idp/metadata',

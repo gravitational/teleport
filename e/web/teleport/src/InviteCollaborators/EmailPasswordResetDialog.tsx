@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary, Text, Flex, ButtonSecondary, Box, H2 } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H2, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import Dialog, {
   DialogContent,
@@ -13,9 +13,8 @@ import { requiredEmailLike } from 'shared/components/Validation/rules';
 import { useAttemptNext } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
-
 import useTeleport from 'e-teleport/useTeleportE';
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 import { EmailPasswordResetDialogProps } from './types';
 

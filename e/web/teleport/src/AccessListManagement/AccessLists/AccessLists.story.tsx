@@ -1,18 +1,16 @@
-import { useEffect } from 'react';
+import { StoryObj } from '@storybook/react';
 import { addWeeks } from 'date-fns';
+import { http, HttpResponse } from 'msw';
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
-import { getAcl } from 'teleport/mocks/contexts';
+
 import Box from 'design/Box';
 
-import { StoryObj } from '@storybook/react';
-
-import { http, HttpResponse } from 'msw';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import cfg from 'e-teleport/config';
-
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import cfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
+import { getAcl } from 'teleport/mocks/contexts';
 
 import { AccessLists } from './AccessLists';
 

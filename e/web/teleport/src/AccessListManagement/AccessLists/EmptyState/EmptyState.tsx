@@ -1,23 +1,24 @@
-import { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import styled from 'styled-components';
+
 import { Box, ButtonPrimary, Flex, H1, Text } from 'design';
 
 import cfg from 'e-teleport/config';
 
 import {
+  AchieveCompliance,
+  AchieveCompliancePreview,
+} from './AchieveCompliance';
+import {
   AutomateAccessRequest,
   AutomateAccessRequestPreview,
 } from './AutomateAccessRequest';
+import { GetVisibility, GetVisibilityPreview } from './GetVisibility';
 import {
   ReduceAttackSurface,
   ReduceAttackSurfacePreview,
 } from './ReduceAttackSurface';
-import {
-  AchieveCompliance,
-  AchieveCompliancePreview,
-} from './AchieveCompliance';
-import { GetVisibility, GetVisibilityPreview } from './GetVisibility';
 
 export function EmptyState() {
   const [currIndex, setCurrIndex] = useState(0);

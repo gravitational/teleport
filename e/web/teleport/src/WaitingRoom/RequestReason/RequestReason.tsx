@@ -1,19 +1,19 @@
-import session from 'teleport/services/websession';
 import {
-  ButtonPrimary,
-  ButtonSecondary,
-  Text,
-  LabelInput,
   Alert,
   Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  LabelInput,
+  Text,
 } from 'design';
-
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
+
+import session from 'teleport/services/websession';
 
 import useRequestReason, { Props } from './useRequestReason';
 

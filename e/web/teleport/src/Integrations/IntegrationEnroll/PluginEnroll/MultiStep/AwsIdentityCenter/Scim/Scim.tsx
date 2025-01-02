@@ -1,28 +1,29 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+
 import {
   Box,
   ButtonBorder,
   ButtonPrimary,
+  ButtonSecondary,
   Flex,
   Mark,
   Text,
-  ButtonSecondary,
 } from 'design';
 import { Danger, Success } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { StyledBox } from 'teleport/Discover/Shared';
 import { useAsync } from 'shared/hooks/useAsync';
-import { getXCSRFToken } from 'teleport/services/api';
 
-import { pluginsService } from 'e-teleport/services/plugins';
-import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { pluginsService } from 'e-teleport/services/plugins';
 import {
-  PluginConfigBase,
   PluginConfigAwsIc,
+  PluginConfigBase,
 } from 'e-teleport/services/plugins/types';
+import { StyledBox } from 'teleport/Discover/Shared';
+import { getXCSRFToken } from 'teleport/services/api';
 
 import { requiredHttpsUrl } from '../rules';
 

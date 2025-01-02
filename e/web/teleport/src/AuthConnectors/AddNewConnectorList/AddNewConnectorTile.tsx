@@ -1,8 +1,9 @@
+import styled from 'styled-components';
+
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import { H2, Subtitle2 } from 'design/Text';
 import { AuthType } from 'shared/services';
-import styled from 'styled-components';
 
 export function AddNewConnectorTile({
   name,

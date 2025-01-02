@@ -1,22 +1,22 @@
-import styled from 'styled-components';
-import { Text, Link as ExternalLink, Flex, Box, Mark } from 'design';
-import { IconTooltip } from 'design/Tooltip';
-import { NewTab } from 'design/Icon';
 import { Link as InternalLink } from 'react-router-dom';
+import styled from 'styled-components';
 
-import { OktaSsoDetails } from 'teleport/services/integrations/oktaStatusTypes';
-import cfg from 'teleport/config';
+import { Box, Link as ExternalLink, Flex, Mark, Text } from 'design';
+import { NewTab } from 'design/Icon';
+import { IconTooltip } from 'design/Tooltip';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+import cfg from 'teleport/config';
+import { OktaSsoDetails } from 'teleport/services/integrations/oktaStatusTypes';
 
+import { generateOktaSamlAppUrl } from './generateOktaAdminLink';
 import {
-  Panel,
-  PanelTitle,
   CenteredFlex,
   CustomLabel,
   LinkedInnerCard,
+  Panel,
+  PanelTitle,
 } from './Shared';
-import { generateOktaSamlAppUrl } from './generateOktaAdminLink';
 
 export function SsoDetails({
   spec,

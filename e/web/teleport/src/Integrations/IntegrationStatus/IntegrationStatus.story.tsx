@@ -1,11 +1,11 @@
+import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter, Route } from 'react-router';
-import { http, HttpResponse, delay } from 'msw';
-import { PluginOktaSyncStatusCode } from 'teleport/services/integrations/oktaStatusTypes';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport/index';
 
 import cfg from 'e-teleport/config';
+import { ContextProvider } from 'teleport/index';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { PluginOktaSyncStatusCode } from 'teleport/services/integrations/oktaStatusTypes';
 
 import { IntegrationStatus } from './IntegrationStatus';
 

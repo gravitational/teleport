@@ -1,26 +1,25 @@
 import React, { PropsWithChildren, useEffect, useState } from 'react';
-import { Link, useHistory } from 'react-router-dom';
-import { Alert, Box, ButtonIcon, Flex, Indicator, Label, Text } from 'design';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { useParams } from 'react-router';
-import { ArrowLeft } from 'design/Icon';
+import { Link, useHistory } from 'react-router-dom';
 
+import { Alert, Box, ButtonIcon, Flex, Indicator, Label, Text } from 'design';
+import { ArrowLeft } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
+import { HoverTooltip } from 'design/Tooltip';
+import useAttempt from 'shared/hooks/useAttemptNext';
+import { capitalizeFirstLetter } from 'shared/utils/text';
+
+import { pluginsService } from 'e-teleport/services/plugins';
 import { FeatureBox } from 'teleport/components/Layout';
+import cfg from 'teleport/config';
+import { IntegrationStatus as OSSIntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   IntegrationStatusCode,
   Plugin,
   PluginKind,
 } from 'teleport/services/integrations';
-import { IntegrationStatus as OSSIntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
-import cfg from 'teleport/config';
-import { HoverTooltip } from 'design/Tooltip';
-import { ResourceIcon } from 'design/ResourceIcon';
-import { capitalizeFirstLetter } from 'shared/utils/text';
-
-import { pluginsService } from 'e-teleport/services/plugins';
 
 import { PluginDelete } from '../PluginDelete';
-
 import { OktaStatusDetails } from './OktaStatusDetails/OktaStatusDetails';
 import { OverallStatus } from './Shared';
 

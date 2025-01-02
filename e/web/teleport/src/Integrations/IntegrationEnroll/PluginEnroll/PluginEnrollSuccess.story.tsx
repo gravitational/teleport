@@ -1,11 +1,10 @@
 import { MemoryRouter, Route } from 'react-router';
 
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 import cfg from 'teleport/config';
 
-import { pluginMap } from './plugins';
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
+import { pluginMap } from './plugins';
 
 export default {
   title: 'TeleportE/Integrations/EnrollSuccess',

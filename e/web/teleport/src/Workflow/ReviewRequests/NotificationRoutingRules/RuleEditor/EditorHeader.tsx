@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Flex, ButtonText, H2 } from 'design';
-import { HoverTooltip } from 'design/Tooltip';
+
+import { ButtonText, Flex, H2 } from 'design';
 import { Trash } from 'design/Icon';
-import useTeleport from 'teleport/useTeleport';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { AccessMonitoringRule } from 'e-teleport/services/accessmonitoringrule/types';
+import useTeleport from 'teleport/useTeleport';
 
 import { DeleteRuleDialogue } from './DeleteRuleDialogue';
 

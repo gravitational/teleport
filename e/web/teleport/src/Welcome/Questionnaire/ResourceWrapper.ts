@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+
 import { Flex } from 'design';
 
 export const ResourceWrapper = styled(Flex)<{

@@ -1,12 +1,9 @@
 import { generatePath } from 'react-router';
 
-import ossCfg, { UrlResourcesParams } from 'teleport/config';
-
-import generateResourcePath from 'teleport/generateResourcePath';
-
-import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
 import { AccessMonitoringRuleFilter } from 'e-teleport/services/accessmonitoringrule/types';
-
+import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
+import ossCfg, { UrlResourcesParams } from 'teleport/config';
+import generateResourcePath from 'teleport/generateResourcePath';
 import type { PluginKind } from 'teleport/services/integrations/types';
 
 const cfg = {

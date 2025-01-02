@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useParams, generatePath } from 'react-router';
+import { useEffect, useState } from 'react';
+import { generatePath, useParams } from 'react-router';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
-import history from 'teleport/services/history';
 
 import cfg from 'e-teleport/config';
-import { RecoveryToken } from 'e-teleport/services/recovery/types';
 import RecoveryService from 'e-teleport/services/recovery';
+import { RecoveryToken } from 'e-teleport/services/recovery/types';
+import history from 'teleport/services/history';
 
 export default function useRecoveryFlow(recoveryService: RecoveryService) {
   const { tokenId } = useParams<{ tokenId: string }>();

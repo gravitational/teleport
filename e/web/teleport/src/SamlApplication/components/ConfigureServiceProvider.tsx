@@ -1,31 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+
 import { Box, Text } from 'design';
 import { Danger } from 'design/Alert';
+import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import {
+  transformSamlSpecToCreateRequest,
+  useSamlApplication,
+} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 import {
   ActionButtons,
   Header,
   HeaderSubtitle,
   StyledBox,
 } from 'teleport/Discover/Shared';
-import FieldInput from 'shared/components/FieldInput';
+import type { AgentMeta } from 'teleport/Discover/useDiscover';
 import {
   AttributeMapping as AttributeMappingType,
   SamlServiceProviderPreset,
 } from 'teleport/services/samlidp/types';
 
-import {
-  useSamlApplication,
-  transformSamlSpecToCreateRequest,
-} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
-
 import { AttributeMapping } from './AttributeMapping';
 import { AddEntityDescriptor } from './EntityDescriptorEditor';
-
-import type { AgentMeta } from 'teleport/Discover/useDiscover';
-
-import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
 /**
  * ConfigureServiceProvider is used for adding a generic SAML app as well as specific ones such as Grafana SAML app.

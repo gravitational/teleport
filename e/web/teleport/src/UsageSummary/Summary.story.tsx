@@ -1,11 +1,9 @@
-import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import { MemoryRouter } from 'react-router';
 
 import { SummaryPage } from 'e-teleport/UsageSummary/SummaryPage';
 import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
+import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 export default {
   title: 'TeleportE/Billing/Enterprise Usage-Based',

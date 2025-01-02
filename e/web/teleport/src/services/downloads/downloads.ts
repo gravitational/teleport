@@ -1,9 +1,7 @@
+import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 
-import cfg from 'e-teleport/config';
-
-import { makeReleases, makeLicense } from './make';
-
+import { makeLicense, makeReleases } from './make';
 import type { License } from './types';
 
 export const downloadsService = {

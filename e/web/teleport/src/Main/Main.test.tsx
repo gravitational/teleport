@@ -1,37 +1,29 @@
-import { render, screen } from 'design/utils/testing';
-
-import { ContextProvider } from 'teleport';
 import { MemoryRouter } from 'react-router';
 
-import { events } from 'teleport/Audit/fixtures';
-import { clusters } from 'teleport/Clusters/fixtures';
-import { nodes } from 'teleport/Nodes/fixtures';
-import { sessions } from 'teleport/Sessions/fixtures';
-import { apps } from 'teleport/Apps/fixtures';
-import { kubes } from 'teleport/Kubes/fixtures';
-import { databases } from 'teleport/Databases/fixtures';
-import { desktops } from 'teleport/Desktops/fixtures';
-import { userContext } from 'teleport/Main/fixtures';
+import { render, screen } from 'design/utils/testing';
 
-import TeleportContext from 'teleport/teleportContext';
-
-import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-
-import { KeysEnum } from 'teleport/services/storageService';
-
+import cfg from 'e-teleport/config';
+import { surveyService } from 'e-teleport/services/survey';
+import TeleportContextE from 'e-teleport/teleportContextE';
 import {
   MockedStoreAccessRequests,
   MockedWorkflowService,
 } from 'e-teleport/Workflow/fixtures';
-import TeleportContextE from 'e-teleport/teleportContextE';
-
-import cfg from 'e-teleport/config';
-
-import { surveyService } from 'e-teleport/services/survey';
+import { ContextProvider } from 'teleport';
+import { apps } from 'teleport/Apps/fixtures';
+import { events } from 'teleport/Audit/fixtures';
+import { clusters } from 'teleport/Clusters/fixtures';
+import { databases } from 'teleport/Databases/fixtures';
+import { desktops } from 'teleport/Desktops/fixtures';
+import { kubes } from 'teleport/Kubes/fixtures';
+import { userContext } from 'teleport/Main/fixtures';
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { nodes } from 'teleport/Nodes/fixtures';
+import { KeysEnum } from 'teleport/services/storageService';
+import { sessions } from 'teleport/Sessions/fixtures';
+import TeleportContext from 'teleport/teleportContext';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { MainE } from './Main';
 

@@ -1,10 +1,10 @@
 import { Option } from 'shared/components/Select';
-import { Plugin } from 'teleport/services/integrations';
 
 import {
   AccessMonitoringRule,
   AccessMonitoringRuleSubject,
 } from 'e-teleport/services/accessmonitoringrule/types';
+import { Plugin } from 'teleport/services/integrations';
 
 import {
   convertRuleConditionToPredicateExpression,

@@ -1,10 +1,8 @@
 import { MemoryRouter, Route } from 'react-router';
 
-import cfg from 'teleport/config';
-
-import { ContextProvider } from 'teleport';
-
 import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
 
 import { PluginEnroll } from './PluginEnroll';
 

@@ -1,11 +1,11 @@
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen } from 'design/utils/testing';
 
+import { fireEvent, render, screen } from 'design/utils/testing';
 import { requestRoleApproved } from 'shared/components/AccessRequests/fixtures';
 
+import { sample } from './fixtures';
 import { RequestList } from './RequestList';
 import { AccessRequestWithFlags } from './useRequestList';
-import { sample } from './fixtures';
 
 test('disabled assume button with assume start date', async () => {
   // Set system time before the assume start date.

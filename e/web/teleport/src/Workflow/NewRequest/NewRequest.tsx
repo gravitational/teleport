@@ -1,58 +1,59 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Prompt, useHistory } from 'react-router';
 import { Transition } from 'react-transition-group';
 import styled from 'styled-components';
+
 import {
   Box,
-  Flex,
+  ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
-  Text,
-  ButtonIcon,
+  Flex,
   P1,
+  Text,
 } from 'design';
-import {
-  Info as InfoIcon,
-  Magnifier,
-  ListAddCheck,
-  ArrowLeft,
-} from 'design/Icon';
-import Select from 'shared/components/Select';
-import Link from 'design/Link';
 import { Info } from 'design/Alert';
+import {
+  ArrowLeft,
+  Info as InfoIcon,
+  ListAddCheck,
+  Magnifier,
+} from 'design/Icon';
+import Link from 'design/Link';
+import { HoverTooltip } from 'design/Tooltip';
+import { Roles } from 'shared/components/AccessRequests/NewRequest';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
-import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
+import Select from 'shared/components/Select';
 import {
   FilterKind,
   UnifiedResources,
 } from 'shared/components/UnifiedResources';
-import { HoverTooltip } from 'design/Tooltip';
-import { TextIcon } from 'teleport/Discover/Shared';
+
+import useTeleportE from 'e-teleport/useTeleportE';
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import ErrorMessage from 'teleport/components/AgentErrorMessage';
-import { CtaEvent } from 'teleport/services/userEvent';
-import { useUser } from 'teleport/User/UserContext';
+import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
+import cfg from 'teleport/config';
+import { TextIcon } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
 import { getSalesURL } from 'teleport/services/sales';
-import cfg from 'teleport/config';
-import { Roles } from 'shared/components/AccessRequests/NewRequest';
+import { CtaEvent } from 'teleport/services/userEvent';
+import { useUser } from 'teleport/User/UserContext';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-
+import { AppRequestButton, RequestButton } from './RequestButton';
 import { RequestCheckout } from './RequestCheckout';
 import {
-  useNewRequest,
-  State,
-  getResourceId,
   AccessRequestKind,
+  getResourceId,
   requestItems,
+  State,
+  useNewRequest,
 } from './useNewRequest';
-import { AppRequestButton, RequestButton } from './RequestButton';
 
 const accessRequestTypeToLabel: Record<AccessRequestKind, string> = {
   resource: 'Resources',

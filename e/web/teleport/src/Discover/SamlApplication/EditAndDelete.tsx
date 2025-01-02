@@ -1,10 +1,10 @@
 import { Box, Indicator } from 'design';
-import ErrorMessage from 'teleport/components/AgentErrorMessage';
-import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 
 import { DiscoverUpdate } from 'e-teleport/Discover';
 import { Delete } from 'e-teleport/SamlApplication/components/Delete';
 import { Edit } from 'e-teleport/SamlApplication/components/Edit';
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 
 /**
  * SamlAppEditAndDelete is used in Saml app edit and delete actions which

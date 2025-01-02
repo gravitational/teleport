@@ -1,32 +1,32 @@
-import { useState, PropsWithChildren } from 'react';
-import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { PropsWithChildren, useState } from 'react';
 import { MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
-import { User } from 'teleport/services/user';
+
+import { Box, ButtonSecondary, Flex, Text } from 'design';
 import Validation from 'shared/components/Validation';
 
-import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
+import {
+  accounts,
+  groupsWithPermissionAssignment,
+  permissionSets,
+  users,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
 import {
   PluginProvider,
   usePlugin,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
-import {
-  users,
-  groupsWithPermissionAssignment,
-  accounts,
-  permissionSets,
-} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
+import { ContextProvider } from 'teleport';
+import { User } from 'teleport/services/user';
 
 import {
   Account,
-  GroupsWithAssignment as GroupsWithAssignmentComponent,
   AwsIcImportResources,
+  GroupsWithAssignment as GroupsWithAssignmentComponent,
   PermissionSets as PermissionSetsComponent,
 } from './ImportResources';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export default {
   title: 'TeleportE/Integrations/Enroll/AWSIdentityCenter/ImportResources',

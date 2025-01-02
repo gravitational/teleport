@@ -1,15 +1,16 @@
 import React, { PropsWithChildren } from 'react';
+
 import { Indicator } from 'design';
 import { useStore } from 'shared/libs/stores';
-import { AppVerticalSplit } from 'teleport/components/Layout';
-import AjaxPoller from 'teleport/components/AjaxPoller';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+import AjaxPoller from 'teleport/components/AjaxPoller';
+import { AppVerticalSplit } from 'teleport/components/Layout';
 
-import RequestReason from './RequestReason';
-import RequestPending from './RequestPending';
 import RequestDenied from './RequestDenied';
 import RequestError from './RequestError';
+import RequestPending from './RequestPending';
+import RequestReason from './RequestReason';
 import useWaitingRoom, { State } from './useWaitingRoom';
 
 export const Container: React.FC<PropsWithChildren<Props>> = props => {

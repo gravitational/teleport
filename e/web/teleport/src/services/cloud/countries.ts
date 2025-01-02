@@ -1,4 +1,5 @@
 import { Option } from 'shared/components/Select';
+
 /**
  * A JSON file that maps ISO2 country codes to country names.
  *

@@ -1,42 +1,43 @@
-import styled from 'styled-components';
 import { Prompt } from 'react-router';
-import { pluralize } from 'shared/utils/text';
 import { Link } from 'react-router-dom';
-import { AddCircle } from 'design/Icon';
+import styled from 'styled-components';
+
 import { Box, ButtonPrimary, ButtonText, Flex, H2 } from 'design';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { useUser } from 'teleport/User/UserContext';
-import { FeatureBox } from 'teleport/components/Layout';
-import { ClusterResources } from 'teleport/UnifiedResources/UnifiedResources';
-import { UnifiedResource } from 'teleport/services/agents';
-import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
-import cfg from 'teleport/config';
+import { AddCircle } from 'design/Icon';
 import {
   RequestCheckout,
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
 import {
+  getResourceAvailabilityFilter,
   IncludedResourceMode,
   SharedUnifiedResource,
-  getResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
-import { AppSubKind } from 'teleport/services/apps';
+import { pluralize } from 'shared/utils/text';
 
+import { SamlAppEditAndDelete } from 'e-teleport/Discover/SamlApplication/EditAndDelete';
+import { SamlAppActionProvider } from 'e-teleport/SamlApplication/hooks/useSamlAppActionsE';
 import useTeleportE from 'e-teleport/useTeleportE';
-import {
-  deepCopyResourceMap,
-  getResourceId,
-  useNewRequest,
-  addOrRemoveIdentityCenterAssignments,
-  requestItems,
-} from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import {
   AppRequestButton,
   RequestButton,
 } from 'e-teleport/Workflow/NewRequest/RequestButton';
-import { SamlAppEditAndDelete } from 'e-teleport/Discover/SamlApplication/EditAndDelete';
+import {
+  addOrRemoveIdentityCenterAssignments,
+  deepCopyResourceMap,
+  getResourceId,
+  requestItems,
+  useNewRequest,
+} from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import { useRequestCheckout } from 'e-teleport/Workflow/NewRequest/useRequestCheckout';
-import { SamlAppActionProvider } from 'e-teleport/SamlApplication/hooks/useSamlAppActionsE';
+import { FeatureBox } from 'teleport/components/Layout';
+import cfg from 'teleport/config';
+import { UnifiedResource } from 'teleport/services/agents';
+import { AppSubKind } from 'teleport/services/apps';
+import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
+import { ClusterResources } from 'teleport/UnifiedResources/UnifiedResources';
+import { useUser } from 'teleport/User/UserContext';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 export function UnifiedResourcesE() {
   const ctx = useTeleportE();

@@ -1,8 +1,10 @@
 import styled from 'styled-components';
-import session from 'teleport/services/websession';
-import { Text, ButtonLink, Flex } from 'design';
-import { ShieldCheck } from 'design/Icon';
+
+import { ButtonLink, Flex, Text } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
+import { ShieldCheck } from 'design/Icon';
+
+import session from 'teleport/services/websession';
 
 export default function RequestPending() {
   return (

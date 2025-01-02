@@ -1,19 +1,18 @@
 import Table, { Cell } from 'design/DataTable';
+import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
+import {
+  renderIdCell,
+  renderStatusCell,
+  renderUserCell,
+} from 'shared/components/AccessRequests/ReviewRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
+
+import { RequestedCell } from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
+import { AccessRequestWithFlags } from 'e-teleport/Workflow/ReviewRequests/RequestList/useRequestList';
 import {
   renderActionCell,
   SimpleListProps,
 } from 'teleport/LocksV2/NewLock/ResourceList/common';
-
-import { AccessRequest } from 'shared/services/accessRequests';
-import {
-  renderStatusCell,
-  renderIdCell,
-  renderUserCell,
-} from 'shared/components/AccessRequests/ReviewRequests';
-import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
-
-import { AccessRequestWithFlags } from 'e-teleport/Workflow/ReviewRequests/RequestList/useRequestList';
-import { RequestedCell } from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
 
 export function AccessRequests(
   props: SimpleListProps & { requests: AccessRequest[] }

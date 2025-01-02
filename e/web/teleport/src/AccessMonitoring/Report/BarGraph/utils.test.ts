@@ -1,10 +1,10 @@
 import { convertResultToData } from 'e-teleport/AccessMonitoring/Report/BarGraph/utils';
-import { ColumnType, ReportResult } from 'e-teleport/AccessMonitoring/types';
 import {
   BarGraphConfig,
   GraphType,
   GroupMode,
 } from 'e-teleport/AccessMonitoring/Report/config';
+import { ColumnType, ReportResult } from 'e-teleport/AccessMonitoring/types';
 
 describe('convertResultToData', () => {
   const result: ReportResult = {

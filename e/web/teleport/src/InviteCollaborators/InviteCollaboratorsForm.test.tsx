@@ -1,12 +1,11 @@
-import { fireEvent, userEvent, render, screen } from 'design/utils/testing';
+import { waitFor } from '@testing-library/react';
 
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 import { Option } from 'shared/components/Select';
 import Validation, {
   useValidation,
   Validator,
 } from 'shared/components/Validation';
-
-import { waitFor } from '@testing-library/react';
 
 import { InviteCollaboratorsForm } from './InviteCollaboratorsForm';
 import { InviteCollaboratorsFormProps, RoleOption } from './types';

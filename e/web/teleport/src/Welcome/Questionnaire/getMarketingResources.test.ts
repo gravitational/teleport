@@ -1,7 +1,6 @@
-import { MarketingParams } from 'teleport/services/userPreferences/types';
-
 import { getMarketingResources } from 'e-teleport/Welcome/Questionnaire/getMarketingResources';
 import { ResourceKey } from 'e-teleport/Welcome/Questionnaire/types';
+import { MarketingParams } from 'teleport/services/userPreferences/types';
 
 describe('getMarketingResources', () => {
   const testCases: {

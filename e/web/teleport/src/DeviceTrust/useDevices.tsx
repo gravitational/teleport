@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { FetchStatus } from 'design/DataTable/types';
 
-import { TrustedDevice } from 'teleport/DeviceTrust/types';
+import { FetchStatus } from 'design/DataTable/types';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 // default api query limit size
 const maxFetchLimit = 5000;

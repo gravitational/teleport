@@ -1,19 +1,19 @@
-import { HttpResponse, http } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
+
+import {
+  accounts,
+  DevNoteEnroll,
+  groupsWithPermissionAssignment,
+  integrationsResponse,
+  permissionSets,
+  users,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
-import { User } from 'teleport/services/user';
 import cfg from 'teleport/config';
 import { Plugin } from 'teleport/services/integrations';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import {
-  users,
-  groupsWithPermissionAssignment,
-  accounts,
-  permissionSets,
-  integrationsResponse,
-  DevNoteEnroll,
-} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
+import { User } from 'teleport/services/user';
 
 import { renderPluginEnroll } from '../../StorybookHelper';
 

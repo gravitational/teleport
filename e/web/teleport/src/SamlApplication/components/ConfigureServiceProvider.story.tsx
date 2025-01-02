@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import {
   MockSamlApplicationContextProvider,
   mockSamlMeta,
 } from 'e-teleport/SamlApplication/fixtures';
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import {
   AddMetadataGeneric,

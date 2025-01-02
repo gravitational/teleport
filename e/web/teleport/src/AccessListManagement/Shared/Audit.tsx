@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import styled from 'styled-components';
-import { Flex, LabelInput, Box } from 'design';
+
+import { Box, Flex, LabelInput } from 'design';
+import { displayDate } from 'design/datetime';
 import { Calendar as CalendarIcon } from 'design/Icon';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import { displayDate } from 'design/datetime';
 
 import {
   ReviewDayOfMonth,
@@ -14,8 +15,7 @@ import {
 } from 'e-teleport/services/accessmanagement';
 
 import { DatePicker } from '../DatePicker';
-
-import { RuleFunc, noopRule } from './rules';
+import { noopRule, RuleFunc } from './rules';
 
 export type ReviewFrequencyOption = Option<ReviewFrequency>;
 

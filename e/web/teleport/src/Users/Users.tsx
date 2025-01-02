@@ -1,8 +1,7 @@
-import { Users as Component } from 'teleport/Users';
-
+import cfg from 'e-teleport/config';
 import { InviteCollaboratorsDialog } from 'e-teleport/InviteCollaborators';
 import EmailPasswordResetDialog from 'e-teleport/InviteCollaborators/EmailPasswordResetDialog';
-import cfg from 'e-teleport/config';
+import { Users as Component } from 'teleport/Users';
 
 export function Users() {
   return (

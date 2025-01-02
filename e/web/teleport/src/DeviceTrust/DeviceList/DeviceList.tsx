@@ -1,13 +1,14 @@
 import styled from 'styled-components';
+
+import Box from 'design/Box';
 import Table, { Cell } from 'design/DataTable';
+import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
+import { P2 } from 'design/Text';
 
 import {
   DeviceListProps,
   TrustedDeviceOSType,
 } from 'teleport/DeviceTrust/types';
-import { P2 } from 'design/Text';
-import Box from 'design/Box';
-import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 
 export const DeviceList = ({
   items = [],

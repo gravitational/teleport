@@ -1,13 +1,10 @@
+import { StoryObj } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
+import cfg from 'e-teleport/config';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-
-import { StoryObj } from '@storybook/react';
-
-import { http, HttpResponse } from 'msw';
-
-import cfg from 'e-teleport/config';
 
 import { InviteCollaboratorsDialog } from './InviteCollaboratorsDialog';
 

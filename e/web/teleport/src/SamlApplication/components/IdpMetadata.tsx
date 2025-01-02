@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
+
 import { Box, Flex, H3, Indicator, LabelInput, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { P } from 'design/Text/Text';
 import { IconTooltip } from 'design/Tooltip';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { StyledBox } from 'teleport/Discover/Shared';
-
-import { useSamlApplication } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import { ButtonDownloadMetadataFile } from 'e-teleport/SamlApplication/components/ButtonDownloadMetadataFile';
+import { useSamlApplication } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { StyledBox } from 'teleport/Discover/Shared';
 
 /**
  * IdpMetadata renders UI to copy or download SAML IdP metadata.

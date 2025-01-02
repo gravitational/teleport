@@ -1,28 +1,24 @@
 import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  IntegrationKind,
-  integrationService,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
+import useTeleport from 'e-teleport/useTeleportE';
+import cfg from 'teleport/config';
 import {
   EditableIntegrationFields,
   ExternalAuditStorageOpType,
   Operation,
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations/useIntegrationOperation';
-
-import cfg from 'teleport/config';
-
-import useTeleport from 'e-teleport/useTeleportE';
-
-import type {
-  ExternalAuditStorage,
-  ExternalAuditStorageIntegration,
-  Integration,
-  IntegrationListResponse,
-  Plugin,
+import {
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+  type ExternalAuditStorage,
+  type ExternalAuditStorageIntegration,
+  type Integration,
+  type IntegrationListResponse,
+  type Plugin,
 } from 'teleport/services/integrations';
 
 export function useIntegrations() {

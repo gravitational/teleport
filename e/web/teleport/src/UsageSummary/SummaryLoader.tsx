@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
+
+import { Alert, Box, Indicator } from 'design';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { SummaryPage } from 'e-teleport/UsageSummary/SummaryPage';
+import useTeleport from 'e-teleport/useTeleportE';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-
-import { Alert, Box, Indicator } from 'design';
-import useAttempt from 'shared/hooks/useAttemptNext';
-
-import { SummaryPage } from 'e-teleport/UsageSummary/SummaryPage';
-import useTeleport from 'e-teleport/useTeleportE';
-import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
 
 export const SummaryLoader = (): React.ReactElement => {
   const ctx = useTeleport();

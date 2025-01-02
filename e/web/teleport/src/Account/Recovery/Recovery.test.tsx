@@ -1,10 +1,9 @@
-import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
-import { ContextProvider } from 'teleport';
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
-import auth from 'teleport/services/auth/auth';
-
-import TeleportContextE from 'e-teleport/teleportContextE';
 import cfg from 'e-teleport/config';
+import TeleportContextE from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import auth from 'teleport/services/auth/auth';
 
 import Recovery from './Recovery';
 

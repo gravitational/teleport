@@ -1,12 +1,11 @@
 import Table from 'design/DataTable';
-import {
-  renderActionCell,
-  HybridListProps,
-} from 'teleport/LocksV2/NewLock/ResourceList/common';
-
-import { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 import { IconCell } from 'e-teleport/DeviceTrust/DeviceList/DeviceList';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
+import {
+  HybridListProps,
+  renderActionCell,
+} from 'teleport/LocksV2/NewLock/ResourceList/common';
 
 export function TrustedDevices(
   props: HybridListProps & { devices: TrustedDevice[] }

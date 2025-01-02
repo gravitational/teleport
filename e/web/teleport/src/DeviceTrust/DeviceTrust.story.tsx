@@ -1,17 +1,15 @@
+import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { http, HttpResponse, delay } from 'msw';
-import { ContextProvider } from 'teleport';
 import { MemoryRouter } from 'react-router';
-import cfg from 'teleport/config';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import ecfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 import { DeviceTrust } from './DeviceTrust';
-
-import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 const defaultDeviceTrustEntitlement = cfg.entitlements.DeviceTrust;
 

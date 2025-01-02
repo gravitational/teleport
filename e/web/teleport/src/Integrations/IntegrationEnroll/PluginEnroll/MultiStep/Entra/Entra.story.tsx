@@ -1,13 +1,12 @@
-import { useEffect } from 'react';
 import { http, HttpResponse } from 'msw';
+import { useEffect } from 'react';
 
 import { Info } from 'design/Alert';
-
-import cfg from 'teleport/config';
 
 import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import TeleportEContext from 'e-teleport/teleportContextE';
+import cfg from 'teleport/config';
 
 import { renderPluginEnroll } from '../../StorybookHelper';
 

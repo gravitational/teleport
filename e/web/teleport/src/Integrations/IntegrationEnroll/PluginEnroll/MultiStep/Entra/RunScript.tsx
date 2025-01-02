@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 
-import { Alert, ButtonPrimary, Text, Link, Box, Flex } from 'design';
+import { Alert, Box, ButtonPrimary, Flex, Link, Text } from 'design';
 import { ButtonFileUpload } from 'shared/components/ButtonFileUpload';
-import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { pluginsService } from 'e-teleport/services/plugins';
 import cfg from 'e-teleport/config';
+import { pluginsService } from 'e-teleport/services/plugins';
 
 import { usePlugin } from '../../MultiStep/usePlugin';
 import { Header } from '../Shared';
-
 import { FormDataField } from './types';
+
 export function RunScript() {
   const { formData, nextStep, setInstalledPlugin } = usePlugin();
   const accessGraphEnabled = !!formData

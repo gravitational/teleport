@@ -1,9 +1,10 @@
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
-import { render, screen, act } from 'design/utils/testing';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { TrustedDevice } from 'teleport/DeviceTrust/types';
+
+import { act, render, screen } from 'design/utils/testing';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { UserTrustedDevices } from './UserTrustedDevices';
 

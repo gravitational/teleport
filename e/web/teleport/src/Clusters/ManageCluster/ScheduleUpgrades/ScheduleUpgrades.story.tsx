@@ -1,4 +1,4 @@
-import { ScheduleUpgrades, Props } from './ScheduleUpgrades';
+import { Props, ScheduleUpgrades } from './ScheduleUpgrades';
 
 export default {
   title: 'Teleport/Clusters/ManageClusters/ScheduleUpgrades',

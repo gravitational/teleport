@@ -1,10 +1,11 @@
+import { differenceInMilliseconds, intervalToDuration } from 'date-fns';
 import { useEffect, useState } from 'react';
-import { intervalToDuration, differenceInMilliseconds } from 'date-fns';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
-import session from 'teleport/services/websession';
-import history from 'teleport/services/history';
 
 import TeleportContext from 'e-teleport/teleportContextE';
+import history from 'teleport/services/history';
+import session from 'teleport/services/websession';
 
 export default function useSwitchback(ctx: TeleportContext) {
   const { attempt, setAttempt } = useAttempt();

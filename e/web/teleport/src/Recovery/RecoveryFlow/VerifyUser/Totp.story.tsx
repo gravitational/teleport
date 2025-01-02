@@ -1,7 +1,7 @@
 import { RecoveryToken } from 'e-teleport/services/recovery/types';
 
-import { VerifyUser } from './VerifyUser';
 import { State } from './useVerifyUser';
+import { VerifyUser } from './VerifyUser';
 
 export default {
   title: 'TeleportE/Recovery/Flow/Step 1/Verify TOTP',

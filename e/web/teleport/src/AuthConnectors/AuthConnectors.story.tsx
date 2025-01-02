@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { ContextProvider } from 'teleport';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import cfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
 
 import { AuthConnectors } from './AuthConnectors';
 

@@ -1,21 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
+import type {
+  RequestFlags,
+  SubmitReview,
+} from 'shared/components/AccessRequests/ReviewRequests';
 import { useAsync } from 'shared/hooks/useAsync';
-import history from 'teleport/services/history';
 
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import { AccessRequest } from 'e-teleport/services/workflow';
+import TeleportContextE from 'e-teleport/teleportContextE';
+import history from 'teleport/services/history';
 import session from 'teleport/services/websession';
 
-import TeleportContextE from 'e-teleport/teleportContextE';
-import { AccessRequest } from 'e-teleport/services/workflow';
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
-
 import { getBaseRequestFlags } from '../requestFlags';
-
-import type {
-  SubmitReview,
-  RequestFlags,
-} from 'shared/components/AccessRequests/ReviewRequests';
 
 export default function useRequestView(ctx: TeleportContextE) {
   const { requestId } = useParams<{ requestId: string }>();

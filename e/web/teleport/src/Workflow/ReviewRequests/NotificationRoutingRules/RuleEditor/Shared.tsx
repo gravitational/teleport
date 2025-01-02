@@ -1,6 +1,8 @@
 import styled from 'styled-components';
+
 import { Box, ButtonPrimary, ButtonSecondary, Flex, P3 } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
+
 import useTeleport from 'teleport/useTeleport';
 
 export const Sidebar = styled(Box)`

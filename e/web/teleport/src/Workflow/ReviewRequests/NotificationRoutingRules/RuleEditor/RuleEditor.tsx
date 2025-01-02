@@ -1,26 +1,27 @@
 import { useState } from 'react';
-import { Plugin } from 'teleport/services/integrations';
+
+import { Alert } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
-import { Alert } from 'design';
-import { yamlService } from 'teleport/services/yaml/yaml';
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { getErrMessage } from 'shared/utils/errorType';
-import useTeleport from 'teleport/useTeleport';
 
 import {
   AccessMonitoringRule,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
+import { Plugin } from 'teleport/services/integrations';
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+import { yamlService } from 'teleport/services/yaml/yaml';
+import useTeleport from 'teleport/useTeleport';
 
+import { EditorHeader } from './EditorHeader';
+import { EditorTab, EditorTabs } from './EditorTabs';
 import { EditStandard } from './EditStandard';
 import { EditYaml } from './EditYaml';
 import { RequiresEnrollingPlugin } from './RequiresEnrollingPlugin';
+import { RequiresResetToStandard } from './RequiresResetToStandard';
 import { getRuleCondition } from './rulecondition';
-
-import { Sidebar, EditorWrapper } from './Shared';
-import { EditorTab, EditorTabs } from './EditorTabs';
-import { EditorHeader } from './EditorHeader';
+import { EditorWrapper, Sidebar } from './Shared';
 import {
   buildRuleFromStandardEditor,
   getConfigurableFieldsForStandardEditor,
@@ -28,7 +29,6 @@ import {
   StandardEditor,
 } from './standardeditor';
 import { newYamlRuleFromTemplate, YamlEditor } from './yamleditor';
-import { RequiresResetToStandard } from './RequiresResetToStandard';
 
 export const RuleEditor = ({
   selectedRule,

@@ -1,5 +1,4 @@
 import { DownloadsView } from './Downloads';
-
 import { State } from './useDownloads';
 
 export default {

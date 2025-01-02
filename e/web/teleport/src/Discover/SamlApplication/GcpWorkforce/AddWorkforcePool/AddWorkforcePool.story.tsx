@@ -1,22 +1,22 @@
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { MockSamlApplicationContextProvider } from 'e-teleport/SamlApplication/fixtures';
+import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-import { ContextProvider } from 'teleport';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { MockSamlApplicationContextProvider } from 'e-teleport/SamlApplication/fixtures';
-import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import {
+  SamlServiceProviderPreset,
+  type SamlGcpWorkforce,
+} from 'teleport/services/samlidp/types';
 
 import { defaultSamlMetaForGcpWorkforce } from '../ConfigureWorkforcePool/ConfigureWorkforcePool';
-
 import { Container as AddWorkforcePoolToTeleport } from './AddWorkforcePool';
-
-import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
 
 export default {
   title: 'TeleportE/Discover/SAML Application/GCP Workforce',

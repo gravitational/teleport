@@ -6,8 +6,8 @@ import 'teleport/lib/polyfillRandomUuid';
 
 import cfg from 'e-teleport/config';
 
-import TeleportE from './TeleportE';
 import TeleportContextE from './teleportContextE';
+import TeleportE from './TeleportE';
 
 // apply configuration received from the server
 cfg.init(window['GRV_CONFIG']);

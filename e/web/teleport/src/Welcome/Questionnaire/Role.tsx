@@ -1,15 +1,16 @@
 import React from 'react';
+
+import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
-import FieldInput from 'shared/components/FieldInput';
 
-import { RoleProps, TeamOption, TitleOption } from './types';
 import {
   TeamSelectOption,
   teamSelectOptions,
   TitleSelectOption,
   titleSelectOptions,
 } from './constants';
+import { RoleProps, TeamOption, TitleOption } from './types';
 
 export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
   <>

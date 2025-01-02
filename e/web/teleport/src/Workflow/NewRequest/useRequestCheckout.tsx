@@ -1,24 +1,22 @@
-import { useState, useEffect } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
+import { useEffect, useState } from 'react';
 
 import {
   getDryRunMaxDuration,
   PendingListItem,
 } from 'shared/components/AccessRequests/NewRequest';
-import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
-import KubeService from 'teleport/services/kube';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-
-import Ctx from 'e-teleport/teleportContextE';
-
-import { State as NewRequestState } from './useNewRequest';
-import { parseResourceIdUri } from './kube';
+import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
+import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import type { AccessRequest, ResourceId } from 'e-teleport/services/workflow';
+import Ctx from 'e-teleport/teleportContextE';
+import KubeService from 'teleport/services/kube';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import { parseResourceIdUri } from './kube';
+import { State as NewRequestState } from './useNewRequest';
 
 type LoadingStatus = 'loading' | 'loaded';
 

@@ -1,9 +1,8 @@
-import api from 'teleport/services/api';
+import cfg from 'e-teleport/config';
 import { UrlResourcesParams } from 'teleport/config';
 import { TrustedDevice } from 'teleport/DeviceTrust/types';
 import { ResourcesResponse } from 'teleport/services/agents';
-
-import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
 
 import { makeDevices } from './makeDevices';
 

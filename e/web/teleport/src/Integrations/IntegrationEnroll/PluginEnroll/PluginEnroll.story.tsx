@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import cfg from 'teleport/config';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import cfg from 'teleport/config';
 
 import { renderPluginEnroll } from './StorybookHelper';
 

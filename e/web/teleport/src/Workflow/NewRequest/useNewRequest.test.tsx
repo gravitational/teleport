@@ -1,24 +1,24 @@
+import { act, renderHook } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { renderHook, act } from '@testing-library/react';
-import makeUserContext from 'teleport/services/user/makeUserContext';
+
 import { dryRunResponse } from 'shared/components/AccessRequests/fixtures';
 import {
+  getEmptyResourceState,
   PendingListItem,
   ResourceMap,
-  getEmptyResourceState,
 } from 'shared/components/AccessRequests/NewRequest';
+import type { UnifiedResourceApp } from 'shared/components/UnifiedResources';
 import { SelectedResource } from 'shared/components/UnifiedResources/UnifiedResources';
-import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
+import { AppSubKind, PermissionSet } from 'teleport/services/apps';
+import makeUserContext from 'teleport/services/user/makeUserContext';
 
-import {
-  useNewRequest,
-  addOrRemoveIdentityCenterAssignments,
-} from './useNewRequest';
 import { parseResourceIdUri } from './kube';
-
-import type { UnifiedResourceApp } from 'shared/components/UnifiedResources';
+import {
+  addOrRemoveIdentityCenterAssignments,
+  useNewRequest,
+} from './useNewRequest';
 
 const ctx = new TeleportContextE();
 

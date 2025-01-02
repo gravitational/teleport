@@ -1,10 +1,5 @@
 import { lazy } from 'react';
-import * as OSS from 'teleport/features';
-import {
-  ManagementSection,
-  NavigationCategory,
-} from 'teleport/Navigation/categories';
-import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
+
 import {
   Add,
   Chart,
@@ -21,39 +16,43 @@ import {
   Table,
   UserList,
 } from 'design/Icon';
-
-import { NavTitle } from 'teleport/types';
 import { PassthroughPage } from 'shared/components/AuthorizeDeviceWeb/AuthorizeDeviceWeb';
-import { storageService } from 'teleport/services/storageService';
 
-import NewRequest from 'e-teleport/Workflow/NewRequest/NewRequest';
-import ReviewRequests from 'e-teleport/Workflow/ReviewRequests/ReviewRequests';
-import cfg from 'e-teleport/config';
-import { Downloads } from 'e-teleport/Downloads';
-import { AuthConnectors } from 'e-teleport/AuthConnectors';
-import { Account as AccountE } from 'e-teleport/Account';
-import { Clusters as ClustersE } from 'e-teleport/Clusters';
-import Integrations from 'e-teleport/Integrations';
-import { Users } from 'e-teleport/Users';
-import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
-import SupportE from 'e-teleport/Support';
-import { NewLock } from 'e-teleport/NewLockV2';
-import { DeviceTrust } from 'e-teleport/DeviceTrust';
-import UsageSummary from 'e-teleport/UsageSummary';
-import { Discover as DiscoverE } from 'e-teleport/Discover';
-import { AccessListManagement as AccessListManagement } from 'e-teleport/AccessListManagement';
-import { SSOConfirm } from 'e-teleport/SSOConfirm/SSOConfirm';
-import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
-import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
-import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
+import { AccessListManagement } from 'e-teleport/AccessListManagement';
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { CreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessList';
-
-import type {
-  FeatureFlags,
-  TeleportFeature,
-  TeleportFeatureNavigationItem,
-  TeleportFeatureRoute,
+import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
+import { Account as AccountE } from 'e-teleport/Account';
+import { AuthConnectors } from 'e-teleport/AuthConnectors';
+import { Clusters as ClustersE } from 'e-teleport/Clusters';
+import cfg from 'e-teleport/config';
+import { DeviceTrust } from 'e-teleport/DeviceTrust';
+import { Discover as DiscoverE } from 'e-teleport/Discover';
+import { Downloads } from 'e-teleport/Downloads';
+import Integrations from 'e-teleport/Integrations';
+import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
+import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
+import { NewLock } from 'e-teleport/NewLockV2';
+import { SSOConfirm } from 'e-teleport/SSOConfirm/SSOConfirm';
+import SupportE from 'e-teleport/Support';
+import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
+import UsageSummary from 'e-teleport/UsageSummary';
+import { Users } from 'e-teleport/Users';
+import NewRequest from 'e-teleport/Workflow/NewRequest/NewRequest';
+import ReviewRequests from 'e-teleport/Workflow/ReviewRequests/ReviewRequests';
+import * as OSS from 'teleport/features';
+import {
+  ManagementSection,
+  NavigationCategory,
+} from 'teleport/Navigation/categories';
+import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
+import { storageService } from 'teleport/services/storageService';
+import {
+  NavTitle,
+  type FeatureFlags,
+  type TeleportFeature,
+  type TeleportFeatureNavigationItem,
+  type TeleportFeatureRoute,
 } from 'teleport/types';
 
 // ****************************

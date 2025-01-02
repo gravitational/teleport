@@ -1,15 +1,16 @@
+import styled from 'styled-components';
+
 import { Flex, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { ClientSidePager } from 'design/DataTable/Pager';
 import { StyledTable } from 'design/DataTable/StyledTable';
 import { PagedTableProps } from 'design/DataTable/types';
-import styled from 'styled-components';
 
 import {
-  AwsIcPermissionAssignments,
   AwsIcAccounts,
-  AwsIcPermissionSets,
   AwsIcGroupsWithAssignment,
+  AwsIcPermissionAssignments,
+  AwsIcPermissionSets,
 } from 'e-teleport/services/plugins/types';
 
 const PAGE_SIZE = 15;

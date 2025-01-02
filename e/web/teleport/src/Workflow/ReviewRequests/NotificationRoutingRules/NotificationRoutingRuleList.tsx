@@ -1,23 +1,24 @@
 import styled from 'styled-components';
-import { Alert, ButtonBorder, Flex, Text, Box, Label } from 'design';
+
+import { Alert, Box, ButtonBorder, Flex, Label, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { IconTooltip } from 'design/Tooltip';
 import { useInfiniteScroll } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import {
-  Plugin,
-  PluginMattermostSpec,
-  PluginSlackSpec,
-  PluginDatadogSpec,
-  PluginMsTeamsSpec,
-  PluginEmailSpec,
-} from 'teleport/services/integrations';
 import { capitalizeFirstLetter } from 'shared/utils/text';
-import { IconTooltip } from 'design/Tooltip';
 
 import {
   AccessMonitoringRule,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
+import {
+  Plugin,
+  PluginDatadogSpec,
+  PluginEmailSpec,
+  PluginMattermostSpec,
+  PluginMsTeamsSpec,
+  PluginSlackSpec,
+} from 'teleport/services/integrations';
 
 type RowBase = {
   name: string;

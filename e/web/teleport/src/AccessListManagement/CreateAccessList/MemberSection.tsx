@@ -1,15 +1,15 @@
-import { Box, Text, Flex, H2 } from 'design';
-import { Option } from 'shared/components/Select';
-import { AllUserTraits } from 'teleport/services/user';
+import { Box, Flex, H2, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
+import { Option } from 'shared/components/Select';
+
+import { AllUserTraits } from 'teleport/services/user';
 
 import { HybridUserOption } from '../Shared/Shared';
 import {
+  convertTraitLabelsToAllUserTraits,
   TraitLabel,
   TraitsCreator,
-  convertTraitLabelsToAllUserTraits,
 } from '../Traits';
-
 import {
   EligibilityOrGrantRolesFieldSelectAndCreate,
   EligibleUsersFieldSelectAndCreate,

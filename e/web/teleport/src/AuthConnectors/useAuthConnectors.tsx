@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Resource, KindAuthConnectors } from 'teleport/services/resources';
 
 import useTeleport from 'e-teleport/useTeleportE';
+import { KindAuthConnectors, Resource } from 'teleport/services/resources';
 
 export default function useAuthConnectors() {
   const ctx = useTeleport();

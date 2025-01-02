@@ -1,13 +1,14 @@
-import { Box, ButtonPrimary, Flex, Link, Text, Mark } from 'design';
-import { OutlineInfo } from 'design/Alert/Alert';
 import styled from 'styled-components';
+
+import { Box, ButtonPrimary, Flex, Link, Mark, Text } from 'design';
+import { OutlineInfo } from 'design/Alert/Alert';
+
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { PluginOktaSpec } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { PluginOktaSpec } from 'teleport/services/integrations';
 
 import { Header } from '../Shared';
 import { usePlugin } from '../usePlugin';
-
 import { FormDataField } from './types';
 
 export function SetUpScim() {

@@ -1,16 +1,13 @@
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
-
 import { render, screen, userEvent } from 'design/utils/testing';
-import { allAccessAcl } from 'teleport/mocks/contexts';
-
-import TeleportEContext from 'e-teleport/teleportContextE';
 
 import { externalAuditStorageService } from 'e-teleport/services/externalauditstorage';
+import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import { allAccessAcl } from 'teleport/mocks/contexts';
 
 import { ExternalAuditStorageProvider } from '../useExternalAuditStorage';
-
 import { TestConnection } from './TestConnection';
 
 describe('testConnection', () => {

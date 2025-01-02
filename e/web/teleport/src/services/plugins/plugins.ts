@@ -1,23 +1,21 @@
-import api from 'teleport/services/api';
-import { CtaEvent } from 'teleport/services/userEvent';
-import auth from 'teleport/services/auth/auth';
-import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
-
 import cfg from 'e-teleport/config';
-
-import {
-  PluginConfigOktaGroup,
-  PluginConfigOktaApp,
-  AwsIcAccounts,
-  AwsIcGroupsWithAssignment,
-  AwsIcPermissionSets,
-} from './types';
-
+import api from 'teleport/services/api';
+import auth from 'teleport/services/auth/auth';
 import type {
   Plugin,
   PluginKind,
   PluginStatus,
 } from 'teleport/services/integrations';
+import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
+import { CtaEvent } from 'teleport/services/userEvent';
+
+import {
+  AwsIcAccounts,
+  AwsIcGroupsWithAssignment,
+  AwsIcPermissionSets,
+  PluginConfigOktaApp,
+  PluginConfigOktaGroup,
+} from './types';
 
 export const pluginsService = {
   fetchAvailableTypes(): Promise<PluginKind[]> {

@@ -1,22 +1,21 @@
 import React from 'react';
+
+import cfg from 'e-teleport/config';
+import { WaitingRoom } from 'e-teleport/WaitingRoom';
+import { ENewCredentials } from 'e-teleport/Welcome/NewCredentials';
 import { Route, Switch } from 'teleport/components/Router';
+import ossConfig from 'teleport/config';
 import Teleport, {
   getSharedPrivateRoutes,
   getSharedPublicRoutes,
   Props,
 } from 'teleport/Teleport';
-
-import ossConfig from 'teleport/config';
 import { Welcome } from 'teleport/Welcome';
 
-import cfg from 'e-teleport/config';
-import { WaitingRoom } from 'e-teleport/WaitingRoom';
-import { ENewCredentials } from 'e-teleport/Welcome/NewCredentials';
-
-import { Recovery } from './Recovery';
 import { Login } from './Login';
 import { Main } from './Main';
-import { SAMLIdPLogin as SAMLIdPLogin } from './SAMLIdPLogin';
+import { Recovery } from './Recovery';
+import { SAMLIdPLogin } from './SAMLIdPLogin';
 
 const TeleportE: React.FC<Props> = ({ history, ctx }) => {
   return (

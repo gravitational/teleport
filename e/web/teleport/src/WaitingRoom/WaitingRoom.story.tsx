@@ -1,5 +1,5 @@
-import { WaitingRoomComponent as WaitingRoom } from './WaitingRoom';
 import RequestPending from './RequestPending';
+import { WaitingRoomComponent as WaitingRoom } from './WaitingRoom';
 
 export default {
   title: 'TeleportE/WaitingRoom',

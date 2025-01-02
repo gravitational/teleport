@@ -1,28 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
-import Flex from 'design/Flex';
 
-import { MultiRowBox, Row } from 'design/MultiRowBox';
-import * as Icons from 'design/Icon';
-import { H2 } from 'design/Text';
 import { Alert } from 'design/Alert';
+import { ButtonSecondary, ButtonWarning } from 'design/Button';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { ButtonSecondary, ButtonWarning } from 'design/Button';
-
-import { IconBox } from 'teleport/Clusters/ManageCluster/ManageCluster';
+import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
+import { MultiRowBox, Row } from 'design/MultiRowBox';
+import { H2 } from 'design/Text';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
   Contact,
-  ContactVerification,
   ContactType,
+  ContactVerification,
 } from 'e-teleport/services/contacts/types';
 import useTeleportE from 'e-teleport/useTeleportE';
+import { IconBox } from 'teleport/Clusters/ManageCluster/ManageCluster';
 
 import { ContactEmails, FormContact } from './ContactEmails';
 

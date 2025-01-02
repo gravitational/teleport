@@ -1,17 +1,18 @@
 import { MemoryRouter } from 'react-router';
+
 import { render, screen } from 'design/utils/testing';
+
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { mockAccessLists } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/fixtures';
+import ecfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { getAcl } from 'teleport/mocks/contexts';
 import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
-
-import ecfg from 'e-teleport/config';
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
-import TeleportEContext from 'e-teleport/teleportContextE';
-import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
-import { mockAccessLists } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/fixtures';
 
 import {
   CreateAccessList,

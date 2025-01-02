@@ -1,14 +1,13 @@
-import { ResourcesResponse } from 'teleport/services/agents';
-
 import {
+  requestRoleApproved,
   requestRolePending,
   requestRolePromoted,
-  requestRoleApproved,
   requests,
 } from 'shared/components/AccessRequests/fixtures';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 export class MockedWorkflowService {
   requests: ResourcesResponse<AccessRequest> = { agents: [] };

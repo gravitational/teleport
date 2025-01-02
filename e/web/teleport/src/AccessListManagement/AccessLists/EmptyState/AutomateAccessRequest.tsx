@@ -7,8 +7,8 @@ import {
   TimelineCommentAndReviewsContainer,
 } from 'shared/components/AccessRequests/ReviewRequests';
 
-import { Description, Feature, FeatureProps, Title } from './Shared';
 import { mockAccessLists } from './fixtures';
+import { Description, Feature, FeatureProps, Title } from './Shared';
 
 export const AutomateAccessRequest = ({
   active,

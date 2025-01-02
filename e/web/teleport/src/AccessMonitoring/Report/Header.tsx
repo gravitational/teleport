@@ -1,14 +1,12 @@
+import { formatRelative } from 'date-fns';
+import { useHistory, useParams } from 'react-router';
 import styled from 'styled-components';
 
-import { formatRelative } from 'date-fns';
+import { H1 } from 'design';
 import { Refresh } from 'design/Icon';
 
-import { useHistory, useParams } from 'react-router';
-
-import { H1 } from 'design';
-
-import cfg from 'e-teleport/config';
 import { Days, Timeframe } from 'e-teleport/AccessMonitoring/Timeframe';
+import cfg from 'e-teleport/config';
 
 interface HeaderProps {
   disabled: boolean;

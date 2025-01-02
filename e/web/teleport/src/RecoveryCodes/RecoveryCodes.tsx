@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import {
   Box,
   ButtonIcon,
@@ -10,13 +11,13 @@ import {
   H3,
   Text,
 } from 'design';
+import * as Icon from 'design/Icon';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
-
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import * as Icon from 'design/Icon';
-import { RecoveryCodes as RecoveryCodesData } from 'teleport/services/auth';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+
+import { RecoveryCodes as RecoveryCodesData } from 'teleport/services/auth';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 export type RecoveryCodesProps = {
   recoveryCodes: RecoveryCodesData;

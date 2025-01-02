@@ -1,18 +1,18 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
+
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-
-import type {
-  SamlIdpServiceProvider,
-  AttributeMapping,
-} from 'teleport/services/samlidp/types';
-import type { SamlMeta } from 'teleport/Discover/useDiscover';
 import type {
   CreateSamlIdpServiceProviderRequest,
   SamlIdpMetadataResponse,
 } from 'e-teleport/services/idp/types';
+import useTeleportE from 'e-teleport/useTeleportE';
+import type { SamlMeta } from 'teleport/Discover/useDiscover';
+import {
+  SamlServiceProviderPreset,
+  type AttributeMapping,
+  type SamlIdpServiceProvider,
+} from 'teleport/services/samlidp/types';
 
 /**
  * SamlApplication defines type for Saml application create action.

@@ -1,14 +1,13 @@
 import { subWeeks } from 'date-fns';
+
+import cfg from 'e-teleport/config';
+import { AccessList } from 'e-teleport/services/accessmanagement';
+import { LocalNotificationKind } from 'teleport/services/notifications';
 import { UserContext } from 'teleport/services/user';
 import {
-  StoreNotifications,
   Notification,
+  StoreNotifications,
 } from 'teleport/stores/storeNotifications';
-
-import { LocalNotificationKind } from 'teleport/services/notifications';
-
-import { AccessList } from 'e-teleport/services/accessmanagement';
-import cfg from 'e-teleport/config';
 
 export class StoreNotificationsE extends StoreNotifications {
   setNotificationsForAccessListsRequiringReview(

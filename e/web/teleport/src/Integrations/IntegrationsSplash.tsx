@@ -1,11 +1,9 @@
-import { ButtonBorder, Flex, Image, Link as ExternalLink, H1 } from 'design';
-
+import { ButtonBorder, Link as ExternalLink, Flex, H1, Image } from 'design';
 import pluginsWheel from 'design/assets/images/icons/plugins.svg';
-import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButton';
-
 import { P } from 'design/Text/Text';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButton';
 
 export function IntegrationsSplash() {
   const ctx = useTeleportE();

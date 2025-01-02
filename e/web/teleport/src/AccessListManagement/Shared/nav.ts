@@ -1,8 +1,7 @@
 import { useHistory, useLocation } from 'react-router';
 
-import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
-
 import cfg from 'e-teleport/config';
+import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
 export const useOnClickNestedList = () => {
   const history = useHistory();

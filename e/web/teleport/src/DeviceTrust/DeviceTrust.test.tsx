@@ -1,11 +1,12 @@
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, waitFor } from 'design/utils/testing';
-import { ContextProvider } from 'teleport';
-import api from 'teleport/services/api';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import TeleportEContext from 'e-teleport/teleportContextE';
 import { makeDevices } from 'e-teleport/services/devices/makeDevices';
+import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import api from 'teleport/services/api';
 
 import { DeviceTrust } from './DeviceTrust';
 import { fakeItems } from './EmptyList/EmptyList';

@@ -1,7 +1,7 @@
 import { MemoryRouter } from 'react-router-dom';
 
-import { RequestList } from './RequestList';
 import { sample } from './fixtures';
+import { RequestList } from './RequestList';
 
 export default {
   title: 'TeleportE/AccessRequests/RequestList',

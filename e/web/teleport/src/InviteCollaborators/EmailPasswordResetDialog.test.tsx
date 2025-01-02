@@ -1,4 +1,4 @@
-import { userEvent, render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';

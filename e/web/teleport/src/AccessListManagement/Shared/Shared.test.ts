@@ -1,9 +1,9 @@
 import { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import {
   AccessListMemberKind,
+  AccessListType,
   ReviewDayOfMonth,
   ReviewFrequency,
-  AccessListType,
 } from 'e-teleport/services/accessmanagement';
 
 import {

@@ -1,11 +1,9 @@
+import cfg from 'e-teleport/config';
 import LoginForm from 'teleport/components/FormLogin';
 import { LogoHero } from 'teleport/components/LogoHero';
-import history from 'teleport/services/history';
-import useLogin, { State } from 'teleport/Login/useLogin';
-
 import Motd from 'teleport/Login/Motd';
-
-import cfg from 'e-teleport/config';
+import useLogin, { State } from 'teleport/Login/useLogin';
+import history from 'teleport/services/history';
 
 export function LoginContainer() {
   const state = useLogin() as State;

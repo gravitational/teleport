@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { Box, LabelInput, ButtonBorder } from 'design';
+
+import { Box, ButtonBorder, LabelInput } from 'design';
 import { Download } from 'design/Icon';
 import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';

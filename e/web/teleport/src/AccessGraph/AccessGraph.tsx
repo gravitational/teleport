@@ -2,25 +2,22 @@
 //
 // It will download the access graph library from the CDN and then render the component
 
+import { Location } from 'history';
 import { ComponentType, lazy, Suspense, useCallback } from 'react';
 import { useHistory, useLocation } from 'react-router';
-import { Location } from 'history';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { useFeatures } from 'teleport/FeaturesContext';
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
-import { NavigationCategory } from 'teleport/Navigation/categories';
-
-import { getCurrentTheme } from 'teleport/ThemeProvider';
-
-import { useUser } from 'teleport/User/UserContext';
-
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { Flex } from 'design';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
-import cfg, { EnterpriseConfig } from 'e-teleport/config';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
+import cfg, { EnterpriseConfig } from 'e-teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { NavigationCategory } from 'teleport/Navigation/categories';
+import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
+import { getCurrentTheme } from 'teleport/ThemeProvider';
+import { useUser } from 'teleport/User/UserContext';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 interface AccessGraphProps {
   clusterId: string;

@@ -1,10 +1,9 @@
 import { Box } from 'design';
 
-import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
+import { Navigation } from 'teleport/components/Wizard/Navigation';
 
 import { PluginIcon } from '../IntegrationPick/PluginIcon';
-
 import { usePlugin } from './MultiStep/usePlugin';
 
 export function PluginEnrollMultiStep() {

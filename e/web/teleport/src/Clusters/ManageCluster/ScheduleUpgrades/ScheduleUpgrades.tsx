@@ -1,3 +1,4 @@
+import { Alert } from 'design/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog, {
   DialogContent,
@@ -6,13 +7,13 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import Text from 'design/Text';
-import { Alert } from 'design/Alert';
 import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { availableUpgradeWindowStartHours } from 'e-teleport/services/upgradeWindow';
-
-import type { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
+import {
+  availableUpgradeWindowStartHours,
+  type UpgradeWindowStartHour,
+} from 'e-teleport/services/upgradeWindow';
 
 export const makeLabel = (startHour: UpgradeWindowStartHour): string => {
   return `${String(startHour).padStart(2, '0')}:00 (UTC)`;

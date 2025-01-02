@@ -1,8 +1,6 @@
-import { MarketingParams } from 'teleport/services/userPreferences/types';
-
-import { TermMatch } from 'teleport/Discover/SelectResource/getMarketingTermMatches';
-
 import { ResourceOption } from 'e-teleport/Welcome/Questionnaire/types';
+import { TermMatch } from 'teleport/Discover/SelectResource/getMarketingTermMatches';
+import { MarketingParams } from 'teleport/services/userPreferences/types';
 
 /**
  * Returns a list of resource options that match provided marketing parameters.

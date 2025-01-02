@@ -1,45 +1,39 @@
 import { useState } from 'react';
-import styled from 'styled-components';
 import { Link as ReactRouterLink } from 'react-router-dom';
+import styled from 'styled-components';
 
-import { Text, Link, Flex, Box, H2 } from 'design';
+import { Box, Flex, H2, Link, Text } from 'design';
+import { OutlineWarn } from 'design/Alert/Alert';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
+import { Mark } from 'design/Mark';
+import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
-import { CtaEvent } from 'teleport/services/userEvent';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { OutlineWarn } from 'design/Alert/Alert';
-import { Mark } from 'design/Mark';
-
-import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
-
-import { P } from 'design/Text/Text';
 
 import cfg from 'e-teleport/config';
-
-import { SetUpScim } from './MultiStep/Okta/SetUpScim';
-import { PluginEnrollSuccess } from './MultiStep/PluginEnrollSuccess';
-import { CreateOkta } from './MultiStep/Okta/CreateOkta';
-import { ImportUserGroupsAndApps } from './MultiStep/Okta/ImportUserGroupsAndApps/ImportUserGroupsAndApps';
-import { FormDataField } from './MultiStep/Okta/types';
-
-import { CreateEntra } from './MultiStep/Entra/CreateEntra';
-import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
-import { RunScript } from './MultiStep/Entra/RunScript';
+import type {
+  CloudHostablePlugin,
+  SelfHostedPlugin,
+} from 'e-teleport/services/plugins';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 import { AwsIdentityCenterPlugin } from './MultiStep/AwsIdentityCenter/Plugin';
-
 import { CreateEmail } from './MultiStep/Email/CreateEmail';
 import { EmailService } from './MultiStep/Email/EmailService';
 import { FormMixin as EmailFormMixin } from './MultiStep/Email/FormMixin';
-
-import type {
-  SelfHostedPlugin,
-  CloudHostablePlugin,
-} from 'e-teleport/services/plugins';
+import { CreateEntra } from './MultiStep/Entra/CreateEntra';
+import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
+import { RunScript } from './MultiStep/Entra/RunScript';
+import { CreateOkta } from './MultiStep/Okta/CreateOkta';
+import { ImportUserGroupsAndApps } from './MultiStep/Okta/ImportUserGroupsAndApps/ImportUserGroupsAndApps';
+import { SetUpScim } from './MultiStep/Okta/SetUpScim';
+import { FormDataField } from './MultiStep/Okta/types';
+import { PluginEnrollSuccess } from './MultiStep/PluginEnrollSuccess';
 
 export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {

@@ -1,12 +1,11 @@
-import ResourceService, {
-  Resource,
-  KindAuthConnectors,
-  makeResourceList,
-  makeResource,
-} from 'teleport/services/resources';
-import api from 'teleport/services/api';
-
 import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
+import ResourceService, {
+  KindAuthConnectors,
+  makeResource,
+  makeResourceList,
+  Resource,
+} from 'teleport/services/resources';
 
 class ResourceServiceE extends ResourceService {
   fetchAuthConnectors() {

@@ -1,10 +1,8 @@
-import api from 'teleport/services/api';
-
-import { ExternalAuditStorage } from 'teleport/services/integrations';
+import cfg from 'e-teleport/config';
 import { ConnectionDiagnostic } from 'teleport/services/agents';
 import { makeConnectionDiagnostic } from 'teleport/services/agents/make';
-
-import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
+import { ExternalAuditStorage } from 'teleport/services/integrations';
 
 export const externalAuditStorageService = {
   generateDraft(awsIntegrationName: string): Promise<ExternalAuditStorage> {

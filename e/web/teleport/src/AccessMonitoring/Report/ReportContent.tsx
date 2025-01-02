@@ -1,21 +1,19 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
+import { H2 } from 'design';
 import { InfoFilled } from 'design/Icon/Icons/InfoFilled';
-
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
-import { H2 } from 'design';
-
+import { BarGraph } from 'e-teleport/AccessMonitoring/Report/BarGraph/BarGraph';
 import {
   GraphType,
   ReportGraphConfig,
   ReportViewConfig,
 } from 'e-teleport/AccessMonitoring/Report/config';
 import { QueryInfo } from 'e-teleport/AccessMonitoring/Report/QueryInfo';
-import { Report, ReportResult } from 'e-teleport/AccessMonitoring/types';
-import { BarGraph } from 'e-teleport/AccessMonitoring/Report/BarGraph/BarGraph';
 import { Popover } from 'e-teleport/AccessMonitoring/shared/Popover';
+import { Report, ReportResult } from 'e-teleport/AccessMonitoring/types';
 
 interface ReportContentProps {
   config: ReportViewConfig;

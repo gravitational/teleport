@@ -1,11 +1,10 @@
 import { Text } from 'design';
 
-import { PluginEnrollSuccess } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/PluginEnrollSuccess';
-import { AwsIcOidcIntegration } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/OidcIntegration';
-import { AwsIcImportResources } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/ImportResources';
 import { AwsIcConfigureIdentitySource } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/IdentitySource';
+import { AwsIcImportResources } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/ImportResources';
+import { AwsIcOidcIntegration } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/OidcIntegration';
 import { AwsIcConfigureScim } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/Scim';
-
+import { PluginEnrollSuccess } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/PluginEnrollSuccess';
 import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export const AwsIdentityCenterPlugin: CloudHostablePlugin = {

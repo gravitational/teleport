@@ -1,6 +1,6 @@
 import styled from 'styled-components';
-import Table, { Cell } from 'design/DataTable';
 
+import Table, { Cell } from 'design/DataTable';
 import Link from 'design/Link';
 
 import { Asset } from 'e-teleport/services/downloads';

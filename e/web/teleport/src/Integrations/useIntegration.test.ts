@@ -1,10 +1,10 @@
-import { getWarningMessage } from './useIntegrations';
-
 import type {
   ExternalAuditStorage,
   IntegrationListResponse,
   Plugin,
 } from 'teleport/services/integrations';
+
+import { getWarningMessage } from './useIntegrations';
 
 describe('getErrorsMessage', () => {
   const makeFulfilled = <T>(): PromiseSettledResult<T> => ({

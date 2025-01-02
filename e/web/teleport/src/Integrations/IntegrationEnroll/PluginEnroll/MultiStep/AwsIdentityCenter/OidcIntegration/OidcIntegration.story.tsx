@@ -1,21 +1,19 @@
-import { HttpResponse, delay, http } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
+
+import {
+  DevNoteOidc,
+  integrationsResponse,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
+import { PluginProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
+import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 
-import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
-import { PluginProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
-
-import {
-  integrationsResponse,
-  DevNoteOidc,
-} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
-
 import { AwsIcOidcIntegration } from './OidcIntegration';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export default {
   title: 'TeleportE/Integrations/Enroll/AWSIdentityCenter/OidcIntegration',

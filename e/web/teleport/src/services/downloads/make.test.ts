@@ -1,5 +1,4 @@
 import { makeDescription, makeKind, makeOS } from './make';
-
 import type { Kind, OS } from './types';
 
 type MakeDescriptionInput = {

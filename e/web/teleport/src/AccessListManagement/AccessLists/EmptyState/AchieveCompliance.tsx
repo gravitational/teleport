@@ -1,15 +1,16 @@
-import { Box } from 'design';
 import styled from 'styled-components';
+
+import { Box } from 'design';
 import Validation from 'shared/components/Validation';
 
-import { ReviewAudit } from 'e-teleport/AccessListManagement/ViewEditAccessList/ReviewAccessList/Summary';
 import {
   reviewDayOfMonthOpts,
   reviewFrequencyOpts,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
+import { ReviewAudit } from 'e-teleport/AccessListManagement/ViewEditAccessList/ReviewAccessList/Summary';
 
-import { Description, Feature, FeatureProps, Title } from './Shared';
 import { mockMembers } from './fixtures';
+import { Description, Feature, FeatureProps, Title } from './Shared';
 
 export const AchieveCompliance = ({
   active,

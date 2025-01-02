@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+
 import {
   Box,
   Link as ButtonLink,
@@ -10,12 +11,17 @@ import {
   Mark,
   Text,
 } from 'design';
+import { Danger, Info } from 'design/Alert';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredAll } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import { Danger, Info } from 'design/Alert';
+
+import ecfg from 'e-teleport/config';
+import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
 import { useAwsOidcIntegration } from 'teleport/Integrations/Enroll/AwsOidc/useAwsOidcIntegration';
 import {
@@ -23,26 +29,20 @@ import {
   ShowConfigurationScript,
 } from 'teleport/Integrations/shared';
 import {
-  IntegrationKind,
-  integrationService,
   AwsOidcPolicyPreset,
   IntegrationAudience,
+  IntegrationKind,
+  integrationService,
 } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
-import ecfg from 'e-teleport/config';
-import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
-import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
-import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
-
-import { UserAccountWarning } from '../shared/UserAccountWarning';
-
 import {
-  requiredOidcIntegrationName,
-  requireUniqueIntegrationName,
   requiredAwsIdentityCenterInstanceArn,
   requiredAwsIdentityCenterRegion,
+  requiredOidcIntegrationName,
+  requireUniqueIntegrationName,
 } from '../rules';
+import { UserAccountWarning } from '../shared/UserAccountWarning';
 
 export function AwsIcOidcIntegration() {
   const { storeUser } = useTeleport();

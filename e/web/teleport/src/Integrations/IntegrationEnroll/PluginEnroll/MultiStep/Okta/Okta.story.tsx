@@ -1,28 +1,26 @@
-import React, { useEffect, PropsWithChildren } from 'react';
+import { delay, http, HttpResponse } from 'msw';
+import React, { PropsWithChildren, useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse, delay } from 'msw';
 
-import cfg from 'teleport/config';
-import {
-  IntegrationStatusCode,
-  PluginOktaSpec,
-} from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
 import { Info } from 'design/Alert';
 
 import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-
-import { PluginProvider, usePlugin } from '../usePlugin';
-import { pluginMap } from '../../plugins';
-import { PluginEnrollSuccess } from '../PluginEnrollSuccess';
-import { renderPluginEnroll } from '../../StorybookHelper';
-
-import { SetUpScim as SetUpScimComponent } from './SetUpScim';
-import { ImportUserGroupsAndApps as ImportComponent } from './ImportUserGroupsAndApps/ImportUserGroupsAndApps';
-
 import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  IntegrationStatusCode,
+  PluginOktaSpec,
+} from 'teleport/services/integrations';
+
+import { pluginMap } from '../../plugins';
+import { renderPluginEnroll } from '../../StorybookHelper';
+import { PluginEnrollSuccess } from '../PluginEnrollSuccess';
+import { PluginProvider, usePlugin } from '../usePlugin';
+import { ImportUserGroupsAndApps as ImportComponent } from './ImportUserGroupsAndApps/ImportUserGroupsAndApps';
+import { SetUpScim as SetUpScimComponent } from './SetUpScim';
 
 const oktaPlugin = pluginMap['okta'] as CloudHostablePlugin;
 

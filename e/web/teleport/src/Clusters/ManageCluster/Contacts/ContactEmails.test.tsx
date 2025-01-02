@@ -1,16 +1,16 @@
-import { render, screen, fireEvent } from 'design/utils/testing';
 import { MemoryRouter, Route } from 'react-router-dom';
 
-import { ContextProvider } from 'teleport/index';
-import { ContentMinWidth } from 'teleport/Main/Main';
-import { Access } from 'teleport/services/user';
-import { defaultAccess } from 'teleport/services/user/makeAcl';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   ContactType,
   ContactVerification,
 } from 'e-teleport/services/contacts/types';
+import { ContextProvider } from 'teleport/index';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { Access } from 'teleport/services/user';
+import { defaultAccess } from 'teleport/services/user/makeAcl';
 
 import {
   ContactEmails,

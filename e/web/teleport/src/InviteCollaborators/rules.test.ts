@@ -1,11 +1,11 @@
 import { Option } from 'shared/components/Select';
-import { Rule, requiredAll } from 'shared/components/Validation/rules';
+import { requiredAll, Rule } from 'shared/components/Validation/rules';
 
 import {
   requiredAllEmailLike,
   requiredAllUsersDoNotExist,
-  requiredNoDuplicateUsers,
   requiredMaxDuplicates,
+  requiredNoDuplicateUsers,
 } from './rules';
 
 /* eslint-disable jest/no-conditional-expect */

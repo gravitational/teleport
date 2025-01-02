@@ -1,22 +1,20 @@
 import { subMinutes, subSeconds } from 'date-fns';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
+
 import { render, screen, waitFor } from 'design/utils/testing';
 
-import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { getOSSFeatures } from 'teleport/features';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import TeleportContext from 'teleport/teleportContext';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { Notifications } from 'teleport/Notifications';
 import {
   LocalNotificationKind,
   NotificationSubKind,
 } from 'teleport/services/notifications';
-
-import { Notifications } from 'teleport/Notifications';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 beforeAll(() => {
   jest.useFakeTimers();

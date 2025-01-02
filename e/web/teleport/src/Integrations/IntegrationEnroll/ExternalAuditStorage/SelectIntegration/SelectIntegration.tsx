@@ -1,18 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Box, ButtonText, ButtonPrimary, Alert } from 'design';
-import cfg from 'teleport/config';
+
+import { Alert, Box, ButtonPrimary, ButtonText, Text } from 'design';
 import Select, { Option as BaseOption } from 'shared/components/Select';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationKind,
-  IntegrationUrlLocationState,
   integrationService,
+  IntegrationUrlLocationState,
 } from 'teleport/services/integrations';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import useTeleport from 'teleport/useTeleport';
 
 import { Step, useExternalAuditStorage } from '../useExternalAuditStorage';
+
 type Option = BaseOption<Integration>;
 
 export function SelectIntegration() {

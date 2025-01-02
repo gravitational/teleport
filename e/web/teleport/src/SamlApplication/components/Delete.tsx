@@ -1,9 +1,9 @@
-import { ButtonSecondary, Text, ButtonWarning, Alert } from 'design';
+import { Alert, ButtonSecondary, ButtonWarning, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import { Attempt } from 'shared/hooks/useAsync';
 

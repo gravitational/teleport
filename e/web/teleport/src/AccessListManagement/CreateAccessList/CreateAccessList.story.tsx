@@ -1,15 +1,13 @@
+import { StoryObj } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
-import { getAcl } from 'teleport/mocks/contexts';
 
-import { StoryObj } from '@storybook/react';
-
-import { http, HttpResponse } from 'msw';
-
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { ContextProvider } from 'teleport';
+import { getAcl } from 'teleport/mocks/contexts';
 
 import { CreateAccessList } from './CreateAccessList';
 

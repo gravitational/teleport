@@ -1,16 +1,15 @@
 import { Flex, LabelInput, ResourceIcon, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
-import { useRule } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
+import { useRule } from 'shared/components/Validation';
 
 import {
   GetResourceIcon,
   requiredResourceField,
   ResourceOptions,
 } from './constants';
-
-import { ResourceOption, ResourcesProps } from './types';
 import { ResourceWrapper } from './ResourceWrapper';
+import { ResourceOption, ResourcesProps } from './types';
 
 export const Resources = ({ checked, updateFields }: ResourcesProps) => {
   const { valid, message } = useRule(requiredResourceField(checked));

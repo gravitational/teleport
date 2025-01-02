@@ -1,33 +1,28 @@
-import { getErrMessage } from 'shared/utils/errorType';
-import TeleportContext from 'teleport/teleportContext';
-import { storageService } from 'teleport/services/storageService';
-import * as service from 'teleport/services/userPreferences';
-import cfg from 'teleport/config';
-
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import eCfg from 'e-teleport/config';
-
-import WorkflowService from 'e-teleport/services/workflow';
-import ResourceService from 'e-teleport/services/resource';
-import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
 import CloudService from 'e-teleport/services/cloud';
-import RecoveryService from 'e-teleport/services/recovery';
-
 import { deviceService } from 'e-teleport/services/devices';
-
+import RecoveryService from 'e-teleport/services/recovery';
+import ResourceService from 'e-teleport/services/resource';
 import { surveyService } from 'e-teleport/services/survey';
+import WorkflowService from 'e-teleport/services/workflow';
+import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
+import cfg from 'teleport/config';
+import { storageService } from 'teleport/services/storageService';
+import * as service from 'teleport/services/userPreferences';
+import TeleportContext from 'teleport/teleportContext';
 
-import { downloadsService } from './services/downloads';
-import { pluginsService } from './services/plugins';
-
-import { upgradeWindowService } from './services/upgradeWindow';
-import { IdpService } from './services/idp';
-import { accessManagementService } from './services/accessmanagement';
-import { StoreNotificationsE } from './stores/storeNotificationsE';
-import { externalAuditStorageService } from './services/externalauditstorage';
 import { notificationContentFactoryE } from './Notifications';
+import { accessManagementService } from './services/accessmanagement';
 import { contactsService } from './services/contacts';
+import { downloadsService } from './services/downloads';
+import { externalAuditStorageService } from './services/externalauditstorage';
+import { IdpService } from './services/idp';
+import { pluginsService } from './services/plugins';
+import { upgradeWindowService } from './services/upgradeWindow';
+import { StoreNotificationsE } from './stores/storeNotificationsE';
 
 class TeleportEContext extends TeleportContext {
   // stores

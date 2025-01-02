@@ -1,22 +1,23 @@
 import { Link as InternalLink } from 'react-router-dom';
-import { Flex, Text, P3 } from 'design';
+
+import { Flex, P3, Text } from 'design';
 import { SyncAlt } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-import { OktaAppGroupSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
 import cfg from 'teleport/config';
+import { OktaAppGroupSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
 
+import { getDurationText } from './date';
 import {
-  Panel,
-  PanelTitle,
   CenteredFlex,
   CustomLabel,
   ErrorTooltip,
+  FlexWrap,
   InnerCard,
   LinkedInnerCard,
-  FlexWrap,
+  Panel,
+  PanelTitle,
 } from './Shared';
-import { getDurationText } from './date';
 
 export function AppGroupSync({ spec }: { spec: OktaAppGroupSyncDetails }) {
   return (

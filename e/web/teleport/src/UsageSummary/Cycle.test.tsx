@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from 'design/utils/testing';
 import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+import { render, screen, waitFor } from 'design/utils/testing';
 
 import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle';
 import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';

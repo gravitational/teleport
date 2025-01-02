@@ -1,22 +1,19 @@
-import { generatePath, MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
-import { getAcl } from 'teleport/mocks/contexts';
-import { Switch, Route } from 'teleport/components/Router';
-
-import { http, HttpResponse } from 'msw';
-
 import { StoryObj } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
+import { generatePath, MemoryRouter } from 'react-router';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-
 import {
   AccessListMemberKind,
   IneligibleStatus,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
-import cfg from 'e-teleport/config';
+import { ContextProvider } from 'teleport';
+import { Route, Switch } from 'teleport/components/Router';
+import { getAcl } from 'teleport/mocks/contexts';
 
 import { ViewEditAccessList } from './ViewEditAccessList';
 

@@ -1,24 +1,23 @@
 import { useState } from 'react';
-import { Flex, ButtonText, H2 } from 'design';
-import Table from 'design/DataTable';
-import { Wrench, Add } from 'design/Icon';
 
+import { ButtonText, Flex, H2 } from 'design';
+import Table from 'design/DataTable';
+import { Add, Wrench } from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
 
-import { AccessListMemberKind } from 'e-teleport/services/accessmanagement/types';
-import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
-
-import { NestedListLink } from '../../Shared/Shared';
-
-import { CustomCell, UserRevokeButtonCell } from '../Shared';
-import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-
-import { EnrollNewOwners } from './EnrollNewOwners';
-
-import type { AccessListModified } from '../Shared';
-import type { UserOption } from '../../Shared/Shared';
-import type { AccessList } from 'e-teleport/services/accessmanagement';
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
+import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
+import type { AccessList } from 'e-teleport/services/accessmanagement';
+import { AccessListMemberKind } from 'e-teleport/services/accessmanagement/types';
+
+import { NestedListLink, type UserOption } from '../../Shared/Shared';
+import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
+import {
+  CustomCell,
+  UserRevokeButtonCell,
+  type AccessListModified,
+} from '../Shared';
+import { EnrollNewOwners } from './EnrollNewOwners';
 
 const genericNoAccessMsg = 'You do not have access to edit owners';
 

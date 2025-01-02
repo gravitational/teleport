@@ -1,14 +1,14 @@
+import { Alert, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { ButtonPrimary, ButtonSecondary, Alert } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { PluginKind } from 'teleport/services/integrations';
 
 import { pluginsService } from 'e-teleport/services/plugins';
+import { PluginKind } from 'teleport/services/integrations';
 
 export const CleanupDialogue = ({
   onClose,

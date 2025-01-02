@@ -1,8 +1,9 @@
-import { Component, Fragment } from 'react';
 import PropTypes from 'prop-types';
+import { Component, Fragment } from 'react';
+
+import { Button } from 'design/Button';
 import * as Icons from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
-import { Button } from 'design/Button';
 import { AuthProviderType } from 'shared/services';
 
 class AddMenu extends Component<Props> {

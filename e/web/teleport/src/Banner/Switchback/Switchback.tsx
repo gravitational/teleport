@@ -1,12 +1,13 @@
 import { useTheme } from 'styled-components';
-import { Flex, Box, Banner } from 'design';
-import { pluralize } from 'shared/utils/text';
+
+import { Banner, Box, Flex } from 'design';
 import { getDurationText } from 'shared/utils/getDurationText';
+import { pluralize } from 'shared/utils/text';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
-import useSwitchback, { State } from './useSwitchback';
 import ErrorAlert from './ErrorAlert';
+import useSwitchback, { State } from './useSwitchback';
 
 export default function Container() {
   const ctx = useTeleport();

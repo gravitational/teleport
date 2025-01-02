@@ -1,15 +1,15 @@
-import { useState, useCallback } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import history from 'teleport/services/history';
-import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
-import { AccessRequestScope, SortType } from 'teleport/services/agents';
+import { useCallback, useState } from 'react';
 
+import useAttempt from 'shared/hooks/useAttemptNext';
+import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
 import {
   AccessRequest,
   makeAccessRequest,
 } from 'shared/services/accessRequests';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
+import { AccessRequestScope, SortType } from 'teleport/services/agents';
+import history from 'teleport/services/history';
 
 import { getBaseRequestFlags } from '../requestFlags';
 

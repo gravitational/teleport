@@ -1,13 +1,12 @@
-import styled from 'styled-components';
 import { useHistory } from 'react-router';
+import styled from 'styled-components';
 
 import Box from 'design/Box';
 import { H2 } from 'design/Text';
 
-import { State as ResourceState } from 'teleport/components/useResources';
-import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
-
 import cfg from 'e-teleport/config';
+import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
+import { State as ResourceState } from 'teleport/components/useResources';
 
 import { AddNewConnectorTile } from './AddNewConnectorTile';
 

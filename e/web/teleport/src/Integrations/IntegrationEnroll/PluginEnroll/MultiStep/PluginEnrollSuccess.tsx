@@ -1,13 +1,12 @@
 import { useEffect } from 'react';
+
+import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
 import {
   IntegrationEnrollEvent,
   userEventService,
 } from 'teleport/services/userEvent';
 
-import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
-
 import { PluginEnrollSuccess as Component } from '../PluginEnrollSuccess';
-
 import { usePlugin } from './usePlugin';
 
 export function PluginEnrollSuccess() {

@@ -1,17 +1,17 @@
 import { MemoryRouter, Route } from 'react-router-dom';
-import { render, waitFor, screen, fireEvent } from 'design/utils/testing';
 
-import { ContextProvider } from 'teleport/index';
-import { ContentMinWidth } from 'teleport/Main/Main';
-import { Access } from 'teleport/services/user';
-import { defaultAccess } from 'teleport/services/user/makeAcl';
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { contactsService } from 'e-teleport/services/contacts';
 import {
   ContactType,
   ContactVerification,
 } from 'e-teleport/services/contacts/types';
-import { contactsService } from 'e-teleport/services/contacts';
+import { ContextProvider } from 'teleport/index';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { Access } from 'teleport/services/user';
+import { defaultAccess } from 'teleport/services/user/makeAcl';
 
 import { Contacts } from './Contacts';
 import { contacts } from './fixtures';

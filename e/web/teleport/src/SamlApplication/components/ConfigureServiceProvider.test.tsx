@@ -7,29 +7,28 @@ import {
   waitFor,
 } from 'design/utils/testing';
 import Validation, { useValidation } from 'shared/components/Validation';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
-import {
-  emptyUpsertRequest,
-  transformSamlSpecToCreateRequest,
-} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import {
   MockSamlApplicationContextProvider,
   mockSamlIdpServiceProvider,
   mockSamlMeta,
 } from 'e-teleport/SamlApplication/fixtures';
+import {
+  emptyUpsertRequest,
+  transformSamlSpecToCreateRequest,
+} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import type { SamlIdpMetadataResponse } from 'e-teleport/services/idp/types';
+import {
+  SamlServiceProviderPreset,
+  type AttributeMapping as AttributeMappingType,
+  type SamlIdpServiceProvider,
+} from 'teleport/services/samlidp/types';
 
 import {
   AddMetadataGeneric,
   ConfigureServiceProvider,
   ErrMissingEntityIDOrACSURL,
 } from './ConfigureServiceProvider';
-
-import type {
-  AttributeMapping as AttributeMappingType,
-  SamlIdpServiceProvider,
-} from 'teleport/services/samlidp/types';
-import type { SamlIdpMetadataResponse } from 'e-teleport/services/idp/types';
 
 /* eslint-disable jest/no-conditional-expect */
 

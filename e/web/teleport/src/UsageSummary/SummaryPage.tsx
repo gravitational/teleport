@@ -2,8 +2,8 @@ import styled from 'styled-components';
 
 import Box from 'design/Box';
 
-import { Cycle } from 'e-teleport/UsageSummary/Cycle';
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { Cycle } from 'e-teleport/UsageSummary/Cycle';
 
 export interface SummaryProps {
   summary: UsageSummary;

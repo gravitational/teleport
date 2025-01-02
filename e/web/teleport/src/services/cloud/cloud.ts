@@ -1,9 +1,7 @@
-import api from 'teleport/services/api';
-import { User } from 'teleport/services/user/types';
-
-import auth from 'teleport/services/auth/auth';
-
 import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
+import auth from 'teleport/services/auth/auth';
+import { User } from 'teleport/services/user/types';
 
 import {
   BillingSummaryInformation,

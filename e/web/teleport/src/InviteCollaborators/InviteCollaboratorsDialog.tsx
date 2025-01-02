@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import {
-  ButtonPrimary,
-  Text,
-  Flex,
-  ButtonSecondary,
   Alert,
   Box,
-  Indicator,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
   H2,
+  Indicator,
+  Text,
 } from 'design';
 import Dialog, {
   DialogContent,
@@ -17,20 +17,20 @@ import Dialog, {
   DialogHeader,
 } from 'design/Dialog';
 import { PaperPlane, UserAdd } from 'design/Icon';
-import Validation, { Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
 import { useAttemptNext } from 'shared/hooks';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
-import { InviteCollaboratorsDialogProps, RoleOption } from './types';
 import { createSuccessNotification } from './common';
 import { InviteCollaboratorsForm } from './InviteCollaboratorsForm';
 import {
-  Notifications,
   NotificationEntry,
   NotificationItem,
+  Notifications,
 } from './Notifications';
+import { InviteCollaboratorsDialogProps, RoleOption } from './types';
 
 const ClusterName = styled.span<{
   theme: any;

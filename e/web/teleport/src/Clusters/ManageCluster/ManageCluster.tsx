@@ -2,16 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import styled from 'styled-components';
 
-import { useAsync } from 'shared/hooks/useAsync';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
+import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import { Clock, Edit } from 'design/Icon';
+import { Indicator } from 'design/Indicator';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import Text, { H2 } from 'design/Text';
-import { Indicator } from 'design/Indicator';
+import { useAsync } from 'shared/hooks/useAsync';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
+import { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
+import useTeleportE from 'e-teleport/useTeleportE';
 import {
   ClusterInformation,
   DataItem,
@@ -19,18 +21,13 @@ import {
   ManageClusterHeader,
 } from 'teleport/Clusters/ManageCluster/ManageCluster';
 import { FeatureBox } from 'teleport/components/Layout';
-import { useNoMinWidth } from 'teleport/Main';
 import cfg from 'teleport/config';
+import { useNoMinWidth } from 'teleport/Main';
 import { ClusterInfo } from 'teleport/services/clusters';
 
-import { Alert } from 'design/Alert';
-
-import { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
-import useTeleportE from 'e-teleport/useTeleportE';
-
 import { Contacts } from './Contacts';
-import { useUpgradeWindowStart } from './useUpgradeWindowStart';
 import { ScheduleUpgrades } from './ScheduleUpgrades/ScheduleUpgrades';
+import { useUpgradeWindowStart } from './useUpgradeWindowStart';
 
 export function ManageCluster() {
   const [cluster, setCluster] = useState<ClusterInfo>(null);

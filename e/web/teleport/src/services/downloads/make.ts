@@ -1,4 +1,4 @@
-import type { Release, Asset, Kind, OS, License } from './types';
+import type { Asset, Kind, License, OS, Release } from './types';
 
 export const makeReleases = (json: any): Release[] => {
   if (!Array.isArray(json)) {

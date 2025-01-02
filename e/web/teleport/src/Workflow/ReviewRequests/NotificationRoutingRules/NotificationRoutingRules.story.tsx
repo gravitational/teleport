@@ -1,12 +1,11 @@
+import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse } from 'msw';
 import { withoutQuery } from 'web/packages/build/storybook';
 
+import cfg from 'e-teleport/config';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
-
-import cfg from 'e-teleport/config';
 
 import { NotificationRoutingRulesDialog } from './NotificationRoutingRulesDialog';
 

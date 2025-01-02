@@ -1,11 +1,12 @@
-import { ButtonSecondary, ButtonWarning, Alert, P1 } from 'design';
+import { Alert, ButtonSecondary, ButtonWarning, P1 } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import { PluginKind } from 'teleport/services/integrations';
 
 export function PluginDelete(props: Props) {

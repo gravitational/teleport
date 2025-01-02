@@ -1,10 +1,9 @@
-import api from 'teleport/services/api';
-
 import cfg from 'e-teleport/config';
 import {
   GetAccountUpgradeWindowStartHourResponse,
   UpdateAccountUpgradeWindowStartHourRequest,
 } from 'e-teleport/services/cloud';
+import api from 'teleport/services/api';
 
 export const availableUpgradeWindowStartHours = [8, 16, 23] as const;
 export type UpgradeWindowStartHour =

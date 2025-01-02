@@ -2,11 +2,10 @@ import { MemoryRouter } from 'react-router';
 
 import Flex from 'design/Flex';
 
-import { Notification } from 'teleport/Notifications/Notification';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
 import { notifications } from 'teleport/Notifications/fixtures';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { Notification } from 'teleport/Notifications/Notification';
 
 export default {
   title: 'TeleportE/Notifications',

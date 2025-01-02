@@ -1,10 +1,12 @@
 import {
-  useState,
-  KeyboardEventHandler,
-  KeyboardEvent,
   FocusEventHandler,
+  KeyboardEvent,
+  KeyboardEventHandler,
+  useState,
 } from 'react';
+import { OptionProps, StylesConfig } from 'react-select';
 import { CSSProp, useTheme } from 'styled-components';
+
 import { Text } from 'design';
 import {
   FieldSelectAsync,
@@ -12,20 +14,18 @@ import {
 } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import {
-  requiredField,
-  requiredEmailLike,
   requiredAll,
+  requiredEmailLike,
+  requiredField,
 } from 'shared/components/Validation/rules';
 
-import { StylesConfig, OptionProps } from 'react-select';
-
-import { RoleOption, InviteCollaboratorsFormProps } from './types';
 import {
-  requiredAllUsersDoNotExist,
-  requiredNoDuplicateUsers,
   requiredAllEmailLike,
+  requiredAllUsersDoNotExist,
   requiredMaxDuplicates,
+  requiredNoDuplicateUsers,
 } from './rules';
+import { InviteCollaboratorsFormProps, RoleOption } from './types';
 
 /**
  * `react-select` style configuration for the recipients field.

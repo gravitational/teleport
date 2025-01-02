@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useRule } from 'shared/components/Validation';
-import TextEditor from 'shared/components/TextEditor';
+
+import { Flex, LabelInput } from 'design';
 import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
-import { LabelInput, Flex } from 'design';
+import TextEditor from 'shared/components/TextEditor';
+import { useRule } from 'shared/components/Validation';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 

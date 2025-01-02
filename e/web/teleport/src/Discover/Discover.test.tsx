@@ -1,17 +1,18 @@
 import { MemoryRouter } from 'react-router';
+
 import { fireEvent, render, screen } from 'design/utils/testing';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { getAcl } from 'teleport/mocks/contexts';
-import cfg from 'teleport/config';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
+import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { getAcl } from 'teleport/mocks/contexts';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { Discover } from './Discover';
 

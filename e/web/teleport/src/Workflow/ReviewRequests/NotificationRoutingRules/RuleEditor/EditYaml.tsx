@@ -1,10 +1,10 @@
-import { Flex, Box } from 'design';
-import { State as Attempt } from 'shared/hooks/useAttemptNext';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import { Box, Flex } from 'design';
 import TextEditor from 'shared/components/TextEditor';
+import { State as Attempt } from 'shared/hooks/useAttemptNext';
 
 import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
   EditorSaveCancelButton,

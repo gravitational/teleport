@@ -1,12 +1,11 @@
-import { Indicator, ButtonPrimary, ButtonSecondary } from 'design';
-import Dialog, { DialogHeader, DialogTitle, DialogFooter } from 'design/Dialog';
+import { ButtonPrimary, ButtonSecondary, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
-import useTeleportE from 'e-teleport/useTeleportE';
+import Dialog, { DialogFooter, DialogHeader, DialogTitle } from 'design/Dialog';
 
 import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
+import useTeleportE from 'e-teleport/useTeleportE';
 
-import useRecoveryCodesDialog, { State, Props } from './useRecoveryCodesDialog';
+import useRecoveryCodesDialog, { Props, State } from './useRecoveryCodesDialog';
 
 export default function Container(props: Props) {
   const ctx = useTeleportE();

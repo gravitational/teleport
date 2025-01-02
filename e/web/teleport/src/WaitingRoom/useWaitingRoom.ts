@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttempt';
-import historyService from 'teleport/services/history';
-import { UserContext } from 'teleport/services/user';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import TeleportContextE from 'e-teleport/teleportContextE';
+import historyService from 'teleport/services/history';
+import { UserContext } from 'teleport/services/user';
 
 export default function useWaitingRoom(ctx: TeleportContextE) {
   const workflowService = ctx.workflowService;

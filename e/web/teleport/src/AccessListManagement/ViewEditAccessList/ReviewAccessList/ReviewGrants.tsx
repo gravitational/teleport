@@ -1,7 +1,5 @@
+import { Box, H2 } from 'design';
 import { Option } from 'shared/components/Select';
-import { Box } from 'design';
-
-import { H2 } from 'design';
 
 import { AccessListGrant } from 'e-teleport/services/accessmanagement';
 

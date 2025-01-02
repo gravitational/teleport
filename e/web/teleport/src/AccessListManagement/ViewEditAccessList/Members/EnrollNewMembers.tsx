@@ -1,35 +1,35 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
 import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import Validation, { Validator } from 'shared/components/Validation';
-import { Option } from 'shared/components/Select';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
-import useTeleport from 'teleport/useTeleport';
+import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  AccessList,
-  AccessListMember,
-  AccessListMemberKind,
-  accessManagementService,
-} from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit';
-
 import {
   convertAccessListsToUserOptions,
   EnrollingNestedListsAlert,
   filterExistingUsersAndConvertToOption,
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
+  type AccessListModified,
 } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import {
+  AccessList,
+  AccessListMember,
+  AccessListMemberKind,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
+import useTeleport from 'teleport/useTeleport';
 
-import type { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import type { MemberSelection, UserOption } from '../../Shared/Shared';
 
 type Props = {

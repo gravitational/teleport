@@ -1,6 +1,5 @@
-import { AccountPage } from 'teleport/Account';
-
 import cfg from 'e-teleport/config';
+import { AccountPage } from 'teleport/Account';
 
 import Recovery from './Recovery';
 import { UserTrustedDevices } from './UserTrustedDevices';

@@ -1,16 +1,17 @@
+import { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { Suspense } from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
-import { PointerEventsCheckLevel } from '@testing-library/user-event';
-import { ContextProvider } from 'teleport';
-import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
-import { userEventService } from 'teleport/services/userEvent';
-import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
-import cfg from 'teleport/config';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import TeleportEContext from 'e-teleport/teleportContextE';
 import { pluginsService } from 'e-teleport/services/plugins';
+import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
+import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
+import { userEventService } from 'teleport/services/userEvent';
 
 import { IntegrationEnroll } from '../IntegrationEnroll';
 

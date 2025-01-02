@@ -1,16 +1,15 @@
-import { Link, ButtonPrimary, Mark, H3, Subtitle3 } from 'design';
+import { ButtonPrimary, H3, Link, Mark, Subtitle3 } from 'design';
+import { P } from 'design/Text/Text';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
-
-import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
-  HeaderSubtitle,
-  Header,
-  StepBox,
   ActionButtons,
+  Header,
+  HeaderSubtitle,
+  StepBox,
 } from 'teleport/Discover/Shared';
-import { P } from 'design/Text/Text';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 
 const idpMetadataUrl = cfg.baseUrl + '/enterprise/saml-idp/metadata';
 

@@ -1,11 +1,10 @@
+import { IdpMetadata } from 'e-teleport/SamlApplication/components/IdpMetadata';
 import {
   ActionButtons,
   Header,
   HeaderSubtitle,
 } from 'teleport/Discover/Shared';
 import { useDiscover } from 'teleport/Discover/useDiscover';
-
-import { IdpMetadata } from 'e-teleport/SamlApplication/components/IdpMetadata';
 
 export function DownloadMetadata() {
   const { prevStep, nextStep, isUpdateFlow } = useDiscover();

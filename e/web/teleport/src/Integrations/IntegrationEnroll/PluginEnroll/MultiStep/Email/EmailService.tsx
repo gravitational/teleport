@@ -1,19 +1,18 @@
 import { useState } from 'react';
 
-import { PluginEmailSpec } from 'teleport/services/integrations';
 import {
   Alert,
+  Box,
   ButtonPrimary,
   ButtonSecondary,
-  Text,
-  Box,
   Flex,
   Link,
+  Text,
 } from 'design';
-import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
 import {
   requiredField,
   requiredPort,
@@ -21,11 +20,12 @@ import {
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { pluginsService } from 'e-teleport/services/plugins';
+import { PluginEmailSpec } from 'teleport/services/integrations';
 
-import { usePlugin } from '../usePlugin';
 import { Header } from '../Shared';
-
+import { usePlugin } from '../usePlugin';
 import { FormDataField } from './types';
+
 export function EmailService() {
   const { formData, nextStep, prevStep, setInstalledPlugin } =
     usePlugin<PluginEmailSpec>();

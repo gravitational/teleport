@@ -1,8 +1,9 @@
 import styled from 'styled-components';
-import { ClientSidePager } from 'design/DataTable/Pager';
-import { PagedTableProps } from 'design/DataTable/types';
+
 import Table from 'design/DataTable';
+import { ClientSidePager } from 'design/DataTable/Pager';
 import { StyledTable as StyledTableBase } from 'design/DataTable/StyledTable';
+import { PagedTableProps } from 'design/DataTable/types';
 
 import {
   PluginConfigOktaApp,

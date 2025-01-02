@@ -1,28 +1,25 @@
-import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import styled from 'styled-components';
+
 import { Alert, Box, Flex, H3, Indicator, Text } from 'design';
-import ResourceEditor from 'teleport/components/ResourceEditor';
-import useResources from 'teleport/components/useResources';
+import { H2, P } from 'design/Text/Text';
 
+import CTAConnectors from 'teleport/AuthConnectors/ConnectorList/CTAConnectors';
 import DeleteConnectorDialog from 'teleport/AuthConnectors/DeleteConnectorDialog';
-
-import useTeleport from 'teleport/useTeleport';
-
 import {
   DesktopDescription,
   MobileDescription,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
-import CTAConnectors from 'teleport/AuthConnectors/ConnectorList/CTAConnectors';
-
-import { H2, P } from 'design/Text/Text';
+import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
+import ResourceEditor from 'teleport/components/ResourceEditor';
+import useResources from 'teleport/components/useResources';
+import useTeleport from 'teleport/useTeleport';
 
 import AddMenu from './AddMenu';
-import useAuthConnectors, { State } from './useAuthConnectors';
-import templates from './templates';
-
 import AddNewConnectorsList from './AddNewConnectorList/AddNewConnectorList';
 import ConnectorList from './ConnectorList';
+import templates from './templates';
+import useAuthConnectors, { State } from './useAuthConnectors';
 
 export default function Container() {
   const state = useAuthConnectors();

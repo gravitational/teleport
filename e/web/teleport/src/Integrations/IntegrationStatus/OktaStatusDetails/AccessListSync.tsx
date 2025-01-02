@@ -1,24 +1,24 @@
-import { P3, Flex, Label, Text } from 'design';
 import { Link as InternalLink } from 'react-router-dom';
-import { SyncAlt } from 'design/Icon';
-import { IconTooltip, HoverTooltip } from 'design/Tooltip';
 
-import { OktaAccessListSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { CtaEvent } from 'teleport/services/userEvent';
+import { Flex, Label, P3, Text } from 'design';
+import { SyncAlt } from 'design/Icon';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
 import cfg from 'e-teleport/config';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { OktaAccessListSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
+import { CtaEvent } from 'teleport/services/userEvent';
 
+import { getDurationText } from './date';
 import {
-  Panel,
-  PanelTitle,
   CenteredFlex,
   CustomLabel,
   ErrorTooltip,
-  TextWithBorderBottom,
   LinkedInnerCard,
+  Panel,
+  PanelTitle,
+  TextWithBorderBottom,
 } from './Shared';
-import { getDurationText } from './date';
 
 export function AccessListsSync({
   spec,

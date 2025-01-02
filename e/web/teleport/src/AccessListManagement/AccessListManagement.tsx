@@ -1,7 +1,6 @@
-import { Switch, Route } from 'teleport/components/Router';
-
-import cfg from 'e-teleport/config';
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import cfg from 'e-teleport/config';
+import { Route, Switch } from 'teleport/components/Router';
 
 import { AccessLists } from './AccessLists';
 import { ViewEditAccessList } from './ViewEditAccessList';

@@ -1,20 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { Card, Text, ButtonPrimary, Box, Flex } from 'design';
-import { Auth2faType } from 'shared/services';
-import Validation, { Validator } from 'shared/components/Validation';
+import React, { useMemo, useState } from 'react';
+
+import { Box, ButtonPrimary, Card, Flex, Text } from 'design';
+import { OutlineDanger } from 'design/Alert/Alert';
+import { StepHeader } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
+import FieldSelect from 'shared/components/FieldSelect';
+import Validation, { Validator } from 'shared/components/Validation';
 import {
   requiredField,
   requiredPassword,
 } from 'shared/components/Validation/rules';
-import FieldSelect from 'shared/components/FieldSelect';
+import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import { StepHeader } from 'design/StepSlider';
-
-import { OutlineDanger } from 'design/Alert/Alert';
-
-import useVerifyUser, { State, Props } from './useVerifyUser';
+import useVerifyUser, { Props, State } from './useVerifyUser';
 
 export default function Container(props: Props) {
   const state = useVerifyUser(props);

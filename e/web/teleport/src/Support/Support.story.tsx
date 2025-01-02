@@ -1,10 +1,10 @@
 import { MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
-import { Support } from 'teleport/Support';
-import { ContentMinWidth } from 'teleport/Main/Main';
-import cfg from 'teleport/config';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { Support } from 'teleport/Support';
 
 import { SupportE } from './Support';
 

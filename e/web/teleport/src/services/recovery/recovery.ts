@@ -1,12 +1,11 @@
+import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 import auth, {
+  makeRecoveryCodes,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
-  makeRecoveryCodes,
   NewCredentialRequest,
 } from 'teleport/services/auth';
-
-import cfg from 'e-teleport/config';
 
 import makeRecoveryToken from './makeRecoveryToken';
 import {

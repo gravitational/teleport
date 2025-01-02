@@ -1,21 +1,19 @@
 import React, { useState } from 'react';
 
-import { ButtonPrimary, Text, Flex, ButtonSecondary, Box, H2 } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H2, Text } from 'design';
 import { PaperPlane, UserAdd } from 'design/Icon';
-
 import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 
-import api from 'teleport/services/api';
+import { InviteCollaboratorsForm } from 'e-teleport/InviteCollaborators/InviteCollaboratorsForm';
+import { RoleOption } from 'e-teleport/InviteCollaborators/types';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
+import { Resource } from 'teleport/services/resources';
 import {
   CloudUserInvites,
   storageService,
 } from 'teleport/services/storageService';
-import { Resource } from 'teleport/services/resources';
-
-import { InviteCollaboratorsForm } from 'e-teleport/InviteCollaborators/InviteCollaboratorsForm';
-import { RoleOption } from 'e-teleport/InviteCollaborators/types';
 
 async function fetchPresetRoles(): Promise<Array<Resource<'role'>>> {
   return api.get(cfg.getPresetRolesUrl());

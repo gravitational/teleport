@@ -1,12 +1,11 @@
 import { Box } from 'design';
 
 import { AccessListMemberTable } from 'e-teleport/AccessListManagement/ViewEditAccessList/Members/MembersList';
+import type { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
 
-import { Description, Feature, FeatureProps, Title } from './Shared';
 import { mockMembers } from './fixtures';
-
-import type { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import { Description, Feature, FeatureProps, Title } from './Shared';
 
 export const ReduceAttackSurface = ({
   active,

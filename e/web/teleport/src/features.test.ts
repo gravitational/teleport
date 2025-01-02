@@ -1,8 +1,6 @@
-import { getOSSFeatures } from 'teleport/features';
-
-import { NavTitle } from 'teleport/types';
-
 import { getEnterpriseFeatures } from 'e-teleport/features';
+import { getOSSFeatures } from 'teleport/features';
+import { NavTitle } from 'teleport/types';
 
 const enterpriseTitles: string[] = getEnterpriseFeatures()
   // some features do not have a route defined, so we need to filter them out

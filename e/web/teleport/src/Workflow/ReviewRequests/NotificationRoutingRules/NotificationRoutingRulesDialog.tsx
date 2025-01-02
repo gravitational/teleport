@@ -1,28 +1,28 @@
-import { forwardRef, useState, useCallback, useEffect } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { forwardRef, useCallback, useEffect, useState } from 'react';
+import type { TransitionStatus } from 'react-transition-group';
 import { useTheme } from 'styled-components';
-import { Text, Flex, Box, ButtonIcon, Alert, Indicator, Button } from 'design';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import Dialog from 'design/Dialog';
-import { HoverTooltip } from 'design/Tooltip';
-import { Cross } from 'design/Icon';
-import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
-import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { Plugin } from 'teleport/services/integrations';
-import { Theme } from 'design/theme/themes/types';
-import useTeleport from 'teleport/useTeleport';
 
+import { Alert, Box, Button, ButtonIcon, Flex, Indicator, Text } from 'design';
+import Dialog from 'design/Dialog';
+import { Cross } from 'design/Icon';
+import { Theme } from 'design/theme/themes/types';
+import { HoverTooltip } from 'design/Tooltip';
+import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import useAttempt from 'shared/hooks/useAttemptNext';
+import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
+
+import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import {
   AccessMonitoringRule,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
-import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import { pluginsService } from 'e-teleport/services/plugins';
+import { Plugin } from 'teleport/services/integrations';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 import { NotificationRoutingRuleList } from './NotificationRoutingRuleList';
 import { RuleEditor } from './RuleEditor/RuleEditor';
-
-import type { TransitionStatus } from 'react-transition-group';
 
 export const NotificationRoutingRulesDialog = forwardRef<
   HTMLDivElement,

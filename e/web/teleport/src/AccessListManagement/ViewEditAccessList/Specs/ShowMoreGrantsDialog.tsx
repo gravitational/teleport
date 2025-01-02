@@ -1,14 +1,13 @@
-import Dialog, {
-  DialogHeader,
-  DialogContent,
-  DialogTitle,
-  DialogFooter,
-} from 'design/Dialog';
 import { ButtonSecondary } from 'design/Button';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
 import Flex from 'design/Flex';
-import Text from 'design/Text';
-
 import Label from 'design/Label';
+import Text from 'design/Text';
 
 interface ShowMoreGrantsDialogProps {
   roles: string[];

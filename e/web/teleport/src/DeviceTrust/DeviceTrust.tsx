@@ -1,19 +1,17 @@
-import { Alert, Box, Flex, Indicator, Link, H3 } from 'design';
+import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
+import { P, P1, P2 } from 'design/Text/Text';
 
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
-
-import { P, P1, P2 } from 'design/Text/Text';
-
-import { useDevices } from './useDevices';
 
 import { DeviceList } from './DeviceList';
 import { EmptyList } from './EmptyList';
+import { useDevices } from './useDevices';
 
 export const deviceTrustDocUrl =
   'https://goteleport.com/docs/access-controls/guides/device-trust';

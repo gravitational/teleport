@@ -1,6 +1,7 @@
-import { NewMfaDeviceForm } from 'teleport/components/NewMfaDeviceForm';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
+
+import { NewMfaDeviceForm } from 'teleport/components/NewMfaDeviceForm';
 
 import useNewMfaDevice, { Props } from './useNewMfaDevice';
 

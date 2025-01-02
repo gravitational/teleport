@@ -1,18 +1,17 @@
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport/index';
-import { ClusterInfo } from 'teleport/services/clusters';
-import { ContentMinWidth } from 'teleport/Main/Main';
-import { Route } from 'teleport/components/Router';
-import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
-
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { contactsService } from 'e-teleport/services/contacts';
 import { Contact } from 'e-teleport/services/contacts/types';
 import { upgradeWindowService } from 'e-teleport/services/upgradeWindow';
-import { contactsService } from 'e-teleport/services/contacts';
+import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
+import { Route } from 'teleport/components/Router';
+import { ContextProvider } from 'teleport/index';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { ClusterInfo } from 'teleport/services/clusters';
 
-import { ManageCluster } from './ManageCluster';
 import { contacts } from './Contacts/fixtures';
+import { ManageCluster } from './ManageCluster';
 
 export default {
   title: 'TeleportE/Clusters/ManageCluster',

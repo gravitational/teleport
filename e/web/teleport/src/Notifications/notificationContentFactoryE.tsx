@@ -1,34 +1,30 @@
 import React from 'react';
 
-import * as Icons from 'design/Icon';
 import { ButtonSecondary } from 'design/Button';
+import * as Icons from 'design/Icon';
 import Text from 'design/Text';
-
-import Logger from 'shared/libs/logger';
 import { useAsync } from 'shared/hooks/useAsync';
-
-const logger = Logger.create('Notifications');
-
-import session from 'teleport/services/websession';
-import history from 'teleport/services/history';
-import {
-  Notification as NotificationType,
-  NotificationSubKind,
-  LocalNotificationKind,
-  LocalNotificationGroupedKind,
-} from 'teleport/services/notifications';
-import {
-  notificationContentFactory,
-  NotificationContent,
-  getLabelValue,
-  QuickActionProps,
-} from 'teleport/Notifications/notificationContentFactory';
-
+import Logger from 'shared/libs/logger';
 import { pluralize } from 'shared/utils/text';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-
 import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
+import {
+  getLabelValue,
+  NotificationContent,
+  notificationContentFactory,
+  QuickActionProps,
+} from 'teleport/Notifications/notificationContentFactory';
+import history from 'teleport/services/history';
+import {
+  LocalNotificationGroupedKind,
+  LocalNotificationKind,
+  NotificationSubKind,
+  Notification as NotificationType,
+} from 'teleport/services/notifications';
+import session from 'teleport/services/websession';
+
+const logger = Logger.create('Notifications');
 
 /**
  notificationContentFactoryE produces the content for notifications for enterprise-only features.

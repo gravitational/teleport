@@ -1,13 +1,11 @@
-import api from 'teleport/services/api';
-
 import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
+import type { SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
 
 import {
   CreateSamlIdpServiceProviderRequest,
   SamlIdpMetadataResponse,
 } from './types';
-
-import type { SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
 
 export class IdpService {
   getSamlIdpServiceProvider(name: string): Promise<SamlIdpServiceProvider> {

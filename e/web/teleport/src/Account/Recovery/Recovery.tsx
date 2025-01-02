@@ -1,19 +1,16 @@
-import { Text, ButtonPrimary } from 'design';
-import ReAuthenticate from 'teleport/components/ReAuthenticate';
-
-import { MultiRowBox, Row } from 'design/MultiRowBox';
-import { Header } from 'teleport/Account/Header';
+import { ButtonPrimary, Text } from 'design';
 import * as Icon from 'design/Icon';
-import { EnterpriseComponentProps } from 'teleport/Account/Account';
-
+import { MultiRowBox, Row } from 'design/MultiRowBox';
 import { P } from 'design/Text/Text';
 
+import useTeleportE from 'e-teleport/useTeleportE';
+import { EnterpriseComponentProps } from 'teleport/Account/Account';
+import { Header } from 'teleport/Account/Header';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-
-import useRecovery, { State } from './useRecovery';
 import RecoveryCodesDialog from './RecoveryCodesDialog';
+import useRecovery, { State } from './useRecovery';
 
 export default function Container({
   addNotification,

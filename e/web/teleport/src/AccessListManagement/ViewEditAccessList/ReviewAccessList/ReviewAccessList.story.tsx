@@ -1,20 +1,19 @@
 import { addWeeks } from 'date-fns';
-import { Info } from 'design/Alert';
 import { MemoryRouter } from 'react-router';
+
+import { Info } from 'design/Alert';
 import { Option } from 'shared/components/Select';
 
 import {
   AccessListMemberKind,
+  AccessListType,
   ReviewDayOfMonth,
   ReviewFrequency,
-  AccessListType,
 } from 'e-teleport/services/accessmanagement';
 
 import { convertToTraitConvenience } from '../../Traits';
-
-import { ReviewAccessList } from './ReviewAccessList';
-
 import type { AccessListModified } from '../Shared';
+import { ReviewAccessList } from './ReviewAccessList';
 
 export default {
   title: 'TeleportE/AccessLists/Review',

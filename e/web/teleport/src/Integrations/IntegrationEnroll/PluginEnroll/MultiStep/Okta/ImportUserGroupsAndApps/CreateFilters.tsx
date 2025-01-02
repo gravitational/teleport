@@ -1,16 +1,14 @@
 import { components } from 'react-select';
 import { useTheme } from 'styled-components';
+
 import { Box, Flex, Text } from 'design';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Theme } from 'design/theme/themes/types';
-
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
-import { Validator } from 'shared/components/Validation';
-
 import { CustomSelectComponentProps, Option } from 'shared/components/Select';
+import { Validator } from 'shared/components/Validation';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { FormDataField } from '../types';
-
 import { FilterOption, FormDataFilterField } from './types';
 
 export const CreateFilters = ({

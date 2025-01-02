@@ -1,20 +1,21 @@
 import { useCallback } from 'react';
 import styled from 'styled-components';
-import { displayDate } from 'design/datetime';
-import { Danger } from 'design/Alert';
+
 import { Flex, Indicator } from 'design';
-import { Devices } from 'design/Icon';
+import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
+import { displayDate } from 'design/datetime';
+import { Devices } from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
-import { Header } from 'teleport/Account/Header';
-import { TrustedDevice } from 'teleport/DeviceTrust/types';
 import {
   useInfiniteScroll,
   useKeyBasedPagination,
 } from 'shared/hooks/useInfiniteScroll';
 
-import useTeleportE from 'e-teleport/useTeleportE';
 import { IconCell } from 'e-teleport/DeviceTrust/DeviceList/DeviceList';
+import useTeleportE from 'e-teleport/useTeleportE';
+import { Header } from 'teleport/Account/Header';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 export const UserTrustedDevices = () => {
   const ctx = useTeleportE();

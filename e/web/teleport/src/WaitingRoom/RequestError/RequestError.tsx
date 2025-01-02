@@ -1,11 +1,12 @@
-import session from 'teleport/services/websession';
-import { ButtonSecondary, Text, Alert } from 'design';
+import { Alert, ButtonSecondary, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
+
+import session from 'teleport/services/websession';
 
 export default function RequestError({ err }: Props) {
   return (

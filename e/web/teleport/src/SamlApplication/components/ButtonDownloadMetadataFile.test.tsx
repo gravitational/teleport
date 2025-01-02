@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
-import { ContextProvider } from 'teleport';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
 
 import { ButtonDownloadMetadataFile } from './ButtonDownloadMetadataFile';
 

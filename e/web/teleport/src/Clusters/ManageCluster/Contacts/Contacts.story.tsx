@@ -1,12 +1,11 @@
-import { HttpResponse, delay, http } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-
-import { ContextProvider } from 'teleport/index';
-import { ContentMinWidth } from 'teleport/Main/Main';
-import { Route } from 'teleport/components/Router';
 
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { Route } from 'teleport/components/Router';
+import { ContextProvider } from 'teleport/index';
+import { ContentMinWidth } from 'teleport/Main/Main';
 
 import { Contacts } from './Contacts';
 

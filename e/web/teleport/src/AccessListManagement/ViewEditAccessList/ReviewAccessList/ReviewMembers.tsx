@@ -1,21 +1,17 @@
-import { Box } from 'design';
+import { Box, H2 } from 'design';
 import { pluralize } from 'shared/utils/text';
 
-import { H2 } from 'design';
-
+import type { AccessListWithNestedOwnersMembersTitles } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import {
   AccessListGrant,
   AccessListMember,
 } from 'e-teleport/services/accessmanagement';
 
 import { TraitConvenience } from '../../Traits';
-import { AccessListMemberTable } from '../Members/MembersList';
 import { DeleteMemberWarning } from '../DeleteUserConfirmDialog';
-
+import { AccessListMemberTable } from '../Members/MembersList';
 import { List } from './Shared';
 import { getMembersDeleted } from './utils';
-
-import type { AccessListWithNestedOwnersMembersTitles } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 
 export type Grant = Omit<TraitConvenience, 'traitList'> &
   Omit<AccessListGrant, 'traits'>;

@@ -1,4 +1,4 @@
-import { WelcomeWrapper, OnboardCard } from 'teleport/components/Onboard';
+import { OnboardCard, WelcomeWrapper } from 'teleport/components/Onboard';
 
 import { Questionnaire } from './Questionnaire';
 

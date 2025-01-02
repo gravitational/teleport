@@ -1,5 +1,6 @@
-import { Box, Flex, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
+
+import { Box, Flex, Text } from 'design';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { CycleUsage } from 'e-teleport/UsageSummary/types';

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 
-import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import {
-  MockSamlApplicationContextProvider,
   idpMetadata,
+  MockSamlApplicationContextProvider,
 } from 'e-teleport/SamlApplication/fixtures';
+import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import {
   ConfigurePool,

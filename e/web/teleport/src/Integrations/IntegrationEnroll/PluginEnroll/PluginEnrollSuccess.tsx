@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
+
 import { Box, ButtonPrimary, ButtonSecondary, Flex, H2, Image } from 'design';
 import pamSuccess from 'design/assets/images/icons/success.png';
 
 import cfg from 'e-teleport/config';
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 import { OAuthPluginRegistered } from './PluginEnroll';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export function PluginEnrollSuccess(props: State) {
   const { oauthSuccessData, plugin, installedPluginName } = props;

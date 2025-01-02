@@ -1,19 +1,18 @@
 import { forwardRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Box, ButtonPrimary, ButtonText } from 'design';
+import type { TransitionStatus } from 'react-transition-group';
 
+import { Box, ButtonPrimary, ButtonText } from 'design';
 import {
+  ResourceMap,
   RequestCheckoutWithSlider as SharedRequestCheckout,
   RequestCheckoutProps as SharedRequestCheckoutProps,
-  ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
 
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import { useRequestCheckout } from './useRequestCheckout';
-
-import type { TransitionStatus } from 'react-transition-group';
 
 export const RequestCheckout = forwardRef<
   HTMLDivElement,

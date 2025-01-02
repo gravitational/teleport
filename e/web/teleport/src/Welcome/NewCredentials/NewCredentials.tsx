@@ -1,17 +1,14 @@
 import { useState } from 'react';
 
-import { useLocation } from 'teleport/components/Router';
-import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
-
-import useToken from 'teleport/Welcome/useToken';
-
-import { CLOUD_INVITE_URL_PARAM } from 'teleport/Welcome/const';
-import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
-
 import cfg from 'e-teleport/config';
-import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
-import { InviteCollaboratorsCard } from 'e-teleport/Welcome/InviteCollaborators/InviteCollaboratorsCard';
 import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
+import { InviteCollaboratorsCard } from 'e-teleport/Welcome/InviteCollaborators/InviteCollaboratorsCard';
+import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
+import { useLocation } from 'teleport/components/Router';
+import { CLOUD_INVITE_URL_PARAM } from 'teleport/Welcome/const';
+import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
+import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
+import useToken from 'teleport/Welcome/useToken';
 
 /**
  *

@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useHistory } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
+
+import {
+  pluginTypeToIntegrationEnrollKind,
+  type CloudHostablePlugin,
+} from 'e-teleport/services/plugins';
 import {
   IntegrationEnrollEvent,
   userEventService,
 } from 'teleport/services/userEvent';
 
-import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
-
-import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { PluginEnrollFailedDialog } from './PluginEnrollFailedDialog';
+import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export type OAuthPluginRegistered = {
   name: string;

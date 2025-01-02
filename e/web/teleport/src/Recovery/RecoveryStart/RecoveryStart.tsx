@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Card, Text, ButtonPrimary, CardSuccess, Box, H2 } from 'design';
+import React, { useMemo, useState } from 'react';
+
+import { Box, ButtonPrimary, Card, CardSuccess, H2, Text } from 'design';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -7,7 +8,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import RecoveryService from 'e-teleport/services/recovery/recovery';
 
-import useRecoveryStart, { State, RecoveryType } from './useRecoveryStart';
+import useRecoveryStart, { RecoveryType, State } from './useRecoveryStart';
 
 export default function Container({ recoveryType }: Props) {
   const recoveryService = useMemo(() => new RecoveryService(), []);

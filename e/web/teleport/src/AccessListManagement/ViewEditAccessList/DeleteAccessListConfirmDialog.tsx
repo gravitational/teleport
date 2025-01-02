@@ -1,19 +1,19 @@
 import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
-import { ButtonSecondary, ButtonWarning, Text, Alert, Box, P1 } from 'design';
+
+import { Alert, Box, ButtonSecondary, ButtonWarning, P1, Text } from 'design';
+import { OutlineWarn } from 'design/Alert/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { OutlineWarn } from 'design/Alert/Alert';
-
 import { P } from 'design/Text/Text';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
 
 export function DeleteAccessListConfirmDialog({
   accessListName,

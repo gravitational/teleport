@@ -1,18 +1,19 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Mark, Text } from 'design';
-import FieldInput from 'shared/components/FieldInput';
-import { ButtonFileUpload } from 'shared/components/ButtonFileUpload';
-import { StyledBox } from 'teleport/Discover/Shared';
-import Validation, { Validator } from 'shared/components/Validation';
 import { Danger } from 'design/Alert';
+import { ButtonFileUpload } from 'shared/components/ButtonFileUpload';
+import FieldInput from 'shared/components/FieldInput';
+import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { pluginsService } from 'e-teleport/services/plugins';
-import { ButtonDownloadMetadataFile } from 'e-teleport/SamlApplication/components/ButtonDownloadMetadataFile';
-import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { ButtonDownloadMetadataFile } from 'e-teleport/SamlApplication/components/ButtonDownloadMetadataFile';
+import { pluginsService } from 'e-teleport/services/plugins';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
+import { StyledBox } from 'teleport/Discover/Shared';
 
 import { UserAccountWarning } from '../shared/UserAccountWarning';
 

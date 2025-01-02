@@ -2,8 +2,8 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
 import {
-  Notification,
   NotificationItem as InnerNotificationItem,
+  Notification,
 } from 'shared/components/Notification';
 
 export type NotificationItem = InnerNotificationItem & {

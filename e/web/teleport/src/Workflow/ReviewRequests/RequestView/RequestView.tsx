@@ -1,10 +1,9 @@
-import { useAsync } from 'shared/hooks/useAsync';
-import historyService from 'teleport/services/history';
-
 import { RequestView as SharedRequestView } from 'shared/components/AccessRequests/ReviewRequests';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
+import historyService from 'teleport/services/history';
 
 import useRequestView from './useRequestView';
 

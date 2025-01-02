@@ -1,9 +1,9 @@
-import { ButtonSecondary, Alert } from 'design';
+import { Alert, ButtonSecondary } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 
 export default function BannerError({ err, onClose }: Props) {

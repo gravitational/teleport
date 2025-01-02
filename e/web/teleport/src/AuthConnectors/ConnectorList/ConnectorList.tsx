@@ -2,12 +2,12 @@ import styled from 'styled-components';
 
 import Box from 'design/Box';
 
-import { State as ResourceState } from 'teleport/components/useResources';
 import {
   AuthConnectorTile,
   LocalConnectorTile,
 } from 'teleport/AuthConnectors/AuthConnectorTile';
 import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
+import { State as ResourceState } from 'teleport/components/useResources';
 
 import { State as AuthConnectorState } from '../useAuthConnectors';
 

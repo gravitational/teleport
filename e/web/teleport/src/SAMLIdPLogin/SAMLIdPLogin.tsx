@@ -1,15 +1,14 @@
+import { parsePath } from 'history';
 import { useEffect } from 'react';
 
 import { Flex, Indicator } from 'design';
-
 import { AccessDenied } from 'design/CardError';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
-import history from 'teleport/services/history';
-import { parsePath } from 'history';
 import { bufferToBase64url } from 'shared/utils/base64';
+
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import history from 'teleport/services/history';
 
 export function SAMLIdPLogin() {
   const { attempt, setAttempt } = useAttempt('processing');

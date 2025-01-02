@@ -1,7 +1,7 @@
 import {
-  deduplicateTraitLabels,
-  convertTraitLabelsToAllUserTraits,
   convertToTraitConvenience,
+  convertTraitLabelsToAllUserTraits,
+  deduplicateTraitLabels,
 } from './Traits';
 
 test('deduplicateTraitLabels', async () => {

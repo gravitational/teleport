@@ -1,27 +1,26 @@
 import { useState } from 'react';
-import { Flex, Text, Box, H2, ButtonText } from 'design';
-import { UserIdBadge, CircleCheck, NotificationsActive } from 'design/Icon';
+
+import { Box, ButtonText, Flex, H2, Text } from 'design';
+import { CircleCheck, NotificationsActive, UserIdBadge } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
-import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
-import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import {
   getReviewDayOfMonthOption,
   getReviewFrequencyOption,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
-import { AccessList } from 'e-teleport/services/accessmanagement';
-
+import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
+import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
 import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
+import { AccessList } from 'e-teleport/services/accessmanagement';
 
 import {
   AccessListModified,
   ButtonPencil,
-  RoleAndTraitLabels,
   MAX_DISPLAYED_INHERITED_ROLES_TRAITS,
+  RoleAndTraitLabels,
 } from '../Shared';
-
-import { EditEligibilityOrGrantRoles } from './EditEligibilityOrGrants';
 import { EditAudit } from './EditAudit';
+import { EditEligibilityOrGrantRoles } from './EditEligibilityOrGrants';
 import ShowMoreGrantsDialog from './ShowMoreGrantsDialog';
 
 type Props = {

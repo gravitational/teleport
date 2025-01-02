@@ -5,25 +5,23 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { useLocation } from 'react-router';
 
-import { Plugin } from 'teleport/services/integrations';
-
+import { getSuccessPrimaryButtonState } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/redirect';
 import {
-  IntegrationEnrollEvent,
-  userEventService,
-} from 'teleport/services/userEvent';
+  pluginTypeToIntegrationEnrollKind,
+  type CloudHostablePlugin,
+  type View,
+} from 'e-teleport/services/plugins';
 import {
   addIndexToViews,
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
-
-import { useLocation } from 'react-router';
-
-import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
-
-import { getSuccessPrimaryButtonState } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/redirect';
-
-import type { View, CloudHostablePlugin } from 'e-teleport/services/plugins';
+import { Plugin } from 'teleport/services/integrations';
+import {
+  IntegrationEnrollEvent,
+  userEventService,
+} from 'teleport/services/userEvent';
 
 export interface PluginContextState<T = any> {
   currentStep: number;

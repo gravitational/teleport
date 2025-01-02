@@ -1,21 +1,20 @@
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
+import { externalAuditStorageService } from 'e-teleport/services/externalauditstorage';
+import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
-
 import { externalAuditStorage } from 'teleport/Integrations/fixtures';
 import { allAccessAcl } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
-  IntegrationStatusCode,
   integrationService,
+  IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-import TeleportEContext from 'e-teleport/teleportContextE';
-import { externalAuditStorageService } from 'e-teleport/services/externalauditstorage';
-
-import { ExternalAuditStorageProvider } from './useExternalAuditStorage';
 import { ExternalAuditStorage } from './ExternalAuditStorage';
+import { ExternalAuditStorageProvider } from './useExternalAuditStorage';
 
 describe('externalAuditStorage', () => {
   afterEach(() => {

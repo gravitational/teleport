@@ -1,9 +1,8 @@
 import { Flex } from 'design';
 
 import { AccessCard } from '../AccessCard';
-
-import { Description, Feature, FeatureProps, Title } from './Shared';
 import { mockAccessLists } from './fixtures';
+import { Description, Feature, FeatureProps, Title } from './Shared';
 
 export const GetVisibility = ({ active, onClick, isSliding }: FeatureProps) => {
   return (

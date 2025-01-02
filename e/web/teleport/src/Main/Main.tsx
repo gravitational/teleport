@@ -1,25 +1,23 @@
 import React, { useEffect, useState } from 'react';
 
-import { Main } from 'teleport/Main/Main';
-
-import { storageService } from 'teleport/services/storageService';
-
-import { useBanner } from 'e-teleport/Banner/useBanner';
-import useTeleport from 'e-teleport/useTeleportE';
-import TeleportEContext from 'e-teleport/teleportContextE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
-import { getEnterpriseFeatures } from 'e-teleport/features';
+import { useBanner } from 'e-teleport/Banner/useBanner';
 import cfg from 'e-teleport/config';
-import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
+import { getEnterpriseFeatures } from 'e-teleport/features';
+import {
+  createErrorNotification,
+  createSuccessNotification,
+} from 'e-teleport/InviteCollaborators/common';
 import {
   NotificationEntry,
   NotificationItem,
   Notifications,
 } from 'e-teleport/InviteCollaborators/Notifications';
-import {
-  createErrorNotification,
-  createSuccessNotification,
-} from 'e-teleport/InviteCollaborators/common';
+import TeleportEContext from 'e-teleport/teleportContextE';
+import useTeleport from 'e-teleport/useTeleportE';
+import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
+import { Main } from 'teleport/Main/Main';
+import { storageService } from 'teleport/services/storageService';
 
 import { BblpLogo } from './bblpLogo';
 

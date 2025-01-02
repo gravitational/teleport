@@ -1,14 +1,14 @@
-import { Text, Link as ExternalLink, Flex } from 'design';
+import { Link as ExternalLink, Flex, Text } from 'design';
 import { NewTab } from 'design/Icon';
-
-import { OktaScimDetails } from 'teleport/services/integrations/oktaStatusTypes';
-import cfg from 'teleport/config';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import cfg from 'teleport/config';
+import { OktaScimDetails } from 'teleport/services/integrations/oktaStatusTypes';
 import { CtaEvent } from 'teleport/services/userEvent';
 
-import { Panel, PanelTitle, CenteredFlex, CustomLabel } from './Shared';
 import { generateOktaScimSettingsUrl } from './generateOktaAdminLink';
+import { CenteredFlex, CustomLabel, Panel, PanelTitle } from './Shared';
 
 export function Scim({
   spec,

@@ -1,9 +1,13 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useParams } from 'react-router';
+import { Link } from 'react-router-dom';
 import { Transition } from 'react-transition-group';
-import { Text, Flex, ButtonPrimary, Box, ButtonBorder } from 'design';
+
+import { Box, ButtonBorder, ButtonPrimary, Flex, Text } from 'design';
 import { ArrowBack } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+
+import cfg from 'e-teleport/config';
 import {
   FeatureBox,
   FeatureHeader,
@@ -11,13 +15,10 @@ import {
 } from 'teleport/components/Layout';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
-import { HoverTooltip } from 'design/Tooltip';
 
-import cfg from 'e-teleport/config';
-
+import { NotificationRoutingRulesDialog } from './NotificationRoutingRules/NotificationRoutingRulesDialog';
 import RequestList from './RequestList/RequestList';
 import { RequestView } from './RequestView/RequestView';
-import { NotificationRoutingRulesDialog } from './NotificationRoutingRules/NotificationRoutingRulesDialog';
 
 const NewRequestButton = ({ clusterId }: { clusterId: string }) => {
   return (

@@ -3,8 +3,8 @@ import { Info } from 'design/Alert';
 
 import type {
   AwsIcAccounts,
-  AwsIcPermissionSets,
   AwsIcGroupsWithAssignment,
+  AwsIcPermissionSets,
 } from 'e-teleport/services/plugins/types';
 
 export const DevNoteEnroll = () => (

@@ -1,34 +1,35 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect, useMemo, useState } from 'react';
+
+import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-import Validation, { Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  AccessList,
-  accessManagementService,
-} from 'e-teleport/services/accessmanagement';
+import { EligibilityOrGrantRolesFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import {
   EditKind,
   fetchAndProcessSelectedRoles,
   rolesContainDenyRules,
 } from 'e-teleport/AccessListManagement/Shared/Shared';
-import { EligibilityOrGrantRolesFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import {
+  convertTraitLabelsToAllUserTraits,
   TraitConvenience,
   TraitLabel,
   TraitsCreator,
-  convertTraitLabelsToAllUserTraits,
 } from 'e-teleport/AccessListManagement/Traits';
+import {
+  AccessList,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
+import type { Role } from 'teleport/services/resources';
 
 import type { AccessListModified } from '../Shared';
-import type { Role } from 'teleport/services/resources';
 
 type Props = {
   onClose(): void;

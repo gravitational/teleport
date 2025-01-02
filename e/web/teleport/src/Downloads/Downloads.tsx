@@ -1,16 +1,14 @@
+import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-
-import cfg from 'e-teleport/config';
-
-import { useDownloads, State } from './useDownloads';
 import { License } from './License/License';
 import { TeleportReleases } from './TeleportReleases/TeleportReleases';
+import { State, useDownloads } from './useDownloads';
 
 export function Downloads() {
   const ctx = useTeleportE();

@@ -1,6 +1,6 @@
-import { Text, ButtonSecondary } from 'design';
-import { ShieldCheck } from 'design/Icon';
+import { ButtonSecondary, Text } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
+import { ShieldCheck } from 'design/Icon';
 
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 

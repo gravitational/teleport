@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import MfaService, { MfaDevice } from 'teleport/services/mfa';
 
 export default function useDevices(

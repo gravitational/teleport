@@ -1,38 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
+
 import {
   Box,
-  Flex,
   ButtonPrimary,
-  Text,
-  H1,
   ButtonSecondary,
-  H3,
+  Flex,
+  H1,
   H2,
-  ResourceIcon,
-  P2,
+  H3,
   P1,
+  P2,
+  ResourceIcon,
+  Text,
 } from 'design';
+import Table from 'design/DataTable';
+import { Cross, FingerprintSimple, Password, UsbDrive } from 'design/Icon';
+import { MobileCamera } from 'design/Icon/Icons/MobileCamera';
 import {
   DetailsTab,
   FeatureContainer,
   FeatureSlider,
 } from 'shared/components/EmptyState/EmptyState';
-import { TrustedDevice } from 'teleport/DeviceTrust/types';
-import cfg from 'teleport/config';
-import { Cross, FingerprintSimple, Password, UsbDrive } from 'design/Icon';
-import { MobileCamera } from 'design/Icon/Icons/MobileCamera';
-import Table from 'design/DataTable';
-import { makeEvent } from 'teleport/services/audit';
-import renderTypeCell from 'teleport/Audit/EventList/EventTypeCell';
+import { pluralize } from 'shared/utils/text';
+
 import {
   renderDescCell,
   renderTimeCell,
 } from 'teleport/Audit/EventList/EventList';
+import renderTypeCell from 'teleport/Audit/EventList/EventTypeCell';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import cfg from 'teleport/config';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
+import { makeEvent } from 'teleport/services/audit';
 import { CtaEvent } from 'teleport/services/userEvent';
-import { pluralize } from 'shared/utils/text';
 
 import { DeviceList } from '../DeviceList';
 import { CallToAction } from '../DeviceTrust';

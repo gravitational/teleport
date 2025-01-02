@@ -1,5 +1,6 @@
-import { Text } from 'design';
 import styled, { keyframes } from 'styled-components';
+
+import { Text } from 'design';
 
 const animate = keyframes`
     0% {

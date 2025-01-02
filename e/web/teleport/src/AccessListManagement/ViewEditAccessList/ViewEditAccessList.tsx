@@ -1,22 +1,21 @@
-import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
+import { useEffect, useState } from 'react';
 import { useHistory, useLocation, useParams } from 'react-router';
-import useAttempt from 'shared/hooks/useAttemptNext';
+
 import { Alert, Box, ButtonSecondary, Flex, H1, Indicator, Text } from 'design';
 import {
   ArrowBack,
   ArrowForward,
-  ListMagnifyingGlass,
   Info,
+  ListMagnifyingGlass,
 } from 'design/Icon';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
+import type { Option } from 'shared/components/Select';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import useTeleport from 'e-teleport/useTeleportE';
-
+import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
+import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
+import cfg from 'e-teleport/config';
 import {
   AccessList,
   AccessListMember,
@@ -24,30 +23,28 @@ import {
   AccessListType,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
-import cfg from 'e-teleport/config';
-import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import useTeleport from 'e-teleport/useTeleportE';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 
 import { TypeBadge } from '../Shared/TypeBadge';
-
-import { ReviewAccessList } from './ReviewAccessList';
-
-import { OwnersList } from './Owners/OwnersList';
-import { MembersList } from './Members/MembersList';
-import { Specs } from './Specs/Specs';
 import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
-
+import { MembersList } from './Members/MembersList';
+import { OwnersList } from './Owners/OwnersList';
+import { ReviewAccessList } from './ReviewAccessList';
 import {
   ButtonPencil,
   getPerms,
   getTitlesForNestedListOwnersMembers,
   modifyAccessList,
+  type AccessListModified,
+  type Perms,
 } from './Shared';
 import { EditTitle } from './Specs/EditTitle';
-
-import type { AccessListModified, Perms } from './Shared';
-import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
-import type { Option } from 'shared/components/Select';
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
+import { Specs } from './Specs/Specs';
 
 const noAccessDeleteMsg = 'You do not have access to delete this access_list';
 

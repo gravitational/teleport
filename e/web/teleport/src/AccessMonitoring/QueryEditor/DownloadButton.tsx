@@ -1,6 +1,5 @@
-import { saveOnDisk } from 'shared/utils/saveOnDisk';
-
 import { Button } from 'design/Button';
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 interface DownloadButtonProps {
   header: string[];

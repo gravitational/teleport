@@ -1,10 +1,9 @@
-import api from 'teleport/services/api';
-
+import cfg from 'e-teleport/config';
 import {
   SetSurveyResultsRequest,
   SurveyCompanyResponse,
 } from 'e-teleport/services/cloud/v1/tenants_pb';
-import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
 
 export const surveyService = {
   submitSurvey(survey: Omit<SetSurveyResultsRequest, 'username'>) {

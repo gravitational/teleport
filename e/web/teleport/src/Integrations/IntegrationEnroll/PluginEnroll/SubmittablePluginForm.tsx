@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
+
 import {
   Alert,
   Box,
@@ -13,18 +14,20 @@ import {
 } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import Validation, { Validator } from 'shared/components/Validation';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { getXCSRFToken } from 'teleport/services/api';
-import { Plugin } from 'teleport/services/integrations';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
-import { getCTAForPlugin, pluginsService } from 'e-teleport/services/plugins';
+import {
+  getCTAForPlugin,
+  pluginsService,
+  type CloudHostablePlugin,
+} from 'e-teleport/services/plugins';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { getXCSRFToken } from 'teleport/services/api';
+import { Plugin } from 'teleport/services/integrations';
 
 import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue'; // SubmittablePluginForm is a form that will use the default form submission event
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 // SubmittablePluginForm is a form that will use the default form submission event
 // if the plugin is an `OAuth` plugin. Otherwise it will send off a conventional

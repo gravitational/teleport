@@ -1,16 +1,15 @@
 import { act, waitFor } from '@testing-library/react';
-import { render, screen, userEvent } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
-
 import { MemoryRouter } from 'react-router';
 
+import { render, screen, userEvent } from 'design/utils/testing';
+
+import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
+import { pluginsService } from 'e-teleport/services/plugins';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
-import { yamlService } from 'teleport/services/yaml';
 import { Plugin } from 'teleport/services/integrations';
-
-import { pluginsService } from 'e-teleport/services/plugins';
-import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
+import { yamlService } from 'teleport/services/yaml';
 
 import { NotificationRoutingRulesDialog } from './NotificationRoutingRulesDialog';
 

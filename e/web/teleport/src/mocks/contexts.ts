@@ -1,8 +1,6 @@
-import makeUserContext from 'teleport/services/user/makeUserContext';
-import { baseContext } from 'teleport/mocks/contexts';
-
 import TeleportContextE from 'e-teleport/teleportContextE';
-
+import { baseContext } from 'teleport/mocks/contexts';
+import makeUserContext from 'teleport/services/user/makeUserContext';
 import type { Acl } from 'teleport/services/user/types';
 
 export function createTeleportContextE(cfg?: { customAcl?: Acl }) {

@@ -1,9 +1,8 @@
 import { render, screen } from 'design/utils/testing';
 
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import { FeatureLimitBlurb } from 'e-teleport/AccessListManagement/Shared/FeatureLimitReached';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 test('defaults to 1 access list', () => {
   const ctx = createTeleportContext();

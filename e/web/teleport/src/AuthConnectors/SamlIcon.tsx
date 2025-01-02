@@ -1,6 +1,5 @@
-import { SVGIcon } from 'design/SVGIcon/SVGIcon';
-
 import type { SVGIconProps } from 'design/SVGIcon/common';
+import { SVGIcon } from 'design/SVGIcon/SVGIcon';
 
 export function SamlIcon({ size = 14, height, width, fill }: SVGIconProps) {
   return (

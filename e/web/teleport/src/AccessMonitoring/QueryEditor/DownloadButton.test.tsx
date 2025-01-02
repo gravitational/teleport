@@ -1,5 +1,4 @@
-import { render, screen, fireEvent } from 'design/utils/testing';
-
+import { fireEvent, render, screen } from 'design/utils/testing';
 import * as saveOnDiskUtils from 'shared/utils/saveOnDisk';
 
 import DownloadButton from './DownloadButton';

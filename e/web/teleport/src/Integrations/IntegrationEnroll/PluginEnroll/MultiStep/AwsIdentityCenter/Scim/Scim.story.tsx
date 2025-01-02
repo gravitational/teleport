@@ -1,15 +1,15 @@
 import { MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
+
 import { Info } from 'design/Alert';
 
-import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
 import { PluginProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
+import { ContextProvider } from 'teleport';
 
 import { AwsIcConfigureScim } from './Scim';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export default {
   title: 'TeleportE/Integrations/Enroll/AWSIdentityCenter/SCIM',

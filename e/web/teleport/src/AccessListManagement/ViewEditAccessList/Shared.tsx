@@ -1,14 +1,18 @@
-import React from 'react';
+import React, { type PropsWithChildren } from 'react';
 import styled from 'styled-components';
+
 import { Alert, Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
 import { Cell } from 'design/DataTable';
 import { Pencil } from 'design/Icon';
+import Link from 'design/Link';
+import { IconTooltip } from 'design/Tooltip';
 import { Option } from 'shared/components/Select';
 
-import { IconTooltip } from 'design/Tooltip';
-
-import Link from 'design/Link';
-
+import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
+import {
+  convertToTraitConvenience,
+  TraitConvenience,
+} from 'e-teleport/AccessListManagement/Traits';
 import {
   AccessList,
   AccessListGrant,
@@ -17,24 +21,17 @@ import {
   AccessListOwner,
   AccessListRequires,
 } from 'e-teleport/services/accessmanagement';
-import {
-  convertToTraitConvenience,
-  TraitConvenience,
-} from 'e-teleport/AccessListManagement/Traits';
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
+import type TeleportContextE from 'e-teleport/teleportContextE';
+import type { Access } from 'teleport/services/user';
 
 import {
   matchRoles,
   matchTraits,
   TruncatingLabel,
   UserOption,
+  type MemberSelection,
 } from '../Shared/Shared';
-
-import type { PropsWithChildren } from 'react';
-import type { MemberSelection } from '../Shared/Shared';
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
-import type TeleportContextE from 'e-teleport/teleportContextE';
-import type { Access } from 'teleport/services/user';
 
 export type AccessListRequiresWithTraitConvenience = AccessListRequires &
   TraitConvenience;

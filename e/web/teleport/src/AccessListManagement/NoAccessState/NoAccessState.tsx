@@ -1,4 +1,4 @@
-import { Text, Box } from 'design';
+import { Box, Text } from 'design';
 
 export function NoAccessState({ action }: { action?: 'create' }) {
   return (

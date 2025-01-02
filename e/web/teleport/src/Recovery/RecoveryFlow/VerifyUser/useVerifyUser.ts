@@ -1,8 +1,8 @@
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import cfg from 'e-teleport/config';
 import RecoveryService from 'e-teleport/services/recovery';
 import { RecoveryToken } from 'e-teleport/services/recovery/types';
-import cfg from 'e-teleport/config';
 
 export default function useVerifyUser({ recoveryService, token, done }: Props) {
   const { attempt, setAttempt, handleError } = useAttempt('');

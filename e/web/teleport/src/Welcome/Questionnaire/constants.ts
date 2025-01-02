@@ -1,8 +1,6 @@
-import { Option } from 'shared/components/Select';
-
-import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
 import { ResourceIconName } from 'design/ResourceIcon';
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+import { Option } from 'shared/components/Select';
 
 import {
   EmployeeOption,

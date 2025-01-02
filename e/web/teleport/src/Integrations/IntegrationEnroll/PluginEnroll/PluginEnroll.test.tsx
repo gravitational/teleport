@@ -1,21 +1,22 @@
 import { MemoryRouter, Route } from 'react-router';
+
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+
+import { pluginsService } from 'e-teleport/services/plugins';
 import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ApiError } from 'teleport/services/api/parseError';
+import {
+  IntegrationStatusCode,
+  PluginKind,
+} from 'teleport/services/integrations';
+import userService from 'teleport/services/user';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import {
-  IntegrationStatusCode,
-  PluginKind,
-} from 'teleport/services/integrations';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import userService from 'teleport/services/user';
-import { ApiError } from 'teleport/services/api/parseError';
-
-import { pluginsService } from 'e-teleport/services/plugins';
 
 import { PluginEnroll } from './PluginEnroll';
 

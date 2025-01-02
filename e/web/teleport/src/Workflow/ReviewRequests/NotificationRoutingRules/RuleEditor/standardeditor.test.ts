@@ -4,16 +4,16 @@ import {
 } from 'e-teleport/services/accessmonitoringrule/types';
 
 import {
+  AccessRequestMatchCondition,
+  accessRequestMatchConditionOptions,
+} from './rulecondition';
+import {
   buildRuleFromStandardEditor,
   ConfigurableFieldsForStandardEditor,
   getConfigurableFieldsForStandardEditor,
   hasModifiedFields,
   newAccessMonitoringRule,
 } from './standardeditor';
-import {
-  AccessRequestMatchCondition,
-  accessRequestMatchConditionOptions,
-} from './rulecondition';
 
 test('buildRuleFromStandardEditor: empty fields', () => {
   const emptyRule = newAccessMonitoringRule();

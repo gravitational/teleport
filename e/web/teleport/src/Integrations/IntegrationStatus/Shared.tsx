@@ -1,7 +1,8 @@
 import { Label, Text } from 'design';
+
 import {
-  IntegrationStatusCode,
   getStatusCodeTitle,
+  IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
 export const OverallStatus = ({

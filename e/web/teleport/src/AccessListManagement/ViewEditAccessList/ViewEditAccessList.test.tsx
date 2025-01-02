@@ -1,13 +1,11 @@
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
-import { render, screen, userEvent } from 'design/utils/testing';
-import { ContextProvider } from 'teleport';
-import ResourceService from 'teleport/services/resources';
-import userService from 'teleport/services/user';
 
+import { render, screen, userEvent } from 'design/utils/testing';
+
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
   AccessList,
   AccessListMemberKind,
@@ -16,6 +14,9 @@ import {
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
 import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import ResourceService from 'teleport/services/resources';
+import userService from 'teleport/services/user';
 
 import { ViewEditAccessList } from './ViewEditAccessList';
 

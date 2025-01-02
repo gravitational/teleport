@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
 
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 

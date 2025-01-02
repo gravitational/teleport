@@ -1,13 +1,11 @@
+import SwitchBack from 'e-teleport/Banner/Switchback';
+import { useBanner } from 'e-teleport/Banner/useBanner';
+import useTeleportE from 'e-teleport/useTeleportE';
 import { DiscoverComponent } from 'teleport/Discover/Discover';
+import type { ResourceSpec } from 'teleport/Discover/SelectResource';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-import { useBanner } from 'e-teleport/Banner/useBanner';
-import SwitchBack from 'e-teleport/Banner/Switchback';
-
 import { resourceViewConfigs } from './resourceViewConfig';
-
-import type { ResourceSpec } from 'teleport/Discover/SelectResource';
 
 export function Discover() {
   const ctx = useTeleportE();

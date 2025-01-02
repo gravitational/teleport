@@ -1,9 +1,11 @@
 import React from 'react';
 import styled from 'styled-components';
+
 import { Box, Card, Flex, P1, P2, Text } from 'design';
+import { pluralize } from 'shared/utils/text';
+
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
-import { pluralize } from 'shared/utils/text';
 
 export function FeatureLimitReached() {
   return (

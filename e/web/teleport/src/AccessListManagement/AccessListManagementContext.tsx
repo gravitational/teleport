@@ -6,27 +6,26 @@ import {
   useEffect,
   useRef,
   useState,
+  type PropsWithChildren,
 } from 'react';
 
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { ApiError } from 'teleport/services/api/parseError';
+import type { SortDir } from 'design/DataTable/types';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { KeysEnum } from 'teleport/services/storageService';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
+import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
+import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
+import { useFetchUserAndRoles } from 'e-teleport/AccessListManagement/useFetchUsersAndRoles';
 import {
   AccessListOwner,
   accessManagementService,
+  type AccessList,
 } from 'e-teleport/services/accessmanagement';
-import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
-import { useFetchUserAndRoles } from 'e-teleport/AccessListManagement/useFetchUsersAndRoles';
-import useTeleportE from 'e-teleport/useTeleportE';
-
-import type { PropsWithChildren } from 'react';
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import type TeleportEContext from 'e-teleport/teleportContextE';
-import type { AccessList } from 'e-teleport/services/accessmanagement';
-import type { SortDir } from 'design/DataTable/types';
+import useTeleportE from 'e-teleport/useTeleportE';
+import { ApiError } from 'teleport/services/api/parseError';
+import { KeysEnum } from 'teleport/services/storageService';
 
 // PreProcessFn is a function that takes a list of AccessList and returns a list of AccessLists.
 // This is used to modify the access lists before they are processed, e.g. to filter out certain lists

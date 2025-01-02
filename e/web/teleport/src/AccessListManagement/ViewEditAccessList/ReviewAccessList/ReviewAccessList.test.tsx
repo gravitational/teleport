@@ -1,19 +1,18 @@
 import {
+  getReviewDayOfMonthOption,
+  getReviewFrequencyOption,
+} from 'e-teleport/AccessListManagement/Shared/Audit';
+import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
+import {
   AccessListMemberKind,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
-import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
-import {
-  getReviewDayOfMonthOption,
-  getReviewFrequencyOption,
-} from 'e-teleport/AccessListManagement/Shared/Audit';
 
 import {
   AccessListModified,
   AccessListWithNestedOwnersMembersTitles,
 } from '../Shared';
-
 import { getEditedAccessListFields } from './ReviewAccessList';
 
 test('getEditedAccessListFields: no edits', () => {

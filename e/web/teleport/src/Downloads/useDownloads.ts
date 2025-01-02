@@ -1,20 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-
+import { downloadObject } from 'shared/utils/download';
 import { compareSemVers } from 'shared/utils/semVer';
-
 import { wait } from 'shared/utils/wait';
 
-import cfg from 'teleport/config';
-
-import { downloadObject } from 'shared/utils/download';
-
-import TeleportContextE from 'e-teleport/teleportContextE';
-
-import { License } from 'e-teleport/services/downloads/types';
-
 import type { Kind, OS, Release } from 'e-teleport/services/downloads';
+import { License } from 'e-teleport/services/downloads/types';
+import TeleportContextE from 'e-teleport/teleportContextE';
+import cfg from 'teleport/config';
 
 export type State = ReturnType<typeof useDownloads>;
 

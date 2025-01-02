@@ -1,23 +1,22 @@
-import { format, addMinutes } from 'date-fns';
+import { addMinutes, format } from 'date-fns';
+
 import {
+  Alert,
   Box,
-  Text,
-  Link,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
   H2,
-  Alert,
+  Link,
+  Text,
 } from 'design';
-
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { GETTING_STARTED_LINK, LICENSE_FILE_GUIDE_LINK } from '../Downloads';
 

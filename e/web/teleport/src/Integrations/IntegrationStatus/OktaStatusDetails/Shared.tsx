@@ -1,7 +1,9 @@
 import styled from 'styled-components';
-import { Box, Flex, Text, Label } from 'design';
+
+import { Box, Flex, Label, Text } from 'design';
 import { CircleCheck } from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
+
 import { PluginOktaSyncStatusCode } from 'teleport/services/integrations/oktaStatusTypes';
 
 import { getDurationText } from './date';

@@ -1,4 +1,5 @@
-import { matchPath, generatePath } from 'react-router';
+import { generatePath, matchPath } from 'react-router';
+
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest';
 
 /**

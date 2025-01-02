@@ -1,28 +1,25 @@
-import { MemoryRouter } from 'react-router';
-import { fireEvent, render, screen } from 'design/utils/testing';
-import { ContextProvider } from 'teleport';
 import {
-  within,
   waitFor,
   waitForElementToBeRemoved,
+  within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import * as service from 'teleport/services/userPreferences/userPreferences';
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-
-import makeUserContext from 'teleport/services/user/makeUserContext';
-import * as userUserContext from 'teleport/User/UserContext';
-
-import { makeUnifiedResource } from 'teleport/services/resources/makeUnifiedResource';
-import cfg from 'teleport/config';
-
-import * as Main from 'teleport/Main/Main';
-import { dryRunResponse } from 'shared/components/AccessRequests/fixtures';
-
+import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
+
+import { fireEvent, render, screen } from 'design/utils/testing';
+import { dryRunResponse } from 'shared/components/AccessRequests/fixtures';
 
 import ecfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import * as Main from 'teleport/Main/Main';
+import { makeUnifiedResource } from 'teleport/services/resources/makeUnifiedResource';
+import makeUserContext from 'teleport/services/user/makeUserContext';
+import * as service from 'teleport/services/userPreferences/userPreferences';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import * as userUserContext from 'teleport/User/UserContext';
 
 import NewRequest from './NewRequest';
 

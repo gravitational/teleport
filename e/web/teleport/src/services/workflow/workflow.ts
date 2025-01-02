@@ -1,18 +1,17 @@
-import api from 'teleport/services/api';
-import session, { RenewSessionRequest } from 'teleport/services/websession';
-import { ResourcesResponse } from 'teleport/services/agents';
-
 import { makeAccessRequest } from 'shared/services/accessRequests';
 
 import cfg from 'e-teleport/config';
+import { ResourcesResponse } from 'teleport/services/agents';
+import api from 'teleport/services/api';
+import session, { RenewSessionRequest } from 'teleport/services/websession';
 
 import {
+  AccessRequest,
   AccessRequestFilter,
   CreateAccessRequest,
-  UpdateAccessRequest,
-  AccessRequest,
-  ResourceId,
   PromoteAccessRequest,
+  ResourceId,
+  UpdateAccessRequest,
 } from './types';
 
 class WorkflowService {

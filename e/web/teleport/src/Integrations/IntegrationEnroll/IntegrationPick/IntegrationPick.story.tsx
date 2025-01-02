@@ -1,19 +1,17 @@
+import { StoryObj } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
+
+import cfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
+import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 import {
   IntegrationStatusCode,
   PluginKind,
 } from 'teleport/services/integrations';
-import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
-
-import { StoryObj } from '@storybook/react';
-
-import { http, HttpResponse } from 'msw';
-
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import cfg from 'e-teleport/config';
-import TeleportEContext from 'e-teleport/teleportContextE';
 
 import { IntegrationPick } from './IntegrationPick';
 

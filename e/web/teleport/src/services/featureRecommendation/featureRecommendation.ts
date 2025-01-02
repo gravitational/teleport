@@ -1,13 +1,11 @@
-import { RecommendationStatus } from 'teleport/types';
-
+import CloudService from 'e-teleport/services/cloud';
 import { storageService } from 'teleport/services/storageService';
 import {
   Feature,
   FeatureRecommendationStatus,
   userEventService,
 } from 'teleport/services/userEvent';
-
-import CloudService from 'e-teleport/services/cloud';
+import { RecommendationStatus } from 'teleport/types';
 
 /**
  * setAndEmitFeatureRecommendationStatus sets feature recommendation state in local storage and

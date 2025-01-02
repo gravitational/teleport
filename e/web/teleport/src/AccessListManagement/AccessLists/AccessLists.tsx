@@ -1,7 +1,17 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { format } from 'date-fns';
+import {
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { useHistory, useLocation } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
+
 import {
   Alert,
   Box,
@@ -11,16 +21,8 @@ import {
   Indicator,
   Text,
 } from 'design';
-import { Notification } from 'shared/components/Notification';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
-import {
-  decodeUrlQueryParam,
-  encodeUrlQueryParams,
-} from 'teleport/components/hooks/useUrlFiltering';
+import Table, { Cell } from 'design/DataTable';
+import type { TableColumn } from 'design/DataTable/types';
 import {
   ArrowRight,
   Magnifier,
@@ -29,44 +31,47 @@ import {
   User,
   UserList,
 } from 'design/Icon';
-
-import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import Table, { Cell } from 'design/DataTable';
 import { HoverTooltip } from 'design/Tooltip';
-import { format } from 'date-fns';
-import { SortMenu } from 'shared/components/Controls/SortMenu';
+import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
+import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
-
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import { Notification } from 'shared/components/Notification';
 
-import cfg from 'e-teleport/config';
-import useTeleport from 'e-teleport/useTeleportE';
 import {
   AccessListSort,
   useAccessListManagementContext,
 } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
+  AccessCard,
+  renderRolesAndTraits,
+} from 'e-teleport/AccessListManagement/AccessLists/AccessCard';
+import { EmptyState } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/EmptyState';
+import { FeatureLimitBlurb } from 'e-teleport/AccessListManagement/Shared/FeatureLimitReached';
+import {
   filterAccessLists,
   sortAccessLists,
   updateAccessListsCache,
 } from 'e-teleport/AccessListManagement/Shared/Shared';
+import cfg from 'e-teleport/config';
 import {
   AccessList,
   AccessListGrant,
   AccessListMemberKind,
   AccessListType,
 } from 'e-teleport/services/accessmanagement';
-import {
-  AccessCard,
-  renderRolesAndTraits,
-} from 'e-teleport/AccessListManagement/AccessLists/AccessCard';
-import { FeatureLimitBlurb } from 'e-teleport/AccessListManagement/Shared/FeatureLimitReached';
-import { EmptyState } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/EmptyState';
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
-
-import type { Dispatch, SetStateAction } from 'react';
-import type { TableColumn } from 'design/DataTable/types';
+import useTeleport from 'e-teleport/useTeleportE';
+import {
+  decodeUrlQueryParam,
+  encodeUrlQueryParams,
+} from 'teleport/components/hooks/useUrlFiltering';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 
 export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
   grants: AccessListGrant & { traitList: string[] };

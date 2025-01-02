@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
+
+import { getSuccessPrimaryButtonState } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/redirect';
+import {
+  pluginTypeToIntegrationEnrollKind,
+  type CloudHostablePlugin,
+} from 'e-teleport/services/plugins';
+import { Plugin, PluginKind } from 'teleport/services/integrations';
 import {
   IntegrationEnrollEvent,
   userEventService,
 } from 'teleport/services/userEvent';
-import { Plugin, PluginKind } from 'teleport/services/integrations';
-
-import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
-import { getSuccessPrimaryButtonState } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/redirect';
 
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
-
-import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export function PluginEnrollSingleStep({
   plugin,

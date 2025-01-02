@@ -1,11 +1,13 @@
 import React from 'react';
-import { Box, Flex, ButtonIcon, Text } from 'design';
+
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
-import FieldInput from 'shared/components/FieldInput';
-import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
-import { requiredField } from 'shared/components/Validation/rules';
-import { AllUserTraits } from 'teleport/services/user';
 import { inputGeometry } from 'design/Input/Input';
+import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
+import FieldInput from 'shared/components/FieldInput';
+import { requiredField } from 'shared/components/Validation/rules';
+
+import { AllUserTraits } from 'teleport/services/user';
 
 import { EditKind } from './Shared/Shared';
 

@@ -1,53 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
 import {
   Alert,
   Box,
-  Flex,
   Link as ExternalLink,
-  Text,
-  Indicator,
+  Flex,
   H2,
+  Indicator,
+  Text,
 } from 'design';
 import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
+import {
+  getCTAForPlugin,
+  pluginTypeToIntegrationEnrollKind,
+  type CloudHostablePlugin,
+  type SelfHostedPlugin,
+} from 'e-teleport/services/plugins';
+import useTeleport from 'e-teleport/useTeleportE';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
+import {
+  BadgeTitle,
+  ToolTipNoPermBadge,
+} from 'teleport/components/ToolTipNoPermBadge';
+import cfg from 'teleport/config';
 import {
   IntegrationTile,
   IntegrationTiles,
   NoCodeIntegrationDescription,
 } from 'teleport/Integrations/Enroll';
-import {
-  ToolTipNoPermBadge,
-  BadgeTitle,
-} from 'teleport/components/ToolTipNoPermBadge';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { MachineIDIntegrationSection } from 'teleport/Integrations/Enroll/MachineIDIntegrationSection';
+import { PluginKind } from 'teleport/services/integrations';
 import {
   IntegrationEnrollEvent,
   userEventService,
 } from 'teleport/services/userEvent';
-import { PluginKind } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
-
-import { MachineIDIntegrationSection } from 'teleport/Integrations/Enroll/MachineIDIntegrationSection';
-
-import { P } from 'design/Text/Text';
-
-import useTeleport from 'e-teleport/useTeleportE';
-
-import { getCTAForPlugin } from 'e-teleport/services/plugins';
-
-import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
 
 import { plugins as defaultPlugins } from '../PluginEnroll/plugins';
-
 import { PluginIcon } from './PluginIcon';
-
-import type {
-  SelfHostedPlugin,
-  CloudHostablePlugin,
-} from 'e-teleport/services/plugins';
 
 type Plugins = {
   // enrolled are names of plugin types that have

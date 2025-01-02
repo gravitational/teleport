@@ -1,9 +1,8 @@
 import { useState } from 'react';
 
+import { Header } from '../../MultiStep/Shared';
 import { usePlugin } from '../../MultiStep/usePlugin';
 import { SubmittablePluginForm } from '../../SubmittablePluginForm';
-import { Header } from '../../MultiStep/Shared';
-
 import { FormDataField } from './types';
 
 export function CreateOkta() {

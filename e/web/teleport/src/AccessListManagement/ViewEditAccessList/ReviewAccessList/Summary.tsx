@@ -1,23 +1,19 @@
+import { Box, H2, LabelInput } from 'design';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
-import { Box, LabelInput } from 'design';
 import { pluralize } from 'shared/utils/text';
-
-import { H2 } from 'design';
-
-import { AccessListMember } from 'e-teleport/services/accessmanagement';
 
 import {
   ReviewDayOfMonthOption,
   ReviewFrequencyOption,
   ReviewRecurrence,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
+import { AccessListMember } from 'e-teleport/services/accessmanagement';
 
 import { AccessListMemberTable } from '../Members/MembersList';
 import {
   AccessListWithNestedOwnersMembersTitles,
   RoleAndTraitLabels,
 } from '../Shared';
-
 import { MembershipRequires } from './ReviewMembershipRequires';
 import { EditButton, EditedRecurrence, List, ReviewStep } from './Shared';
 import { getMembersDeleted } from './utils';

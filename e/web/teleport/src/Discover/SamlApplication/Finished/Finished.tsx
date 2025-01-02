@@ -1,13 +1,12 @@
 import { generatePath } from 'react-router';
-import { Flex, Text, Image, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 
-import cfg from 'teleport/config';
-import history from 'teleport/services/history';
+import { ButtonPrimary, ButtonSecondary, Flex, H2, Image, Text } from 'design';
 
-import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
-
-import { useDiscover } from 'teleport/Discover/useDiscover';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
+import cfg from 'teleport/config';
+import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
+import { useDiscover } from 'teleport/Discover/useDiscover';
+import history from 'teleport/services/history';
 
 export function Finished() {
   const { exitFlow, agentMeta, isUpdateFlow } = useDiscover();

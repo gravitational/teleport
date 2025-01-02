@@ -1,21 +1,19 @@
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import {
-  MockSamlApplicationContextProvider,
   idpMetadata,
+  MockSamlApplicationContextProvider,
 } from 'e-teleport/SamlApplication/fixtures';
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import type { SamlIdpMetadataResponse } from 'e-teleport/services/idp/types';
+import type { SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
 
 import {
   ConfigurePool,
   defaultSamlMetaForGcpWorkforce,
-  isValidGCPResourceName,
   isValidGcpOrgID,
+  isValidGCPResourceName,
 } from './ConfigureWorkforcePool';
-
-import type { SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
-
-import type { SamlIdpMetadataResponse } from 'e-teleport/services/idp/types';
 
 const renderConfigureServiceProvider = (samlProviderProps: any) => {
   const samlApplicaitonContextProps = {

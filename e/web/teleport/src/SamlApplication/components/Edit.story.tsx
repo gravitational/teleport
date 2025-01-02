@@ -1,4 +1,5 @@
 import { Box, Indicator, Text } from 'design';
+
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
 import { Edit } from './Edit';

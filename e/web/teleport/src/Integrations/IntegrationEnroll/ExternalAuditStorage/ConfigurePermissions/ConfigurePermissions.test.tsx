@@ -1,18 +1,14 @@
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
-import { externalAuditStorage } from 'teleport/Integrations/fixtures';
-
+import { externalAuditStorageService } from 'e-teleport/services/externalauditstorage';
+import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
-
+import { externalAuditStorage } from 'teleport/Integrations/fixtures';
 import { allAccessAcl } from 'teleport/mocks/contexts';
 
-import TeleportEContext from 'e-teleport/teleportContextE';
-
-import { externalAuditStorageService } from 'e-teleport/services/externalauditstorage';
-
 import { ExternalAuditStorageProvider } from '../useExternalAuditStorage';
-
 import { ConfigurePermissions } from './ConfigurePermissions';
 
 describe('configurePermissions', () => {

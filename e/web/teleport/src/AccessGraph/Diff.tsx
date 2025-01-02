@@ -4,8 +4,8 @@
 
 import { ComponentType, lazy, Suspense } from 'react';
 
-import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
+import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 
 interface GenericNode {
   id: string;

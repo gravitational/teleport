@@ -1,6 +1,5 @@
-import api from 'teleport/services/api';
-
 import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
 
 import {
   accessManagementService,
@@ -9,11 +8,11 @@ import {
 import {
   AccessList,
   AccessListMemberKind,
+  AccessListType,
   IneligibleStatus,
   ReviewDayOfMonth,
   ReviewFrequency,
   UpsertAccessListRequest,
-  AccessListType,
 } from './types';
 
 test('fetch access lists, empty responses does not throw error', async () => {

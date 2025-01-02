@@ -1,8 +1,8 @@
-import Validation, { useValidation } from 'shared/components/Validation';
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import Validation, { useValidation } from 'shared/components/Validation';
 
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { AttributeMapping } from './AttributeMapping';
 

@@ -1,6 +1,6 @@
-import { IntegrationIcon } from 'teleport/Integrations/Enroll';
-
 import { SpaceProps } from 'design/system';
+
+import { IntegrationIcon } from 'teleport/Integrations/Enroll';
 
 import { pluginMap } from '../PluginEnroll/plugins';
 

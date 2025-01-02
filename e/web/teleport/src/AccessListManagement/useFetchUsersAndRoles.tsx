@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { State as AttemptState } from 'shared/hooks/useAttemptNext';
+
 import { Option } from 'shared/components/Select';
+import { State as AttemptState } from 'shared/hooks/useAttemptNext';
+
 import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';

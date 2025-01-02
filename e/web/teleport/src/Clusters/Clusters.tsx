@@ -1,7 +1,6 @@
+import cfg from 'e-teleport/config';
 import { ClusterListPage } from 'teleport/Clusters/Clusters';
 import { Route, Switch } from 'teleport/components/Router';
-
-import cfg from 'e-teleport/config';
 
 import { ManageCluster } from './ManageCluster';
 

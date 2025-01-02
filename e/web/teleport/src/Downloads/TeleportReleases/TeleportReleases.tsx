@@ -1,26 +1,20 @@
 import { useEffect } from 'react';
-import Box from 'design/Box';
-import Flex from 'design/Flex';
-import Select, { Option } from 'shared/components/Select';
-
-import Indicator from 'design/Indicator';
 
 import { Alert } from 'design/Alert';
-
-import Text, { H2 } from 'design/Text';
-
+import Box from 'design/Box';
+import Flex from 'design/Flex';
+import Indicator from 'design/Indicator';
 import Link from 'design/Link';
-
+import Text, { H2 } from 'design/Text';
+import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import cfg from 'e-teleport/config';
+import type { Asset, Kind, OS, Release } from 'e-teleport/services/downloads';
 
 import { GETTING_STARTED_LINK } from '../Downloads';
-
-import { ReleasesList } from './ReleasesList';
 import { OsToggle } from './OsToggle';
-
-import type { Asset, Kind, OS, Release } from 'e-teleport/services/downloads';
+import { ReleasesList } from './ReleasesList';
 
 type TeleportReleasesProps = {
   canDownloadReleaseAssets: boolean;

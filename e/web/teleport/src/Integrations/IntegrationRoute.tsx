@@ -1,7 +1,7 @@
-import cfg from 'teleport/config';
 import { Route } from 'teleport/components/Router';
-import { IntegrationKind } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
 import { getRoutesToEnrollIntegrations as getOSSRoutes } from 'teleport/Integrations/Enroll';
+import { IntegrationKind } from 'teleport/services/integrations';
 
 import ExternalAuditStorage from './IntegrationEnroll/ExternalAuditStorage';
 

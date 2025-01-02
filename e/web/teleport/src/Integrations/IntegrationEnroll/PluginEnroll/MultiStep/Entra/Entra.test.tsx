@@ -1,4 +1,5 @@
 import { MemoryRouter, Route } from 'react-router';
+
 import {
   fireEvent,
   render,
@@ -6,17 +7,17 @@ import {
   userEvent,
   waitFor,
 } from 'design/utils/testing';
+
+import { pluginsService } from 'e-teleport/services/plugins';
 import cfg from 'teleport/config';
-import { userEventService } from 'teleport/services/userEvent';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationStatusCode,
   PluginKind,
 } from 'teleport/services/integrations';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import userService from 'teleport/services/user';
-
-import { pluginsService } from 'e-teleport/services/plugins';
+import { userEventService } from 'teleport/services/userEvent';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { PluginEnroll } from '../../PluginEnroll';
 

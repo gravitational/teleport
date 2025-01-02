@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
+
 import { Alert, ButtonPrimary, ButtonSecondary } from 'design';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import Validation, { Validator } from 'shared/components/Validation';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  AccessList,
-  AccessListMemberKind,
-  accessManagementService,
-} from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
+import type {
+  MemberSelection,
+  UserOption,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 import {
   convertAccessListsToUserOptions,
   EnrollingNestedListsAlert,
@@ -24,12 +24,13 @@ import {
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
 } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import {
+  AccessList,
+  AccessListMemberKind,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
 
 import type { AccessListModified } from '../Shared';
-import type {
-  MemberSelection,
-  UserOption,
-} from 'e-teleport/AccessListManagement/Shared/Shared';
 
 type Props = {
   onClose(): void;

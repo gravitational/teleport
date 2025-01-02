@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import * as Icons from 'design/Icon';
-import { HeaderSubtitle, Header, TextIcon } from 'teleport/Discover/Shared';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { ButtonSecondary } from 'design/Button';
+
 import Box from 'design/Box';
+import { ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
-import { ConnectionDiagnostic } from 'teleport/services/agents';
-import { ErrorWithDetails } from 'teleport/Discover/Shared/ConnectionDiagnostic';
+import * as Icons from 'design/Icon';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+import { Header, HeaderSubtitle, TextIcon } from 'teleport/Discover/Shared';
+import { ErrorWithDetails } from 'teleport/Discover/Shared/ConnectionDiagnostic';
+import { ConnectionDiagnostic } from 'teleport/services/agents';
 
 import { useExternalAuditStorage } from '../useExternalAuditStorage';
 

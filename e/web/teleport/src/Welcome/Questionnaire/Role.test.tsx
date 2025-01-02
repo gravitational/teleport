@@ -1,9 +1,8 @@
 import { render, screen } from 'design/utils/testing';
-
 import Validation from 'shared/components/Validation';
 
-import { RoleProps } from './types';
 import { Role } from './Role';
+import { RoleProps } from './types';
 
 const makeProps = (): RoleProps => {
   return {

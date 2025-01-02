@@ -1,33 +1,34 @@
 import { components } from 'react-select';
-import { Box, Text, Mark } from 'design';
+
+import { Box, Mark, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import { State as Attempt } from 'shared/hooks/useAttemptNext';
-import Validation, { Validator } from 'shared/components/Validation';
 import {
-  FieldSelectCreatable,
   FieldSelect,
+  FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { CustomSelectComponentProps, Option } from 'shared/components/Select';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
-import useTeleport from 'teleport/useTeleport';
-import { Plugin } from 'teleport/services/integrations';
+import { CustomSelectComponentProps, Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+import { State as Attempt } from 'shared/hooks/useAttemptNext';
 
-import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
 import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
+import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
+import { Plugin } from 'teleport/services/integrations';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
-import {
-  EditorSaveCancelButton,
-  EditorWrapper,
-  getDefaultPluginNotificationMessage,
-} from './Shared';
 import {
   AccessRequestMatchCondition,
   AccessRequestMatchConditionOption,
   accessRequestMatchConditionOptions,
   RuleCondition,
 } from './rulecondition';
+import {
+  EditorSaveCancelButton,
+  EditorWrapper,
+  getDefaultPluginNotificationMessage,
+} from './Shared';
 import {
   buildRuleFromStandardEditor,
   ConfigurableFieldsForStandardEditor,

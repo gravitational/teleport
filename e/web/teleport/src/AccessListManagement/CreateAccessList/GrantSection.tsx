@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+
 import { Alert, Box, H2 } from 'design';
 import { Option } from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -7,12 +8,10 @@ import {
   fetchAndProcessSelectedRoles,
   rolesContainDenyRules,
 } from 'e-teleport/AccessListManagement/Shared/Shared';
+import type { Role } from 'teleport/services/resources';
 
 import { TraitLabel, TraitsCreator } from '../Traits';
-
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
-
-import type { Role } from 'teleport/services/resources';
 
 type Props = {
   grant: Grant;

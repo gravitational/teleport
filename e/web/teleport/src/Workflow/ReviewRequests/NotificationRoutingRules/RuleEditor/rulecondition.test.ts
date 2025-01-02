@@ -1,8 +1,8 @@
 import {
   AccessRequestMatchCondition,
   accessRequestMatchConditionOptions,
-  getRuleCondition,
   convertRuleConditionToPredicateExpression,
+  getRuleCondition,
   RuleCondition,
 } from './rulecondition';
 

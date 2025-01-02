@@ -1,5 +1,5 @@
 import { Option } from 'shared/components/Select';
-import { Rule, requiredEmailLike } from 'shared/components/Validation/rules';
+import { requiredEmailLike, Rule } from 'shared/components/Validation/rules';
 
 /**
  * A validator function to make sure all individual emails in a multi-select are

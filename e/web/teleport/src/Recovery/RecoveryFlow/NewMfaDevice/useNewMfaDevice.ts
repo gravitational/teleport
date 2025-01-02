@@ -1,10 +1,10 @@
+import { useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { useState } from 'react';
-import auth from 'teleport/services/auth/auth';
-
-import RecoveryService from 'e-teleport/services/recovery';
 import cfg from 'e-teleport/config';
+import RecoveryService from 'e-teleport/services/recovery';
+import auth from 'teleport/services/auth/auth';
 
 export default function useNewMfaDevice({
   recoveryService,

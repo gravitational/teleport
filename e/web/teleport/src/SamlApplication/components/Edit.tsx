@@ -1,3 +1,5 @@
+import { useTheme } from 'styled-components';
+
 import { ButtonSecondary } from 'design';
 import Dialog, {
   DialogContent,
@@ -5,7 +7,6 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { useTheme } from 'styled-components';
 
 export function Edit({
   open,

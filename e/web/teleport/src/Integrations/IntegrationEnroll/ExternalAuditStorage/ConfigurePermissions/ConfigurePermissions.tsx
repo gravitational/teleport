@@ -1,30 +1,27 @@
 import { useState } from 'react';
-import { useHistory } from 'react-router';
-import { generatePath } from 'react-router';
-import { HeaderSubtitle, Header } from 'teleport/Discover/Shared';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import Text from 'design/Text';
-import Link from 'design/Link';
-import { ButtonPrimary, ButtonSecondary, ButtonWarning } from 'design/Button';
-import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import { generatePath, useHistory } from 'react-router';
 
+import { Alert } from 'design/Alert';
+import { ButtonPrimary, ButtonSecondary, ButtonWarning } from 'design/Button';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import Link from 'design/Link';
+import Text from 'design/Text';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
+import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
+import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
 import {
   ExternalAuditStorage,
   Integration,
 } from 'teleport/services/integrations';
-
-import { Alert } from 'design/Alert';
-
-import cfg from 'e-teleport/config';
-import useTeleportE from 'e-teleport/useTeleportE';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { useExternalAuditStorage } from '../useExternalAuditStorage';
 

@@ -1,7 +1,7 @@
 import { scaleTime } from 'd3-scale';
 
-import { ReportResult } from 'e-teleport/AccessMonitoring/types';
 import { BarGraphConfig } from 'e-teleport/AccessMonitoring/Report/config';
+import { ReportResult } from 'e-teleport/AccessMonitoring/types';
 
 export const MAX_RESULTS = 200;
 const MAX_TICKS = 20;

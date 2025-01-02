@@ -1,6 +1,5 @@
-import { Support } from 'teleport/Support';
-
 import { ExternalAuditStorageCta } from 'teleport/components/ExternalAuditStorageCta';
+import { Support } from 'teleport/Support';
 
 export default function Container() {
   return (

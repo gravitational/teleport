@@ -1,6 +1,5 @@
-import api from 'teleport/services/api';
-
 import cfg from 'e-teleport/config';
+import api from 'teleport/services/api';
 
 import { QueryGraphResponse } from './types';
 

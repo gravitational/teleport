@@ -1,18 +1,15 @@
 import { PropsWithChildren, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import Table from 'design/DataTable';
-
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { useAttemptNext } from 'shared/hooks';
-import Indicator from 'design/Indicator';
 import { Flex } from 'design';
-
-import { getQueryResult } from 'e-teleport/AccessMonitoring/service';
+import Table from 'design/DataTable';
+import Indicator from 'design/Indicator';
+import { useAttemptNext } from 'shared/hooks';
 
 import DownloadButton from 'e-teleport/AccessMonitoring/QueryEditor/DownloadButton';
-
+import { getQueryResult } from 'e-teleport/AccessMonitoring/service';
 import type { QueryResult } from 'e-teleport/AccessMonitoring/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 interface ResultProps {
   resultId: string;
