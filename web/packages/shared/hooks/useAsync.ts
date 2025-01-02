@@ -275,6 +275,78 @@ export function mapAttempt<A, B>(
 }
 
 /**
+ * andMap together with mapAttempt and currying allow mapping an arbitrary number of attempts in a
+ * type-safe way. Prefer using map2 and map3 where possible.
+ */
+export function andMap<A, B>(
+  wrappedValue: Attempt<A>,
+  wrappedFunction: Attempt<(dataA: A) => B>
+): Attempt<B> {
+  if (
+    wrappedFunction.status === 'success' &&
+    wrappedValue.status === 'success'
+  ) {
+    const func = wrappedFunction.data;
+    const value = wrappedValue.data;
+    return makeSuccessAttempt(func(value));
+  }
+
+  if (wrappedFunction.status === 'error') {
+    return wrappedFunction;
+  }
+  if (wrappedValue.status === 'error') {
+    return wrappedValue;
+  }
+
+  if (wrappedFunction.status === 'processing') {
+    return makeProcessingAttempt();
+  }
+  if (wrappedValue.status === 'processing') {
+    return makeProcessingAttempt();
+  }
+
+  if (wrappedFunction.status === '') {
+    return wrappedFunction;
+  }
+  if (wrappedValue.status === '') {
+    return wrappedValue;
+  }
+}
+
+/**
+ * map2 combines two attempts. The resulting attempt will be successful only if both attempts are
+ * successful. Otherwise the result will be the first encountered error, processing, or empty
+ * attempt, in that order.
+ */
+export function map2<A, B, C>(
+  attemptA: Attempt<A>,
+  attemptB: Attempt<B>,
+  mapFunc: (dataA: A, dataB: B) => C
+): Attempt<C> {
+  const curriedMapFunc = (dataA: A) => (dataB: B) => mapFunc(dataA, dataB);
+  return andMap(attemptB, mapAttempt(attemptA, curriedMapFunc));
+}
+
+/**
+ * map3 combines three attempts. The resulting attempt will be successful only if all attempts are
+ * successful. Otherwise the result will be the first encountered error, processing, or empty
+ * attempt, in that order.
+ */
+export function map3<A, B, C, D>(
+  attemptA: Attempt<A>,
+  attemptB: Attempt<B>,
+  attemptC: Attempt<C>,
+  mapFunc: (dataA: A, dataB: B, dataC: C) => D
+): Attempt<D> {
+  const curriedMapFunc = (dataA: A) => (dataB: B) => (dataC: C) =>
+    mapFunc(dataA, dataB, dataC);
+  return andMap(
+    attemptC,
+    andMap(attemptB, mapAttempt(attemptA, curriedMapFunc))
+  );
+}
+
+/**
  * useDelayedRepeatedAttempt makes it so that on repeated calls to `run`, the attempt changes its
  * state to 'processing' only after a delay. This can be used to mask repeated calls and
  * optimistically show stale results.

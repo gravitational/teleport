@@ -21,8 +21,14 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { wait } from 'shared/utils/wait';
 
 import {
+  andMap,
   Attempt,
+  AttemptStatus,
   CanceledError,
+  makeEmptyAttempt,
+  makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
   useAsync,
   useDelayedRepeatedAttempt,
 } from './useAsync';
@@ -219,6 +225,91 @@ test('error and statusText are set when the callback returns a rejected promise'
   // The promise returned from run always succeeds, but any errors are captured as the second arg.
   await expect(runPromise).resolves.toEqual([null, expectedError]);
 });
+
+describe('andMap', () => {
+  const tests: Array<{
+    statusA: AttemptStatus;
+    statusB: AttemptStatus;
+    expectedStatus: AttemptStatus;
+  }> = [
+    {
+      statusA: 'success',
+      statusB: 'success',
+      expectedStatus: 'success',
+    },
+    {
+      statusA: 'success',
+      statusB: 'error',
+      expectedStatus: 'error',
+    },
+    {
+      statusA: 'success',
+      statusB: 'processing',
+      expectedStatus: 'processing',
+    },
+    {
+      statusA: 'success',
+      statusB: '',
+      expectedStatus: '',
+    },
+    {
+      statusA: 'error',
+      statusB: 'success',
+      expectedStatus: 'error',
+    },
+    {
+      statusA: 'processing',
+      statusB: 'success',
+      expectedStatus: 'processing',
+    },
+    {
+      statusA: '',
+      statusB: 'success',
+      expectedStatus: '',
+    },
+    {
+      statusA: 'processing',
+      statusB: 'error',
+      expectedStatus: 'error',
+    },
+    {
+      statusA: '',
+      statusB: 'processing',
+      expectedStatus: 'processing',
+    },
+  ];
+  test.each(tests)(
+    'andMap("$statusA", "$statusB") = "$expectedStatus"',
+    ({ statusA, statusB, expectedStatus }) => {
+      const attemptA = makeAttemptFromStatus('foo', statusA);
+      const attemptB = makeAttemptFromStatus((a: string) => a, statusB);
+      expect(andMap(attemptA, attemptB).status).toEqual(expectedStatus);
+    }
+  );
+});
+
+const makeAttemptFromStatus = <Data>(
+  successData: Data,
+  status: AttemptStatus
+): Attempt<Data> => {
+  switch (status) {
+    case '': {
+      return makeEmptyAttempt();
+    }
+    case 'error': {
+      return makeErrorAttempt(new Error('Something went wrong.'));
+    }
+    case 'processing': {
+      return makeProcessingAttempt();
+    }
+    case 'success': {
+      return makeSuccessAttempt(successData);
+    }
+    default: {
+      status satisfies never;
+    }
+  }
+};
 
 describe('useDelayedRepeatedAttempt', () => {
   it('does not update attempt status if it resolves before delay', async () => {
