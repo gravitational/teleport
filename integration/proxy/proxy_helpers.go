@@ -710,10 +710,10 @@ func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gate
 func mustConnectAppGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 	t.Helper()
 
-	appGw, err := gateway.AsApp(gw)
-	require.NoError(t, err)
+	gatewayAddress := net.JoinHostPort(gw.LocalAddress(), gw.LocalPort())
+	gatewayURL := fmt.Sprintf("http://%s", gatewayAddress)
 
-	req, err := http.NewRequest(http.MethodGet, appGw.LocalProxyURL(), nil)
+	req, err := http.NewRequest(http.MethodGet, gatewayURL, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}

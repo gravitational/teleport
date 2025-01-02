@@ -184,6 +184,8 @@ func (b *base) Log() *slog.Logger {
 	return b.cfg.Logger
 }
 
+// LocalAddress returns the local host in the net package terms (localhost or 127.0.0.1, depending
+// on the platform).
 func (b *base) LocalAddress() string {
 	return b.cfg.LocalAddress
 }
