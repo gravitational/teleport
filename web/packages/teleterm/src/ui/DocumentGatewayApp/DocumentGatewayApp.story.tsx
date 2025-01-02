@@ -30,9 +30,10 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import * as types from 'teleterm/ui/services/workspacesService';
 
 type StoryProps = {
-  appType: 'web' | 'tcp';
+  appType: 'web' | 'tcp' | 'tcp-multi-port';
   online: boolean;
   changeLocalPort: 'succeed' | 'throw-error';
+  changeTargetPort: 'succeed' | 'throw-error';
   disconnect: 'succeed' | 'throw-error';
 };
 
@@ -42,9 +43,14 @@ const meta: Meta<StoryProps> = {
   argTypes: {
     appType: {
       control: { type: 'radio' },
-      options: ['web', 'tcp'],
+      options: ['web', 'tcp', 'tcp-multi-port'],
     },
     changeLocalPort: {
+      if: { arg: 'online' },
+      control: { type: 'radio' },
+      options: ['succeed', 'throw-error'],
+    },
+    changeTargetPort: {
       if: { arg: 'online' },
       control: { type: 'radio' },
       options: ['succeed', 'throw-error'],
@@ -59,6 +65,7 @@ const meta: Meta<StoryProps> = {
     appType: 'web',
     online: true,
     changeLocalPort: 'succeed',
+    changeTargetPort: 'succeed',
     disconnect: 'succeed',
   },
 };
@@ -69,6 +76,10 @@ export function Story(props: StoryProps) {
   const gateway = makeAppGateway();
   if (props.appType === 'tcp') {
     gateway.protocol = 'TCP';
+  }
+  if (props.appType === 'tcp-multi-port') {
+    gateway.protocol = 'TCP';
+    gateway.targetSubresourceName = '4242';
   }
   const documentGateway: types.DocumentGateway = {
     kind: 'doc.gateway',
@@ -84,6 +95,9 @@ export function Story(props: StoryProps) {
   };
   if (!props.online) {
     documentGateway.gatewayUri = undefined;
+  }
+  if (props.appType === 'tcp-multi-port') {
+    documentGateway.targetSubresourceName = '4242';
   }
 
   const appContext = new MockAppContext();
@@ -106,8 +120,26 @@ export function Story(props: StoryProps) {
       wait(1000).then(
         () =>
           new MockedUnaryCall(
-            { ...gateway, localPort },
+            {
+              ...appContext.clustersService.findGateway(gateway.uri),
+              localPort,
+            },
             props.changeLocalPort === 'throw-error'
+              ? new Error('something went wrong')
+              : undefined
+          )
+      );
+    appContext.tshd.setGatewayTargetSubresourceName = ({
+      targetSubresourceName,
+    }) =>
+      wait(1000).then(
+        () =>
+          new MockedUnaryCall(
+            {
+              ...appContext.clustersService.findGateway(gateway.uri),
+              targetSubresourceName,
+            },
+            props.changeTargetPort === 'throw-error'
               ? new Error('something went wrong')
               : undefined
           )

@@ -16,18 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useRef } from 'react';
+import {
+  ChangeEvent,
+  ChangeEventHandler,
+  PropsWithChildren,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import styled from 'styled-components';
 
 import {
   Alert,
   Box,
   ButtonSecondary,
+  disappear,
   Flex,
   H1,
-  Indicator,
   Link,
+  rotate360,
   Text,
 } from 'design';
+import { Check, Spinner } from 'design/Icon';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
@@ -41,24 +51,40 @@ export function AppGateway(props: {
   disconnectAttempt: Attempt<void>;
   changeLocalPort(port: string): void;
   changeLocalPortAttempt: Attempt<void>;
+  changeTargetPort(port: string): void;
+  changeTargetPortAttempt: Attempt<void>;
   disconnect(): void;
 }) {
   const { gateway } = props;
-  const formRef = useRef<HTMLFormElement>();
 
-  const { changeLocalPort } = props;
-  const handleChangeLocalPort = useMemo(() => {
-    return debounce((value: string) => {
-      if (formRef.current.reportValidity()) {
-        changeLocalPort(value);
-      }
-    }, 1000);
-  }, [changeLocalPort]);
+  const {
+    changeLocalPort,
+    changeLocalPortAttempt,
+    changeTargetPort,
+    changeTargetPortAttempt,
+    disconnectAttempt,
+  } = props;
+  // It must be possible to update local port while target port is invalid, hence why
+  // useDebouncedPortChangeHandler checks the validity of only one input at a time. Otherwise the UI
+  // would lose updates to the local port while the target port was invalid.
+  const handleLocalPortChange = useDebouncedPortChangeHandler(changeLocalPort);
+  const handleTargetPortChange =
+    useDebouncedPortChangeHandler(changeTargetPort);
 
   let address = `${gateway.localAddress}:${gateway.localPort}`;
   if (gateway.protocol === 'HTTP') {
     address = `http://${address}`;
   }
+
+  // AppGateway doesn't have access to the app resource itself, so it has to decide whether the
+  // app is multi-port or not in some other way.
+  // For multi-port apps, DocumentGateway comes with targetSubresourceName prefilled to the first
+  // port number found in TCP ports. Single-port apps have this field empty.
+  // So, if targetSubresourceName is present, then the app must be multi-port. In this case, the
+  // user is free to change it and can never provide an empty targetSubresourceName.
+  // When the app is not multi-port, targetSubresourceName is empty and the user cannot change it.
+  const isMultiPort =
+    gateway.protocol === 'TCP' && gateway.targetSubresourceName;
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
@@ -69,38 +95,54 @@ export function AppGateway(props: {
         </ButtonSecondary>
       </Flex>
 
-      {props.disconnectAttempt.status === 'error' && (
-        <Alert details={props.disconnectAttempt.statusText}>
+      {disconnectAttempt.status === 'error' && (
+        <Alert details={disconnectAttempt.statusText}>
           Could not close the connection
         </Alert>
       )}
 
-      <Flex as="form" ref={formRef} gap={2}>
+      <Flex as="form" gap={2}>
         <Validation>
           <PortFieldInput
-            label="Port"
+            label={
+              <LabelWithAttemptStatus
+                text="Local Port"
+                attempt={changeLocalPortAttempt}
+              />
+            }
             defaultValue={gateway.localPort}
-            onChange={e => handleChangeLocalPort(e.target.value)}
+            onChange={handleLocalPortChange}
             mb={2}
           />
+          {isMultiPort && (
+            <PortFieldInput
+              label={
+                <LabelWithAttemptStatus
+                  text="Target Port"
+                  attempt={changeTargetPortAttempt}
+                />
+              }
+              required
+              defaultValue={gateway.targetSubresourceName}
+              onChange={handleTargetPortChange}
+              mb={2}
+            />
+          )}
         </Validation>
-        {props.changeLocalPortAttempt.status === 'processing' && (
-          <Indicator
-            size="large"
-            pt={3} // aligns the spinner to be at the center of the port input
-            css={`
-              display: flex;
-            `}
-          />
-        )}
       </Flex>
 
       <Text>Access the app at:</Text>
       <TextSelectCopy my={1} text={address} bash={false} />
 
-      {props.changeLocalPortAttempt.status === 'error' && (
-        <Alert details={props.changeLocalPortAttempt.statusText}>
-          Could not change the port number
+      {changeLocalPortAttempt.status === 'error' && (
+        <Alert details={changeLocalPortAttempt.statusText}>
+          Could not change the local port
+        </Alert>
+      )}
+
+      {changeTargetPortAttempt.status === 'error' && (
+        <Alert details={changeTargetPortAttempt.statusText}>
+          Could not change the target port
         </Alert>
       )}
 
@@ -118,3 +160,86 @@ export function AppGateway(props: {
     </Box>
   );
 }
+
+const LabelWithAttemptStatus = (props: {
+  text: string;
+  attempt: Attempt<unknown>;
+}) => (
+  <Flex
+    alignItems="center"
+    justifyContent="space-between"
+    css={`
+      position: relative;
+    `}
+  >
+    {props.text}
+    {props.attempt.status === 'processing' && (
+      <AnimatedSpinner color="interactive.tonal.neutral.2" size="medium" />
+    )}
+    {props.attempt.status === 'success' && (
+      // CSS animations are repeated whenever the parent goes from `display: none` to something
+      // else. As a result, we need to unmount the animated check so that the animation is not
+      // repeated when the user switches to this tab.
+      // https://www.w3.org/TR/css-animations-1/#example-4e34d7ba
+      <UnmountAfter timeoutMs={disappearanceDelayMs + disappearanceDurationMs}>
+        <DisappearingCheck color="success.main" size="medium" />
+      </UnmountAfter>
+    )}
+  </Flex>
+);
+
+/**
+ * useDebouncedPortChangeHandler returns a debounced change handler that calls the change function
+ * only if the input from which the event originated is valid.
+ */
+const useDebouncedPortChangeHandler = (
+  changeFunc: (port: string) => void
+): ChangeEventHandler<HTMLInputElement> =>
+  useMemo(
+    () =>
+      debounce((event: ChangeEvent<HTMLInputElement>) => {
+        if (event.target.reportValidity()) {
+          changeFunc(event.target.value);
+        }
+      }, 1000),
+    [changeFunc]
+  );
+
+const AnimatedSpinner = styled(Spinner)`
+  animation: ${rotate360} 1.5s infinite linear;
+  // The spinner needs to be positioned absolutely so that the fact that it's spinning
+  // doesn't affect the size of the parent.
+  position: absolute;
+  right: 0;
+  top: 0;
+`;
+
+const disappearanceDelayMs = 1000;
+const disappearanceDurationMs = 200;
+
+const DisappearingCheck = styled(Check)`
+  opacity: 1;
+  animation: ${disappear};
+  animation-delay: ${disappearanceDelayMs}ms;
+  animation-duration: ${disappearanceDurationMs}ms;
+  animation-fill-mode: forwards;
+`;
+
+const UnmountAfter = ({
+  timeoutMs,
+  children,
+}: PropsWithChildren<{ timeoutMs: number }>) => {
+  const [isMounted, setIsMounted] = useState(true);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setIsMounted(false);
+    }, timeoutMs);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [timeoutMs]);
+
+  return isMounted ? children : null;
+};

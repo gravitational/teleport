@@ -34,5 +34,8 @@ export const PortFieldInput = styled(ConfigFieldInput).attrs({
   type: 'number',
   min: 1,
   max: 65535,
-  width: '110px',
+  // Without a min width, the stepper controls end up being to close to a long port number such
+  // as 65535. minWidth instead of width allows the field to grow with the label, so that e.g.
+  // a custom label of "Local Port (optional)" is displayed on a single line.
+  minWidth: '110px',
 })``;

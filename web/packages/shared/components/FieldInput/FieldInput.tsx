@@ -221,7 +221,7 @@ export type FieldInputProps = BoxProps & {
   id?: string;
   name?: string;
   value?: string;
-  label?: string;
+  label?: React.ReactNode;
   helperText?: React.ReactNode;
   icon?: React.ComponentType<IconProps>;
   size?: InputSize;
