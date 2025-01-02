@@ -32,7 +32,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 type StoryProps = {
   appType: 'web' | 'tcp';
   online: boolean;
-  changePort: 'succeed' | 'throw-error';
+  changeLocalPort: 'succeed' | 'throw-error';
   disconnect: 'succeed' | 'throw-error';
 };
 
@@ -44,7 +44,7 @@ const meta: Meta<StoryProps> = {
       control: { type: 'radio' },
       options: ['web', 'tcp'],
     },
-    changePort: {
+    changeLocalPort: {
       if: { arg: 'online' },
       control: { type: 'radio' },
       options: ['succeed', 'throw-error'],
@@ -58,7 +58,7 @@ const meta: Meta<StoryProps> = {
   args: {
     appType: 'web',
     online: true,
-    changePort: 'succeed',
+    changeLocalPort: 'succeed',
     disconnect: 'succeed',
   },
 };
@@ -107,7 +107,7 @@ export function Story(props: StoryProps) {
         () =>
           new MockedUnaryCall(
             { ...gateway, localPort },
-            props.changePort === 'throw-error'
+            props.changeLocalPort === 'throw-error'
               ? new Error('something went wrong')
               : undefined
           )

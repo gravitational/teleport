@@ -39,21 +39,21 @@ import { PortFieldInput } from '../components/FieldInputs';
 export function AppGateway(props: {
   gateway: Gateway;
   disconnectAttempt: Attempt<void>;
-  changePort(port: string): void;
-  changePortAttempt: Attempt<void>;
+  changeLocalPort(port: string): void;
+  changeLocalPortAttempt: Attempt<void>;
   disconnect(): void;
 }) {
   const { gateway } = props;
   const formRef = useRef<HTMLFormElement>();
 
-  const { changePort } = props;
-  const handleChangePort = useMemo(() => {
+  const { changeLocalPort } = props;
+  const handleChangeLocalPort = useMemo(() => {
     return debounce((value: string) => {
       if (formRef.current.reportValidity()) {
-        changePort(value);
+        changeLocalPort(value);
       }
     }, 1000);
-  }, [changePort]);
+  }, [changeLocalPort]);
 
   let address = `${gateway.localAddress}:${gateway.localPort}`;
   if (gateway.protocol === 'HTTP') {
@@ -80,11 +80,11 @@ export function AppGateway(props: {
           <PortFieldInput
             label="Port"
             defaultValue={gateway.localPort}
-            onChange={e => handleChangePort(e.target.value)}
+            onChange={e => handleChangeLocalPort(e.target.value)}
             mb={2}
           />
         </Validation>
-        {props.changePortAttempt.status === 'processing' && (
+        {props.changeLocalPortAttempt.status === 'processing' && (
           <Indicator
             size="large"
             pt={3} // aligns the spinner to be at the center of the port input
@@ -98,8 +98,8 @@ export function AppGateway(props: {
       <Text>Access the app at:</Text>
       <TextSelectCopy my={1} text={address} bash={false} />
 
-      {props.changePortAttempt.status === 'error' && (
-        <Alert details={props.changePortAttempt.statusText}>
+      {props.changeLocalPortAttempt.status === 'error' && (
+        <Alert details={props.changeLocalPortAttempt.statusText}>
           Could not change the port number
         </Alert>
       )}
