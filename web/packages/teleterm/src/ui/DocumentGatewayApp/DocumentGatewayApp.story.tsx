@@ -80,6 +80,7 @@ export function Story(props: StoryProps) {
     targetUser: '',
     status: '',
     targetName: 'quux',
+    targetSubresourceName: undefined,
   };
   if (!props.online) {
     documentGateway.gatewayUri = undefined;
