@@ -45,4 +45,11 @@ export default class RecordingsService {
       return { recordings: events.map(makeRecording), startKey: json.startKey };
     });
   }
+
+  fetchRecordingDuration(
+    clusterId: string,
+    sessionId: string
+  ): Promise<{ durationMs: number }> {
+    return api.get(cfg.getSessionDurationUrl(clusterId, sessionId));
+  }
 }

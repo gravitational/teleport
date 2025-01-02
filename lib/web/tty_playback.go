@@ -53,6 +53,47 @@ const (
 	actionPause = byte(1)
 )
 
+func (h *Handler) sessionLengthHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+) (interface{}, error) {
+	sID := p.ByName("sid")
+	if sID == "" {
+		return nil, trace.BadParameter("missing session ID in request URL")
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	evts, errs := clt.StreamSessionEvents(ctx, session.ID(sID), 0)
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err)
+		case evt, ok := <-evts:
+			if !ok {
+				return nil, trace.NotFound("could not find end event for session %v", sID)
+			}
+			switch evt := evt.(type) {
+			case *events.SessionEnd:
+				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+			case *events.WindowsDesktopSessionEnd:
+				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+			case *events.DatabaseSessionEnd:
+				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+			}
+		}
+	}
+}
+
 func (h *Handler) ttyPlaybackHandle(
 	w http.ResponseWriter,
 	r *http.Request,

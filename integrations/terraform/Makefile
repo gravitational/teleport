@@ -115,10 +115,18 @@ endif
 		--terraform_out=config=protoc-gen-terraform-statichostuser.yaml:./tfschema \
 		teleport/userprovisioning/v2/statichostuser.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-workloadidentity.yaml:./tfschema \
+		teleport/workloadidentity/v1/resource.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2/statichostuser_terraform.go ./tfschema/userprovisioning/v2/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1/resource_terraform.go ./tfschema/workloadidentity/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go

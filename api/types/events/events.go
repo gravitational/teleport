@@ -2413,3 +2413,11 @@ func (m *WorkloadIdentityUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ContactDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
