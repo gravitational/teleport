@@ -733,12 +733,14 @@ func makeMustConnectMultiPortTCPAppGateway(wantMessage string, otherTargetPort i
 		originalTargetPort := gw.TargetSubresourceName()
 		makeMustConnectTCPAppGateway(wantMessage)(ctx, t, d, gw)
 
-		gw.SetTargetSubresourceName(strconv.Itoa(otherTargetPort))
+		_, err := d.SetGatewayTargetSubresourceName(ctx, gwURI, strconv.Itoa(otherTargetPort))
+		require.NoError(t, err)
 		makeMustConnectTCPAppGateway(otherWantMessage)(ctx, t, d, gw)
 
 		// Restore the original port, so that the next time the test calls this function after certs
 		// expire, wantMessage is going to match the port that the gateway points to.
-		gw.SetTargetSubresourceName(originalTargetPort)
+		_, err = d.SetGatewayTargetSubresourceName(ctx, gwURI, originalTargetPort)
+		require.NoError(t, err)
 		makeMustConnectTCPAppGateway(wantMessage)(ctx, t, d, gw)
 	}
 }

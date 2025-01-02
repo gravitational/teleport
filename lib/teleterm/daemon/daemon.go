@@ -511,13 +511,31 @@ func (s *Service) GetGatewayCLICommand(ctx context.Context, gateway gateway.Gate
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	targetURI := gateway.TargetURI()
+	switch {
+	case targetURI.IsApp():
+		clusterClient, err := s.GetCachedClient(ctx, targetURI)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		app, err := clusters.GetApp(ctx, clusterClient.CurrentCluster(), targetURI.GetAppName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := clusters.ValidateTargetPort(app, targetSubresourceName); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	gateway.SetTargetSubresourceName(targetSubresourceName)

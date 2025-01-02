@@ -823,6 +823,66 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauth
 	})
 }
 
+func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc) {
+	t.Run("target port validation", func(t *testing.T) {
+		t.Parallel()
+
+		tc, _ := makeTCAndWebauthnLogin(t)
+		err := tc.SaveProfile(false /* makeCurrent */)
+		require.NoError(t, err)
+
+		storage, err := clusters.NewStorage(clusters.Config{
+			Dir:                tc.KeysDir,
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+				return nil
+			},
+		})
+		require.NoError(t, err)
+		daemonService, err := daemon.New(daemon.Config{
+			Storage: storage,
+			CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+				return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+			},
+			CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
+				return clientcache.NewNoCache(newClient), nil
+			},
+			KubeconfigsDir: t.TempDir(),
+			AgentsDir:      t.TempDir(),
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			daemonService.Stop()
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		t.Cleanup(cancel)
+
+		// Here the test setup ends and actual test code starts.
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPMultiPortAppName())
+
+		_, err = daemonService.CreateGateway(ctx, daemon.CreateGatewayParams{
+			TargetURI: appURI.String(),
+			// 42 shouldn't be handed out to a non-root user when creating a listener on port 0, so it's
+			// unlikely that 42 is going to end up in the app spec.
+			TargetSubresourceName: "42",
+		})
+		require.True(t, trace.IsBadParameter(err), "Expected BadParameter, got %v", err)
+		require.ErrorContains(t, err, "not included in target ports")
+
+		gateway, err := daemonService.CreateGateway(ctx, daemon.CreateGatewayParams{
+			TargetURI:             appURI.String(),
+			TargetSubresourceName: strconv.Itoa(pack.RootTCPMultiPortAppPortAlpha()),
+		})
+		require.NoError(t, err)
+
+		_, err = daemonService.SetGatewayTargetSubresourceName(ctx, gateway.URI().String(), "42")
+		require.True(t, trace.IsBadParameter(err), "Expected BadParameter, got %v", err)
+		require.ErrorContains(t, err, "not included in target ports")
+	})
+}
+
 func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc, appURI uri.ResourceURI) {
 	t.Helper()
 	tc, webauthnLogin := makeTCAndWebauthnLogin(t)

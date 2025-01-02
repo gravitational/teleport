@@ -1323,6 +1323,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 				return tc, nil
 			}
 			testTeletermAppGateway(t, pack, makeTC)
+			testTeletermAppGatewayTargetPortValidation(t, pack, makeTC)
 		})
 
 		t.Run("per-session MFA", func(t *testing.T) {
