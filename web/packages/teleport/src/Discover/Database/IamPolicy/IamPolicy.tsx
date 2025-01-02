@@ -17,22 +17,21 @@
  */
 
 import React from 'react';
-import { Text, Box, Flex, Indicator, Link } from 'design';
+
+import { Box, Flex, Indicator, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import useTeleport from 'teleport/useTeleport';
 
 import {
-  HeaderSubtitle,
   ActionButtons,
-  Header,
   ButtonBlueText,
+  Header,
+  HeaderSubtitle,
 } from '../../Shared';
-
-import { useIamPolicy, State } from './useIamPolicy';
-
 import type { AgentStepProps } from '../../types';
+import { State, useIamPolicy } from './useIamPolicy';
 
 export function IamPolicy(props: AgentStepProps) {
   const ctx = useTeleport();

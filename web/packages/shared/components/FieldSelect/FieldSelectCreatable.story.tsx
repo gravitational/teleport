@@ -17,11 +17,11 @@
  */
 
 import { useState } from 'react';
-import { Flex } from 'design';
 
-import { wait } from 'shared/utils/wait';
-import Validation from 'shared/components/Validation';
+import { Flex } from 'design';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { wait } from 'shared/utils/wait';
 
 import {
   FieldSelectCreatable,

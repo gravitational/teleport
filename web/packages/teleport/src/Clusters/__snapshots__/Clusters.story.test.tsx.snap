@@ -176,6 +176,21 @@ exports[`render clusters 1`] = `
   font-weight: 500;
 }
 
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c15 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .c25 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -201,21 +216,6 @@ exports[`render clusters 1`] = `
   background-color: rgba(255,255,255,0.07);
   color: #FFFFFF;
   font-weight: 400;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c4 {
-  display: flex;
-  align-items: center;
-}
-
-.c15 {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .c5 {
@@ -343,14 +343,6 @@ exports[`render clusters 1`] = `
   margin-top: 4px;
 }
 
-.c20 svg {
-  font-size: 20px;
-}
-
-.c20 svg:before {
-  padding-left: 1px;
-}
-
 .c13 {
   position: relative;
   height: 100%;
@@ -401,6 +393,14 @@ exports[`render clusters 1`] = `
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
   padding-left: 24px;
+}
+
+.c20 svg {
+  font-size: 20px;
+}
+
+.c20 svg:before {
+  padding-left: 1px;
 }
 
 .c24 td {

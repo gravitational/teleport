@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import FormPassword from './FormPassword';
 import { On, Optional } from './FormPassword.story';

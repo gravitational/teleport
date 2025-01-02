@@ -17,10 +17,12 @@
  */
 
 import React from 'react';
+
 import { ClickableLabelCell } from 'design/DataTable';
+
 import { Database } from 'teleport/services/databases';
 
-import { ListProps, StyledTable, renderActionCell } from './ResourceList';
+import { ListProps, renderActionCell, StyledTable } from './ResourceList';
 
 export function Databases(props: ListProps & { databases: Database[] }) {
   const {

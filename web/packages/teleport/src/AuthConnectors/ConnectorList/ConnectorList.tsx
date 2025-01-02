@@ -17,12 +17,12 @@
  */
 
 import React from 'react';
+
 import { Box, ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 
-import { State as ResourceState } from 'teleport/components/useResources';
-
 import { ResponsiveConnector } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
+import { State as ResourceState } from 'teleport/components/useResources';
 
 import { State as AuthConnectorState } from '../useAuthConnectors';
 

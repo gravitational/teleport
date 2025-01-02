@@ -20,7 +20,7 @@ import React from 'react';
 
 import { render, screen } from 'design/utils/testing';
 
-import { Loaded, Failed, Processing, Approved } from './RequestDelete.story';
+import { Approved, Failed, Loaded, Processing } from './RequestDelete.story';
 
 test('loaded state', () => {
   render(<Loaded />);

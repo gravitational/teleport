@@ -17,14 +17,14 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, ButtonPrimary, ButtonText } from 'design';
+
+import { Box, ButtonPrimary, ButtonText, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { PasskeyBlurb } from 'teleport/components/Passkeys/PasskeyBlurb';
 

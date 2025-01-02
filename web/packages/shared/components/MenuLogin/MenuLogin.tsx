@@ -17,17 +17,16 @@
  */
 
 import React, { useImperativeHandle, useRef, useState } from 'react';
-import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
-import Menu, { MenuItem } from 'design/Menu';
-import { space, SpaceProps } from 'design/system';
+import styled from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { ChevronDown } from 'design/Icon';
+import Menu, { MenuItem } from 'design/Menu';
+import { space, SpaceProps } from 'design/system';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
-
-import { MenuLoginProps, LoginItem, MenuLoginHandle } from './types';
+import { LoginItem, MenuLoginHandle, MenuLoginProps } from './types';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
   (props, ref) => {

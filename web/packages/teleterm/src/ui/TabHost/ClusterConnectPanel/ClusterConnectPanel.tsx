@@ -17,8 +17,9 @@
  */
 
 import React from 'react';
-import { Box, ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
 import styled from 'styled-components';
+
+import { Box, ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 

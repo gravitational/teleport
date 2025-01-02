@@ -18,8 +18,9 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import Popover from 'design/Popover';
+
 import { Box } from 'design';
+import Popover from 'design/Popover';
 import { debounce } from 'shared/utils/highbar';
 
 export default function JoinedUsers(props) {

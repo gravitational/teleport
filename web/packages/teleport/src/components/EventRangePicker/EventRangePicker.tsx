@@ -18,13 +18,14 @@
 
 import React, { useState } from 'react';
 import { components } from 'react-select';
-import 'react-day-picker/dist/style.css';
-import { Text, Box } from 'design';
-import Dialog from 'design/DialogConfirmation';
-import { displayDate } from 'shared/services/loc';
-import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
+import 'react-day-picker/dist/style.css';
+
+import { Box, Text } from 'design';
+import Dialog from 'design/DialogConfirmation';
 import Select, { Option } from 'shared/components/Select';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
+import { displayDate } from 'shared/services/loc';
 
 import { State } from 'teleport/Audit/useAuditEvents';
 

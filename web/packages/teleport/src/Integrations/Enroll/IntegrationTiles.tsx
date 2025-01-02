@@ -18,16 +18,16 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Box, ResourceIcon } from 'design';
 
-import cfg from 'teleport/config';
+import { Box, ResourceIcon, Text } from 'design';
+
+import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
 import {
   BadgeTitle,
   ToolTipNoPermBadge,
 } from 'teleport/components/ToolTipNoPermBadge';
+import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
-
-import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
 
 import { IntegrationTile } from './common';
 

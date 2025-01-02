@@ -18,8 +18,8 @@
 
 import React from 'react';
 
-import Tabs from './Tabs';
 import { TestLayout } from './../Console.story';
+import Tabs from './Tabs';
 
 export default {
   title: 'Teleport/Console',

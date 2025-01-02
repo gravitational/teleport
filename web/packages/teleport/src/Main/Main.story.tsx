@@ -16,23 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { createMemoryHistory } from 'history';
+import React from 'react';
 import { Router } from 'react-router';
+
 import { Flex } from 'design';
 
-import { ContextProvider, Context } from 'teleport';
-import { getOSSFeatures } from 'teleport/features';
-
-import { clusters } from 'teleport/Clusters/fixtures';
-import { nodes } from 'teleport/Nodes/fixtures';
-import { events } from 'teleport/Audit/fixtures';
-import { sessions } from 'teleport/Sessions/fixtures';
+import { Context, ContextProvider } from 'teleport';
 import { apps } from 'teleport/Apps/fixtures';
+import { events } from 'teleport/Audit/fixtures';
+import { clusters } from 'teleport/Clusters/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
-
-import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
+import { getOSSFeatures } from 'teleport/features';
+import { kubes } from 'teleport/Kubes/fixtures';
+import { nodes } from 'teleport/Nodes/fixtures';
+import { sessions } from 'teleport/Sessions/fixtures';
 
 import { userContext } from './fixtures';
 import { Main } from './Main';

@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { storiesOf } from '@storybook/react';
 import React from 'react';
 import styled from 'styled-components';
-import { storiesOf } from '@storybook/react';
+
 import { Box } from 'design';
 
 import SplitPane from './SplitPane';

@@ -18,8 +18,7 @@
 
 import React from 'react';
 
-import { Text, Toggle, Link, Flex } from 'design';
-
+import { Flex, Link, Text, Toggle } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
 const GUIDE_URL =

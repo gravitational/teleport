@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Text, Flex } from 'design';
+
+import { Flex, Text } from 'design';
 
 import { ToolTipInfo } from './ToolTip';
 

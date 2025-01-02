@@ -24,11 +24,11 @@ import { render } from 'design/utils/testing';
 import cfg from 'teleport/config';
 
 import {
-  SupportOSS,
-  SupportOSSWithCTA,
   SupportCloud,
   SupportEnterprise,
   SupportEnterpriseWithCTA,
+  SupportOSS,
+  SupportOSSWithCTA,
 } from './Support.story';
 
 test('support OSS', () => {

@@ -16,25 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
 
 import cfg from 'teleport/config';
-
-import { ResourceKind } from 'teleport/Discover/Shared';
-
 import {
   ComponentWrapper,
   getDbMeta,
   getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
-
 import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { AutoDeploy } from './AutoDeploy';
 

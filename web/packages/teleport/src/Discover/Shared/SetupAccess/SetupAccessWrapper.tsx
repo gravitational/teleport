@@ -18,19 +18,18 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Box, Indicator, Flex } from 'design';
+
+import { Box, Flex, Indicator, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import {
-  Header,
-  HeaderSubtitle,
   ActionButtons,
   ButtonBlueText,
+  Header,
+  HeaderSubtitle,
 } from 'teleport/Discover/Shared';
 
-import { AccessInfo } from './AccessInfo';
-
-import type { TraitKind } from './AccessInfo';
+import { AccessInfo, type TraitKind } from './AccessInfo';
 import type { State } from './useUserTraits';
 
 export type Props = {

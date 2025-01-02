@@ -23,8 +23,8 @@ import { render } from 'design/utils/testing';
 import cfg from 'teleport/config';
 
 import {
-  Loaded,
   ActiveSessionsCTA,
+  Loaded,
   ModeratedSessionsCTA,
 } from './Sessions.story';
 

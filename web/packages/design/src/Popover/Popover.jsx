@@ -40,14 +40,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React from 'react';
-import styled from 'styled-components';
 import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
+import styled from 'styled-components';
 
-import { ownerWindow, ownerDocument } from '../utils';
 import Modal from '../Modal';
-
+import { ownerDocument, ownerWindow } from '../utils';
 import Transition from './Transition';
 
 function getOffsetTop(rect, vertical) {

@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
-
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import {
-  DiscoverProvider,
   DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 
 import { AwsAccount } from './AwsAccount';
 

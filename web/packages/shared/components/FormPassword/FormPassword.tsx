@@ -17,22 +17,21 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, Flex, Box, ButtonSecondary } from 'design';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
 import * as Alerts from 'design/Alert';
-
 import useAttempt from 'shared/hooks/useAttempt';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-
 import { Auth2faType, PreferredMfaType } from 'shared/services';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import FieldInput from '../FieldInput';
 import FieldSelect from '../FieldSelect';
 import Validation, { Validator } from '../Validation';
 import {
-  requiredToken,
-  requiredPassword,
-  requiredField,
   requiredConfirmedPassword,
+  requiredField,
+  requiredPassword,
+  requiredToken,
 } from '../Validation/rules';
 
 function FormPassword(props: Props) {

@@ -18,9 +18,9 @@
 
 import React, { PropsWithChildren } from 'react';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { AccessRequestsService } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
 
 const WorkspaceContext = React.createContext<{

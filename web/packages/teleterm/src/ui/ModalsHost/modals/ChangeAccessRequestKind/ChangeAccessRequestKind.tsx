@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, ButtonIcon, ButtonWarning } from 'design';
+import { ButtonIcon, ButtonWarning, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,

@@ -18,28 +18,25 @@
 
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Link, Text, Indicator } from 'design';
-import { space, SpaceProps, width } from 'design/system';
+import { Alert, Box, Flex, Indicator, Link, Text } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
-
+import { space, SpaceProps, width } from 'design/system';
 import {
-  ShowResources,
   Cluster,
+  ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-
-import { SearchPagination, SearchPanel } from 'shared/components/Search';
 import {
   ResourceList,
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
+import { SearchPagination, SearchPanel } from 'shared/components/Search';
 
-import {
-  PendingAccessRequest,
-  extractResourceRequestProperties,
-} from 'teleterm/ui/services/workspacesService/accessRequestsService';
-
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import {
+  extractResourceRequestProperties,
+  PendingAccessRequest,
+} from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
 

@@ -18,13 +18,14 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { ButtonIcon, Flex, Text } from 'design';
 import { Cross as CloseIcon } from 'design/Icon';
 
-import { FileTransferDialogDirection, TransferredFile } from './types';
 import { DownloadForm } from './DownloadForm';
-import { UploadForm } from './UploadForm';
 import { FileList } from './FileList';
+import { FileTransferDialogDirection, TransferredFile } from './types';
+import { UploadForm } from './UploadForm';
 
 export interface FileTransferStatelessProps {
   openedDialog: FileTransferDialogDirection;

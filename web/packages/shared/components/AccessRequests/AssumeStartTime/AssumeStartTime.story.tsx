@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
 import { format } from 'date-fns';
+import React, { useState } from 'react';
 
 import { Box, Text } from 'design';
-
 import { Option } from 'shared/components/Select';
 import cfg from 'shared/config';
 
-import { dryRunResponse } from '../fixtures';
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
-
+import { dryRunResponse } from '../fixtures';
 import { AssumeStartTime } from './AssumeStartTime';
 
 export default {

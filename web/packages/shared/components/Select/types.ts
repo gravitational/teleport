@@ -17,7 +17,6 @@
  */
 
 import React, { FocusEvent } from 'react';
-
 import { StylesConfig } from 'react-select';
 
 export type Props = {

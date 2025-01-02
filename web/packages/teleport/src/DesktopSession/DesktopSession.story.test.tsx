@@ -17,21 +17,23 @@
  */
 
 import React from 'react';
+
 import 'jest-canvas-mock';
+
 import { render, screen } from 'design/utils/testing';
 
 import {
+  AnotherSessionActive,
   BothProcessing,
-  TdpProcessing,
-  FetchProcessing,
   ConnectedSettingsFalse,
   ConnectedSettingsTrue,
   Disconnected,
   FetchError,
+  FetchProcessing,
   TdpError,
+  TdpProcessing,
   UnintendedDisconnect,
   WebAuthnPrompt,
-  AnotherSessionActive,
 } from './DesktopSession.story';
 
 test('processing', () => {

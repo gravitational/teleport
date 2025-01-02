@@ -17,13 +17,15 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Text, Flex, Button, Card, ButtonIcon } from 'design';
 import styled, { useTheme } from 'styled-components';
-import { Notification } from 'shared/components/Notification';
-import { Warning, Cross } from 'design/Icon';
-import { useClickOutside } from 'shared/hooks/useClickOutside';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import { Button, ButtonIcon, Card, Flex, Text } from 'design';
+import { Cross, Warning } from 'design/Icon';
+import {
+  Notification,
+  type NotificationItem,
+} from 'shared/components/Notification';
+import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
   const [showDropdown, setShowDropdown] = useState(false);

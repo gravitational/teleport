@@ -18,8 +18,8 @@
 
 import React from 'react';
 
-import cfg from 'teleport/config';
 import { Route } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { AwsOidc } from './AwsOidc';

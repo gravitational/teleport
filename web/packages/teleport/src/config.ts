@@ -19,9 +19,6 @@
 import { generatePath } from 'react-router';
 
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
-import { mergeDeep } from 'shared/utils/highbar';
-
 import {
   Auth2faType,
   AuthProvider,
@@ -29,18 +26,18 @@ import {
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
+import { mergeDeep } from 'shared/utils/highbar';
 
+import type { SortType } from 'teleport/services/agents';
+import type { WebauthnAssertionResponse } from 'teleport/services/auth';
+import type { PluginKind, Regions } from 'teleport/services/integrations';
 import { KubeResourceKind } from 'teleport/services/kube/types';
+import type { RecordingType } from 'teleport/services/recordings';
+import type { ParticipantMode } from 'teleport/services/session';
+import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
-
-import type { SortType } from 'teleport/services/agents';
-import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
-import type { PluginKind, Regions } from 'teleport/services/integrations';
-import type { ParticipantMode } from 'teleport/services/session';
-import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */

@@ -22,8 +22,8 @@ import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
 import { Cross, Info, Warning } from 'design/Icon';
 
-import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
+import { CaptureEvent } from 'teleport/services/userEvent/types';
 
 export type Severity = 'info' | 'warning' | 'danger';
 

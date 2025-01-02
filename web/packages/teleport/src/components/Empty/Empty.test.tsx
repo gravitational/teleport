@@ -17,8 +17,9 @@
  */
 
 import React from 'react';
-import { render, screen } from 'design/utils/testing';
 import { MemoryRouter } from 'react-router';
+
+import { render, screen } from 'design/utils/testing';
 
 import Empty, { Props } from './Empty';
 

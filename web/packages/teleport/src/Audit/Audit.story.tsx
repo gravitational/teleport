@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
 import React from 'react';
 import { Router } from 'react-router';
-import { createMemoryHistory } from 'history';
 
-import { ContextProvider, Context } from 'teleport';
+import { Context, ContextProvider } from 'teleport';
 
 import { AuditContainer as Audit } from './Audit';
 import EventList from './EventList';

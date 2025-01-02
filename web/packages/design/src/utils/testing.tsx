@@ -16,22 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import {
-  render as testingRender,
   act,
   fireEvent,
-  waitFor,
-  screen,
-  prettyDOM,
   getByTestId,
+  prettyDOM,
+  screen,
+  render as testingRender,
+  waitFor,
   waitForElementToBeRemoved,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 import { MemoryRouter as Router } from 'react-router-dom';
 
-import ThemeProvider from 'design/ThemeProvider';
 import { darkTheme } from 'design/theme';
+import ThemeProvider from 'design/ThemeProvider';
+
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 

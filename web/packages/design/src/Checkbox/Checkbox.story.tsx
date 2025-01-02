@@ -17,11 +17,9 @@
  */
 
 import React from 'react';
-
 import styled from 'styled-components';
 
 import { Flex } from '..';
-
 import { StyledCheckbox } from './Checkbox';
 
 export default {

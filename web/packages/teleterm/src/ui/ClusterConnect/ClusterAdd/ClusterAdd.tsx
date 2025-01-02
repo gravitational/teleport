@@ -17,12 +17,13 @@
  */
 
 import React, { useState } from 'react';
+
+import { Box, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import * as Alerts from 'design/Alert';
-import { Box, Text, ButtonPrimary, ButtonSecondary } from 'design';
+import { DialogContent, DialogHeader } from 'design/Dialog';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { DialogContent, DialogHeader } from 'design/Dialog';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';

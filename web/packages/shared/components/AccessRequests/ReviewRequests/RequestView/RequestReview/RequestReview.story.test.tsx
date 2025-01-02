@@ -20,7 +20,7 @@ import React from 'react';
 
 import { render } from 'design/utils/testing';
 
-import { Loaded, Failed } from './RequestReview.story';
+import { Failed, Loaded } from './RequestReview.story';
 
 test('loaded state', () => {
   const { container } = render(<Loaded />);

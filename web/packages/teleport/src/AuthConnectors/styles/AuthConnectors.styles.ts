@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Box, ButtonPrimary, Text } from 'design';
 
 import { FeatureHeader } from 'teleport/components/Layout';

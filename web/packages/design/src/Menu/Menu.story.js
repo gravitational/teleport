@@ -18,14 +18,13 @@
 
 import React from 'react';
 
-import { ButtonPrimary } from '../Button';
 import Box from '../Box';
+import { ButtonPrimary } from '../Button';
 import Flex from '../Flex';
 import * as Icons from '../Icon';
-
-import MenuItemIcon from './MenuItemIcon';
-import MenuItem from './MenuItem';
 import Menu from './Menu';
+import MenuItem from './MenuItem';
+import MenuItemIcon from './MenuItemIcon';
 
 export default {
   title: 'Design/Menu',

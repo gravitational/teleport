@@ -17,12 +17,13 @@
  */
 
 import Button, {
-  ButtonPrimary,
-  ButtonWarning,
-  ButtonSecondary,
   ButtonBorder,
+  ButtonPrimary,
+  ButtonSecondary,
   ButtonText,
+  ButtonWarning,
 } from './Button';
+
 export default Button;
 export {
   ButtonPrimary,

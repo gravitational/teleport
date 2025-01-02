@@ -19,6 +19,7 @@
 import SideNav from './SideNav';
 import SideNavItem from './SideNavItem';
 import SideNavItemIcon from './SideNavItemIcon';
+
 export default SideNav;
 
 export { SideNavItem, SideNavItemIcon };

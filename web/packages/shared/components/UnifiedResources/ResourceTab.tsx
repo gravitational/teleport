@@ -18,8 +18,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Text } from 'design';
 
+import { Box, Text } from 'design';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { PINNING_NOT_SUPPORTED_MESSAGE } from './UnifiedResources';

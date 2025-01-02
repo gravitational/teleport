@@ -17,6 +17,7 @@
  */
 
 import { createGlobalStyle } from 'styled-components';
+
 import './../assets/ubuntu/style.css';
 
 const GlobalStyle = createGlobalStyle`

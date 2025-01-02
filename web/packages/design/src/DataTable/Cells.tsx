@@ -18,16 +18,15 @@
 
 import React from 'react';
 
+import { Flex, Label } from 'design';
+import * as Icons from 'design/Icon';
 import { displayDate } from 'shared/services/loc';
 
-import { Label, Flex } from 'design';
-import * as Icons from 'design/Icon';
-
 import {
+  LabelDescription,
   ServersideProps,
   SortDir,
   TableColumn,
-  LabelDescription,
 } from './types';
 
 export const Cell = props => <td children={props.children} {...props} />;

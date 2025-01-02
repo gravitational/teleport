@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { routing, ServerUri } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
+import { routing, ServerUri } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 

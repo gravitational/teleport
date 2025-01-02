@@ -331,14 +331,6 @@ exports[`failed state 1`] = `
   margin-right: 8px;
 }
 
-.c21 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -392,6 +384,14 @@ exports[`failed state 1`] = `
 .c17 {
   display: flex;
   gap: 32px;
+}
+
+.c21 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c9 {
@@ -680,6 +680,54 @@ exports[`failed state 1`] = `
   position: relative;
 }
 
+.c48 {
+  border-color: rgba(255,255,255,0.13);
+}
+
+.c12 {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
+  border-radius: 2px;
+}
+
+.c12:hover {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c20 input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.c20 .react-select__control {
+  font-size: 12px;
+  width: 350px;
+  background: #344179;
+}
+
+.c20 .react-select__control:hover {
+  background: #344179;
+}
+
+.c20 .react-select__menu {
+  font-size: 12px;
+  width: 350px;
+  right: 0;
+  margin-bottom: 0;
+}
+
+.c20 .react-select__option {
+  padding: 0;
+  font-size: 12px;
+}
+
+.c20 .react-select__value-container {
+  position: static;
+}
+
+.c20 .react-select__placeholder {
+  color: #FFFFFF;
+}
+
 .c24 {
   width: 260px;
   height: 150px;
@@ -800,54 +848,6 @@ exports[`failed state 1`] = `
 
 .c28 {
   border-color: rgba(255,255,255,0.13);
-}
-
-.c48 {
-  border-color: rgba(255,255,255,0.13);
-}
-
-.c20 input[type='checkbox'] {
-  cursor: pointer;
-}
-
-.c20 .react-select__control {
-  font-size: 12px;
-  width: 350px;
-  background: #344179;
-}
-
-.c20 .react-select__control:hover {
-  background: #344179;
-}
-
-.c20 .react-select__menu {
-  font-size: 12px;
-  width: 350px;
-  right: 0;
-  margin-bottom: 0;
-}
-
-.c20 .react-select__option {
-  padding: 0;
-  font-size: 12px;
-}
-
-.c20 .react-select__value-container {
-  position: static;
-}
-
-.c20 .react-select__placeholder {
-  color: #FFFFFF;
-}
-
-.c12 {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-  border-radius: 2px;
-}
-
-.c12:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 {
@@ -1985,14 +1985,6 @@ exports[`loaded state 1`] = `
   margin-right: 8px;
 }
 
-.c20 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -2046,6 +2038,14 @@ exports[`loaded state 1`] = `
 .c16 {
   display: flex;
   gap: 32px;
+}
+
+.c20 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c8 {
@@ -2334,6 +2334,54 @@ exports[`loaded state 1`] = `
   position: relative;
 }
 
+.c55 {
+  border-color: rgba(255,255,255,0.13);
+}
+
+.c11 {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
+  border-radius: 2px;
+}
+
+.c11:hover {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c19 input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.c19 .react-select__control {
+  font-size: 12px;
+  width: 350px;
+  background: #344179;
+}
+
+.c19 .react-select__control:hover {
+  background: #344179;
+}
+
+.c19 .react-select__menu {
+  font-size: 12px;
+  width: 350px;
+  right: 0;
+  margin-bottom: 0;
+}
+
+.c19 .react-select__option {
+  padding: 0;
+  font-size: 12px;
+}
+
+.c19 .react-select__value-container {
+  position: static;
+}
+
+.c19 .react-select__placeholder {
+  color: #FFFFFF;
+}
+
 .c23 {
   width: 260px;
   height: 150px;
@@ -2458,54 +2506,6 @@ exports[`loaded state 1`] = `
 
 .c31 {
   border-color: rgba(255,255,255,0.13);
-}
-
-.c55 {
-  border-color: rgba(255,255,255,0.13);
-}
-
-.c19 input[type='checkbox'] {
-  cursor: pointer;
-}
-
-.c19 .react-select__control {
-  font-size: 12px;
-  width: 350px;
-  background: #344179;
-}
-
-.c19 .react-select__control:hover {
-  background: #344179;
-}
-
-.c19 .react-select__menu {
-  font-size: 12px;
-  width: 350px;
-  right: 0;
-  margin-bottom: 0;
-}
-
-.c19 .react-select__option {
-  padding: 0;
-  font-size: 12px;
-}
-
-.c19 .react-select__value-container {
-  position: static;
-}
-
-.c19 .react-select__placeholder {
-  color: #FFFFFF;
-}
-
-.c11 {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-  border-radius: 2px;
-}
-
-.c11:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 {
@@ -3674,16 +3674,16 @@ exports[`success state 1`] = `
   color: rgba(255,255,255,0.72);
 }
 
+.c8 {
+  display: flex;
+  justify-content: center;
+}
+
 .c9 {
   display: block;
   outline: none;
   width: 250px;
   height: 179px;
-}
-
-.c8 {
-  display: flex;
-  justify-content: center;
 }
 
 .c3 {

@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
 import PropTypes from 'prop-types';
+import styled from 'styled-components';
 import {
-  space,
-  width,
   color,
-  height,
   ColorProps,
-  SpaceProps,
-  WidthProps,
+  height,
   HeightProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'styled-system';
 
 function error({ hasError, theme }) {

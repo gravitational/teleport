@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Flex, ButtonPrimary } from 'design';
+
+import { ButtonPrimary, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';

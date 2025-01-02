@@ -21,6 +21,8 @@
     "target": "esnext",
     "types": ["node", "@emotion/core", "@types/wicg-file-system-access"],
     "paths": {
+      "build/*": ["web/packages/build/src/*"],
+      "build": ["web/packages/build/src/"],
       "shared/*": ["web/packages/shared/*"],
       "design/*": ["web/packages/design/src/*"],
       "design": ["web/packages/design/src/"],
@@ -29,7 +31,7 @@
       "teleterm/*": ["web/packages/teleterm/src/*"],
       "e-teleport/*": ["e/web/teleport/src/*"],
       "gen-proto-js/*": ["gen/proto/js/*"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"],
+      "gen-proto-ts/*": ["gen/proto/ts/*"]
     }
   },
   "include": [

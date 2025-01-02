@@ -20,18 +20,18 @@ import React from 'react';
 
 import { MenuItem } from 'design';
 
-import ButtonLink from './ButtonLink';
-import ButtonIcon from './ButtonIcon';
-import * as icons from './Icon';
-import Flex from './Flex';
 import Button, {
+  ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
-  ButtonWarning,
-  ButtonBorder,
   ButtonText,
+  ButtonWarning,
 } from './Button';
+import ButtonIcon from './ButtonIcon';
+import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
+import Flex from './Flex';
+import * as icons from './Icon';
 
 export default {
   title: 'Design/Button',

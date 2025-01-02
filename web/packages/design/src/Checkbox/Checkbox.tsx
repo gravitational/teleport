@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
-import React from 'react';
-
 import { Flex } from 'design';
-import { space } from 'design/system';
 import * as Icon from 'design/Icon';
+import { space } from 'design/system';
 
 export const CheckboxWrapper = styled(Flex)`
   padding: 8px;

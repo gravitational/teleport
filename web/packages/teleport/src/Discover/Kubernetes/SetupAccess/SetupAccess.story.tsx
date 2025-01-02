@@ -19,11 +19,12 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { initSelectedOptionsHelper } from 'teleport/Discover/Shared/SetupAccess';
+import {
+  initSelectedOptionsHelper,
+  type State,
+} from 'teleport/Discover/Shared/SetupAccess';
 
 import { SetupAccess } from './SetupAccess';
-
-import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Kube/SetupAccess',

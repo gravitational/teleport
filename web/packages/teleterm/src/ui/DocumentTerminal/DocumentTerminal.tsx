@@ -17,23 +17,23 @@
  */
 
 import React, { useCallback, useState } from 'react';
+
 import {
-  FileTransferActionBar,
   FileTransfer,
+  FileTransferActionBar,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
-import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import Document from 'teleterm/ui/Document';
 import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
+import type * as types from 'teleterm/ui/services/workspacesService';
 
-import { Terminal } from './Terminal';
 import { Reconnect } from './Reconnect';
+import { Terminal } from './Terminal';
 import { useDocumentTerminal } from './useDocumentTerminal';
 import { useTshFileTransferHandlers } from './useTshFileTransferHandlers';
-
-import type * as types from 'teleterm/ui/services/workspacesService';
 
 export function DocumentTerminal(props: {
   doc: types.DocumentTerminal;

@@ -17,13 +17,13 @@
  */
 
 import React from 'react';
-import { Flex, Text, ButtonPrimary } from 'design';
+
+import { ButtonPrimary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Attempt } from 'shared/hooks/useAsync';
 
-import { assertUnreachable } from 'teleterm/ui/utils';
-
 import type * as types from 'teleterm/ui/services/workspacesService';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 export function Reconnect(props: {
   docKind: types.DocumentTerminal['kind'];

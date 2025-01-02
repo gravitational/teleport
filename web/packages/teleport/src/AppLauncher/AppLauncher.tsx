@@ -17,13 +17,10 @@
  */
 
 import React, { useCallback, useEffect } from 'react';
-
 import { useLocation, useParams } from 'react-router';
 
 import { Flex, Indicator } from 'design';
-
 import { AccessDenied } from 'design/CardError';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { UrlLauncherParams } from 'teleport/config';

@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
 

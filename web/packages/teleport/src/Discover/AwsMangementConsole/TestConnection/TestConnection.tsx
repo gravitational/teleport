@@ -17,26 +17,25 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, Link, Mark } from 'design';
-import Select from 'shared/components/Select';
+
+import { Box, Link, Mark, Text } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
+import Select, { type Option } from 'shared/components/Select';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
 import cfg from 'teleport/config';
-import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import {
-  Header,
   ActionButtons,
+  Header,
   HeaderSubtitle,
   StyledBox,
 } from 'teleport/Discover/Shared';
-import useTeleport from 'teleport/useTeleport';
-import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import { AWS_TAG_INFO_LINK } from 'teleport/Discover/Shared/const';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import useTeleport from 'teleport/useTeleport';
 
 import { AppMeta, useDiscover } from '../../useDiscover';
-
-import type { Option } from 'shared/components/Select';
 
 export function TestConnection() {
   const ctx = useTeleport();

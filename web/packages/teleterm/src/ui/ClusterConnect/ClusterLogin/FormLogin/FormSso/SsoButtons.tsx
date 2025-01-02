@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Box } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
 

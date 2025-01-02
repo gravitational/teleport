@@ -17,8 +17,9 @@
  */
 
 import React from 'react';
-import { Cell } from 'design/DataTable';
+
 import { ButtonBorder } from 'design';
+import { Cell } from 'design/DataTable';
 import { displayDateTime } from 'shared/services/loc';
 
 import { Event } from 'teleport/services/audit';

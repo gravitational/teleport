@@ -17,12 +17,13 @@
  */
 
 import React, { useState } from 'react';
-import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
 
 import { SortType, TableProps } from 'design/DataTable/types';
 
-import Table from './Table';
+import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
+
 import { ClickableLabelCell, DateCell, LabelCell } from './Cells';
+import Table from './Table';
 
 export default {
   title: 'Design/DataTable',

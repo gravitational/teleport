@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import SplitPane, { PaneSide, YHolder, XHolder } from './SplitPane';
+import SplitPane, { PaneSide, XHolder, YHolder } from './SplitPane';
+
 export default SplitPane;
 export { PaneSide, YHolder, XHolder };

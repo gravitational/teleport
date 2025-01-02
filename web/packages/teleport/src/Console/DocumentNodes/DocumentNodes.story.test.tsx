@@ -17,10 +17,12 @@
  */
 
 import React from 'react';
-import 'jest-canvas-mock';
-import { waitFor, render } from 'design/utils/testing';
 
-import { Document, createContext } from './DocumentNodes.story';
+import 'jest-canvas-mock';
+
+import { render, waitFor } from 'design/utils/testing';
+
+import { createContext, Document } from './DocumentNodes.story';
 
 test('render DocumentNodes', async () => {
   const ctx = createContext();

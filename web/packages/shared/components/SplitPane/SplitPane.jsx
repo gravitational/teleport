@@ -18,8 +18,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Flex, Box } from 'design';
 
+import { Box, Flex } from 'design';
 import useDraggable from 'shared/hooks/useDraggable';
 
 export default function SplitPane({
