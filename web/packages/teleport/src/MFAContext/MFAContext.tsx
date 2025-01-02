@@ -1,4 +1,5 @@
-import { PropsWithChildren, createContext, useCallback, useRef } from 'react';
+import { createContext, PropsWithChildren, useCallback, useState } from 'react';
+
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa } from 'teleport/lib/useMfa';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
@@ -11,30 +12,35 @@ export interface MfaContextValue {
 export const MfaContext = createContext<MfaContextValue>(null);
 
 export const MfaContextProvider = ({ children }: PropsWithChildren) => {
-  const allowReuse = useRef(false);
-  const adminMfa = useMfa({
-    req: {
-      scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse: allowReuse.current,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
-    },
-  });
+  const adminMfa = useMfa({});
 
   const getAdminActionMfaResponse = useCallback(
     async (reusable: boolean = false) => {
-      allowReuse.current = reusable;
-      return (await adminMfa.getChallengeResponse()) || {}; // return an empty challenge to prevent mfa retry.
+      const chal = await auth.getMfaChallenge({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+        allowReuse: reusable,
+        isMfaRequiredRequest: {
+          admin_action: {},
+        },
+      });
+
+      const res = await adminMfa.getChallengeResponse(chal);
+      if (!res) {
+        return {}; // return an empty challenge to prevent mfa retry.
+      }
+
+      return res;
     },
-    [adminMfa, allowReuse]
+    [adminMfa]
   );
 
-  const mfaCtx = {
-    getAdminActionMfaResponse,
-    useMfa,
-  };
-  auth.setMfaContext(mfaCtx);
+  const [mfaCtx, setMfaCtx] = useState<MfaContextValue>();
+
+  if (!mfaCtx) {
+    const mfaCtx = { getAdminActionMfaResponse };
+    setMfaCtx(mfaCtx);
+    auth.setMfaContext(mfaCtx);
+  }
 
   return (
     <MfaContext.Provider value={mfaCtx}>
