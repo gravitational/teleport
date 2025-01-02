@@ -828,10 +828,10 @@ func (c *CLICommandBuilder) getOracleAlternativeCommands() []CommandAlternative 
 	c.options.logger.DebugContext(ctx, "All servers support TCP", "all_servers_support_tcp", c.options.oracle.canUseTCP)
 
 	c.options.logger.DebugContext(ctx, "Connection strings:")
-	c.options.logger.DebugContext(ctx, "- JDBC: "+c.getOracleJDBCConnectionString())
+	c.options.logger.DebugContext(ctx, "JDBC", "connection_string", c.getOracleJDBCConnectionString())
 	if c.options.oracle.hasTCPServers {
-		c.options.logger.DebugContext(ctx, "- TNS descriptor: "+c.getOracleTNSDescriptorString())
-		c.options.logger.DebugContext(ctx, "- Direct: "+c.getOracleDirectConnectionString())
+		c.options.logger.DebugContext(ctx, "TNS", "connection_string", c.getOracleTNSDescriptorString())
+		c.options.logger.DebugContext(ctx, "Direct", "connection_string", c.getOracleDirectConnectionString())
 	}
 
 	const oneShotLogin = "-L"
