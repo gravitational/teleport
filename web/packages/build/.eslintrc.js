@@ -35,10 +35,7 @@ module.exports = {
     jest: true,
   },
   ignorePatterns: ['**/dist/**'],
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-  ],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
   plugins: ['react', 'babel', 'react-hooks'],
   overrides: [
     {
