@@ -36,6 +36,10 @@ afterAll(async () => {
   await fs.rm(tempDir, { recursive: true, force: true });
 });
 
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe('readGrpcCert', () => {
   it('reads the file if the file already exists', async () => {
     await fs.writeFile(path.join(tempDir, 'already-exists'), 'foobar');
@@ -63,5 +67,18 @@ describe('readGrpcCert', () => {
     ).rejects.toMatchObject({
       message: expect.stringContaining('within the timeout'),
     });
+  });
+
+  it('returns an error if stat fails', async () => {
+    const expectedError = new Error('Something went wrong');
+    jest.spyOn(fs, 'stat').mockRejectedValue(expectedError);
+
+    await expect(
+      readGrpcCert(
+        tempDir,
+        'non-existent',
+        { timeoutMs: 100 } // Make sure that the test doesn't hang for 10s on failure.
+      )
+    ).rejects.toEqual(expectedError);
   });
 });
