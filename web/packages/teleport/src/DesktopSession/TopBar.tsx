@@ -17,15 +17,14 @@
  */
 
 import { useTheme } from 'styled-components';
-import { Text, TopNav, Flex } from 'design';
-import { Clipboard, FolderShared } from 'design/Icon';
 
+import { Flex, Text, TopNav } from 'design';
+import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import type { NotificationItem } from 'shared/components/Notification';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
-
-import type { NotificationItem } from 'shared/components/Notification';
 
 export default function TopBar(props: Props) {
   const {

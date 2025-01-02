@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import FieldInput from 'shared/components/FieldInput';
-
-import { precomputed } from 'shared/components/Validation/rules';
-
 import Text from 'design/Text';
+import FieldInput from 'shared/components/FieldInput';
+import { precomputed } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 

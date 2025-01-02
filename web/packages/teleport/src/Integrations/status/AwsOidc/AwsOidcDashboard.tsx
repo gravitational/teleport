@@ -19,16 +19,15 @@
 import React from 'react';
 
 import { Flex, H2, Indicator } from 'design';
-
 import { Danger } from 'design/Alert';
 
-import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
-import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { FeatureBox } from 'teleport/components/Layout';
+import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import {
   AwsResource,
   StatCard,
 } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
 export function AwsOidcDashboard() {
   const { statsAttempt, integrationAttempt } = useAwsOidcStatus();

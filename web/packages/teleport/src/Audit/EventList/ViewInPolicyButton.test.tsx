@@ -17,14 +17,13 @@
  */
 
 import { screen } from '@testing-library/react';
-
 import { MemoryRouter } from 'react-router';
 
 import { render } from 'design/utils/testing';
 
 import { ViewInPolicyButton } from 'teleport/Audit/EventList/ViewInPolicyButton';
-import { RawEvents } from 'teleport/services/audit';
 import cfg from 'teleport/config';
+import { RawEvents } from 'teleport/services/audit';
 
 import makeEvent from '../../services/audit/makeEvent';
 

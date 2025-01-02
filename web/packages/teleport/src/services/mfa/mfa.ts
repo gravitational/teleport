@@ -20,13 +20,13 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import auth, { makeWebauthnCreationResponse } from 'teleport/services/auth';
 
+import makeMfaDevice from './makeMfaDevice';
 import {
-  MfaDevice,
-  AddNewTotpDeviceRequest,
   AddNewHardwareDeviceRequest,
+  AddNewTotpDeviceRequest,
+  MfaDevice,
   SaveNewHardwareDeviceRequest,
 } from './types';
-import makeMfaDevice from './makeMfaDevice';
 
 class MfaService {
   fetchDevicesWithToken(tokenId: string): Promise<MfaDevice[]> {

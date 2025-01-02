@@ -17,13 +17,12 @@
  */
 
 import {
-  StepTitle,
   StepsContainer,
+  StepTitle,
 } from 'teleport/components/Wizard/Navigation';
 import { Bullet } from 'teleport/components/Wizard/Navigation/Bullet';
 
 import { BaseView } from '../flow';
-
 import { StepList } from './StepList';
 
 export function StepItem<T>(props: {

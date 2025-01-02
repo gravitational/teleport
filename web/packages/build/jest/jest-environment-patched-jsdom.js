@@ -1,4 +1,4 @@
-import { TextEncoder, TextDecoder } from 'node:util';
+import { TextDecoder, TextEncoder } from 'node:util';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 

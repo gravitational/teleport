@@ -18,12 +18,12 @@
 
 import { LabelKind } from 'design/Label';
 
+import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
 import {
   getStatusCodeTitle,
   Integration,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
 
 export function getStatus(item: IntegrationLike): Status {
   if (item.resourceType === 'integration') {

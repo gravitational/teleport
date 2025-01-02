@@ -17,12 +17,15 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Box, ButtonSecondary, ButtonIcon } from 'design';
+
+import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
+import * as Icons from 'design/Icon';
+import { inputGeometry } from 'design/Input/Input';
 import FieldInput from 'shared/components/FieldInput';
 import {
-  Validator,
   useRule,
   useValidation,
+  Validator,
 } from 'shared/components/Validation';
 import {
   precomputed,
@@ -30,8 +33,6 @@ import {
   Rule,
   ValidationResult,
 } from 'shared/components/Validation/rules';
-import * as Icons from 'design/Icon';
-import { inputGeometry } from 'design/Input/Input';
 
 export type Label = {
   name: string;

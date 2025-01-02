@@ -18,26 +18,26 @@
 
 import { useEffect, useMemo } from 'react';
 import styled from 'styled-components';
+
 import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import AjaxPoller from 'teleport/components/AjaxPoller';
 
+import ActionBar from './ActionBar';
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
+import DocumentBlank from './DocumentBlank';
+import { DocumentDb } from './DocumentDb';
+import DocumentKubeExec from './DocumentKubeExec';
+import DocumentNodes from './DocumentNodes';
+import DocumentSsh from './DocumentSsh';
 import * as stores from './stores/types';
 import Tabs from './Tabs';
-import ActionBar from './ActionBar';
-import DocumentSsh from './DocumentSsh';
-import DocumentNodes from './DocumentNodes';
-import DocumentKubeExec from './DocumentKubeExec';
-import DocumentBlank from './DocumentBlank';
+import useKeyboardNav from './useKeyboardNav';
+import useOnExitConfirmation from './useOnExitConfirmation';
 import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
-import useOnExitConfirmation from './useOnExitConfirmation';
-import useKeyboardNav from './useKeyboardNav';
-import { DocumentDb } from './DocumentDb';
 
 const POLL_INTERVAL = 5000; // every 5 sec
 

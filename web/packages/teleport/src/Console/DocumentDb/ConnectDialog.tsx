@@ -17,28 +17,27 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
+import { Danger } from 'design/Alert';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
-
-import Validation from 'shared/components/Validation';
-import { Option } from 'shared/components/Select';
 import {
   FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
-
-import { Danger } from 'design/Alert';
+import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useTeleport } from 'teleport';
-import { Database } from 'teleport/services/databases';
 import { DbConnectData } from 'teleport/lib/term/tty';
+import { Database } from 'teleport/services/databases';
 
 export function ConnectDialog(props: {
   clusterId: string;

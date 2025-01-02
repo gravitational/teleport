@@ -17,7 +17,6 @@
  */
 
 import { TextSelectCopyMulti } from '../TextSelectCopy';
-
 import { Tabs } from './Tabs';
 
 export default {

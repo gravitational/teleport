@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
 import { forwardRef } from 'react';
+
+import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
 
 export const ConfigFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
   (props, ref) => <FieldInput size="small" ref={ref} {...props} />
