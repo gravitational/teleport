@@ -142,13 +142,6 @@ exports[`render dialog with instructions to connect to database 1`] = `
   margin: 0px;
 }
 
-.c18 {
-  color: #009EFF;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -167,6 +160,13 @@ exports[`render dialog with instructions to connect to database 1`] = `
 
 .c14 {
   display: flex;
+}
+
+.c18 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c1 {
@@ -491,13 +491,6 @@ exports[`render dialog with instructions to connect to database with requestId 1
   margin: 0px;
 }
 
-.c18 {
-  color: #009EFF;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -516,6 +509,13 @@ exports[`render dialog with instructions to connect to database with requestId 1
 
 .c14 {
   display: flex;
+}
+
+.c18 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c1 {

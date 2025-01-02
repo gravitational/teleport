@@ -191,21 +191,6 @@ exports[`approved role escalation 1`] = `
   margin-top: 16px;
 }
 
-.c12 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -231,6 +216,21 @@ exports[`approved role escalation 1`] = `
 
 .c17 {
   display: flex;
+}
+
+.c12 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
 }
 
 .c1 {
@@ -528,21 +528,6 @@ exports[`failed state 1`] = `
   margin: 0px;
 }
 
-.c13 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -558,6 +543,21 @@ exports[`failed state 1`] = `
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
 }
 
 .c1 {
@@ -809,21 +809,6 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c12 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -839,6 +824,21 @@ exports[`loaded state 1`] = `
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
 }
 
 .c1 {
@@ -1084,21 +1084,6 @@ exports[`processing state 1`] = `
   margin: 0px;
 }
 
-.c12 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -1114,6 +1099,21 @@ exports[`processing state 1`] = `
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
 }
 
 .c1 {

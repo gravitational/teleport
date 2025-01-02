@@ -1,17 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`wrapper 1`] = `
-.c6 {
-  display: block;
-  outline: none;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 12px;
-  margin-bottom: 12px;
-  max-width: 200px;
-  max-height: 120px;
-}
-
 .c1 {
   box-sizing: border-box;
   height: 100%;
@@ -33,13 +22,6 @@ exports[`wrapper 1`] = `
   margin: 0px;
 }
 
-.c13 {
-  color: #009EFF;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c2 {
   display: flex;
   justify-content: space-between;
@@ -53,6 +35,32 @@ exports[`wrapper 1`] = `
 
 .c11 {
   display: flex;
+}
+
+.c6 {
+  display: block;
+  outline: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  max-width: 200px;
+  max-height: 120px;
+}
+
+.c13 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c8 {
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 16px auto 16px auto;
+  overflow-y: auto;
 }
 
 .c12 {
@@ -113,22 +121,6 @@ exports[`wrapper 1`] = `
   margin: 24px 0;
 }
 
-.c8 {
-  width: 600px;
-  padding: 24px;
-  text-align: left;
-  margin: 16px auto 16px auto;
-  overflow-y: auto;
-}
-
-@media screen and (max-width:800px) {
-  .c12 {
-    flex-direction: column-reverse;
-    text-align: center;
-    gap: 10px;
-  }
-}
-
 @media screen and (max-width:800px) {
   .c8 {
     width: auto;
@@ -139,6 +131,14 @@ exports[`wrapper 1`] = `
 @media screen and (max-height:760px) {
   .c8 {
     height: calc(100vh - 250px);
+  }
+}
+
+@media screen and (max-width:800px) {
+  .c12 {
+    flex-direction: column-reverse;
+    text-align: center;
+    gap: 10px;
   }
 }
 

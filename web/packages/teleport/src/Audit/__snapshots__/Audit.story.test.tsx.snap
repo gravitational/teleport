@@ -265,36 +265,6 @@ exports[`list of all events 1`] = `
   margin-top: 4px;
 }
 
-.c14 svg {
-  font-size: 20px;
-}
-
-.c14 svg:before {
-  padding-left: 1px;
-}
-
-.c11 {
-  color: #009EFF;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  outline: none;
-  border: none;
-  font-weight: bold;
-  line-height: 0;
-  font-size: 12px;
-}
-
-.c11:hover,
-.c11:focus {
-  cursor: pointer;
-}
-
-.c11:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: wait;
-}
-
 .c5 {
   position: relative;
   height: 100%;
@@ -345,6 +315,36 @@ exports[`list of all events 1`] = `
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
   padding-left: 24px;
+}
+
+.c14 svg {
+  font-size: 20px;
+}
+
+.c14 svg:before {
+  padding-left: 1px;
+}
+
+.c11 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  outline: none;
+  border: none;
+  font-weight: bold;
+  line-height: 0;
+  font-size: 12px;
+}
+
+.c11:hover,
+.c11:focus {
+  cursor: pointer;
+}
+
+.c11:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: wait;
 }
 
 .c18 {
@@ -14369,14 +14369,6 @@ exports[`loaded audit log screen 1`] = `
   margin-top: 4px;
 }
 
-.c22 svg {
-  font-size: 20px;
-}
-
-.c22 svg:before {
-  padding-left: 1px;
-}
-
 .c15 {
   position: relative;
   height: 100%;
@@ -14427,6 +14419,14 @@ exports[`loaded audit log screen 1`] = `
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
   padding-left: 24px;
+}
+
+.c22 svg {
+  font-size: 20px;
+}
+
+.c22 svg:before {
+  padding-left: 1px;
 }
 
 .c26 {
