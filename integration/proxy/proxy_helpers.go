@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -705,9 +706,9 @@ func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gate
 	require.NoError(t, client.Close())
 }
 
-// mustConnectAppGateway verifies that the gateway acts as an unauthenticated proxy that forwards
-// requests to the app behind it.
-func mustConnectAppGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
+// mustConnectWebAppGateway verifies that the gateway acts as an unauthenticated proxy that forwards
+// requests to the web app behind it.
+func mustConnectWebAppGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 	t.Helper()
 
 	gatewayAddress := net.JoinHostPort(gw.LocalAddress(), gw.LocalPort())
@@ -722,6 +723,41 @@ func mustConnectAppGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) 
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func makeMustConnectMultiPortTCPAppGateway(wantMessage string, otherTargetPort int, otherWantMessage string) testGatewayConnectionFunc {
+	return func(t *testing.T, d *daemon.Service, gw gateway.Gateway) {
+		t.Helper()
+
+		originalTargetPort := gw.TargetSubresourceName()
+		makeMustConnectTCPAppGateway(wantMessage)(t, d, gw)
+
+		gw.SetTargetSubresourceName(strconv.Itoa(otherTargetPort))
+		makeMustConnectTCPAppGateway(otherWantMessage)(t, d, gw)
+
+		// Restore the original port, so that the next time the test calls this function after certs
+		// expire, wantMessage is going to match the port that the gateway points to.
+		gw.SetTargetSubresourceName(originalTargetPort)
+		makeMustConnectTCPAppGateway(wantMessage)(t, d, gw)
+	}
+}
+
+func makeMustConnectTCPAppGateway(wantMessage string) testGatewayConnectionFunc {
+	return func(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
+		t.Helper()
+
+		gatewayAddress := net.JoinHostPort(gw.LocalAddress(), gw.LocalPort())
+		conn, err := net.Dial("tcp", gatewayAddress)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		buf := make([]byte, 1024)
+		n, err := conn.Read(buf)
+		require.NoError(t, err)
+
+		resp := strings.TrimSpace(string(buf[:n]))
+		require.Equal(t, wantMessage, resp)
+	}
 }
 
 func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kubeCluster string) *kubernetes.Clientset {

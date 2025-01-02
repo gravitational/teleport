@@ -19,9 +19,11 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -195,6 +197,7 @@ type gatewayCertRenewalParams struct {
 	testGatewayConnectionFunc testGatewayConnectionFunc
 	webauthnLogin             libclient.WebauthnLoginFunc
 	generateAndSetupUserCreds generateAndSetupUserCredsFunc
+	wantPromptMFACallCount    int
 }
 
 func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
@@ -297,9 +300,10 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	require.Equal(t, uint32(0), tshdEventsService.sendNotificationCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 	if params.webauthnLogin != nil {
-		// There are two calls, one to issue the certs when creating the gateway and then another to
-		// reissue them after relogin.
-		require.Equal(t, uint32(2), tshdEventsService.promptMFACallCount.Load(),
+		// By default, there are two calls, one to issue the certs when creating the gateway and then
+		// another to reissue them after relogin.
+		wantCallCount := cmp.Or(params.wantPromptMFACallCount, 2)
+		require.Equal(t, uint32(wantCallCount), tshdEventsService.promptMFACallCount.Load(),
 			"Unexpected number of calls to TSHDEventsClient.PromptMFA")
 	}
 }
@@ -678,19 +682,115 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 	ctx := context.Background()
 
 	t.Run("root cluster", func(t *testing.T) {
-		profileName := mustGetProfileName(t, pack.RootWebAddr())
-		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
+		t.Run("web app", func(t *testing.T) {
+			profileName := mustGetProfileName(t, pack.RootWebAddr())
+			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
 
-		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+			testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+		})
+
+		t.Run("TCP app", func(t *testing.T) {
+			profileName := mustGetProfileName(t, pack.RootWebAddr())
+			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPAppName())
+
+			testGatewayCertRenewal(
+				ctx,
+				t,
+				gatewayCertRenewalParams{
+					tc:                        tc,
+					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
+					testGatewayConnectionFunc: makeMustConnectTCPAppGateway(pack.RootTCPMessage()),
+					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
+					webauthnLogin:             tc.WebauthnLogin,
+				},
+			)
+		})
+
+		t.Run("multi-port TCP app", func(t *testing.T) {
+			profileName := mustGetProfileName(t, pack.RootWebAddr())
+			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPMultiPortAppName())
+
+			testGatewayCertRenewal(
+				ctx,
+				t,
+				gatewayCertRenewalParams{
+					tc: tc,
+					createGatewayParams: daemon.CreateGatewayParams{
+						TargetURI:             appURI.String(),
+						TargetSubresourceName: strconv.Itoa(pack.RootTCPMultiPortAppPortAlpha()),
+					},
+					testGatewayConnectionFunc: makeMustConnectMultiPortTCPAppGateway(
+						pack.RootTCPMultiPortMessageAlpha(), pack.RootTCPMultiPortAppPortBeta(), pack.RootTCPMultiPortMessageBeta(),
+					),
+					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
+					webauthnLogin:             tc.WebauthnLogin,
+					// First MFA prompt is made when creating the gateway. Then makeMustConnectMultiPortTCPAppGateway
+					// changes the target port twice, which means two more prompts.
+					//
+					// Then testGatewayCertRenewal expires the certs and calls
+					// makeMustConnectMultiPortTCPAppGateway. The first connection refreshes the expired cert,
+					// then the function changes the target port twice again, resulting in two more prompts.
+					wantPromptMFACallCount: 3 + 3,
+				},
+			)
+		})
 	})
 
 	t.Run("leaf cluster", func(t *testing.T) {
-		profileName := mustGetProfileName(t, pack.RootWebAddr())
-		appURI := uri.NewClusterURI(profileName).
-			AppendLeafCluster(pack.LeafAppClusterName()).
-			AppendApp(pack.LeafAppName())
+		t.Run("web app", func(t *testing.T) {
+			profileName := mustGetProfileName(t, pack.RootWebAddr())
+			appURI := uri.NewClusterURI(profileName).
+				AppendLeafCluster(pack.LeafAppClusterName()).
+				AppendApp(pack.LeafAppName())
 
-		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+			testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+		})
+
+		t.Run("TCP app", func(t *testing.T) {
+			profileName := mustGetProfileName(t, pack.RootWebAddr())
+			appURI := uri.NewClusterURI(profileName).AppendLeafCluster(pack.LeafAppClusterName()).AppendApp(pack.LeafTCPAppName())
+
+			testGatewayCertRenewal(
+				ctx,
+				t,
+				gatewayCertRenewalParams{
+					tc:                        tc,
+					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
+					testGatewayConnectionFunc: makeMustConnectTCPAppGateway(pack.LeafTCPMessage()),
+					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
+					webauthnLogin:             tc.WebauthnLogin,
+				},
+			)
+		})
+
+		t.Run("multi-port TCP app", func(t *testing.T) {
+			profileName := mustGetProfileName(t, pack.RootWebAddr())
+			appURI := uri.NewClusterURI(profileName).AppendLeafCluster(pack.LeafAppClusterName()).AppendApp(pack.LeafTCPMultiPortAppName())
+
+			testGatewayCertRenewal(
+				ctx,
+				t,
+				gatewayCertRenewalParams{
+					tc: tc,
+					createGatewayParams: daemon.CreateGatewayParams{
+						TargetURI:             appURI.String(),
+						TargetSubresourceName: strconv.Itoa(pack.LeafTCPMultiPortAppPortAlpha()),
+					},
+					testGatewayConnectionFunc: makeMustConnectMultiPortTCPAppGateway(
+						pack.LeafTCPMultiPortMessageAlpha(), pack.LeafTCPMultiPortAppPortBeta(), pack.LeafTCPMultiPortMessageBeta(),
+					),
+					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
+					webauthnLogin:             tc.WebauthnLogin,
+					// First MFA prompt is made when creating the gateway. Then makeMustConnectMultiPortTCPAppGateway
+					// changes the target port twice, which means two more prompts.
+					//
+					// Then testGatewayCertRenewal expires the certs and calls
+					// makeMustConnectMultiPortTCPAppGateway. The first connection refreshes the expired cert,
+					// then the function changes the target port twice again, resulting in two more prompts.
+					wantPromptMFACallCount: 3 + 3,
+				},
+			)
+		})
 	})
 }
 
@@ -705,7 +805,7 @@ func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appacces
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI: appURI.String(),
 			},
-			testGatewayConnectionFunc: mustConnectAppGateway,
+			testGatewayConnectionFunc: mustConnectWebAppGateway,
 			generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
 			webauthnLogin:             tc.WebauthnLogin,
 		},
