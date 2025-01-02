@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode } from 'react';
 import styled from 'styled-components';
 
 import { H3 } from 'design';
@@ -38,7 +39,7 @@ type Props = {
   active: boolean;
   onClick(): void;
   title: string;
-  Icon: (any) => JSX.Element;
+  Icon: (any) => ReactNode;
 };
 
 const StyledTab = styled(H3)<{ active?: boolean }>`
