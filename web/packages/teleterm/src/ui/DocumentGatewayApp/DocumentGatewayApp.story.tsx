@@ -18,6 +18,10 @@
 
 import { wait } from 'shared/utils/wait';
 
+import { Meta } from '@storybook/react';
+
+import { Flex } from 'design';
+
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp/DocumentGatewayApp';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -25,8 +29,6 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeAppGateway } from 'teleterm/services/tshd/testHelpers';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { Meta } from '@storybook/react';
-import { Flex } from 'design';
 
 type StoryProps = {
   appType: 'web' | 'tcp';
