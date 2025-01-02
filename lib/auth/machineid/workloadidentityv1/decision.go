@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type decision struct {
@@ -68,10 +69,17 @@ func decide(
 	for i, san := range wi.GetSpec().GetSpiffe().GetX509().GetDnsSans() {
 		templated, err = templateString(san, attrs)
 		if err != nil {
-			d.reason = trace.Wrap(err, "templating spec.spiffe.x509_svid.dns_sans[%d]", i)
+			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.dns_sans[%d]", i)
 			return d
 		}
-		// TODO(Noah): Validate the generated DNS SAN here.
+		if !utils.IsValidHostname(templated) {
+			d.reason = trace.BadParameter(
+				"templating spec.spiffe.x509.dns_sans[%d] resulted in an invalid DNS name %q",
+				i,
+				templated,
+			)
+			return d
+		}
 		d.templatedWorkloadIdentity.Spec.Spiffe.X509.DnsSans[i] = templated
 	}
 

@@ -384,9 +384,7 @@ func x509Template(
 		// - The corresponding SPIFFE ID is set as a URI type in the Subject Alternative Name extension
 		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
 		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
-		URIs: []*url.URL{spiffeID.URL()},
-		// TODO(noah): Should we validate DNS names are valid before encoding it
-		// into the certificate?
+		URIs:     []*url.URL{spiffeID.URL()},
 		DNSNames: dnsSANs,
 	}
 }
