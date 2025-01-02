@@ -31,6 +31,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -42,7 +43,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -181,7 +181,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 		return &ExecResult{
 			Command: e.GetCommand(),
-			Code:    sshutils.ExitCodeFromExecError(err),
+			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
 	// Close our half of the write pipe since it is only to be used by the child process.
@@ -222,7 +222,7 @@ func (e *localExec) Wait() *ExecResult {
 
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
-		Code:    sshutils.ExitCodeFromExecError(err),
+		Code:    exitCode(err),
 	}
 
 	return execResult
@@ -414,7 +414,7 @@ func (e *remoteExec) Wait() *ExecResult {
 
 	return &ExecResult{
 		Command: e.GetCommand(),
-		Code:    sshutils.ExitCodeFromExecError(err),
+		Code:    exitCode(err),
 	}
 }
 
@@ -452,7 +452,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		//
 		// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=327019
 		// https://bugzilla.mindrot.org/show_bug.cgi?id=1998
-		ExitCode: strconv.Itoa(sshutils.ExitCodeFromExecError(execErr)),
+		ExitCode: strconv.Itoa(exitCode(execErr)),
 	}
 
 	if execErr != nil {
@@ -611,5 +611,32 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 		return parts[len(parts)-1], action, true, nil
 	default:
 		return "", "", false, nil
+	}
+}
+
+// exitCode extracts and returns the exit code from the error.
+func exitCode(err error) int {
+	// If no error occurred, return 0 (success).
+	if err == nil {
+		return teleport.RemoteCommandSuccess
+	}
+
+	var execExitErr *exec.ExitError
+	var sshExitErr *ssh.ExitError
+	switch {
+	// Local execution.
+	case errors.As(err, &execExitErr):
+		waitStatus, ok := execExitErr.Sys().(syscall.WaitStatus)
+		if !ok {
+			return teleport.RemoteCommandFailure
+		}
+		return waitStatus.ExitStatus()
+	// Remote execution.
+	case errors.As(err, &sshExitErr):
+		return sshExitErr.ExitStatus()
+	// An error occurred, but the type is unknown, return a generic 255 code.
+	default:
+		slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)
+		return teleport.RemoteCommandFailure
 	}
 }

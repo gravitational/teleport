@@ -359,7 +359,7 @@ func ReadPath(path string) ([]byte, error) {
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			// do not convert to system error as this loses the ability to compare that it is a permission error
+			//do not convert to system error as this loses the ability to compare that it is a permission error
 			return nil, err
 		}
 		return nil, trace.ConvertSystemError(err)
@@ -367,7 +367,7 @@ func ReadPath(path string) ([]byte, error) {
 	bytes, err := os.ReadFile(abs)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			// do not convert to system error as this loses the ability to compare that it is a permission error
+			//do not convert to system error as this loses the ability to compare that it is a permission error
 			return nil, err
 		}
 		return nil, trace.ConvertSystemError(err)
