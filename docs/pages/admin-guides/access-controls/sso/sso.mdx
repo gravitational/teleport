@@ -7,7 +7,7 @@ Teleport users can log in to servers, Kubernetes clusters, databases, web
 applications, and Windows desktops through their organization's Single Sign-On
 (SSO) provider.
 
-- [Azure Active Directory (AD)](azuread.mdx): Configure Azure Active Directory SSO for SSH, Kubernetes, databases, desktops and web apps.
+- [Microsoft Entra ID](azuread.mdx): Configure Microsoft Entra ID SSO for SSH, Kubernetes, databases, desktops and web apps.
 - [Active Directory (ADFS)](adfs.mdx): Configure Windows Active Directory SSO for SSH, Kubernetes, databases, desktops and web apps.
 - [Google Workspace](google-workspace.mdx): Configure Google Workspace SSO for SSH, Kubernetes, databases, desktops and web apps.
 - [GitHub](github-sso.mdx): Configure GitHub SSO for SSH,
@@ -449,7 +449,7 @@ Teleport can also support multiple connectors. For example, a Teleport
 administrator can define and create multiple connector resources using
 `tctl create` as shown above.
 
-To see all configured connectors, execute this command on the Auth Server:
+To see all configured connectors, execute this command on the Auth Service:
 
 ```code
 $ tctl get connectors
