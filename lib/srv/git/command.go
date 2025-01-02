@@ -31,8 +31,8 @@ import (
 // Repository is the repository path in the SSH command.
 type Repository string
 
-// Owner returns the first part of the repository. If repository does not have
-// multiple parts, empty will be returned.
+// Owner returns the first part of the repository path. If repository does not
+// have multiple parts, empty string will be returned.
 //
 // For GitHub, owner is either the user or the organization that owns the repo.
 func (r Repository) Owner() string {

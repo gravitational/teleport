@@ -32,25 +32,28 @@ func TestCommandRecorder(t *testing.T) {
 	tests := []struct {
 		name        string
 		sshCommand  string
-		input       []byte
+		inputs      [][]byte
 		wantActions []*apievents.GitCommandAction
 	}{
 		{
 			name:        "fetch",
 			sshCommand:  "git-upload-pack 'my-org/my-repo.git'",
-			input:       pktline.FlushPkt,
+			inputs:      [][]byte{pktline.FlushPkt},
 			wantActions: nil,
 		},
 		{
 			name:        "no-op push",
 			sshCommand:  "git-receive-pack 'my-org/my-repo.git'",
-			input:       pktline.FlushPkt,
+			inputs:      [][]byte{pktline.FlushPkt},
 			wantActions: nil,
 		},
 		{
 			name:       "push with packfile",
 			sshCommand: "git-receive-pack 'my-org/my-repo.git'",
-			input:      []byte("00af8a43aa31be3cb1816c8d517d34d61795613300f5 75ad3a489c1537ed064caa874ee38076b5a126be refs/heads/STeve/test\x00 report-status-v2 side-band-64k object-format=sha1 agent=git/2.45.00000"),
+			inputs: [][]byte{
+				[]byte("00af8a43aa31be3cb1816c8d517d34d61795613300f5 75ad3a489c1537ed064caa874ee38076b5a126be refs/heads/STeve/test\x00 report-status-v2 side-band-64k object-format=sha1 agent=git/2.45.00000"),
+				[]byte("PACK-FILE-SHOULD-BE-IGNORED"),
+			},
 			wantActions: []*apievents.GitCommandAction{{
 				Action:    "update",
 				Reference: "refs/heads/STeve/test",
@@ -66,10 +69,14 @@ func TestCommandRecorder(t *testing.T) {
 			require.NoError(t, err)
 
 			recorder := NewCommandRecorder(*command)
-			n, err := recorder.Write(tt.input)
+			for _, input := range tt.inputs {
+				n, err := recorder.Write(input)
+				require.NoError(t, err)
+				require.Equal(t, len(input), n)
+			}
+			actions, err := recorder.GetActions()
 			require.NoError(t, err)
-			require.Equal(t, len(tt.input), n)
-			assert.Equal(t, tt.wantActions, recorder.GetActions())
+			assert.Equal(t, tt.wantActions, actions)
 		})
 	}
 }

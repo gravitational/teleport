@@ -28,6 +28,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -43,7 +44,7 @@ type CommandRecorder interface {
 	// GetCommand returns basic info of the command.
 	GetCommand() Command
 	// GetActions returns the action details of the command.
-	GetActions() []*apievents.GitCommandAction
+	GetActions() ([]*apievents.GitCommandAction, error)
 }
 
 // NewCommandRecorder returns a new Git command recorder.
@@ -69,8 +70,8 @@ func newNoopRecorder(command Command) *noopRecorder {
 func (r *noopRecorder) GetCommand() Command {
 	return r.Command
 }
-func (r *noopRecorder) GetActions() []*apievents.GitCommandAction {
-	return nil
+func (r *noopRecorder) GetActions() ([]*apievents.GitCommandAction, error) {
+	return nil, nil
 }
 func (r *noopRecorder) Write(p []byte) (int, error) {
 	return len(p), nil
@@ -80,9 +81,10 @@ func (r *noopRecorder) Write(p []byte) (int, error) {
 type pushCommandRecorder struct {
 	Command
 
-	logger  *slog.Logger
-	payload []byte
-	mu      sync.Mutex
+	logger    *slog.Logger
+	payload   []byte
+	mu        sync.Mutex
+	seenFlush bool
 }
 
 func newPushCommandRecorder(command Command) *pushCommandRecorder {
@@ -104,32 +106,33 @@ func (r *pushCommandRecorder) Write(p []byte) (int, error) {
 	// comes after the command-list.
 	//
 	// https://git-scm.com/docs/pack-protocol#_reference_update_request_and_packfile_transfer
-	if bytes.HasSuffix(r.payload, pktline.FlushPkt) {
-		if len(p) > 0 {
-			r.logger.Log(context.Background(), log.TraceLevel, "Discarding packet protocol", "packet_length", len(p))
-		}
+	if r.seenFlush {
+		r.logger.Log(context.Background(), log.TraceLevel, "Discarding packet protocol", "packet_length", len(p))
 		return len(p), nil
 	}
 
 	r.logger.Log(context.Background(), log.TraceLevel, "Recording Git command in packet protocol", "packet", string(p))
 	r.payload = append(r.payload, p...)
+	if bytes.HasSuffix(p, pktline.FlushPkt) {
+		r.seenFlush = true
+	}
 	return len(p), nil
 }
 
-func (r *pushCommandRecorder) GetActions() (actions []*apievents.GitCommandAction) {
+func (r *pushCommandRecorder) GetActions() ([]*apievents.GitCommandAction, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// Noop push (e.g. "Everything up-to-date")
 	if bytes.Equal(r.payload, pktline.FlushPkt) {
-		return nil
+		return nil, nil
 	}
 
 	request := packp.NewReferenceUpdateRequest()
 	if err := request.Decode(bytes.NewReader(r.payload)); err != nil {
-		r.logger.WarnContext(context.Background(), "failed to decode push command", "error", err)
-		return
+		return nil, trace.Wrap(err)
 	}
+	var actions []*apievents.GitCommandAction
 	for _, command := range request.Commands {
 		actions = append(actions, &apievents.GitCommandAction{
 			Action:    string(command.Action()),
@@ -138,5 +141,5 @@ func (r *pushCommandRecorder) GetActions() (actions []*apievents.GitCommandActio
 			New:       command.New.String(),
 		})
 	}
-	return
+	return actions, nil
 }
