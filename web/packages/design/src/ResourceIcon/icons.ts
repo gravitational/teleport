@@ -35,6 +35,7 @@ import apolloIoLight from './assets/apollo.io-light.svg';
 import appleDark from './assets/apple-dark.svg';
 import appleLight from './assets/apple-light.svg';
 import application from './assets/application.svg';
+import argocd from './assets/argocd.svg';
 import asana from './assets/asana.svg';
 import assembleDark from './assets/assemble-dark.svg';
 import assembleLight from './assets/assemble-light.svg';
@@ -210,6 +211,7 @@ import notion from './assets/notion.svg';
 import oasisopen from './assets/oasisopen.svg';
 import oktaDark from './assets/okta-dark.svg';
 import oktaLight from './assets/okta-light.svg';
+import oktaAlt from './assets/okta-alt.svg';
 import onehundredonedomain from './assets/onehundredonedomain.svg';
 import oneloginDark from './assets/onelogin-dark.svg';
 import oneloginLight from './assets/onelogin-light.svg';
@@ -322,6 +324,7 @@ export {
   appleDark,
   appleLight,
   application,
+  argocd,
   asana,
   assembleDark,
   assembleLight,
@@ -497,6 +500,7 @@ export {
   oasisopen,
   oktaDark,
   oktaLight,
+  oktaAlt,
   onehundredonedomain,
   oneloginDark,
   oneloginLight,

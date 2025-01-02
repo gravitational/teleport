@@ -18,7 +18,7 @@
 
 import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
 
-import { P } from 'design/Text/Text';
+import { H2, P } from 'design/Text/Text';
 
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
@@ -36,6 +36,7 @@ import ConnectorList from './ConnectorList';
 import DeleteConnectorDialog from './DeleteConnectorDialog';
 import useAuthConnectors, { State } from './useAuthConnectors';
 import templates from './templates';
+import CTAConnectors from './ConnectorList/CTAConnectors';
 
 export function AuthConnectorsContainer() {
   const state = useAuthConnectors();
@@ -80,34 +81,37 @@ export function AuthConnectors(props: State) {
       )}
       {attempt.status === 'success' && (
         <Flex alignItems="start">
-          {isEmpty && (
-            <Flex width="100%" justifyContent="center">
-              <EmptyList onCreate={() => resources.create('github')} />
-            </Flex>
-          )}
-          <>
-            <ConnectorList
-              items={items}
-              onEdit={resources.edit}
-              onDelete={resources.remove}
-            />
-            <DesktopDescription>
-              <H3 mb={3}>Auth Connectors</H3>
-              <P mb={3}>{description}</P>
-              <P mb={2}>
-                Please{' '}
-                <Link
-                  color="text.main"
-                  // This URL is the OSS documentation for auth connectors
-                  href="https://goteleport.com/docs/setup/admin/github-sso/"
-                  target="_blank"
-                >
-                  view our documentation
-                </Link>{' '}
-                on how to configure a GitHub connector.
-              </P>
-            </DesktopDescription>
-          </>
+          <Flex flexDirection="column" width="100%" gap={5}>
+            <Box>
+              <H2 mb={4}>Your Connectors</H2>
+              {isEmpty ? (
+                <EmptyList onCreate={() => resources.create('github')} />
+              ) : (
+                <ConnectorList
+                  items={items}
+                  onEdit={resources.edit}
+                  onDelete={resources.remove}
+                />
+              )}
+            </Box>
+            <CTAConnectors />
+          </Flex>
+          <DesktopDescription>
+            <H3 mb={3}>Auth Connectors</H3>
+            <P mb={3}>{description}</P>
+            <P mb={2}>
+              Please{' '}
+              <Link
+                color="text.main"
+                // This URL is the OSS documentation for auth connectors
+                href="https://goteleport.com/docs/setup/admin/github-sso/"
+                target="_blank"
+              >
+                view our documentation
+              </Link>{' '}
+              on how to configure a GitHub connector.
+            </P>
+          </DesktopDescription>
         </Flex>
       )}
       {(resources.status === 'creating' || resources.status === 'editing') && (

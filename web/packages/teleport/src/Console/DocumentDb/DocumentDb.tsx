@@ -15,20 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
-import { useTheme } from 'styled-components';
 import { Box, Indicator } from 'design';
+import { useTheme } from 'styled-components';
 
-import * as stores from 'teleport/Console/stores/types';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
-import { useMfa } from 'teleport/lib/useMfa';
+import * as stores from 'teleport/Console/stores/types';
+import { useMfaTty } from 'teleport/lib/useMfa';
 
 import Document from 'teleport/Console/Document';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 
-import { useDbSession } from './useDbSession';
 import { ConnectDialog } from './ConnectDialog';
+import { useDbSession } from './useDbSession';
 
 type Props = {
   visible: boolean;
@@ -38,11 +38,11 @@ type Props = {
 export function DocumentDb({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendDbConnectData } = useDbSession(doc);
-  const mfa = useMfa(tty);
+  const mfa = useMfaTty(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, mfa.requested, status]);
+  }, [visible, mfa, status]);
   const theme = useTheme();
 
   return (
@@ -52,7 +52,7 @@ export function DocumentDb({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      <AuthnDialog mfaState={mfa} />
 
       {status === 'waiting' && (
         <ConnectDialog

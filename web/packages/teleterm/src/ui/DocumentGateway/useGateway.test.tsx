@@ -29,7 +29,7 @@ import { DatabaseUri } from 'teleterm/ui/uri';
 import { WorkspaceContextProvider } from '../Documents';
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
 
-import { useDocumentGateway } from './useDocumentGateway';
+import { useGateway } from './useGateway';
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -47,7 +47,7 @@ it('creates a gateway on mount if it does not exist already', async () => {
       return gateway;
     });
 
-  const { result } = renderHook(() => useDocumentGateway(doc), {
+  const { result } = renderHook(() => useGateway(doc), {
     wrapper: $wrapper,
   });
 
@@ -71,7 +71,7 @@ it('does not create a gateway on mount if the gateway already exists', async () 
   });
   jest.spyOn(appContext.clustersService, 'createGateway');
 
-  renderHook(() => useDocumentGateway(doc), {
+  renderHook(() => useGateway(doc), {
     wrapper: $wrapper,
   });
 
@@ -96,7 +96,7 @@ it('does not attempt to create a gateway immediately after closing it if the gat
     .spyOn(appContext.clustersService, 'createGateway')
     .mockResolvedValue(gateway);
 
-  const { result } = renderHook(() => useDocumentGateway(doc), {
+  const { result } = renderHook(() => useGateway(doc), {
     wrapper: $wrapper,
   });
 

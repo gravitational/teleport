@@ -21,6 +21,7 @@ package dbcmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
@@ -30,7 +31,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -143,8 +143,8 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
-	if options.log == nil {
-		options.log = logrus.NewEntry(logrus.StandardLogger())
+	if options.logger == nil {
+		options.logger = slog.Default()
 	}
 
 	if options.exe == nil {
@@ -259,8 +259,11 @@ func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.options.exe.LookPath(cockroachBin); err != nil {
-		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
-			cockroachBin, postgresBin, err)
+		c.options.logger.DebugContext(context.Background(), "Couldn't find cockroach client in PATH, falling back to postgres client",
+			"cockroach_client", cockroachBin,
+			"postgres_client", postgresBin,
+			"error", err,
+		)
 		return c.getPostgresCommand()
 	}
 	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
@@ -563,7 +566,10 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 	// force a different timeout for debugging purpose or extreme situations.
 	serverSelectionTimeoutMS := "5000"
 	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
-		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
+		c.options.logger.InfoContext(context.Background(), "Using server selection timeout value from environment variable",
+			"environment_variable", envVarMongoServerSelectionTimeoutMS,
+			"server_selection_timeout", envValue,
+		)
 		serverSelectionTimeoutMS = envValue
 	}
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
@@ -932,7 +938,7 @@ type connectionCommandOpts struct {
 	noTLS                    bool
 	printFormat              bool
 	tolerateMissingCLIClient bool
-	log                      *logrus.Entry
+	logger                   *slog.Logger
 	exe                      Execer
 	password                 string
 	gcp                      types.GCPCloudSQL
@@ -997,9 +1003,9 @@ func WithPrintFormat() ConnectCommandFunc {
 
 // WithLogger is the connect command option that allows the caller to pass a logger that will be
 // used by CLICommandBuilder.
-func WithLogger(log *logrus.Entry) ConnectCommandFunc {
+func WithLogger(log *slog.Logger) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
-		opts.log = log
+		opts.logger = log
 	}
 }
 

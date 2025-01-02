@@ -21,8 +21,10 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -201,6 +203,22 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
+	// Prepare an sso client redirect URL in case the user has an SSO MFA device.
+	ssoClientRedirectURL, err := url.Parse(sso.WebMFARedirect)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// id is used by the front end to differentiate between separate ongoing SSO challenges.
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	channelID := id.String()
+	query := ssoClientRedirectURL.Query()
+	query.Set("channel_id", channelID)
+	ssoClientRedirectURL.RawQuery = query.Encode()
+
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -211,13 +229,13 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			AllowReuse:                  allowReuse,
 			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
-		SSOClientRedirectURL: sso.WebMFARedirect,
+		SSOClientRedirectURL: ssoClientRedirectURL.String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal, channelID), nil
 }
 
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
@@ -235,7 +253,7 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal, "" /*channelID*/), nil
 }
 
 type createRegisterChallengeWithTokenRequest struct {
@@ -581,7 +599,7 @@ func (h *Handler) checkMFARequired(ctx context.Context, req *isMFARequiredReques
 }
 
 // makeAuthenticateChallenge converts proto to JSON format.
-func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *client.MFAAuthenticateChallenge {
+func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge, ssoChannelID string) *client.MFAAuthenticateChallenge {
 	chal := &client.MFAAuthenticateChallenge{
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
@@ -590,6 +608,7 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *clien
 	}
 	if protoChal.GetSSOChallenge() != nil {
 		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
+		chal.SSOChallenge.ChannelID = ssoChannelID
 	}
 	return chal
 }
