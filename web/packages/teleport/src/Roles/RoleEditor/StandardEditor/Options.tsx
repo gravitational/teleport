@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useId } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import Input from 'design/Input';
 import LabelInput from 'design/LabelInput';
 import { RadioGroup } from 'design/RadioGroup';
 import { H4 } from 'design/Text';
-import { useId } from 'react';
-import styled, { useTheme } from 'styled-components';
-
 import Select from 'shared/components/Select';
 
 import { SectionProps } from './sections';
 import {
+  createDBUserModeOptions,
+  createHostUserModeOptions,
   OptionsModel,
   requireMFATypeOptions,
   sessionRecordingModeOptions,
-  createHostUserModeOptions,
-  createDBUserModeOptions,
 } from './standardmodel';
 
 export function Options({

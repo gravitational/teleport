@@ -17,8 +17,8 @@
  */
 
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import { Option } from 'shared/components/Select';
+import { requiredField } from 'shared/components/Validation/rules';
 import { capitalizeFirstLetter } from 'shared/utils/text';
 
 import { WILD_CARD } from './const';

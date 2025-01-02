@@ -18,13 +18,10 @@
 
 import { ComponentType } from 'react';
 
-import { Text } from '..';
-
-import Flex from './../Flex';
-
-import { IconProps } from './Icon';
-
 import * as Icon from '.';
+import { Text } from '..';
+import Flex from './../Flex';
+import { IconProps } from './Icon';
 
 export default {
   title: 'Design/Icon',

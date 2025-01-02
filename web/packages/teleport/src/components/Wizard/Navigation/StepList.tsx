@@ -17,7 +17,6 @@
  */
 
 import { BaseView } from '../flow';
-
 import { StepItem } from './StepItem';
 
 interface StepListProps<T> {

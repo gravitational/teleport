@@ -15,13 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
-
-import { useGateway } from '../DocumentGateway/useGateway';
+import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 
 import { OfflineGateway } from '../components/OfflineGateway';
-
+import { useGateway } from '../DocumentGateway/useGateway';
 import { AppGateway } from './AppGateway';
 
 export function DocumentGatewayApp(props: {

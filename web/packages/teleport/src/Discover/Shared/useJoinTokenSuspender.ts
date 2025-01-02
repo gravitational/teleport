@@ -19,16 +19,14 @@
 import { useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
-
 import {
   ResourceKind,
   resourceKindToJoinRole,
 } from 'teleport/Discover/Shared/ResourceKind';
-
-import { useDiscover } from '../useDiscover';
-
 import type { ResourceLabel } from 'teleport/services/agents';
 import type { JoinMethod, JoinToken } from 'teleport/services/joinToken';
+
+import { useDiscover } from '../useDiscover';
 
 interface SuspendResult {
   promise?: Promise<any>;

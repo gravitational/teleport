@@ -1,6 +1,6 @@
-import { TextEncoder, TextDecoder } from 'node:util';
-import { BroadcastChannel } from 'node:worker_threads';
 import { TransformStream } from 'node:stream/web';
+import { TextDecoder, TextEncoder } from 'node:util';
+import { BroadcastChannel } from 'node:worker_threads';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 

@@ -18,15 +18,15 @@
 
 import { useCallback, useEffect } from 'react';
 
-import { useAsync } from 'shared/hooks/useAsync';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import { isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
+import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useGateway(doc: DocumentGateway) {
   const ctx = useAppContext();

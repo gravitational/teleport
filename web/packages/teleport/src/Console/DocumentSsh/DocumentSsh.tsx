@@ -20,7 +20,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Box, Indicator } from 'design';
-
 import {
   FileTransfer,
   FileTransferActionBar,
@@ -29,16 +28,13 @@ import {
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
-import * as stores from 'teleport/Console/stores';
-
 import AuthnDialog from 'teleport/components/AuthnDialog';
+import * as stores from 'teleport/Console/stores';
 import { useMfa, useMfaTty } from 'teleport/lib/useMfa';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
-import Document from '../Document';
-
 import { useConsoleContext } from '../consoleContextProvider';
-
+import Document from '../Document';
 import { Terminal, TerminalRef } from './Terminal';
 import { useFileTransfer } from './useFileTransfer';
 import useSshSession from './useSshSession';
