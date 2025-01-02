@@ -200,6 +200,10 @@ type gatewayCertRenewalParams struct {
 func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
 	t.Helper()
 
+	// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	t.Cleanup(cancel)
+
 	tc := params.tc
 
 	// Save the profile yaml file to disk as test helpers like helpers.NewClientWithCreds don't do
@@ -474,9 +478,6 @@ func TestTeletermKubeGateway(t *testing.T) {
 	t.Run("root with per-session MFA", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
-		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		t.Cleanup(cancel)
 		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
 			suite:         suite,
 			kubeURI:       kubeURI,
@@ -486,9 +487,6 @@ func TestTeletermKubeGateway(t *testing.T) {
 	t.Run("leaf with per-session MFA", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
-		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		t.Cleanup(cancel)
 		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
 			suite:         suite,
 			kubeURI:       kubeURI,
@@ -683,9 +681,6 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 		profileName := mustGetProfileName(t, pack.RootWebAddr())
 		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
 
-		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		t.Cleanup(cancel)
 		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
 	})
 
@@ -695,9 +690,6 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 			AppendLeafCluster(pack.LeafAppClusterName()).
 			AppendApp(pack.LeafAppName())
 
-		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		t.Cleanup(cancel)
 		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
 	})
 }
