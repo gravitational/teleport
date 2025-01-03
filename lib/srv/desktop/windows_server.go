@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/sessionrecording"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1063,7 +1064,7 @@ func (s *WindowsService) makeTDPSendHandler(
 				Message:           b,
 				DelayMilliseconds: delay(),
 			}
-			if e.Size() > libevents.MaxProtoMessageSizeBytes {
+			if e.Size() > sessionrecording.MaxProtoMessageSizeBytes {
 				// Technically a PNG frame is unbounded and could be too big for a single protobuf.
 				// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
 				// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
@@ -1137,7 +1138,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				Message:           b,
 				DelayMilliseconds: delay(),
 			}
-			if e.Size() > libevents.MaxProtoMessageSizeBytes {
+			if e.Size() > sessionrecording.MaxProtoMessageSizeBytes {
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
 				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", logutils.TypeAttr(m))

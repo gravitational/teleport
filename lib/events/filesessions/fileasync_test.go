@@ -25,6 +25,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -659,6 +661,7 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 }
 
 // readStream reads and decodes the audit stream from uploadID
+// Additionally, readStream will remove any duplicate audit events (by index) encountered.
 func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *eventstest.MemoryUploader) []apievents.AuditEvent {
 	t.Helper()
 
@@ -666,18 +669,28 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	require.NoError(t, err)
 
 	var outEvents []apievents.AuditEvent
-	var reader *events.ProtoReader
-	for i, part := range parts {
-		if i == 0 {
-			reader = events.NewProtoReader(bytes.NewReader(part))
-		} else {
-			err := reader.Reset(bytes.NewReader(part))
-			require.NoError(t, err)
-		}
+	for _, part := range parts {
+		reader := sessionrecording.NewReader(bytes.NewReader(part))
+
 		out, err := reader.ReadAll(ctx)
 		require.NoError(t, err, "part crash %#v", part)
 
+		require.NoError(t, reader.Close(), "error closing session recording reader")
+
 		outEvents = append(outEvents, out...)
 	}
-	return outEvents
+
+	// sort audit events by index
+	slices.SortFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) int {
+		if a.GetIndex() < b.GetIndex() {
+			return -1
+		}
+
+		return 1
+	})
+
+	// remove any audit events with duplicate indexes
+	return slices.CompactFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) bool {
+		return a.GetIndex() == b.GetIndex()
+	})
 }
