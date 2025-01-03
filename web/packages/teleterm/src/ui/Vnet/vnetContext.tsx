@@ -124,6 +124,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       if (
         isSupported &&
         autoStart &&
+        // Accessing resources through VNet might trigger the MFA modal,
+        // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
         startAttempt.status === ''
       ) {

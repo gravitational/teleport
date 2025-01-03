@@ -48,6 +48,14 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
         dispatchEvent: () => {},
       });
     }
+
+    // TODO(gzdunek): JSDOM doesn't support AbortSignal.any().
+    // Overwriting only this function doesn't help much, something between
+    // AbortSignal and AbortController is missing.
+    if (!global.AbortSignal.any) {
+      global.AbortSignal = AbortSignal;
+      global.AbortController = AbortController;
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;
