@@ -45,10 +45,6 @@ const baseURL = "https://graph.microsoft.com/v1.0"
 // defaultPageSize is the page size used when [Config.PageSize] is not specified.
 const defaultPageSize = 500
 
-// graphAppId is the pre-defined application ID of the Graph API
-// Ref: [https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in#application-ids-of-commonly-used-microsoft-applications].
-const graphAppId = "00000003-0000-0000-c000-000000000000"
-
 // scopes defines OAuth scopes the client authenticates for.
 var scopes = []string{"https://graph.microsoft.com/.default"}
 
@@ -338,6 +334,15 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 		return nil, trace.Wrap(err)
 	}
 	return out.Value, nil
+}
+
+func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
+	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
+	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.
