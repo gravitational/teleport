@@ -1749,10 +1749,11 @@ func mustDialLocalAppProxy(t *testing.T, port string, expectedName string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
-		require.NoError(t, err)
-		defer r.Body.Close()
+		if assert.NoError(t, err) {
+			defer r.Body.Close()
 
-		require.Equal(t, 200, r.StatusCode)
-		require.Equal(t, expectedName, r.Header.Get("Server"), "the response header \"Server\" does not have the expected value")
+			assert.Equal(t, 200, r.StatusCode)
+			assert.Equal(t, expectedName, r.Header.Get("Server"), "the response header \"Server\" does not have the expected value")
+		}
 	}, 5*time.Second, 50*time.Millisecond)
 }
