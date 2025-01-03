@@ -619,12 +619,19 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	var buf bytes.Buffer
 	// If app install mode is requested but parameters are blank for some reason,
 	// we need to return an error.
+	var appServerResourceLabels []string
 	if settings.appInstallMode {
 		if errs := validation.IsDNS1035Label(settings.appName); len(errs) > 0 {
 			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", settings.appName)
 		}
 		if !appURIPattern.MatchString(settings.appURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
+		}
+
+		suggestedLabels := token.GetSuggestedLabels()
+		appServerResourceLabels, err = scripts.MarshalLabelsYAML(suggestedLabels, 6)
+		if err != nil {
+			return "", trace.Wrap(err)
 		}
 	}
 
@@ -683,6 +690,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"db_service_resource_labels": dbServiceResourceLabels,
 		"discoveryInstallMode":       settings.discoveryInstallMode,
 		"discoveryGroup":             shsprintf.EscapeDefaultContext(settings.discoveryGroup),
+		"appServerResourceLabels":    appServerResourceLabels,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
