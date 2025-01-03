@@ -172,6 +172,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		review            *v1.TokenReview
 		kubeVersion       *version.Info
 		wantResult        *ValidationResult
+		wantAttrs         *workloadidentityv1pb.JoinAttrsKubernetes
 		clusterAudiences  []string
 		expectedAudiences []string
 		expectedError     error
@@ -199,6 +200,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				Type:     types.KubernetesJoinTypeInCluster,
 				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
+			},
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+				Subject: "system:serviceaccount:namespace:my-service-account",
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+					Name: "podA",
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Name:      "my-service-account",
+					Namespace: "namespace",
+				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
 			expectedError: nil,
@@ -230,6 +241,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+				Subject: "system:serviceaccount:namespace:my-service-account",
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+					Name: "podA",
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Name:      "my-service-account",
+					Namespace: "namespace",
+				},
+			},
 			kubeVersion:      &boundTokenKubernetesVersion,
 			expectedError:    nil,
 			clusterAudiences: defaultKubeAudiences,
@@ -256,6 +277,13 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				Type:     types.KubernetesJoinTypeInCluster,
 				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
+			},
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+				Subject: "system:serviceaccount:namespace:my-service-account",
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Name:      "my-service-account",
+					Namespace: "namespace",
+				},
 			},
 			kubeVersion:   &legacyTokenKubernetesVersion,
 			expectedError: nil,
@@ -356,7 +384,19 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantResult, result)
+			require.Empty(t, cmp.Diff(
+				tt.wantResult,
+				result,
+				cmpopts.IgnoreUnexported(ValidationResult{}),
+			))
+			if tt.wantAttrs != nil {
+				gotAttrs := result.JoinAttrs()
+				require.Empty(t, cmp.Diff(
+					tt.wantAttrs,
+					gotAttrs,
+					protocmp.Transform(),
+				))
+			}
 		})
 	}
 }
