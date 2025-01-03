@@ -92,11 +92,39 @@ We know that the shorter a PoV process the higher our win rate. Improving the re
 * [Link to resource card states](https://www.figma.com/design/Gpjs9vjhzUKF1GDbeG9JGE/Application-Design-System?node-id=18913-20082&t=teeY2YmoBg0jphJi-4)
 
 Some notes:
-* The resource cards that will be pinned by default are still TBD—what’s shown in the design is placeholder for now.
+* The resource cards that will be pinned by default are below.
 * **Every** resource card should have a second line with additional contextual info—precise details to come.
 * We cut filtering by scale/complexity and by guided/docs during design phase (and they're now deleted from the filters list above).
 * Pinned items appear both at the top of the page as a different-style card AND in the flow of the page.
 * Not necessarily included in this scope of work, but I also updated and expanded our AWS service icons in the design library and exported to Google Drive.
+
+#### Specs
+
+##### Default pinned cards
+* Linux
+* Self-Hosted Kubernetes
+* Web Application
+* Connect My Computer
+
+##### New Card Content - only changed/updated cards
+* Linux Server
+    * SSH
+* Connect My Computer
+    * Teleport Desktop App
+* Dynamic Database Registration
+    * Self-Hosted
+* SAML Application
+    * Teleport as IDP
+* Web Application
+    * HTTP Proxy
+* MongoDB Atlas
+    * Database as a Service
+* Snowflake
+    * Database as a Service
+* AWS CLI/Console Access
+    * Amazon Web Services (AWS)
+* Grafana SAML
+    * Teleport as IDP
 
 ### Engineering
 To be added to by engineering team.
