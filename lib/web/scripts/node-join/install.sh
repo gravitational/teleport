@@ -463,6 +463,9 @@ app_service:
   - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
+    labels:{{range $index, $line := .appServerResourceLabels}}
+        {{$line -}}
+{{end}}
 EOF
 }
 # installs the provided teleport config (for database service)
