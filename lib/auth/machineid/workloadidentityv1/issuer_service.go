@@ -135,6 +135,7 @@ func (s *IssuanceService) deriveAttrs(
 			BotName: authzCtx.Identity.GetIdentity().BotName,
 			Labels:  authzCtx.User.GetAllLabels(),
 		},
+		Join: authzCtx.Identity.GetIdentity().JoinAttributes,
 	}
 
 	return attrs, nil

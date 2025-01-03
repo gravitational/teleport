@@ -21,6 +21,8 @@ package spacelift
 import (
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // IDTokenClaims
@@ -47,6 +49,21 @@ type IDTokenClaims struct {
 	RunID string `json:"runId"`
 	// Scope is the scope of the token - either read or write.
 	Scope string `json:"scope"`
+}
+
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsSpacelift {
+	return &workloadidentityv1pb.JoinAttrsSpacelift{
+		Sub:        c.Sub,
+		SpaceId:    c.SpaceID,
+		CallerType: c.CallerType,
+		CallerId:   c.CallerID,
+		RunType:    c.RunType,
+		RunId:      c.RunID,
+		Scope:      c.Scope,
+	}
 }
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into
