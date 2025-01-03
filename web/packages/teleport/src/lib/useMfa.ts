@@ -130,8 +130,9 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
 
       if (err) throw err;
 
-      const respErr = resp as Error;
-      if (respErr) throw respErr;
+      if (resp instanceof Error) {
+        throw resp;
+      }
 
       return resp as MfaChallengeResponse;
     },

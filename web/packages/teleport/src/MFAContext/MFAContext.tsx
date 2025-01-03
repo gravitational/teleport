@@ -2,27 +2,30 @@ import { createContext, PropsWithChildren, useCallback, useState } from 'react';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa } from 'teleport/lib/useMfa';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { CreateAuthenticateChallengeRequest } from 'teleport/services/auth';
+import auth from 'teleport/services/auth/auth';
 import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export interface MfaContextValue {
-  getAdminActionMfaResponse(reusable?: boolean): Promise<MfaChallengeResponse>;
+  getMfaChallengeResponse(
+    req: CreateAuthenticateChallengeRequest
+  ): Promise<MfaChallengeResponse>;
 }
 
 export const MfaContext = createContext<MfaContextValue>(null);
 
+/**
+ * Provides a global MFA context to handle MFA prompts for methods outside
+ * of the React scope, such as admin action API calls in auth.ts or api.ts.
+ * This is intended as a workaround for such cases, and should not be used
+ * for methods with access to the React scope. Use useMfa directly instead.
+ */
 export const MfaContextProvider = ({ children }: PropsWithChildren) => {
   const adminMfa = useMfa({});
 
-  const getAdminActionMfaResponse = useCallback(
-    async (reusable: boolean = false) => {
-      const chal = await auth.getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-        allowReuse: reusable,
-        isMfaRequiredRequest: {
-          admin_action: {},
-        },
-      });
+  const getMfaChallengeResponse = useCallback(
+    async (req: CreateAuthenticateChallengeRequest) => {
+      const chal = await auth.getMfaChallenge(req);
 
       const res = await adminMfa.getChallengeResponse(chal);
       if (!res) {
@@ -37,7 +40,7 @@ export const MfaContextProvider = ({ children }: PropsWithChildren) => {
   const [mfaCtx, setMfaCtx] = useState<MfaContextValue>();
 
   if (!mfaCtx) {
-    const mfaCtx = { getAdminActionMfaResponse };
+    const mfaCtx = { getMfaChallengeResponse };
     setMfaCtx(mfaCtx);
     auth.setMfaContext(mfaCtx);
   }
