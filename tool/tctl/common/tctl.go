@@ -29,7 +29,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
@@ -72,7 +71,7 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(ctx context.Context, commands []CLICommand) {
-	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+	if err := tools.CheckAndUpdateLocal(ctx, os.Args[1:]); err != nil {
 		utils.FatalError(err)
 	}
 

@@ -49,8 +49,8 @@ import (
 const (
 	// teleportToolsVersionEnv is environment name for requesting specific version for update.
 	teleportToolsVersionEnv = "TELEPORT_TOOLS_VERSION"
-	// baseURL is CDN URL for downloading official Teleport packages.
-	baseURL = "https://cdn.teleport.dev"
+	// defaultBaseURL is CDN URL for downloading official Teleport packages.
+	defaultBaseURL = "https://cdn.teleport.dev"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -61,7 +61,7 @@ const (
 )
 
 var (
-	// // pattern is template for response on version command for client tools {tsh, tctl}.
+	// pattern is template for response on version command for client tools {tsh, tctl}.
 	pattern = regexp.MustCompile(`(?m)Teleport v(.*) git`)
 )
 
@@ -109,7 +109,7 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 		tools:        DefaultClientTools(),
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
-		baseURL:      baseURL,
+		baseURL:      defaultBaseURL,
 		client:       http.DefaultClient,
 	}
 	for _, option := range options {
@@ -155,31 +155,11 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	return toolsVersion, true, nil
 }
 
-// CheckRemote first checks the version set by the environment variable. If not set or disabled,
-// it checks against the Proxy Service to determine if client tools need updating by requesting
+// CheckRemote checks against the Proxy Service to determine if client tools need updating by requesting
 // the `webapi/find` handler, which stores information about the required client tools version to
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
 func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (version string, reExec bool, err error) {
-	// Check if the user has requested a specific version of client tools.
-	requestedVersion := os.Getenv(teleportToolsVersionEnv)
-	switch requestedVersion {
-	// The user has turned off any form of automatic updates.
-	case "off":
-		return "", false, nil
-	// Requested version already the same as client version.
-	case u.localVersion:
-		return u.localVersion, false, nil
-	// No requested version, we continue.
-	case "":
-	// Requested version that is not the local one.
-	default:
-		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return "", false, trace.Wrap(err, "checking that request version is semantic")
-		}
-		return requestedVersion, true, nil
-	}
-
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return "", false, trace.Wrap(err)
@@ -327,16 +307,20 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 }
 
 // Exec re-executes tool command with same arguments and environ variables.
-func (u *Updater) Exec() (int, error) {
+func (u *Updater) Exec(args []string) (int, error) {
 	path, err := toolName(u.toolsDir)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	// To prevent re-execution loop we have to disable update logic for re-execution.
+	// To prevent re-execution loop we have to disable update logic for re-execution,
+	// by unsetting current tools version env variable and setting it to "off".
+	if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
+		return 0, trace.Wrap(err)
+	}
 	env := append(os.Environ(), teleportToolsVersionEnv+"=off")
 
 	if runtime.GOOS == constants.WindowsOS {
-		cmd := exec.Command(path, os.Args[1:]...)
+		cmd := exec.Command(path, args...)
 		cmd.Env = env
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -348,7 +332,7 @@ func (u *Updater) Exec() (int, error) {
 		return cmd.ProcessState.ExitCode(), nil
 	}
 
-	if err := syscall.Exec(path, append([]string{path}, os.Args[1:]...), env); err != nil {
+	if err := syscall.Exec(path, append([]string{path}, args...), env); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -415,7 +399,6 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	h := sha256.New()
 	// It is a little inefficient to download the file to disk and then re-load
 	// it into memory to unarchive later, but this is safer as it allows client
