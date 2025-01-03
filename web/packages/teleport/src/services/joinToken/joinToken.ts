@@ -36,7 +36,7 @@ class JoinTokenService {
     if (!req.suggestedLabels?.length) {
       return api
         .post(
-          cfg.getJoinTokenUrl(),
+          cfg.api.discoveryJoinToken.create,
           {
             roles: req.roles,
             join_method: req.method || 'token',
@@ -53,7 +53,7 @@ class JoinTokenService {
     return (
       api
         .post(
-          cfg.getJoinTokenUrlV2(),
+          cfg.api.discoveryJoinToken.createV2,
           {
             roles: req.roles,
             join_method: req.method || 'token',

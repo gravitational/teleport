@@ -69,13 +69,12 @@ describe('session', () => {
   });
 
   test('valid session and invalid cookie', async () => {
-    const mockForbiddenError = new ApiError(
-      'some error',
-      {
+    const mockForbiddenError = new ApiError({
+      message: 'some error',
+      response: {
         status: 403,
       } as Response,
-      null
-    );
+    });
 
     jest
       .spyOn(session, 'validateCookieAndSession')

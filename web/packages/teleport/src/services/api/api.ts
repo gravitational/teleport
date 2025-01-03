@@ -152,7 +152,7 @@ const api = {
       const message = response.ok
         ? err.message
         : `${response.status} - ${response.url}`;
-      throw new ApiError(message, response, null, { cause: err });
+      throw new ApiError({ message, response, opts: { cause: err } });
     }
 
     if (response.ok) {
@@ -177,13 +177,12 @@ const api = {
     );
     const shouldRetry = isAdminActionMfaError && !mfaResponse;
     if (!shouldRetry) {
-      throw new ApiError(
-        parseError(json),
+      throw new ApiError({
+        message: parseError(json),
         response,
-        parseProxyVersion(json),
-        undefined,
-        json.messages
-      );
+        proxyVersion: parseProxyVersion(json),
+        messages: json.messages,
+      });
     }
 
     let mfaResponseForRetry;

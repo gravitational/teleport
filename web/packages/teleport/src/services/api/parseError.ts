@@ -22,7 +22,9 @@
  * Currently, the proxy version field is only returned
  * with api routes "not found" error.
  *
- * Used to determine out dated proxies.
+ * Used to determine outdated proxies.
+ *
+ * This response was introduced in v17.2.0.
  */
 interface ProxyVersion {
   major: number;
@@ -39,6 +41,17 @@ interface ProxyVersion {
   string: string;
 }
 
+interface ApiErrorConstructor {
+  /**
+   * message is the main error, usually the "cause" of the error.
+   */
+  message: string;
+  response: Response;
+  proxyVersion?: ProxyVersion;
+  opts?: ErrorOptions;
+  messages?: string[];
+}
+
 export default function parseError(json) {
   let msg = '';
 
@@ -52,10 +65,8 @@ export default function parseError(json) {
   return msg;
 }
 
-export function parseProxyVersion(json): ProxyVersion | null {
-  if (json && json.fields && json.fields.proxyVersion) {
-    return json.fields.proxyVersion;
-  }
+export function parseProxyVersion(json): ProxyVersion | undefined {
+  return json?.fields?.proxyVersion;
 }
 
 export class ApiError extends Error {
@@ -75,14 +86,13 @@ export class ApiError extends Error {
    */
   proxyVersion?: ProxyVersion;
 
-  constructor(
-    message: string,
-    response: Response,
-    proxyVersion: ProxyVersion,
-    opts?: ErrorOptions,
-    messages?: string[]
-  ) {
-    // message is the main error, usually the "cause" of the error.
+  constructor({
+    message,
+    response,
+    proxyVersion,
+    opts,
+    messages,
+  }: ApiErrorConstructor) {
     message = message || 'Unknown error';
     super(message, opts);
     this.response = response;

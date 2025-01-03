@@ -221,7 +221,7 @@ test('enrollEksClusters without labels calls v1', async () => {
   );
 });
 
-test('enrollEksClusters with labbels calls v2', async () => {
+test('enrollEksClusters with labels calls v2', async () => {
   jest.spyOn(api, 'post').mockResolvedValue({});
 
   await integrationService.enrollEksClusters('integration', {

@@ -884,7 +884,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// used for updating a token
 	h.PUT("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
 	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2/webapi/token endpoint
-	// used for creating tokens used during guided discover flows
+	// MUST delete with related code found in web/packages/teleport/src/services/joinToken/joinToken.ts(fetchJoinToken)
 	h.POST("/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
 	// used for creating tokens used during guided discover flows
 	h.POST("/v2/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
@@ -1020,6 +1020,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
 	// TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters
+	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(enrollEksClusters)
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
