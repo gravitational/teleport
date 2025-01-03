@@ -384,6 +384,9 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
+	// S3UsePathStyle is an optional switch to use an path style access for S3 buckets
+	S3UsePathStyle = "use_s3_path_style"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
