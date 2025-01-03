@@ -234,9 +234,10 @@ describe('useMfa', () => {
 
     mfa.current.cancelAttempt();
 
-    await expect(respPromise).rejects.toThrow(
-      new Error('User canceled MFA attempt')
+    const expectErr = new Error(
+      'User cancelled MFA attempt. This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
     );
+    await expect(respPromise).rejects.toThrow(expectErr);
 
     // If the user cancels the MFA attempt and closes the dialog, the mfa status
     // should be 'success', or else the dialog would remain open to display the error.

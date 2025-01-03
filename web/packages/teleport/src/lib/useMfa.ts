@@ -108,7 +108,11 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
 
   const cancelAttempt = () => {
     if (mfaResponseRef.current) {
-      mfaResponseRef.current.resolve(new Error('User canceled MFA attempt'));
+      mfaResponseRef.current.resolve(
+        new Error(
+          'User cancelled MFA attempt. This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
+        )
+      );
     }
   };
 
