@@ -446,7 +446,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 			}
 		}
 		if target == nil {
-			return trace.NotFound("Could not find specified destination %q", cf.InitDir)
+			return trace.NotFound("Initial directory %q must match a destination directory from the configuration file or --destination-dir parameter", cf.InitDir)
 		}
 	}
 
