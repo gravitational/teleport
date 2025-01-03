@@ -146,6 +146,37 @@ func (h *Handler) getFoos() (interface{}, error) {
 }
 ```
 
+#### Defining new endpoints in the web client
+All endpoints should be defined in a JS object, similary done [here](https://github.com/gravitational/teleport.e/blob/ebf079267020d59f14353dd3495b4fd783339fa5/web/teleport/src/config.ts#L134).
+
+This helps us tell apart same paths but with different HTTP verbs.
+
+Example of a new single endpoint:
+
+```ts
+user: {
+  create: '/v1/webapi/users',
+}
+```
+
+Example of an endpoint with same paths but with different verbs:
+
+```ts
+user: {
+  create: '/v1/webapi/users',
+  update: '/v1/webapi/users',
+}
+```
+
+Example of creating a version N endpoint:
+```ts
+user: {
+  // TODO(<your-github-handle>): DELETE IN 18.0 - replaced by /v2/webapi/users
+  create: '/v1/webapi/users',
+  createV2: '/v2/webapi/users',
+}
+```
+
 ### Removing an endpoint
 An endpoint can be removed in a major version n+2, where n is the last major
 version where the endpoint was used.
