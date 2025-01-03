@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -16,49 +15,45 @@ type Packet interface {
 	Type() Type
 	// Payload returns raw Oracle packet data.
 	Payload() []byte
-	// writer is used internally to send a packet
-	writer
+	// Header returns underlying packet header.
+	Header() PacketHeader
 }
 
-type packet struct {
-	*Header
-	buff   []byte
-	reader io.Reader
+type DebugPacket interface {
+	DebugData() map[string]any
 }
 
-func (b *packet) write(conn *oracleConn) error {
-	_, err := conn.Write(b.buff)
-	return trace.Wrap(err)
+type basePacket struct {
+	header  PacketHeader
+	payload []byte
 }
 
-// Size return the total size of the packet.
-func (b *packet) Size() uint32 {
-	return b.PacketSize
+var _ Packet = (*basePacket)(nil)
+
+func (b *basePacket) Size() uint32 {
+	return b.header.PacketSize
 }
 
-// Type returns packet type
-func (b *packet) Type() Type {
-	return b.PacketType
+func (b *basePacket) Type() Type {
+	return b.header.PacketType
 }
 
-// Payload returns all package data payload.
-func (b *packet) Payload() []byte {
-	return b.buff
+func (b *basePacket) Payload() []byte {
+	return b.payload
 }
 
-// Header defines the TNS Oracle packet header.
-type Header struct {
-	// PacketSize is the size of a packet.
-	PacketSize uint32
-	// PacketType is a TNS Oracle packet type.
-	PacketType Type
-	// headerBytes contains raw bytes of the header.
-	headerBytes []byte
+func (b *basePacket) Header() PacketHeader {
+	return b.header
+}
+
+// UnknownPacket represents a packet not explicitly supported by the library.
+type UnknownPacket struct {
+	basePacket
 }
 
 // parsePacket read the package payload and returns Oracle Packet.
-func parsePacket(bp *packet, c *oracleConn) (Packet, error) {
-	switch bp.PacketType {
+func parsePacket(bp *basePacket) (Packet, error) {
+	switch bp.Type() {
 	case ACCEPT:
 		ac, err := parseAcceptPacket(bp)
 		if err != nil {
@@ -66,24 +61,17 @@ func parsePacket(bp *packet, c *oracleConn) (Packet, error) {
 		}
 		return ac, nil
 	case RESEND:
-		return &ResendPacket{
-			packet: bp,
-		}, nil
+		return &ResendPacket{basePacket: *bp}, nil
 	case DATA:
-		if !c.isServerConn || c.connParamReceived {
-			return bp, nil
-		}
-		dp, err := parseDataPacket(bp, c)
+		dp, err := parseDataPacket(bp)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return dp, nil
 	case REDIRECT:
-		return &RedirectPacket{
-			packet: bp,
-		}, nil
+		return &RedirectPacket{basePacket: *bp}, nil
 	case CONNECT:
-		cp, err := parseConnectPacket(bp, c)
+		cp, err := parseConnectPacket(bp)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -94,59 +82,58 @@ func parsePacket(bp *packet, c *oracleConn) (Packet, error) {
 			return nil, trace.Wrap(err)
 		}
 		return ac, nil
-	default:
-		return bp, nil
-	}
-}
-
-func readString(r io.Reader) (string, error) {
-	buff, err := readByteArray(r)
-	return string(buff), trace.Wrap(err)
-}
-
-func readByteArray(r io.Reader) ([]byte, error) {
-	var len uint8
-	if err := binary.Read(r, binary.BigEndian, &len); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	buff := bytes.NewBuffer(make([]byte, 0, len))
-	if _, err := io.CopyN(buff, r, int64(len)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return buff.Bytes(), nil
-
-}
-
-func readInt64(r io.Reader) (int64, error) {
-	var length uint8
-	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if length > 8 {
-		return 0, trace.BadParameter("invalid length value: %d", length)
-	}
-
-	buff := bytes.NewBuffer(make([]byte, 0, length))
-	if _, err := io.CopyN(buff, r, int64(length)); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	temp := make([]byte, 8)
-	copy(temp[8-length:], buff.Bytes())
-	return int64(binary.BigEndian.Uint64(temp)), nil
-}
-
-func readDataLengthContent(r io.Reader) ([]byte, error) {
-	n, err := readInt64(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if n > 0 {
-		out, err := readByteArray(r)
+	case MARKER:
+		marker, err := parseMarkerPacket(bp)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return out[:n], nil
+		return marker, nil
+	default:
+		return &UnknownPacket{basePacket: *bp}, nil
 	}
-	return nil, nil
+}
+
+// ReadPacketResult is a result of ReadPacket operation. May be partial.
+type ReadPacketResult struct {
+	PartialHeader     *PacketHeader
+	PartialBasePacket Packet // will always be basePacket.
+	SuccessPacket     Packet
+}
+
+func ReadPacket(protocolVersion uint16, reader io.Reader) (ReadPacketResult, error) {
+	result := ReadPacketResult{}
+
+	header, err := parseHeader(protocolVersion, reader)
+	if err != nil {
+		return result, trace.Wrap(err)
+	}
+
+	result.PartialHeader = header
+
+	payload := bytes.NewBuffer(make([]byte, 0, 32*1024))
+
+	if header.PacketSize < PacketHeaderSize {
+		return result, trace.BadParameter("invalid packet size %v, lower than minimum size %v", header.PacketSize, PacketHeaderSize)
+	}
+
+	remLen := int64(header.PacketSize - PacketHeaderSize)
+	if _, err := io.CopyN(payload, reader, remLen); err != nil {
+		return result, trace.Wrap(err)
+	}
+
+	bp := &basePacket{
+		header:  *header,
+		payload: append(header.HeaderBytes, payload.Bytes()...),
+	}
+
+	result.PartialBasePacket = bp
+
+	pck, err := parsePacket(bp)
+	if err != nil {
+		return result, trace.Wrap(err)
+	}
+
+	result.SuccessPacket = pck
+
+	return result, trace.Wrap(err)
 }

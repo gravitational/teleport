@@ -2,36 +2,29 @@ package protocol
 
 import (
 	"bytes"
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func FuzzReadPacket(f *testing.F) {
-	f.Fuzz(func(t *testing.T, body []byte) {
+	f.Fuzz(func(t *testing.T, largeSDU bool, body []byte) {
 		require.NotPanics(t, func() {
-			pw, pr := net.Pipe()
-			defer pr.Close()
-			conn := &Conn{
-				oracleConn: oracleConn{
-					Conn: pr,
-				},
+			proto := TNSVersionMinLargeSdu - 1
+			if largeSDU {
+				proto = TNSVersionMinLargeSdu
 			}
-			defer conn.Close()
-			go func() {
-				pw.Write(body)
-				pw.Close()
-			}()
-			_, _ = conn.readPacket()
+
+			_, _ = ReadPacket(uint16(proto), bytes.NewReader(body))
 		})
 	})
 }
 
-func FuzzReadInt64(f *testing.F) {
+func FuzzUtils(f *testing.F) {
 	f.Fuzz(func(t *testing.T, body []byte) {
 		require.NotPanics(t, func() {
-			_, _ = readInt64(bytes.NewReader(body))
+			_, _ = readVarInt64(bytes.NewReader(body))
+			_, _ = readByteArray(bytes.NewReader(body))
 		})
 	})
 }

@@ -62,12 +62,11 @@ func databaseConn(addr, serviceName string, tlsConfig *tls.Config) (*sql.DB, err
 	oc.WithTLSConfig(tlsConfig)
 
 	dbConn := sql.OpenDB(conn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	if err := dbConn.Ping(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return dbConn, nil
 }
 

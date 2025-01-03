@@ -9,12 +9,13 @@ import (
 
 // RefusePacket struct { defines TNS client refuse oracle packet.
 type RefusePacket struct {
-	*packet
+	basePacket
+
 	Message string
 }
 
-func parseRefusePacket(bp *packet) (Packet, error) {
-	r := bytes.NewReader(bp.buff)
+func parseRefusePacket(bp *basePacket) (*RefusePacket, error) {
+	r := bytes.NewReader(bp.payload)
 	if _, err := r.Seek(PacketHeaderSize, io.SeekCurrent); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -26,8 +27,8 @@ func parseRefusePacket(bp *packet) (Packet, error) {
 		return nil, trace.Wrap(err)
 	}
 	rp := &RefusePacket{
-		packet:  bp,
-		Message: message,
+		basePacket: *bp,
+		Message:    message,
 	}
 	return rp, nil
 }

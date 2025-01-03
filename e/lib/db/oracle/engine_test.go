@@ -3,6 +3,7 @@ package oracle
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509/pkix"
 	"errors"
 	"io"
 	"log/slog"
@@ -15,8 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/db/oracle/connection"
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
-	"github.com/gravitational/teleport/e/lib/db/oracle/protocol/testdata"
+	"github.com/gravitational/teleport/e/lib/db/oracle/testdata"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -30,11 +32,19 @@ func TestOracleEngine(t *testing.T) {
 	require.NoError(t, err)
 	defer listener.Close()
 
-	cert, _ := protocol.MustCreateSelfSignedCert(t)
+	keyPEM, certPEM, err := utils.GenerateRSASelfSignedSigningCert(pkix.Name{
+		Organization: []string{"Teleport Test"},
+		CommonName:   "Teleport",
+	}, []string{"localhost", "127.0.0.1"}, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	certificate, err := tls.X509KeyPair(certPEM, keyPEM)
+	require.NoError(t, err)
+
 	server := mockOracleServer{
 		listener: listener,
 		tlsConfig: &tls.Config{
-			Certificates: []tls.Certificate{cert},
+			Certificates: []tls.Certificate{certificate},
 		},
 		closeC:   make(chan struct{}),
 		receiveC: make(chan protocol.Packet, 100),
@@ -85,22 +95,46 @@ func TestOracleEngine(t *testing.T) {
 		client, engineConn := net.Pipe()
 		defer client.Close()
 		defer engineConn.Close()
+
+		var connect *protocol.ConnectPacket
+		engine.onConnectPacketRead = func(p *protocol.ConnectPacket) {
+			connect = p
+		}
+		defer func() {
+			engine.onConnectPacketRead = nil
+		}()
+
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
-		connectBytes := protocol.MustDecodePacketDump(t, testdata.ConnectPacketDump)
+		connectBytes, err := protocol.DecodeHexDump(testdata.ConnectPacketDump)
+		require.NoError(t, err)
+
 		go func() {
 			_, wErr := client.Write(connectBytes)
 			assert.NoError(t, wErr)
 		}()
-		go engine.HandleConnection(context.Background(), session)
+
+		go func() {
+			engineErr := engine.HandleConnection(context.Background(), session)
+			if !utils.IsOKNetworkError(engineErr) {
+				assert.NoError(t, engineErr)
+			}
+		}()
 
 		select {
-		case <-time.After(time.Second):
+		case <-time.After(time.Second * 10):
 			t.Fatal("packet receive timout")
 		case got := <-server.receiveC:
 			require.Equal(t, connectBytes, got.Payload())
-			require.True(t, engine.serverNameReceived)
+			require.NotNil(t, connect)
+			connString, err := connect.GetConnectionString()
+			require.NoError(t, err)
+			expectedConnString := "(DESCRIPTION=(ADDRESS=(PROTOCOL=tcps)(HOST=127.0.0.1)(PORT=54557))(CONNECT_DATA=(CID=(PROGRAM=SQLcl)(HOST=__jdbc__)(USER=marek))(SERVICE_NAME=XE)(CONNECTION_ID=MAVsTlvrTyqsibsnisguzw==)))"
+			require.Equal(t, expectedConnString, connString)
+			serviceName, err := connect.GetServiceName()
+			require.NoError(t, err)
+			require.Equal(t, "XE", serviceName)
 		}
 	})
 
@@ -113,14 +147,17 @@ func TestOracleEngine(t *testing.T) {
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
-		connectBytes := protocol.MustDecodePacketDump(t, testdata.ConnectPacketDump)
+		connectBytes, err := protocol.DecodeHexDump(testdata.ConnectPacketDump)
+		require.NoError(t, err)
+
+		writeErr := make(chan error, 1)
 		go func() {
 			_, wErr := client.Write(connectBytes)
-			assert.NoError(t, wErr)
+			writeErr <- wErr
 		}()
 		err = engine.HandleConnection(context.Background(), session)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "match between TLS identity database name and Oracle Connect Packet ServerName")
+		require.ErrorContains(t, err, `mismatch between TLS identity database name "DB1" and Oracle Connect Packet ServerName "XE"`)
+		require.NoError(t, <-writeErr)
 	})
 
 	t.Run("access denied database username", func(t *testing.T) {
@@ -220,7 +257,11 @@ func (m *mockOracleServer) handleConn(conn net.Conn) error {
 	defer conn.Close()
 	clientConn := tls.Server(conn, m.tlsConfig)
 
-	oracleClientConn := protocol.NewClientConn(clientConn)
+	oracleClientConn, err := connection.NewConn(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	defer oracleClientConn.Close()
 
 	errC := make(chan error, 2)

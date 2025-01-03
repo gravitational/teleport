@@ -12,20 +12,21 @@ import (
 // that is sent by the Oracle Server as a successful
 // response on Connect packet.
 type AcceptPacket struct {
-	*packet
+	basePacket
+
 	// ProtocolVersion contains Oracle Server protocol version
 	ProtocolVersion uint16
 	// ProtocolOptions contains Oracle Server protocol options.
 	ProtocolOptions uint16
 }
 
-func parseAcceptPacket(basicPacket *packet) (Packet, error) {
-	r := bytes.NewReader(basicPacket.buff)
+func parseAcceptPacket(bp *basePacket) (Packet, error) {
+	r := bytes.NewReader(bp.payload)
 	if _, err := r.Seek(PacketHeaderSize, io.SeekCurrent); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	acceptPaket := &AcceptPacket{
-		packet: basicPacket,
+		basePacket: *bp,
 	}
 	if err := binary.Read(r, binary.BigEndian, &acceptPaket.ProtocolVersion); err != nil {
 		return nil, trace.Wrap(err)
