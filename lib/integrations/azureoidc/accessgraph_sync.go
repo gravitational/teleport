@@ -9,12 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
 	"log/slog"
 	"os"
 )
 
-func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, name string) (*provisioning.Action, error) {
+func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, managedId string, roleName string) (*provisioning.Action, error) {
 	runnerFn := func(ctx context.Context) error {
 		// Create the managed identity
 		userIdCli, err := armmsi.NewUserAssignedIdentitiesClient(subId, cred, nil)
@@ -22,6 +24,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, n
 			return trace.Wrap(fmt.Errorf("could not create managed identity client: %v", err))
 		}
 		id := armmsi.Identity{}
+		userIdCli.Get(ctx)
 		mgdIdRes, err := userIdCli.CreateOrUpdate(ctx, "", name, id, nil)
 		if err != nil {
 			return trace.Wrap(fmt.Errorf("could not create managed identity: %v", err))
@@ -36,15 +39,23 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, n
 		}
 		roleDefId := uuid.New().String()
 		customRole := "CustomRole"
-		// TODO(mbrock): Determine scope
-		scope := ""
+		scope := fmt.Sprintf("/subscriptions/%s", subId)
 		roleDefinition := armauthorization.RoleDefinition{
 			Name: &roleDefId,
 			Properties: &armauthorization.RoleDefinitionProperties{
-				RoleName:    &name,
-				RoleType:    &customRole,
+				RoleName: &roleName,
+				RoleType: &customRole,
 				Permissions: []*armauthorization.Permission{
-					// TODO(mbrock): Add permissions
+					{
+						Actions: slices.ToPointers([]string{
+							"Microsoft.Compute/virtualMachines/read",
+							"Microsoft.Compute/virtualMachines/list",
+							"Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read",
+							"Microsoft.Compute/virtualMachineScaleSets/virtualMachines/list",
+							"Microsoft.Authorization/roleDefinitions/read",
+							"Microsoft.Authorization/roleAssignments/read",
+						}),
+					},
 				},
 				AssignableScopes: []*string{&scope}, // Scope must be provided
 			},
@@ -54,7 +65,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, n
 			return trace.Wrap(fmt.Errorf("failed to create custom role: %v", err))
 		}
 
-		// Assign the role to the managed identity
+		// Assign the Azure role to the managed identity
 		roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subId, cred, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create role assignments client: %v", err)
@@ -65,7 +76,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, n
 		}
 		roleAssignParams := armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
-				PrincipalID:      mgdIdRes.ID,
+				PrincipalID:      &managedId,
 				RoleDefinitionID: roleRes.ID,
 			},
 		}
@@ -73,6 +84,12 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, n
 		if err != nil {
 			return fmt.Errorf("failed to create role assignment: %v", err)
 		}
+
+		// Assign the Graph API permissions to the managed identity
+		graphCli, err := msgraph.NewClient(msgraph.Config{
+			TokenProvider: cred,
+		})
+		graphCli.GetServicePrincipalByAppId()
 
 		return nil
 	}

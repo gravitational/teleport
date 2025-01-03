@@ -45,6 +45,10 @@ const baseURL = "https://graph.microsoft.com/v1.0"
 // defaultPageSize is the page size used when [Config.PageSize] is not specified.
 const defaultPageSize = 500
 
+// graphAppId is the pre-defined application ID of the Graph API
+// Ref: [https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in#application-ids-of-commonly-used-microsoft-applications].
+const graphAppId = "00000003-0000-0000-c000-000000000000"
+
 // scopes defines OAuth scopes the client authenticates for.
 var scopes = []string{"https://graph.microsoft.com/.default"}
 
