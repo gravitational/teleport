@@ -226,7 +226,7 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 }
 
 func serviceAccountFromUsername(username string) (namespace, name string, err error) {
-	cut, hasPrefix := strings.CutPrefix(username, ServiceAccountNamePrefix)
+	cut, hasPrefix := strings.CutPrefix(username, ServiceAccountNamePrefix+":")
 	if !hasPrefix {
 		return "", "", trace.BadParameter("token user is not a service account: %s", username)
 	}
@@ -234,7 +234,7 @@ func serviceAccountFromUsername(username string) (namespace, name string, err er
 	if len(parts) != 2 {
 		return "", "", trace.BadParameter("token user has malformed service account name: %s", username)
 	}
-	return parts[1], parts[2], nil
+	return parts[0], parts[1], nil
 }
 
 func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
