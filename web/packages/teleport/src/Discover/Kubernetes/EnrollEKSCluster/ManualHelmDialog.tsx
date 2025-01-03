@@ -142,7 +142,7 @@ export function ManualHelmDialog({
       setCommand(setJoinTokenAndGetCommand(joinToken));
     }
 
-    return clearCachedJoinTokenResult(resourceKinds);
+    return () => clearCachedJoinTokenResult(resourceKinds);
   }, [joinToken, command, setJoinTokenAndGetCommand]);
 
   return (

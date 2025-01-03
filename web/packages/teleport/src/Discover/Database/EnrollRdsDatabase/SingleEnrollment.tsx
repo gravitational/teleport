@@ -102,10 +102,11 @@ export function SingleEnrollment({
     }
   }, [vpc]);
 
-  useEffect(() => {
+  function onSelectRds(rds: CheckedAwsRdsDatabase) {
     // when changing selected db, clear defined labels
     setCustomLabels([]);
-  }, [selectedDb]);
+    setSelectedDb(rds);
+  }
 
   function fetchNextPage() {
     fetchRdsDatabases({ ...tableData }, vpc);
@@ -231,7 +232,7 @@ export function SingleEnrollment({
                   items={tableData?.items || []}
                   fetchStatus={tableData?.fetchStatus || 'loading'}
                   selectedDatabase={selectedDb}
-                  onSelectDatabase={setSelectedDb}
+                  onSelectDatabase={onSelectRds}
                   fetchNextPage={fetchNextPage}
                 />
                 {selectedDb && (

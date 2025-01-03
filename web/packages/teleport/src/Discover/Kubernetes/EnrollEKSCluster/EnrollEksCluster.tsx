@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -142,10 +142,16 @@ export function EnrollEksCluster(props: AgentStepProps) {
 
   const ctx = useTeleport();
 
-  useEffect(() => {
+  function onSelectCluster(eks: CheckedEksCluster) {
     // when changing selected cluster, clear defined labels
     setCustomLabels([]);
-  }, [selectedCluster]);
+    setSelectedCluster(eks);
+  }
+
+  function clearSelectedCluster() {
+    setSelectedCluster(null);
+    setCustomLabels([]);
+  }
 
   function fetchClustersWithNewRegion(region: Regions) {
     setSelectedRegion(region);
@@ -158,7 +164,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
   }
 
   function refreshClustersList() {
-    setSelectedCluster(null);
+    clearSelectedCluster();
     // When refreshing, start the table back at page 1.
     fetchClusters({ ...tableData, startKey: '', items: [] });
   }
@@ -224,9 +230,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
     if (tableData.items.length > 0) {
       setTableData(emptyTableData);
     }
-    if (selectedCluster) {
-      setSelectedCluster(null);
-    }
+    clearSelectedCluster();
     setEnrollmentState({ status: 'notStarted' });
   }
 
@@ -491,7 +495,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
               autoDiscovery={isAutoDiscoveryEnabled}
               fetchStatus={tableData.fetchStatus}
               selectedCluster={selectedCluster}
-              onSelectCluster={setSelectedCluster}
+              onSelectCluster={onSelectCluster}
               fetchNextPage={fetchNextPage}
             />
           )}

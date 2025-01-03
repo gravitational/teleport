@@ -154,8 +154,8 @@ export function ManualDeploy(props: {
   const showHint = useShowHint(active);
 
   useEffect(() => {
-    return clearCachedJoinTokenResult([ResourceKind.Database]);
-  });
+    return () => clearCachedJoinTokenResult([ResourceKind.Database]);
+  }, []);
 
   function handleNextStep() {
     updateAgentMeta({

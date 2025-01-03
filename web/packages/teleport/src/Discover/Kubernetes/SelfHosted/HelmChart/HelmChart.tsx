@@ -96,6 +96,7 @@ export default function Container(props: AgentStepProps) {
             setClusterName={setClusterName}
             labels={labels}
             onChangeLabels={setLabels}
+            generateScript={fallbackProps.retry}
           />
           <ActionButtons
             onProceed={() => null}
@@ -188,7 +189,7 @@ export function HelmChart(
   });
 
   useEffect(() => {
-    return clearCachedJoinTokenResult(resourceKinds);
+    return () => clearCachedJoinTokenResult(resourceKinds);
   });
 
   return (
@@ -283,8 +284,11 @@ const StepTwo = ({
   labels: ResourceLabel[];
   onChangeLabels(l: ResourceLabel[]): void;
 }) => {
-  function handleSubmit(validator: Validator) {
-    if (!validator.validate()) {
+  function handleSubmit(
+    inputFieldValidator: Validator,
+    labelsValidator: Validator
+  ) {
+    if (!inputFieldValidator.validate() || !labelsValidator.validate()) {
       return;
     }
     generateScript();
@@ -300,7 +304,7 @@ const StepTwo = ({
         </Subtitle3>
       </header>
       <Validation>
-        {({ validator }) => (
+        {({ validator: inputFieldValidator }) => (
           <>
             <Box mb={4}>
               <FieldInput
@@ -331,32 +335,40 @@ const StepTwo = ({
               <Subtitle3>Add Labels (Optional)</Subtitle3>
               <ResourceLabelTooltip resourceKind="kube" toolTipPosition="top" />
             </Flex>
-            <Box mb={3}>
-              <LabelsCreater
-                labels={labels}
-                setLabels={onChangeLabels}
-                isLabelOptional={true}
-                disableBtns={disabled}
-                noDuplicateKey={true}
-              />
-            </Box>
-            {disabled ? (
-              <ButtonSecondary
-                width="200px"
-                type="submit"
-                onClick={() => onEdit()}
-              >
-                Edit
-              </ButtonSecondary>
-            ) : (
-              <ButtonSecondary
-                width="200px"
-                type="submit"
-                onClick={() => handleSubmit(validator)}
-              >
-                Next
-              </ButtonSecondary>
-            )}
+            <Validation>
+              {({ validator: labelsValidator }) => (
+                <>
+                  <Box mb={3}>
+                    <LabelsCreater
+                      labels={labels}
+                      setLabels={onChangeLabels}
+                      isLabelOptional={true}
+                      disableBtns={disabled}
+                      noDuplicateKey={true}
+                    />
+                  </Box>
+                  {disabled ? (
+                    <ButtonSecondary
+                      width="200px"
+                      type="submit"
+                      onClick={() => onEdit()}
+                    >
+                      Edit
+                    </ButtonSecondary>
+                  ) : (
+                    <ButtonSecondary
+                      width="200px"
+                      type="submit"
+                      onClick={() =>
+                        handleSubmit(inputFieldValidator, labelsValidator)
+                      }
+                    >
+                      Next
+                    </ButtonSecondary>
+                  )}
+                </>
+              )}
+            </Validation>
           </>
         )}
       </Validation>

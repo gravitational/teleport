@@ -137,7 +137,7 @@ export function StepOne({
           <H3>Step 1 (Optional)</H3>
           <Flex alignItems="center" gap={1} mb={2}>
             <Subtitle3>Add Labels</Subtitle3>
-            <ResourceLabelTooltip resourceKind="server" />
+            <ResourceLabelTooltip resourceKind="server" toolTipPosition="top" />
           </Flex>
         </header>
         <Validation>
