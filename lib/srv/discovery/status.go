@@ -296,6 +296,15 @@ func (ars *awsResourcesStatus) incrementFailed(g awsResourceGroup, count int) {
 	ars.awsResourcesResults[g] = groupStats
 }
 
+func (ars *awsResourcesStatus) iterationStarted(g awsResourceGroup) {
+	ars.mu.Lock()
+	defer ars.mu.Unlock()
+	if ars.awsResourcesResults == nil {
+		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+	}
+	ars.awsResourcesResults[g] = awsResourceGroupResult{}
+}
+
 func (ars *awsResourcesStatus) incrementFound(g awsResourceGroup, count int) {
 	ars.mu.Lock()
 	defer ars.mu.Unlock()
