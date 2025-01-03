@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -665,4 +666,19 @@ func TestEndpoints(t *testing.T) {
 			require.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
 		})
 	}
+}
+
+func TestStartKeyBackCompat(t *testing.T) {
+	const (
+		oldStartKey = `{"date":"2023-04-27","iterator":{"CreatedAt":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"1682583778","NS":null,"NULL":null,"S":null,"SS":null},"CreatedAtDate":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"2023-04-27","SS":null},"EventIndex":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"0","NS":null,"NULL":null,"S":null,"SS":null},"SessionID":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb","SS":null}}}`
+		newStartKey = `{"date":"2023-04-27","iterator":"{\"CreatedAt\":1682583778,\"CreatedAtDate\":\"2023-04-27\",\"EventIndex\":0,\"SessionID\":\"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb\"}"}`
+	)
+
+	oldCP, err := getCheckpointFromStartKey(oldStartKey)
+	require.NoError(t, err)
+
+	newCP, err := getCheckpointFromStartKey(newStartKey)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(oldCP, newCP))
 }
