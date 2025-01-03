@@ -853,9 +853,9 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 	table.AddRow([]string{"Authenticated At:", record.AuthenticatedAt.AsTime().Format(time.RFC3339)})
 	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.JoinMethod)})
 	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.JoinToken)})
-	var meta fmt.Stringer = record.GetJoinAttrs()
-	if meta == nil {
-		meta = record.Metadata
+	var meta fmt.Stringer = record.Metadata
+	if attrs := record.GetJoinAttrs(); attrs != nil {
+		meta = attrs
 	}
 	table.AddRow([]string{"Join Metadata:", meta.String()})
 	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
