@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"text/template"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -202,7 +202,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 
 			pingResponse, err := client.Ping(ctx)
 			if err != nil {
-				log.Debugf("unable to ping auth client: %s.", err.Error())
+				slog.DebugContext(ctx, "unable to ping auth client", "error", err)
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {

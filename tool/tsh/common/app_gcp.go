@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -59,7 +60,7 @@ func onGcloud(cf *CLIConf) error {
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -82,7 +83,7 @@ func onGsutil(cf *CLIConf) error {
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -269,7 +270,7 @@ func (a *gcpApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Running command: %q", cmd)
+	logger.DebugContext(a.cf.Context, "Running gcp command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -326,7 +327,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	// if flag is missing, try to find singleton service account; failing that, print available options.
 	if reqAccount == "" {
 		if len(accounts) == 1 {
-			log.Infof("GCP service account %v is selected by default as it is the only one available for this GCP app.", accounts[0])
+			logger.InfoContext(cf.Context, "GCP service account is selected by default as it is the only one available for this GCP app", "service_account", accounts[0])
 			return validate(accounts[0])
 		}
 

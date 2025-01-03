@@ -186,7 +186,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	defer func() {
 		if err := listener.Close(); err != nil {
-			log.WithError(err).Warnf("Failed to close listener.")
+			logger.WarnContext(cf.Context, "Failed to close listener", "error", err)
 		}
 	}()
 
@@ -426,7 +426,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	defer func() {
 		if err := proxyApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close app proxy.")
+			logger.ErrorContext(cf.Context, "Failed to close app proxy", "error", err)
 		}
 	}()
 
@@ -453,7 +453,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close AWS app.")
+			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
 		}
 	}()
 
@@ -546,7 +546,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 	defer func() {
 		if err := azApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close Azure app.")
+			logger.ErrorContext(cf.Context, "Failed to close Azure app", "error", err)
 		}
 	}()
 
@@ -577,7 +577,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 
 	defer func() {
 		if err := gcpApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 

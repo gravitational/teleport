@@ -123,7 +123,7 @@ func TestUpdateBotLogins(t *testing.T) {
 				setLogins: tt.set,
 			}
 
-			err = cmd.updateBotLogins(bot, fieldMask)
+			err = cmd.updateBotLogins(context.Background(), bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}

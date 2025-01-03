@@ -20,11 +20,11 @@ package configure
 
 import (
 	"context"
+	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -40,7 +40,7 @@ type SSOConfigureCommand struct {
 	Config       *servicecfg.Config
 	ConfigureCmd *kingpin.CmdClause
 	AuthCommands []*AuthKindCommand
-	Logger       *logrus.Entry
+	Logger       *slog.Logger
 }
 
 type AuthKindCommand struct {
@@ -52,7 +52,7 @@ type AuthKindCommand struct {
 // argument parsing
 func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, flags *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	cmd.Config = cfg
-	cmd.Logger = cfg.Log.WithField(teleport.ComponentKey, teleport.ComponentClient)
+	cmd.Logger = cfg.Logger.With(teleport.ComponentKey, teleport.ComponentClient)
 
 	sso := app.Command("sso", "A family of commands for configuring and testing auth connectors (SSO).")
 	cmd.ConfigureCmd = sso.Command("configure", "Create auth connector configuration.")
@@ -67,10 +67,12 @@ func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand stri
 			// the default tctl logging behavior is to ignore all logs, unless --debug is present.
 			// we want different behavior: log messages as normal, but with compact format (no time, no caller info).
 			if !cmd.Config.Debug {
-				formatter := logutils.NewDefaultTextFormatter(utils.IsTerminal(os.Stderr))
-				formatter.FormatCaller = func() (caller string) { return "" }
-				cmd.Logger.Logger.SetFormatter(formatter)
-				cmd.Logger.Logger.SetOutput(os.Stderr)
+				cmd.Logger = slog.New(logutils.NewSlogTextHandler(os.Stderr, logutils.SlogTextHandlerConfig{
+					Level:            cmd.Config.GetLogLevel(),
+					EnableColors:     utils.IsTerminal(os.Stderr),
+					ConfiguredFields: []string{logutils.LevelField, logutils.ComponentField},
+				}))
+
 			}
 			client, closeFn, err := clientFunc(ctx)
 			if err != nil {

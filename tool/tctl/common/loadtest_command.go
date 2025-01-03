@@ -33,7 +33,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -186,7 +185,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 					return
 				}
 				if err != nil {
-					log.Debugf("Failed to upsert node: %v", err)
+					slog.DebugContext(ctx, "Failed to upsert node", "error", err)
 					select {
 					case errch <- err:
 					default:

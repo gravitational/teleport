@@ -58,7 +58,7 @@ func onPlay(cf *CLIConf) error {
 		return playSession(cf)
 	}
 	if cf.PlaySpeed != "1x" {
-		log.Warn("--speed is not applicable for formats other than pty")
+		logger.WarnContext(cf.Context, "--speed is not applicable for formats other than pty")
 	}
 	return exportSession(cf)
 }
@@ -94,7 +94,7 @@ func playSession(cf *CLIConf) error {
 
 	if err := tc.Play(cf.Context, cf.SessionID, speed, cf.NoWait); err != nil {
 		if trace.IsNotFound(err) {
-			log.WithError(err).Debug("error playing session")
+			logger.DebugContext(cf.Context, "error playing session", "error", err)
 			return trace.NotFound("Recording for session %s not found.", cf.SessionID)
 		}
 		return trace.Wrap(err)
