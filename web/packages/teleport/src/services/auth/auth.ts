@@ -436,12 +436,32 @@ const auth = {
       .then(res => res?.webauthn_response);
   },
 
-  async getAdminActionMfaResponse(allowReuse?: boolean) {
-    return mfaContext.getAdminActionMfaResponse(allowReuse);
+  getAdminActionMfaResponse(allowReuse?: boolean) {
+    // mfaContext is set once the react-scoped MFA Context Provider is initialized.
+    // Since this is a global object outside of the react scope, there is a marginal
+    // chance for a race condition here (the react scope should generally be initialized
+    // before this has a chance of being called). This conditional is not expected to
+    // be hit, but will catch any major issues that could arise from this solution.
+    if (!mfaContext) {
+      setTimeout(() => {
+        if (!mfaContext)
+          throw new Error(
+            'Failed to set up MFA prompt for admin action. This is a bug.'
+          );
+      }, 1000);
+    }
+
+    return mfaContext.getMfaChallengeResponse({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
   },
 
   // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
-  async getWebauthnResponseForAdminAction(allowReuse?: boolean) {
+  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
     return auth.getAdminActionMfaResponse(allowReuse);
   },
 };
