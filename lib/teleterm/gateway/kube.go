@@ -42,14 +42,18 @@ import (
 
 type kube struct {
 	*base
-	clearCertsFn func()
+	middleware kubeMiddleware
+}
+
+type kubeMiddleware interface {
+	ClearCerts()
 }
 
 // ClearCerts clears the local proxy middleware certs.
 // It will try to reissue them when a new request comes in.
 func (k *kube) ClearCerts() {
-	if k.clearCertsFn != nil {
-		k.clearCertsFn()
+	if k.middleware != nil {
+		k.middleware.ClearCerts()
 	}
 }
 
@@ -137,6 +141,7 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 	if err != nil {
 		return trace.NewAggregate(err, listener.Close())
 	}
+	k.middleware = middleware
 
 	webProxyHost, err := utils.Host(k.cfg.WebProxyAddr)
 	if err != nil {
@@ -176,7 +181,6 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 		CloseContext: k.closeContext,
 	})
 
-	k.clearCertsFn = middleware.ClearCerts
 	return middleware, nil
 }
 
