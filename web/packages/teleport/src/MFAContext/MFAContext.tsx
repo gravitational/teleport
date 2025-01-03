@@ -2,6 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useState } from 'react';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa } from 'teleport/lib/useMfa';
+import api from 'teleport/services/api/api';
 import { CreateAuthenticateChallengeRequest } from 'teleport/services/auth';
 import auth from 'teleport/services/auth/auth';
 import { MfaChallengeResponse } from 'teleport/services/mfa';
@@ -43,6 +44,7 @@ export const MfaContextProvider = ({ children }: PropsWithChildren) => {
     const mfaCtx = { getMfaChallengeResponse };
     setMfaCtx(mfaCtx);
     auth.setMfaContext(mfaCtx);
+    api.setMfaContext(mfaCtx);
   }
 
   return (
