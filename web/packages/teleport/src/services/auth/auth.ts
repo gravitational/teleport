@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import api from 'teleport/services/api';
 import {
   DeviceType,
@@ -25,8 +26,6 @@ import {
   MfaChallengeResponse,
   SsoChallenge,
 } from 'teleport/services/mfa';
-
-import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
@@ -35,7 +34,6 @@ import {
   parseMfaChallengeJson,
   parseMfaRegistrationChallengeJson,
 } from '../mfa/makeMfa';
-
 import { makeChangedUserAuthn } from './make';
 import makePasswordToken from './makePasswordToken';
 import {

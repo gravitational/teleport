@@ -33,9 +33,9 @@ export type Props = {
 };
 
 export default function AuthnDialog({
-  mfaState: { options, challenge, submit, attempt, resetAttempt },
+  mfaState: { options, challenge, submit, attempt, cancelAttempt },
   replaceErrorText,
-  onClose,
+  onClose = () => {},
 }: Props) {
   if (!challenge && attempt.status !== 'error') return;
 
@@ -50,7 +50,7 @@ export default function AuthnDialog({
         <ButtonIcon
           data-testid="close-dialog"
           onClick={() => {
-            resetAttempt();
+            cancelAttempt();
             onClose();
           }}
         >

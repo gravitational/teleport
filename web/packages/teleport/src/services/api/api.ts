@@ -19,12 +19,12 @@
 import 'whatwg-fetch';
 
 import websession from 'teleport/services/websession';
+
 import 'whatwg-fetch';
 
+import auth from '../auth/auth';
 import { MfaChallengeResponse } from '../mfa';
 import { storageService } from '../storageService';
-import auth from '../auth/auth';
-
 import parseError, { ApiError } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';
@@ -194,7 +194,7 @@ const api = {
       mfaResponseForRetry = await auth.getAdminActionMfaResponse();
     } catch {
       throw new Error(
-        'Failed to fetch MFA challenge. Please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
+        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
       );
     }
 
