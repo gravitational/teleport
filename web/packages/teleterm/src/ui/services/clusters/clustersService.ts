@@ -30,10 +30,15 @@ import {
   ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useStore } from 'shared/libs/stores';
+import { isAbortError } from 'shared/utils/abortError';
 import { pipe } from 'shared/utils/pipe';
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
-import type { CloneableAbortSignal, TshdClient } from 'teleterm/services/tshd';
+import {
+  cloneAbortSignal,
+  type CloneableAbortSignal,
+  type TshdClient,
+} from 'teleterm/services/tshd';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -336,13 +341,20 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     ]);
   }
 
-  async syncRootClustersAndCatchErrors() {
+  async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
     let clusters: Cluster[];
 
     try {
-      const { response } = await this.client.listRootClusters({});
+      const { response } = await this.client.listRootClusters(
+        {},
+        { abortSignal: abortSignal && cloneAbortSignal(abortSignal) }
+      );
       clusters = response.clusters;
     } catch (error) {
+      if (isAbortError(error)) {
+        this.logger.info('Listing root clusters aborted');
+        return;
+      }
       const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,

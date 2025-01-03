@@ -39,6 +39,13 @@ export const AppInitializer = () => {
       await appContext.pullInitialState();
       setShouldShowUi(true);
       await showStartupModalsAndNotifications(appContext);
+      // If there's a workspace that was active before closing the app,
+      // activate it.
+      const rootClusterUri =
+        appContext.workspacesService.getRestoredState()?.rootClusterUri;
+      if (rootClusterUri) {
+        void appContext.workspacesService.setActiveWorkspace(rootClusterUri);
+      }
       appContext.mainProcessClient.signalUserInterfaceReadiness({
         success: true,
       });
