@@ -31,15 +31,17 @@ import (
 )
 
 // crdFormatFunc formats the given CRD into a document. It returns the document
-// as a byte slice, plus the file extension for the document.
-type crdFormatFunc func(apiextv1.CustomResourceDefinition) ([]byte, string, error)
+// as a byte slice, plus the file name for the document. The file name is based
+// on the CRD's API group name and plural name.
+type crdFormatFunc func(crd apiextv1.CustomResourceDefinition, groupName, pluralName string) ([]byte, string, error)
 
-func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, string, error) {
+func formatAsCRD(crd apiextv1.CustomResourceDefinition, groupName, pluralName string) ([]byte, string, error) {
 	doc, err := yaml.Marshal(crd)
 	if err != nil {
 		return nil, "", err
 	}
-	return doc, "yaml", nil
+	filename := fmt.Sprintf("%s_%s.%v", groupName, pluralName, "yaml")
+	return doc, filename, nil
 }
 
 var crdDocTmpl string = `---
@@ -226,7 +228,7 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 	return tables, nil
 }
 
-func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, string, error) {
+func formatAsDocsPage(crd apiextv1.CustomResourceDefinition, groupName, pluralName string) ([]byte, string, error) {
 	var buf bytes.Buffer
 	rp := ResourcePage{
 		Title:       crd.Spec.Names.Kind,
@@ -263,5 +265,11 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 		return nil, "", trace.Wrap(err)
 	}
 
-	return buf.Bytes(), "mdx", nil
+	filename := fmt.Sprintf(
+		"%s-%s.%v",
+		strings.ReplaceAll(groupName, ".", "-"),
+		pluralName,
+		"mdx",
+	)
+	return buf.Bytes(), filename, nil
 }
