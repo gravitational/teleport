@@ -18,18 +18,23 @@
 
 import 'whatwg-fetch';
 
+import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import websession from 'teleport/services/websession';
-import 'whatwg-fetch';
 
+import { MfaChallengeScope } from '../auth/auth';
 import { MfaChallengeResponse } from '../mfa';
 import { storageService } from '../storageService';
-import auth from '../auth/auth';
-
 import parseError, { ApiError } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
+let mfaContext: MfaContextValue;
+
 const api = {
+  setMfaContext(mfa: MfaContextValue) {
+    mfaContext = mfa;
+  },
+
   get(
     url: string,
     abortSignal?: AbortSignal,
@@ -191,10 +196,10 @@ const api = {
 
     let mfaResponseForRetry;
     try {
-      mfaResponseForRetry = await auth.getAdminActionMfaResponse();
+      mfaResponseForRetry = await api.getAdminActionMfaResponse();
     } catch {
       throw new Error(
-        'Failed to fetch MFA challenge. Please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
+        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
       );
     }
 
@@ -203,6 +208,30 @@ const api = {
       customOptions,
       mfaResponseForRetry
     );
+  },
+
+  getAdminActionMfaResponse(allowReuse?: boolean) {
+    // mfaContext is set once the react-scoped MFA Context Provider is initialized.
+    // Since this is a global object outside of the react scope, there is a marginal
+    // chance for a race condition here (the react scope should generally be initialized
+    // before this has a chance of being called). This conditional is not expected to
+    // be hit, but will catch any major issues that could arise from this solution.
+    if (!mfaContext) {
+      setTimeout(() => {
+        if (!mfaContext)
+          throw new Error(
+            'Failed to set up MFA prompt for admin action. This is a bug.'
+          );
+      }, 1000);
+    }
+
+    return mfaContext.getMfaChallengeResponse({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
   },
 
   /**
