@@ -106,7 +106,7 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	t.Parallel()
 
 	// setup mock aws sessions.
-	stsMock := &mocks.STSMock{}
+	stsMock := &mocks.STSClientV1{}
 	clock := clockwork.NewFakeClock()
 	auth, err := NewAuth(AuthConfig{
 		Clock:       clock,
@@ -466,7 +466,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	t.Cleanup(cancel)
 	tests := map[string]struct {
 		checkGetAuthFn func(t *testing.T, auth Auth)
-		checkSTS       func(t *testing.T, stsMock *mocks.STSMock)
+		checkSTS       func(t *testing.T, stsMock *mocks.STSClientV1)
 	}{
 		"Redshift": {
 			checkGetAuthFn: func(t *testing.T, auth Auth) {
@@ -485,7 +485,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "IAM:some-user", dbUser)
 				require.Equal(t, "some-password", dbPassword)
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClientV1) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshift")
@@ -508,7 +508,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "IAM:some-role", dbUser)
 				require.Equal(t, "some-password-for-some-role", dbPassword)
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClientV1) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshift")
@@ -530,7 +530,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "IAM:some-user", dbUser)
 				require.Equal(t, "some-password", dbPassword)
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClientV1) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftServerlessRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshiftServerless")
@@ -550,7 +550,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.NoError(t, err)
 				require.Contains(t, token, "DBUser=some-user")
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClientV1) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RDSProxyRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRDSProxy")
@@ -578,7 +578,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "arn:aws:iam::123456789012:role/RedisRole/20010203/ca-central-1/elasticache/aws4_request",
 					query.Get("X-Amz-Credential"))
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClientV1) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedisRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalElastiCacheRedis")
@@ -586,7 +586,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		},
 	}
 
-	stsMock := &mocks.STSMock{}
+	stsMock := &mocks.STSClientV1{}
 	clock := clockwork.NewFakeClockAt(time.Date(2001, time.February, 3, 0, 0, 0, 0, time.UTC))
 	auth, err := NewAuth(AuthConfig{
 		Clock:       clock,
@@ -623,7 +623,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 
 	for name, tt := range map[string]struct {
 		db                   types.Database
-		stsMock              *mocks.STSMock
+		stsMock              *mocks.STSClientV1
 		username             string
 		expectedKeyId        string
 		expectedAssumedRoles []string
@@ -632,7 +632,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 	}{
 		"username is full role ARN": {
 			db:                   newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock:              &mocks.STSMock{},
+			stsMock:              &mocks.STSClientV1{},
 			username:             "arn:aws:iam::123456789012:role/role-name",
 			expectedKeyId:        "arn:aws:iam::123456789012:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/role-name"},
@@ -641,7 +641,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 		},
 		"username is partial role ARN": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSMock{
+			stsMock: &mocks.STSClientV1{
 				// This is the role returned by the STS GetCallerIdentity.
 				ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
 			},
@@ -653,7 +653,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 		},
 		"unable to fetch account ID": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSMock{
+			stsMock: &mocks.STSClientV1{
 				ARN: "",
 			},
 			username:  "role/role-name",
@@ -664,7 +664,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				ExternalID:    "123123",
 				AssumeRoleARN: "arn:aws:iam::222222222222:role/teleport-service-role-external",
 			}),
-			stsMock: &mocks.STSMock{
+			stsMock: &mocks.STSClientV1{
 				ARN: "arn:aws:iam::111111111111:role/teleport-service-role",
 			},
 			username:      "role/role-name",
@@ -938,8 +938,7 @@ func generateAzureVM(t *testing.T, identities []string) armcompute.VirtualMachin
 }
 
 // authClientMock is a mock that implements AuthClient interface.
-type authClientMock struct {
-}
+type authClientMock struct{}
 
 // GenerateDatabaseCert generates a cert using fixtures TLS CA.
 func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -977,8 +976,7 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 	}, nil
 }
 
-type accessPointMock struct {
-}
+type accessPointMock struct{}
 
 // GetAuthPreference always returns types.DefaultAuthPreference().
 func (m accessPointMock) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {

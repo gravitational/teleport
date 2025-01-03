@@ -65,7 +65,7 @@ func TestAWSIAM(t *testing.T) {
 	}
 
 	// Configure mocks.
-	stsClient := &mocks.STSMock{
+	stsClient := &mocks.STSClientV1{
 		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 
@@ -294,7 +294,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create unauthorized mocks for AWS services.
-	stsClient := &mocks.STSMock{
+	stsClient := &mocks.STSClientV1{
 		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 	// Make configurator.
@@ -429,6 +429,7 @@ func (m *mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.
 		ClusterID:   "cluster-id",
 	})
 }
+
 func (m *mockAccessPoint) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	return &types.SemaphoreLease{
 		SemaphoreKind: params.SemaphoreKind,
@@ -437,6 +438,7 @@ func (m *mockAccessPoint) AcquireSemaphore(ctx context.Context, params types.Acq
 		Expires:       params.Expires,
 	}, nil
 }
+
 func (m *mockAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	return nil
 }

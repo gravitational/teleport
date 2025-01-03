@@ -19,44 +19,53 @@
 package utils
 
 import (
+	"context"
 	"encoding/base64"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
 
+// STSPresignClient is the subset of the STS presign client we need to generate EKS tokens.
+type STSPresignClient interface {
+	PresignGetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+}
+
 // GenAWSEKSToken creates an AWS token to access EKS clusters.
 // Logic from https://github.com/aws/aws-cli/blob/6c0d168f0b44136fc6175c57c090d4b115437ad1/awscli/customizations/eks/get_token.py#L211-L229
-func GenAWSEKSToken(stsClient stsiface.STSAPI, clusterID string, clock clockwork.Clock) (string, time.Time, error) {
+func GenAWSEKSToken(ctx context.Context, stsClient STSPresignClient, clusterID string, clock clockwork.Clock) (string, time.Time, error) {
 	const (
-		// The sts GetCallerIdentity request is valid for 15 minutes regardless of this parameters value after it has been
-		// signed.
-		requestPresignParam = 60
 		// The actual token expiration (presigned STS urls are valid for 15 minutes after timestamp in x-amz-date).
 		presignedURLExpiration = 15 * time.Minute
 		v1Prefix               = "k8s-aws-v1."
 		clusterIDHeader        = "x-k8s-aws-id"
 	)
 
-	// generate an sts:GetCallerIdentity request and add our custom cluster ID header
-	request, _ := stsClient.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
-	request.HTTPRequest.Header.Add(clusterIDHeader, clusterID)
-
-	// Sign the request.  The expires parameter (sets the x-amz-expires header) is
-	// currently ignored by STS, and the token expires 15 minutes after the x-amz-date
-	// timestamp regardless.  We set it to 60 seconds for backwards compatibility (the
-	// parameter is a required argument to Presign(), and authenticators 0.3.0 and older are expecting a value between
-	// 0 and 60 on the server side).
-	// https://github.com/aws/aws-sdk-go/issues/2167
-	presignedURLString, err := request.Presign(requestPresignParam)
+	presignedReq, err := stsClient.PresignGetCallerIdentity(ctx, nil, func(po *sts.PresignOptions) {
+		po.ClientOptions = append(po.ClientOptions, func(o *sts.Options) {
+			o.APIOptions = append(o.APIOptions, func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(middleware.FinalizeMiddlewareFunc("ClusterIDHeaderMW", func(
+					ctx context.Context, input middleware.FinalizeInput, next middleware.FinalizeHandler,
+				) (middleware.FinalizeOutput, middleware.Metadata, error) {
+					req, ok := input.Request.(*smithyhttp.Request)
+					if ok {
+						req.Header.Add(clusterIDHeader, clusterID)
+					}
+					return next.HandleFinalize(ctx, input)
+				}), middleware.After)
+			})
+		})
+	})
 	if err != nil {
 		return "", time.Time{}, trace.Wrap(err)
 	}
 
-	// Set token expiration to 1 minute before the presigned URL expires for some cushion
+	// Set token expiration to 1 minute before the presigned URL expires for some cushion.
 	tokenExpiration := clock.Now().Add(presignedURLExpiration - 1*time.Minute)
-	return v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString)), tokenExpiration, nil
+	return v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedReq.URL)), tokenExpiration, nil
 }

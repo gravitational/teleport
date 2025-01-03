@@ -116,7 +116,7 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
-	stsMock := &mocks.STSMock{}
+	stsMock := &mocks.STSClientV1{}
 
 	// Configure Redshift Serverless API mock.
 	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "us-west-1")
@@ -406,7 +406,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 	rds := &mocks.RDSMockUnauth{}
 	redshift := &mocks.RedshiftMockUnauth{}
 
-	stsMock := &mocks.STSMock{}
+	stsMock := &mocks.STSClientV1{}
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{

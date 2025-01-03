@@ -27,8 +27,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -498,12 +498,12 @@ func labelsToAzureTags(labels map[string]string) map[string]*string {
 
 func makeEKSKubeCluster(t *testing.T, name, region, accountID, overrideLabel string) types.KubeCluster {
 	t.Helper()
-	eksCluster := &eks.Cluster{
+	eksCluster := &ekstypes.Cluster{
 		Name:   aws.String(name),
 		Arn:    aws.String(fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, name)),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			overrideLabel: aws.String(name),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			overrideLabel: name,
 		},
 	}
 	kubeCluster, err := NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)

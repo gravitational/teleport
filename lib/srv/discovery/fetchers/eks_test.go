@@ -23,16 +23,16 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/eks/eksiface"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -129,48 +129,57 @@ func TestEKSFetcher(t *testing.T) {
 
 type mockEKSClientGetter struct{}
 
-func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (eksiface.EKSAPI, error) {
+func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (EKSClient, error) {
 	return newPopulatedEKSMock(), nil
 }
 
-func (e *mockEKSClientGetter) GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error) {
+func (e *mockEKSClientGetter) GetAWSSTSClient(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (STSClient, error) {
 	return &mockSTSAPI{}, nil
 }
 
+func (e *mockEKSClientGetter) GetAWSSTSPresignClient(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (kubeutils.STSPresignClient, error) {
+	return &mockSTSPresignAPI{}, nil
+}
+
+type mockSTSPresignAPI struct{}
+
+func (a *mockSTSPresignAPI) PresignGetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+	panic("not implemented")
+}
+
 type mockSTSAPI struct {
-	stsiface.STSAPI
 	arn string
 }
 
-func (a *mockSTSAPI) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
+func (a *mockSTSAPI) GetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return &sts.GetCallerIdentityOutput{
 		Arn: aws.String(a.arn),
 	}, nil
 }
 
+func (a *mockSTSAPI) AssumeRole(ctx context.Context, params *sts.AssumeRoleInput, optFns ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
+	panic("not implemented")
+}
+
 type mockEKSAPI struct {
-	eksiface.EKSAPI
-	clusters []*eks.Cluster
+	EKSClient
+
+	clusters []*ekstypes.Cluster
 }
 
-func (m *mockEKSAPI) ListClustersPagesWithContext(ctx aws.Context, req *eks.ListClustersInput, f func(*eks.ListClustersOutput, bool) bool, _ ...request.Option) error {
-	var names []*string
+func (m *mockEKSAPI) ListClusters(ctx context.Context, req *eks.ListClustersInput, _ ...func(*eks.Options)) (*eks.ListClustersOutput, error) {
+	var names []string
 	for _, cluster := range m.clusters {
-		names = append(names, cluster.Name)
+		names = append(names, aws.ToString(cluster.Name))
 	}
-	f(&eks.ListClustersOutput{
-		Clusters: names[:len(names)/2],
-	}, false)
-
-	f(&eks.ListClustersOutput{
-		Clusters: names[len(names)/2:],
-	}, true)
-	return nil
+	return &eks.ListClustersOutput{
+		Clusters: names,
+	}, nil
 }
 
-func (m *mockEKSAPI) DescribeClusterWithContext(_ aws.Context, req *eks.DescribeClusterInput, _ ...request.Option) (*eks.DescribeClusterOutput, error) {
+func (m *mockEKSAPI) DescribeCluster(_ context.Context, req *eks.DescribeClusterInput, _ ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
 	for _, cluster := range m.clusters {
-		if aws.StringValue(cluster.Name) == aws.StringValue(req.Name) {
+		if aws.ToString(cluster.Name) == aws.ToString(req.Name) {
 			return &eks.DescribeClusterOutput{
 				Cluster: cluster,
 			}, nil
@@ -185,51 +194,50 @@ func newPopulatedEKSMock() *mockEKSAPI {
 	}
 }
 
-var eksMockClusters = []*eks.Cluster{
-
+var eksMockClusters = []*ekstypes.Cluster{
 	{
 		Name:   aws.String("cluster1"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("prod"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "prod",
+			"location": "eu-west-1",
 		},
 	},
 	{
 		Name:   aws.String("cluster2"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("prod"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "prod",
+			"location": "eu-west-1",
 		},
 	},
 
 	{
 		Name:   aws.String("cluster3"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster3"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("stg"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "stg",
+			"location": "eu-west-1",
 		},
 	},
 	{
 		Name:   aws.String("cluster4"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("stg"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "stg",
+			"location": "eu-west-1",
 		},
 	},
 }
 
-func eksClustersToResources(t *testing.T, clusters ...*eks.Cluster) types.ResourcesWithLabels {
+func eksClustersToResources(t *testing.T, clusters ...*ekstypes.Cluster) types.ResourcesWithLabels {
 	var kubeClusters types.KubeClusters
 	for _, cluster := range clusters {
-		kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(cluster.Name), aws.StringValue(cluster.Arn), cluster.Tags)
+		kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cluster.Name), aws.ToString(cluster.Arn), cluster.Tags)
 		require.NoError(t, err)
 		require.True(t, kubeCluster.IsAWS())
 		common.ApplyEKSNameSuffix(kubeCluster)

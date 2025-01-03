@@ -122,7 +122,7 @@ func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 	for _, test := range tests {
 		test := test
 		require.Nil(t, test.inputClients.STS, "testAWSFetchers injects an STS mock itself, but test input had already configured it. This is a test configuration error.")
-		stsMock := &mocks.STSMock{}
+		stsMock := &mocks.STSClientV1{}
 		test.inputClients.STS = stsMock
 		t.Run(test.name, func(t *testing.T) {
 			t.Helper()

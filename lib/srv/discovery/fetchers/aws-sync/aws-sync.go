@@ -47,6 +47,8 @@ const pageSize int64 = 500
 type Config struct {
 	// CloudClients is the cloud clients to use when fetching AWS resources.
 	CloudClients cloud.Clients
+	// GetEKSClient gets an AWS EKS client for the given region.
+	GetEKSClient EKSClientGetter
 	// GetEC2Client gets an AWS EC2 client for the given region.
 	GetEC2Client server.EC2ClientGetter
 	// AccountID is the AWS account ID to use when fetching resources.

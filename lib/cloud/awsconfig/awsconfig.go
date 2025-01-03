@@ -67,6 +67,8 @@ type options struct {
 	customRetryer func() aws.Retryer
 	// maxRetries is the maximum number of retries to use for the config.
 	maxRetries *int
+	// stsClient used to assume role if needed. When not set, use the default one.
+	stsClient stscreds.AssumeRoleAPIClient
 }
 
 func (a *options) checkAndSetDefaults() error {
@@ -89,6 +91,13 @@ func (a *options) checkAndSetDefaults() error {
 // OptionsFn is an option function for setting additional options
 // when getting an AWS config.
 type OptionsFn func(*options)
+
+// WithSTSClient sets a custom sts client for the config.
+func WithSTSClient(stsClient stscreds.AssumeRoleAPIClient) OptionsFn {
+	return func(options *options) {
+		options.stsClient = stsClient
+	}
+}
 
 // WithAssumeRole configures options needed for assuming an AWS role.
 func WithAssumeRole(roleARN, externalID string) OptionsFn {
@@ -223,9 +232,12 @@ func getConfigForRole(ctx context.Context, region string, options options) (aws.
 		return aws.Config{}, trace.Wrap(err)
 	}
 
-	stsClient := sts.NewFromConfig(*options.baseConfig, func(o *sts.Options) {
-		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-	})
+	stsClient := options.stsClient
+	if stsClient == nil {
+		stsClient = sts.NewFromConfig(*options.baseConfig, func(o *sts.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})
+	}
 	cred := stscreds.NewAssumeRoleProvider(stsClient, options.assumeRoleARN, func(aro *stscreds.AssumeRoleOptions) {
 		if options.assumeRoleExternalID != "" {
 			aro.ExternalID = aws.String(options.assumeRoleExternalID)

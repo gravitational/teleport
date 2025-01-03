@@ -2481,7 +2481,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:                &mocks.STSMock{},
+			STS:                &mocks.STSClientV1{},
 			RDS:                &mocks.RDSMock{},
 			Redshift:           &mocks.RedshiftMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{},
