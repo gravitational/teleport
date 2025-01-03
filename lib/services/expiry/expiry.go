@@ -188,8 +188,9 @@ func (s *Service) processRequests(ctx context.Context) error {
 			}
 		}
 		select {
-		case <-s.Clock.After(retryutils.SeventhJitter(minPageDelay)):
 		case <-ctx.Done():
+			return nil
+		case <-s.Clock.After(retryutils.SeventhJitter(minPageDelay)):
 		}
 	}
 }

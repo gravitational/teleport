@@ -2487,8 +2487,8 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.expiry", func() error {
-		if err := expiry.Run(process.ExitContext()); err != nil {
-			logger.ErrorContext(process.ExitContext(), "expiry starting", "error", err)
+		if err := expiry.Run(process.GracefulExitContext()); err != nil {
+			logger.ErrorContext(process.GracefulExitContext(), "expiry starting", "error", err)
 		}
 		return trace.Wrap(err)
 	})
