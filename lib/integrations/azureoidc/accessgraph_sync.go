@@ -10,28 +10,26 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/msgraph"
-	"github.com/gravitational/teleport/lib/utils/slices"
+	tslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
-	"log/slog"
 	"os"
+	"slices"
 )
+
+// graphAppId is the pre-defined application ID of the Graph API
+// Ref: [https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in#application-ids-of-commonly-used-microsoft-applications].
+const graphAppId = "00000003-0000-0000-c000-000000000000"
+
+var requiredGraphRoleNames = []string{
+	"User.ReadBasic.All",
+	"Group.Read.All",
+	"Directory.Read.All",
+	"User.Read.All",
+	"Policy.Read.All",
+}
 
 func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, managedId string, roleName string) (*provisioning.Action, error) {
 	runnerFn := func(ctx context.Context) error {
-		// Create the managed identity
-		userIdCli, err := armmsi.NewUserAssignedIdentitiesClient(subId, cred, nil)
-		if err != nil {
-			return trace.Wrap(fmt.Errorf("could not create managed identity client: %v", err))
-		}
-		id := armmsi.Identity{}
-		userIdCli.Get(ctx)
-		mgdIdRes, err := userIdCli.CreateOrUpdate(ctx, "", name, id, nil)
-		if err != nil {
-			return trace.Wrap(fmt.Errorf("could not create managed identity: %v", err))
-		}
-		slog.InfoContext(ctx, fmt.Sprintf(
-			"Managed identity created, Name: %s, ID: %s", *mgdIdRes.Name, *mgdIdRes.ID))
-
 		// Create the role
 		roleDefCli, err := armauthorization.NewRoleDefinitionsClient(cred, nil)
 		if err != nil {
@@ -47,7 +45,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 				RoleType: &customRole,
 				Permissions: []*armauthorization.Permission{
 					{
-						Actions: slices.ToPointers([]string{
+						Actions: tslices.ToPointers([]string{
 							"Microsoft.Compute/virtualMachines/read",
 							"Microsoft.Compute/virtualMachines/list",
 							"Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read",
@@ -89,7 +87,23 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 		graphCli, err := msgraph.NewClient(msgraph.Config{
 			TokenProvider: cred,
 		})
-		graphCli.GetServicePrincipalByAppId()
+		graphPrincipal, err := graphCli.GetServicePrincipalByAppId(ctx, graphAppId)
+		var graphRoleIds []string
+		for _, appRole := range graphPrincipal.AppRoles {
+			if slices.Contains(requiredGraphRoleNames, *appRole.Value) {
+				graphRoleIds = append(graphRoleIds, *appRole.ID)
+			}
+		}
+		for _, graphRoleId := range graphRoleIds {
+			_, err := graphCli.GrantAppRoleToServicePrincipal(ctx, managedId, &msgraph.AppRoleAssignment{
+				AppRoleID:   &graphRoleId,
+				PrincipalID: &managedId,
+				ResourceID:  graphPrincipal.ID,
+			})
+			if err != nil {
+				return trace.Wrap(fmt.Errorf("failed to create role assignment: %v", err))
+			}
+		}
 
 		return nil
 	}

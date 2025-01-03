@@ -123,9 +123,10 @@ type WebApplication struct {
 
 type ServicePrincipal struct {
 	DirectoryObject
-	AppRoleAssignmentRequired          *bool   `json:"appRoleAssignmentRequired,omitempty"`
-	PreferredSingleSignOnMode          *string `json:"preferredSingleSignOnMode,omitempty"`
-	PreferredTokenSigningKeyThumbprint *string `json:"preferredTokenSigningKeyThumbprint,omitempty"`
+	AppRoleAssignmentRequired          *bool      `json:"appRoleAssignmentRequired,omitempty"`
+	PreferredSingleSignOnMode          *string    `json:"preferredSingleSignOnMode,omitempty"`
+	PreferredTokenSigningKeyThumbprint *string    `json:"preferredTokenSigningKeyThumbprint,omitempty"`
+	AppRoles                           []*AppRole `json:"appRoles,omitempty"`
 }
 
 type ApplicationServicePrincipal struct {
@@ -142,6 +143,11 @@ type FederatedIdentityCredential struct {
 
 type SelfSignedCertificate struct {
 	Thumbprint *string `json:"thumbprint,omitempty"`
+}
+
+type AppRole struct {
+	ID    *string `json:"id,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 type AppRoleAssignment struct {
