@@ -22,7 +22,7 @@ import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
+import { generateCmd } from 'teleport/Discover/Kubernetes/SelfHosted';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';

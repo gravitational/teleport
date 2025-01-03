@@ -18,13 +18,16 @@
 
 import { useEffect, useState } from 'react';
 
-import { Text } from 'design';
+import { Flex, Subtitle1, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
+import Validation, { Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import { getRdsEngineIdentifier } from 'teleport/Discover/SelectResource/types';
+import { ResourceLabelTooltip } from 'teleport/Discover/Shared/ResourceLabelTooltip';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { ResourceLabel } from 'teleport/services/agents';
 import { Database } from 'teleport/services/databases';
 import {
   AwsRdsDatabase,
@@ -33,7 +36,7 @@ import {
   Vpc,
 } from 'teleport/services/integrations';
 
-import { ActionButtons } from '../../Shared';
+import { ActionButtons, LabelsCreater } from '../../Shared';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { DatabaseList } from './RdsDatabaseList';
@@ -90,6 +93,7 @@ export function SingleEnrollment({
 
   const [tableData, setTableData] = useState<TableData>();
   const [selectedDb, setSelectedDb] = useState<CheckedAwsRdsDatabase>();
+  const [customLabels, setCustomLabels] = useState<ResourceLabel[]>([]);
 
   useEffect(() => {
     if (vpc) {
@@ -97,6 +101,12 @@ export function SingleEnrollment({
       fetchRdsDatabases(emptyTableData(), vpc);
     }
   }, [vpc]);
+
+  function onSelectRds(rds: CheckedAwsRdsDatabase) {
+    // when changing selected db, clear defined labels
+    setCustomLabels([]);
+    setSelectedDb(rds);
+  }
 
   function fetchNextPage() {
     fetchRdsDatabases({ ...tableData }, vpc);
@@ -175,6 +185,17 @@ export function SingleEnrollment({
     }
   }
 
+  function handleOnProceedWithValidation(
+    validator: Validator,
+    { overwriteDb = false } = {}
+  ) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    handleOnProceed({ overwriteDb });
+  }
+
   function handleOnProceed({ overwriteDb = false } = {}) {
     // Corner case where if registering db fails a user can:
     //   1) change region, which will list new databases or
@@ -185,7 +206,9 @@ export function SingleEnrollment({
         name: selectedDb.name,
         protocol: selectedDb.engine,
         uri: selectedDb.uri,
-        labels: selectedDb.labels,
+        // The labels from the `selectedDb` are AWS tags which
+        // will be imported as is.
+        labels: [...selectedDb.labels, ...customLabels],
         awsRds: selectedDb,
         awsRegion: region,
         awsVpcId: vpc.id,
@@ -198,23 +221,47 @@ export function SingleEnrollment({
 
   return (
     <>
-      {showTable && (
-        <>
-          <Text mt={3}>Select an RDS database to enroll:</Text>
-          <DatabaseList
-            wantAutoDiscover={false}
-            items={tableData?.items || []}
-            fetchStatus={tableData?.fetchStatus || 'loading'}
-            selectedDatabase={selectedDb}
-            onSelectDatabase={setSelectedDb}
-            fetchNextPage={fetchNextPage}
-          />
-        </>
-      )}
-      <ActionButtons
-        onProceed={handleOnProceed}
-        disableProceed={disableBtns || !showTable || !selectedDb}
-      />
+      <Validation>
+        {({ validator }) => (
+          <>
+            {showTable && (
+              <>
+                <Text mt={3}>Select an RDS database to enroll:</Text>
+                <DatabaseList
+                  wantAutoDiscover={false}
+                  items={tableData?.items || []}
+                  fetchStatus={tableData?.fetchStatus || 'loading'}
+                  selectedDatabase={selectedDb}
+                  onSelectDatabase={onSelectRds}
+                  fetchNextPage={fetchNextPage}
+                />
+                {selectedDb && (
+                  <>
+                    <Flex alignItems="center" gap={1} mb={2} mt={4}>
+                      <Subtitle1>Optionally Add More Labels</Subtitle1>
+                      <ResourceLabelTooltip
+                        toolTipPosition="top"
+                        resourceKind="rds"
+                      />
+                    </Flex>
+                    <LabelsCreater
+                      labels={customLabels}
+                      setLabels={setCustomLabels}
+                      isLabelOptional={true}
+                      disableBtns={disableBtns}
+                      noDuplicateKey={true}
+                    />
+                  </>
+                )}
+              </>
+            )}
+            <ActionButtons
+              onProceed={() => handleOnProceedWithValidation(validator)}
+              disableProceed={disableBtns || !showTable || !selectedDb}
+            />
+          </>
+        )}
+      </Validation>
       {attempt.status !== '' && (
         <CreateDatabaseDialog
           pollTimeout={pollTimeout}
