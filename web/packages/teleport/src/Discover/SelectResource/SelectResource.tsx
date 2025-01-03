@@ -73,8 +73,8 @@ function getDefaultResources(
   includeEnterpriseResources: boolean
 ): ResourceSpec[] {
   const RESOURCES = includeEnterpriseResources
-    ? BASE_RESOURCES
-    : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
+    ? [...BASE_RESOURCES, ...SAML_APPLICATIONS]
+    : BASE_RESOURCES;
   return RESOURCES;
 }
 
