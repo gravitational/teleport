@@ -619,7 +619,10 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.deviceTrust;
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.deviceTrust;
+    }
+    return true;
   }
 
   navigationItem = {
