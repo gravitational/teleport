@@ -19,9 +19,8 @@
 import React from 'react';
 
 import { Logger } from 'design/logger';
-
-import { isObject } from 'shared/utils/highbar';
 import { Store, useStore } from 'shared/libs/stores';
+import { isObject } from 'shared/utils/highbar';
 
 import { ValidationResult } from './rules';
 

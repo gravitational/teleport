@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { Flex, Text, Popover } from 'design';
+import { Flex, Popover, Text } from 'design';
 import * as icons from 'design/Icon';
 
+import { KeyboardShortcutAction } from 'teleterm/services/config';
+import { Cluster } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { ListItem } from 'teleterm/ui/components/ListItem';
+import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
+import { useNewTabOpener } from 'teleterm/ui/TabHost';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { IAppContext } from 'teleterm/ui/types';
-import { Cluster } from 'teleterm/services/tshd/types';
-import { KeyboardShortcutAction } from 'teleterm/services/config';
-import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
-import { ListItem } from 'teleterm/ui/components/ListItem';
-import { useNewTabOpener } from 'teleterm/ui/TabHost';
-import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 
 type MenuItem = {
   title: string;

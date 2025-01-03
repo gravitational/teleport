@@ -16,37 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
-import {
-  Text,
-  Flex,
-  AnimatedProgressBar,
-  ButtonPrimary,
-  Link,
-  Box,
-  Mark,
-} from 'design';
-import * as Icons from 'design/Icon';
-import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import { useEffect, useState } from 'react';
 
+import {
+  AnimatedProgressBar,
+  Box,
+  ButtonPrimary,
+  Flex,
+  Link,
+  Mark,
+  Text,
+} from 'design';
+import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import * as Icons from 'design/Icon';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
-
 import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-
+import { TextIcon } from 'teleport/Discover/Shared';
+import { usePoll } from 'teleport/Discover/Shared/usePoll';
+import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   Ec2InstanceConnectEndpoint,
   integrationService,
 } from 'teleport/services/integrations';
-import { TextIcon } from 'teleport/Discover/Shared';
-import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import {
   DiscoverEvent,
   DiscoverEventStatus,
 } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export function CreateEc2IceDialog({
   nextStep,
@@ -263,9 +261,8 @@ export function CreateEc2IceDialog({
             style={{ display: 'flex', textAlign: 'left', width: '100%' }}
           >
             <Icons.Check size="small" ml={1} mr={2} color="success.main" />
-            The EC2 instance [{
-              typedAgentMeta?.node.awsMetadata.instanceId
-            }] has been added to Teleport.
+            The EC2 instance [{typedAgentMeta?.node.awsMetadata.instanceId}] has
+            been added to Teleport.
           </Text>
           <ButtonPrimary width="100%" onClick={() => nextStep()}>
             Next

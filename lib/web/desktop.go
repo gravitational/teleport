@@ -225,7 +225,7 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(err)
 	}
 	for _, msg := range withheld {
-		log.DebugContext(ctx, "Sending withheld message", "messgage", logutils.TypeAttr(msg))
+		log.DebugContext(ctx, "Sending withheld message", "message", logutils.TypeAttr(msg))
 		if err := tdpConn.WriteMessage(msg); err != nil {
 			return sendTDPError(err)
 		}

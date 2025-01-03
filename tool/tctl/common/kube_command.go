@@ -137,10 +137,11 @@ helm repo update
   --set proxyAddr={{.auth_server}} \
   --set authToken={{.token}} \
   --create-namespace \
-  --namespace=teleport-agent
-        
+  --namespace=teleport-agent \
+  --version={{.version}}
+
 Please note:
-        
+
   - This invitation token will expire in {{.minutes}} minutes.
   - {{.auth_server}} must be reachable from Kubernetes cluster.
   - The token is usable in a standalone Linux server with kubernetes_service.

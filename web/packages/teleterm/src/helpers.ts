@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
+import {
+  ReloginRequest,
+  SendNotificationRequest,
+} from 'teleterm/services/tshdEvents';
 import {
   PtyClientEvent,
   PtyEventData,
@@ -33,10 +36,6 @@ import {
   PtyEventStartError,
   PtyServerEvent,
 } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb';
-import {
-  ReloginRequest,
-  SendNotificationRequest,
-} from 'teleterm/services/tshdEvents';
 
 export function resourceOneOfIsServer(
   resource: PaginatedResource['resource']

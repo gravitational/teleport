@@ -17,12 +17,12 @@
  */
 
 import 'whatwg-fetch';
+
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 
-import { storageService } from '../storageService';
 import { MfaChallengeResponse } from '../mfa';
-
+import { storageService } from '../storageService';
 import parseError, { ApiError } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';

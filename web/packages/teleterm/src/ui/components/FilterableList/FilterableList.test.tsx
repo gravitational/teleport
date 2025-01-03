@@ -17,6 +17,7 @@
  */
 
 import { screen, within } from '@testing-library/react';
+
 import { fireEvent, render } from 'design/utils/testing';
 
 import { FilterableList } from './FilterableList';

@@ -16,29 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Danger } from 'design/Alert';
-import Flex from 'design/Flex';
-import { Indicator } from 'design/Indicator';
 import React, { useEffect } from 'react';
-import { useAsync } from 'shared/hooks/useAsync';
 import { useTheme } from 'styled-components';
-import { H1 } from 'design/Text';
+
+import { Danger } from 'design/Alert';
 import Box from 'design/Box';
-import { H3, P, P3 } from 'design/Text/Text';
 import { ButtonSecondary } from 'design/Button';
-import Image from 'design/Image';
-
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
-
+import Flex from 'design/Flex';
 import { ChevronLeft, ChevronRight } from 'design/Icon';
+import Image from 'design/Image';
+import { Indicator } from 'design/Indicator';
+import { StepComponentProps, StepSlider } from 'design/StepSlider';
+import { H1 } from 'design/Text';
+import { H3, P, P3 } from 'design/Text/Text';
+import { useAsync } from 'shared/hooks/useAsync';
 
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { State as ResourcesState } from 'teleport/components/useResources';
+import cfg from 'teleport/config';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-
-import cfg from 'teleport/config';
 
 import { RoleEditor } from './RoleEditor';
 import tagpromo from './tagpromo.png';

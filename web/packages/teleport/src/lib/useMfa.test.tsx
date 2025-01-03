@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import { renderHook, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 
 import { CreateAuthenticateChallengeRequest } from 'teleport/services/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
   MFA_OPTION_WEBAUTHN,
   MfaAuthenticateChallenge,

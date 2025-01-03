@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { UsageService } from 'teleterm/ui/services/usage';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import type { TshdClient } from 'teleterm/services/tshd';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeDatabaseGateway,
   makeKubeGateway,
-  makeRootCluster,
   makeLeafCluster,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { UsageService } from 'teleterm/ui/services/usage';
+import type * as uri from 'teleterm/ui/uri';
 
 import { ClustersService } from './clustersService';
-
-import type * as uri from 'teleterm/ui/uri';
-import type { TshdClient } from 'teleterm/services/tshd';
 
 jest.mock('teleterm/ui/services/notifications');
 jest.mock('teleterm/ui/services/usage');

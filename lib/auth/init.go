@@ -731,7 +731,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 	allKeyTypes := ca.AllKeyTypes()
 	numKeyTypes := len(allKeyTypes)
 	if numKeyTypes > 1 {
-		const msg = "CA contains a combination of key typess. If you are attempting to" +
+		const msg = "CA contains a combination of key types. If you are attempting to" +
 			" configure HSM or KMS key storage, make sure it is configured on all auth servers in" +
 			" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/"
 		asrv.logger.WarnContext(ctx, msg,
@@ -882,7 +882,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 		}
 
 		if storedNetConfig == nil {
-			asrv.logger.InfoContext(ctx, "Creating cluster networking configuration", "networking_confg", newNetConfig)
+			asrv.logger.InfoContext(ctx, "Creating cluster networking configuration", "networking_config", newNetConfig)
 			_, err = asrv.CreateClusterNetworkingConfig(ctx, newNetConfig)
 			if trace.IsAlreadyExists(err) {
 				continue
