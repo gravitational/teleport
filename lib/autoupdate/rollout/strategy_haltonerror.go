@@ -35,6 +35,7 @@ const (
 	updateReasonPreviousGroupsNotDone = "previous_groups_not_done"
 	updateReasonUpdateComplete        = "update_complete"
 	updateReasonUpdateInProgress      = "update_in_progress"
+	haltOnErrorWindowDuration         = time.Hour
 )
 
 type haltOnErrorStrategy struct {
@@ -54,7 +55,7 @@ func newHaltOnErrorStrategy(log *slog.Logger) (rolloutStrategy, error) {
 	}, nil
 }
 
-func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
+func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, _ *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	// We process every group in order, all the previous groups must be in the DONE state
 	// for the next group to become active. Even if some early groups are not DONE,
 	// later groups might be ACTIVE and need to transition to DONE, so we cannot
@@ -81,7 +82,7 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, status *autou
 			}
 
 			// Check if the rollout got created after the theoretical group start time
-			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime())
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime(), haltOnErrorWindowDuration)
 			if err != nil {
 				setGroupState(group, group.State, updateReasonReconcilerError, now)
 				return err
@@ -149,14 +150,14 @@ func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRollout
 		}
 	}
 
-	return inWindow(group, now)
+	return inWindow(group, now, haltOnErrorWindowDuration)
 }
 
 func isDoneHaltOnError(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, string) {
 	// Currently we don't implement status reporting from groups/agents.
 	// So we just wait 60 minutes and consider the maintenance done.
 	// This will change as we introduce agent status report and aggregated agent counts.
-	if group.StartTime.AsTime().Add(time.Hour).Before(now) {
+	if group.StartTime.AsTime().Add(haltOnErrorWindowDuration).Before(now) {
 		return true, updateReasonUpdateComplete
 	}
 	return false, updateReasonUpdateInProgress
