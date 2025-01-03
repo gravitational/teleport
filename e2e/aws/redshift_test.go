@@ -27,7 +27,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
-	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -96,7 +95,7 @@ func testRedshiftCluster(t *testing.T) {
 	// eachother.
 	labels := db.GetStaticLabels()
 	labels[types.DatabaseAdminLabel] = "test_admin_" + randASCII(t, 6)
-	cluster.Process.GetAuthServer().UpdateDatabase(ctx, db)
+	err = cluster.Process.GetAuthServer().UpdateDatabase(ctx, db)
 	require.NoError(t, err)
 	adminUser := mustGetDBAdmin(t, db)
 
@@ -213,7 +212,7 @@ func testRedshiftCluster(t *testing.T) {
 	}
 }
 
-func connectAsRedshiftClusterAdmin(t *testing.T, ctx context.Context, clusterID string) *pgx.Conn {
+func connectAsRedshiftClusterAdmin(t *testing.T, ctx context.Context, clusterID string) *pgConn {
 	t.Helper()
 	info := getRedshiftAdminInfo(t, ctx, clusterID)
 	const dbName = "dev"
@@ -247,7 +246,7 @@ func getRedshiftAdminInfo(t *testing.T, ctx context.Context, clusterID string) d
 
 // provisionRedshiftAutoUsersAdmin provisions an admin user suitable for auto-user
 // provisioning.
-func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pgx.Conn, adminUser string) {
+func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pgConn, adminUser string) {
 	t.Helper()
 	// Don't cleanup the db admin after, because test runs would interfere
 	// with each other.
@@ -261,7 +260,7 @@ func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pg
 	}
 }
 
-func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
+func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the
@@ -300,7 +299,7 @@ func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
 }
 
-func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
+func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the
