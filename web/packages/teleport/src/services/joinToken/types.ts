@@ -138,4 +138,13 @@ export type JoinTokenRequest = {
   method?: JoinMethod;
   // content is the yaml content of the joinToken to be created
   content?: string;
+  /**
+   * User provided labels.
+   * SuggestedLabels is a set of labels that resources should set when using this token to enroll
+   * themselves in the cluster.
+   * Currently, only node-join scripts create a configuration according to the suggestion.
+   *
+   * Only supported with V2 endpoint.
+   */
+  suggestedLabels?: ResourceLabel[];
 };

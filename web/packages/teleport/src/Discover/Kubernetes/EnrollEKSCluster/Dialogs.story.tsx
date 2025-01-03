@@ -221,7 +221,7 @@ ManualHelmDialogStory.storyName = 'ManualHelmDialog';
 ManualHelmDialogStory.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () => {
+      http.post(cfg.api.discoveryJoinToken.createV2, () => {
         return HttpResponse.json({
           id: 'token-id',
           suggestedLabels: [

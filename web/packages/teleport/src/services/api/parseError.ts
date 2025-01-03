@@ -16,6 +16,42 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * The version of the proxy where the error occurred.
+ *
+ * Currently, the proxy version field is only returned
+ * with api routes "not found" error.
+ *
+ * Used to determine outdated proxies.
+ *
+ * This response was introduced in v17.2.0.
+ */
+interface ProxyVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  /**
+   * defined if version is not for production eg:
+   * the prerelease value for version 17.0.0-dev, is "dev"
+   */
+  preRelease: string;
+  /**
+   * full version in string eg: "17.0.0-dev"
+   */
+  string: string;
+}
+
+interface ApiErrorConstructor {
+  /**
+   * message is the main error, usually the "cause" of the error.
+   */
+  message: string;
+  response: Response;
+  proxyVersion?: ProxyVersion;
+  opts?: ErrorOptions;
+  messages?: string[];
+}
+
 export default function parseError(json) {
   let msg = '';
 
@@ -27,6 +63,10 @@ export default function parseError(json) {
     msg = json.responseText;
   }
   return msg;
+}
+
+export function parseProxyVersion(json): ProxyVersion | undefined {
+  return json?.fields?.proxyVersion;
 }
 
 export class ApiError extends Error {
@@ -41,17 +81,23 @@ export class ApiError extends Error {
    */
   messages: string[];
 
-  constructor(
-    message: string,
-    response: Response,
-    opts?: ErrorOptions,
-    messages?: string[]
-  ) {
-    // message is the main error, usually the "cause" of the error.
+  /**
+   * Only defined with api routes "not found" error.
+   */
+  proxyVersion?: ProxyVersion;
+
+  constructor({
+    message,
+    response,
+    proxyVersion,
+    opts,
+    messages,
+  }: ApiErrorConstructor) {
     message = message || 'Unknown error';
     super(message, opts);
     this.response = response;
     this.name = 'ApiError';
     this.messages = messages || [];
+    this.proxyVersion = proxyVersion;
   }
 }

@@ -23,6 +23,7 @@ import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
 import makeNode from '../nodes/makeNode';
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
@@ -319,11 +320,26 @@ export const integrationService = {
   ): Promise<EnrollEksClustersResponse> {
     const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
-    return api.post(
-      cfg.getEnrollEksClusterUrl(integrationName),
-      req,
-      null,
-      mfaResponse
+    // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+    if (!req.extraLabels?.length) {
+      return api.post(
+        cfg.getEnrollEksClusterUrl(integrationName),
+        req,
+        null,
+        mfaResponse
+      );
+    }
+
+    return (
+      api
+        .post(
+          cfg.getEnrollEksClusterUrlV2(integrationName),
+          req,
+          null,
+          mfaResponse
+        )
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
     );
   },
 

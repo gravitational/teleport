@@ -105,14 +105,14 @@ export function createViteConfig(
       config.server.proxy = {
         // The format of the regex needs to assume that the slashes are escaped, for example:
         // \/v1\/webapi\/sites\/:site\/connect
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/connect`]: {
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/connect`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
         // /webapi/sites/:site/desktops/:desktopName/connect
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
           {
             target: `wss://${target}`,
             changeOrigin: false,
@@ -120,31 +120,31 @@ export function createViteConfig(
             ws: true,
           },
         // /webapi/sites/:site/kube/exec
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
         // /webapi/sites/:site/desktopplayback/:sid
-        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
+        '^\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
-        '^\\/v1\\/webapi\\/assistant\\/(.*?)': {
+        '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
           changeOrigin: false,
           secure: false,
         },
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
-        '^\\/v1\\/webapi\\/command\\/(.*?)/execute': {
+        '^\\/v[0-9]+\\/webapi\\/command\\/(.*?)/execute': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
@@ -155,7 +155,7 @@ export function createViteConfig(
           changeOrigin: true,
           secure: false,
         },
-        '/v1': {
+        '^\\/v[0-9]+': {
           target: `https://${target}`,
           changeOrigin: true,
           secure: false,

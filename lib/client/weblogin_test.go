@@ -74,7 +74,7 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 		// Start an http server (not https) so that the request only succeeds
 		// if the fallback occurs.
 		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-			if r.RequestURI != "/v1/webapi/host/credentials" {
+			if r.RequestURI != "/webapi/host/credentials" {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}

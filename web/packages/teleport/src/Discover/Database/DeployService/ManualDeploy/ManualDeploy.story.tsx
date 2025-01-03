@@ -53,7 +53,9 @@ export const Init = () => {
 Init.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
+        HttpResponse.json(rawJoinToken)
+      ),
     ],
   },
 };
@@ -74,7 +76,11 @@ export const InitWithLabels = () => {
 };
 InitWithLabels.parameters = {
   msw: {
-    handlers: [http.post(cfg.api.joinTokenPath, () => HttpResponse.json({}))],
+    handlers: [
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
+        HttpResponse.json({})
+      ),
+    ],
   },
 };
 

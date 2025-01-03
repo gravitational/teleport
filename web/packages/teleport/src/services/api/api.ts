@@ -23,7 +23,7 @@ import websession from 'teleport/services/websession';
 
 import { MfaChallengeResponse } from '../mfa';
 import { storageService } from '../storageService';
-import parseError, { ApiError } from './parseError';
+import parseError, { ApiError, parseProxyVersion } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
@@ -148,10 +148,11 @@ const api = {
     try {
       json = await response.json();
     } catch (err) {
+      // error reading JSON
       const message = response.ok
         ? err.message
         : `${response.status} - ${response.url}`;
-      throw new ApiError(message, response, { cause: err });
+      throw new ApiError({ message, response, opts: { cause: err } });
     }
 
     if (response.ok) {
@@ -176,7 +177,12 @@ const api = {
     );
     const shouldRetry = isAdminActionMfaError && !mfaResponse;
     if (!shouldRetry) {
-      throw new ApiError(parseError(json), response, undefined, json.messages);
+      throw new ApiError({
+        message: parseError(json),
+        response,
+        proxyVersion: parseProxyVersion(json),
+        messages: json.messages,
+      });
     }
 
     let mfaResponseForRetry;

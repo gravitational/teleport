@@ -18,6 +18,7 @@
 
 import { Label } from 'teleport/types';
 
+import { ResourceLabel } from '../agents';
 import { Node } from '../nodes';
 
 /**
@@ -539,6 +540,11 @@ export type EnrollEksClustersRequest = {
   region: string;
   enableAppDiscovery: boolean;
   clusterNames: string[];
+  /**
+   * User provided labels.
+   * Only supported with V2 endpoint
+   */
+  extraLabels?: ResourceLabel[];
 };
 
 export type EnrollEksClustersResponse = {
