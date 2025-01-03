@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -347,4 +349,36 @@ func (r *resource153ToUnifiedResourceAdapter) CloneResource() ResourceWithLabels
 	// is the only externally-visible constructor function.
 	clone := r.inner.(ClonableResource153).CloneResource()
 	return Resource153ToUnifiedResource(clone)
+}
+
+type resource153ToLegacyAdapterV2 struct {
+	resource153ToLegacyAdapter
+}
+
+// MarshalJSON adds support for marshaling the wrapped resource (instead of
+// marshaling the adapter itself).
+// If the resource153 is implemented by a protobuf type, we use
+// protojson.Marshal instead.
+func (r *resource153ToLegacyAdapterV2) MarshalJSON() ([]byte, error) {
+	if protoResource153, ok := r.inner.(proto.Message); ok {
+		return protojson.MarshalOptions{
+			UseProtoNames: true,
+		}.Marshal(protoResource153)
+	}
+	return r.resource153ToLegacyAdapter.MarshalJSON()
+}
+
+// Resource153ToLegacyV2 transforms an RFD 153 style resource into a legacy
+// [Resource] type. Implements [ResourceWithLabels] and CloneResource (where the)
+// wrapped resource supports cloning).
+//
+// If the Resource153 is implemented by a protobuf struct, the resource is
+// marshaled using protojson.
+//
+// Note that CheckAndSetDefaults is a noop for the returned resource and
+// SetSubKind is not implemented and panics on use.
+func Resource153ToLegacyV2(r Resource153) Resource {
+	return &resource153ToLegacyAdapterV2{
+		resource153ToLegacyAdapter{r},
+	}
 }
