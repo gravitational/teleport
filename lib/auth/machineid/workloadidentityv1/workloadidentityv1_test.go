@@ -147,8 +147,10 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	}
 }
 
-// TODO(strideynet): In a later PR, this test will be moved to `tbot` itself
-// to assert the functionality over the full stack.
+// TestIssueWorkloadIdentityE2E performs a more E2E test than the RPC specific
+// tests in this package. The idea is to validate that the various Auth Server
+// APIs necessary for a bot to join and then issue a workload identity are
+// functioning correctly.
 func TestIssueWorkloadIdentityE2E(t *testing.T) {
 	experimentStatus := experiment.Enabled()
 	defer experiment.SetEnabled(experimentStatus)
