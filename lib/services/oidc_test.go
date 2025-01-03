@@ -21,42 +21,12 @@ package services
 import (
 	"testing"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
-
-// TestOIDCRoleMapping verifies basic mapping from OIDC claims to roles.
-func TestOIDCRoleMapping(t *testing.T) {
-	// create a connector
-	oidcConnector, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:     "https://www.exmaple.com",
-		ClientID:      "example-client-id",
-		ClientSecret:  "example-client-secret",
-		Display:       "sign in with example.com",
-		Scope:         []string{"foo", "bar"},
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"user"}}},
-		RedirectURLs:  []string{"https://localhost:3080/v1/webapi/oidc/callback"},
-	})
-	require.NoError(t, err)
-
-	// create some claims
-	var claims = make(jose.Claims)
-	claims.Add("roles", "teleport-user")
-	claims.Add("email", "foo@example.com")
-	claims.Add("nickname", "foo")
-	claims.Add("full_name", "foo bar")
-
-	traits := OIDCClaimsToTraits(claims)
-	require.Len(t, traits, 4)
-
-	_, roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
-	require.Len(t, roles, 1)
-	require.Equal(t, "user", roles[0])
-}
 
 // TestOIDCUnmarshal tests UnmarshalOIDCConnector
 func TestOIDCUnmarshal(t *testing.T) {

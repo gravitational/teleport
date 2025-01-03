@@ -29,7 +29,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -64,7 +63,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log:    utils.NewLoggerForTests(),
+		logger: utils.NewSlogLoggerForTests(),
 		Config: Config{Clock: clockwork.NewRealClock()},
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
@@ -204,8 +203,8 @@ func TestOnlyAuthDial(t *testing.T) {
 	badListenerAddr := acceptAndCloseListener(t, true)
 
 	srv := &server{
-		log: logrus.StandardLogger(),
-		ctx: ctx,
+		logger: utils.NewSlogLoggerForTests(),
+		ctx:    ctx,
 		Config: Config{
 			LocalAuthAddresses: []string{goodListenerAddr},
 		},

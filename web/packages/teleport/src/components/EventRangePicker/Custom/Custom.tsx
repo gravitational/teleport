@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, forwardRef } from 'react';
-import { isAfter, endOfDay, startOfDay, isSameDay } from 'date-fns';
-import { DayPicker, addToRange, DateRange } from 'react-day-picker';
+import { endOfDay, isAfter, isSameDay, startOfDay } from 'date-fns';
+import { forwardRef, useState } from 'react';
+import { addToRange, DateRange, DayPicker } from 'react-day-picker';
+
 import 'react-day-picker/dist/style.css';
 
 import { StyledDateRange } from 'teleport/components/DayPicker/Shared';

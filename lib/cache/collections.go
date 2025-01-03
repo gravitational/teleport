@@ -41,6 +41,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -176,6 +177,9 @@ type cacheCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
+	gitServers                         collectionReader[services.GitServerGetter]
+	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -704,6 +708,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.spiffeFederations
+		case types.KindWorkloadIdentity:
+			if c.Config.WorkloadIdentity == nil {
+				return nil, trace.BadParameter("missing parameter WorkloadIdentity")
+			}
+			collections.workloadIdentity = &genericCollection[*workloadidentityv1pb.WorkloadIdentity, WorkloadIdentityReader, workloadIdentityExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.workloadIdentity
 		case types.KindAutoUpdateConfig:
 			if c.AutoUpdateService == nil {
 				return nil, trace.BadParameter("missing parameter AutoUpdateService")
@@ -784,6 +797,33 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.byKind[resourceKind] = collections.identityCenterAccountAssignments
 
+		case types.KindPluginStaticCredentials:
+			if c.PluginStaticCredentials == nil {
+				return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
+			}
+			collections.pluginStaticCredentials = &genericCollection[
+				types.PluginStaticCredentials,
+				pluginStaticCredentialsGetter,
+				pluginStaticCredentialsExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.pluginStaticCredentials
+
+		case types.KindGitServer:
+			if c.GitServers == nil {
+				return nil, trace.BadParameter("missing parameter GitServers")
+			}
+			collections.gitServers = &genericCollection[
+				types.Server,
+				services.GitServerGetter,
+				gitServerExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.gitServers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -903,7 +943,7 @@ func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource 
 	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
+			cache.Logger.WarnContext(ctx, "Failed to delete remote cluster", "cluster", resource.GetName(), "error", err)
 			return trace.Wrap(err)
 		}
 	}
@@ -2328,7 +2368,7 @@ func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, 
 	var desktops []types.DynamicWindowsDesktop
 	next := ""
 	for {
-		d, token, err := cache.dynamicWindowsDesktopsCache.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+		d, token, err := cache.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
 		if err != nil {
 			return nil, err
 		}
@@ -3175,7 +3215,7 @@ func (accessListExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 }
 
 func (accessListExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
-	_, err := cache.accessListCache.UpsertAccessList(ctx, resource)
+	_, err := cache.accessListCache.UnconditionalUpsertAccessList(ctx, resource)
 	return trace.Wrap(err)
 }
 
@@ -3184,7 +3224,7 @@ func (accessListExecutor) deleteAll(ctx context.Context, cache *Cache) error {
 }
 
 func (accessListExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessListCache.DeleteAccessList(ctx, resource.GetName())
+	return cache.accessListCache.UnconditionalDeleteAccessList(ctx, resource.GetName())
 }
 
 func (accessListExecutor) isSingleton() bool { return false }
@@ -3225,7 +3265,7 @@ func (accessListMemberExecutor) getAll(ctx context.Context, cache *Cache, loadSe
 }
 
 func (accessListMemberExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
-	_, err := cache.accessListCache.UpsertAccessListMember(ctx, resource)
+	_, err := cache.accessListCache.UnconditionalUpsertAccessListMember(ctx, resource)
 	return trace.Wrap(err)
 }
 
@@ -3234,7 +3274,7 @@ func (accessListMemberExecutor) deleteAll(ctx context.Context, cache *Cache) err
 }
 
 func (accessListMemberExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessListCache.DeleteAccessListMember(ctx,
+	return cache.accessListCache.UnconditionalDeleteAccessListMember(ctx,
 		resource.GetMetadata().Description, // Cache passes access  ID via description field.
 		resource.GetName())
 }
@@ -3249,7 +3289,7 @@ func (accessListMemberExecutor) getReader(cache *Cache, cacheOK bool) accessList
 }
 
 type accessListMembersGetter interface {
-	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)

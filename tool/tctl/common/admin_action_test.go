@@ -56,7 +56,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )
@@ -1029,7 +1031,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
 		promptCfg.WebauthnSupported = true
-		return libmfa.NewCLIPromptV2(&libmfa.CLIPromptConfig{
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
 			PromptConfig: *promptCfg,
 		})
 	}
@@ -1076,7 +1078,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
 	require.NoError(t, err)
 	localAdmin, err := storage.ReadLocalIdentity(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
@@ -1155,13 +1157,15 @@ func runTestCase(t *testing.T, ctx context.Context, client *authclient.Client, t
 
 	app := utils.InitCLIParser("tctl", tctl.GlobalHelpString)
 	cfg := servicecfg.MakeDefaultConfig()
-	tc.cliCommand.Initialize(app, cfg)
+	tc.cliCommand.Initialize(app, &tctlcfg.GlobalCLIFlags{}, cfg)
 
 	args := strings.Split(tc.command, " ")
 	commandName, err := app.Parse(args)
 	require.NoError(t, err)
 
-	match, err := tc.cliCommand.TryRun(ctx, commandName, client)
+	match, err := tc.cliCommand.TryRun(ctx, commandName, func(context.Context) (*authclient.Client, func(context.Context), error) {
+		return client, func(context.Context) {}, nil
+	})
 	require.True(t, match)
 	return err
 }

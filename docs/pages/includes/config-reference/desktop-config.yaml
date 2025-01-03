@@ -109,7 +109,15 @@ windows_desktop_service:
     # The key of the label will be "ldap/" + the value of the attribute.
     label_attributes:
     - location
-  # Rules for applying labels to Windows hosts based on regular expressions
+
+  # (optional) configure a set of label selectors for dynamic registration.
+  # If specified, this service will monitor the cluster for dynamic_windows_desktop
+  # and automatically proxy connections for desktops with matching labels.
+  resources:
+  - labels:
+      "env": "dev"
+
+  # (optional) rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
   host_labels:

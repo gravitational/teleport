@@ -11,6 +11,34 @@ letting you implement security best practices without compromising productivity.
 
 ![The email Access Request plugin](../../../../img/enterprise/plugins/email.png)
 
+<Details title="This integration is hosted on Teleport Enterprise (Cloud)" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Email integration"!)
+
+![Enroll email plugin](../../../../img/enterprise/plugins/email/enroll-email.png)
+
+Configure and connect email integration by providing the following configuration
+values:
+
+**`Sender`**: Configures the sender address.
+
+**`Fallback Recipient`**: Configures the default recipient for Access Request
+notifications.
+
+**`Email Service`**: Selects the desired email service. Note: only `Mailgun` is
+supported for Teleport Enterprise (Cloud).
+
+![Configure Mailgun integration](../../../../img/enterprise/plugins/email/configure-mailgun.png)
+
+Complete Mailgun integration by providing the following Mailgun API
+configuration values:
+
+**`Domain`**: Configures the Mailgun sending domain.
+
+**`Mailgun Private Key`**: Configures the Mailgun API key.
+
+</Details>
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -318,7 +346,7 @@ refresh_identity = true
 
 [mailgun]
 domain = "sandbox123abc.mailgun.org" 
-private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"                                     
+private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"
 
 # As an alternative, you can use SMTP server credentials:
 #
@@ -328,6 +356,7 @@ private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"
 # username = "username@gmail.com"
 # password = ""
 # password_file = "/var/lib/teleport/plugins/email/smtp_password"
+# starttls_policy = "mandatory"
 
 [delivery]
 sender = "noreply@example.com" 
@@ -353,7 +382,8 @@ teleport:
 
 mailgun:
   domain: "sandbox123abc.mailgun.org" 
-  privateKeyFromSecret: "mailgun-private-key"                                     
+  privateKeyFromSecret: "mailgun-private-key"
+
 # As an alternative, you can use SMTP server credentials:
 #
 # smtp:
@@ -361,6 +391,7 @@ mailgun:
 #   port: 587
 #   username: "username@gmail.com"
 #   passwordFromSecret: "smtp-password"
+#   starttls_policy = "mandatory"
 
 delivery:
   sender: "noreply@example.com" 

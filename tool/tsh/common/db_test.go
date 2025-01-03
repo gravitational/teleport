@@ -231,7 +231,7 @@ func testDatabaseLogin(t *testing.T) {
 	s.user = alice
 
 	// Log into Teleport cluster.
-	tmpHomePath, _ := mustLogin(t, s)
+	tmpHomePath, _ := mustLoginLegacy(t, s)
 
 	testCases := []struct {
 		// the test name
@@ -577,11 +577,13 @@ func TestLocalProxyRequirement(t *testing.T) {
 	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	tests := map[string]struct {
-		clusterAuthPref types.AuthPreference
-		route           *tlsca.RouteToDatabase
-		setupTC         func(*client.TeleportClient)
-		wantLocalProxy  bool
-		wantTunnel      bool
+		clusterAuthPref  types.AuthPreference
+		route            *tlsca.RouteToDatabase
+		setupTC          func(*client.TeleportClient)
+		tunnelFlag       bool
+		wantLocalProxy   bool
+		wantTunnel       bool
+		wantTunnelReason string
 	}{
 		"tunnel not required": {
 			clusterAuthPref: defaultAuthPref,
@@ -599,8 +601,9 @@ func TestLocalProxyRequirement(t *testing.T) {
 					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
-			wantLocalProxy: true,
-			wantTunnel:     true,
+			wantLocalProxy:   true,
+			wantTunnel:       true,
+			wantTunnelReason: "MFA is required",
 		},
 		"local proxy not required for separate port": {
 			clusterAuthPref: defaultAuthPref,
@@ -620,6 +623,25 @@ func TestLocalProxyRequirement(t *testing.T) {
 			},
 			wantLocalProxy: true,
 			wantTunnel:     false,
+		},
+		"tunnel required by tunnel flag": {
+			clusterAuthPref:  defaultAuthPref,
+			tunnelFlag:       true,
+			wantLocalProxy:   true,
+			wantTunnel:       true,
+			wantTunnelReason: dbConnectRequireReasonTunnelFlag,
+		},
+		"tunnel required for separate port by tunnel flag": {
+			clusterAuthPref: defaultAuthPref,
+			setupTC: func(tc *client.TeleportClient) {
+				tc.TLSRoutingEnabled = false
+				tc.TLSRoutingConnUpgradeRequired = false
+				tc.PostgresProxyAddr = "separate.postgres.hostport:8888"
+			},
+			tunnelFlag:       true,
+			wantLocalProxy:   true,
+			wantTunnel:       true,
+			wantTunnelReason: dbConnectRequireReasonTunnelFlag,
 		},
 	}
 	for name, tt := range tests {
@@ -647,12 +669,12 @@ func TestLocalProxyRequirement(t *testing.T) {
 				Username:    "alice",
 				Database:    "postgres",
 			}
-			requires := getDBConnectLocalProxyRequirement(ctx, tc, route)
+			requires := getDBConnectLocalProxyRequirement(ctx, tc, route, tt.tunnelFlag)
 			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
 			require.Equal(t, tt.wantTunnel, requires.tunnel)
 			if requires.tunnel {
 				require.Len(t, requires.tunnelReasons, 1)
-				require.Contains(t, requires.tunnelReasons[0], "MFA is required")
+				require.Contains(t, requires.tunnelReasons[0], tt.wantTunnelReason)
 			}
 		})
 	}
@@ -695,7 +717,7 @@ func testListDatabase(t *testing.T) {
 		}),
 	)
 
-	tshHome, _ := mustLogin(t, s)
+	tshHome, _ := mustLoginLegacy(t, s)
 
 	captureStdout := new(bytes.Buffer)
 	err := Run(context.Background(), []string{
@@ -1567,7 +1589,7 @@ func testDatabaseSelection(t *testing.T) {
 	s.user = alice
 
 	// Log into Teleport cluster.
-	tmpHomePath, _ := mustLogin(t, s)
+	tmpHomePath, _ := mustLoginLegacy(t, s)
 
 	t.Run("GetDatabasesForLogout", func(t *testing.T) {
 		t.Parallel()

@@ -18,16 +18,15 @@
 
 import { useState } from 'react';
 
+import { ButtonPrimary, Flex, P2 } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
-import { ButtonPrimary, Flex, P2 } from 'design';
+import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-
-import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import { CommonHeader } from './CommonHeader';
 
@@ -35,12 +34,14 @@ export function AskPin(props: {
   req: PromptHardwareKeyPINRequest;
   onCancel(): void;
   onSuccess(pin: string): void;
+  hidden?: boolean;
 }) {
   const [pin, setPin] = useState('');
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',

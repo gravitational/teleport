@@ -262,6 +262,31 @@ func TestNodeCRUD(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("UpdateNode", func(t *testing.T) {
+		node1, err = presence.GetNode(ctx, apidefaults.Namespace, node1.GetName())
+		require.NoError(t, err)
+		node1.SetAddr("1.2.3.4:8080")
+
+		node2, err = presence.GetNode(ctx, apidefaults.Namespace, node2.GetName())
+		require.NoError(t, err)
+
+		node1, err = presence.UpdateNode(ctx, node1)
+		require.NoError(t, err)
+		require.Equal(t, "1.2.3.4:8080", node1.GetAddr())
+
+		rev := node2.GetRevision()
+		node2.SetAddr("1.2.3.4:9090")
+		node2.SetRevision(node1.GetRevision())
+
+		_, err = presence.UpdateNode(ctx, node2)
+		require.True(t, trace.IsCompareFailed(err))
+		node2.SetRevision(rev)
+
+		node2, err = presence.UpdateNode(ctx, node2)
+		require.NoError(t, err)
+		require.Equal(t, "1.2.3.4:9090", node2.GetAddr())
+	})
+
 	// Run NodeGetters in nested subtests to allow parallelization.
 	t.Run("NodeGetters", func(t *testing.T) {
 		t.Run("GetNodes", func(t *testing.T) {

@@ -16,9 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { WebauthnAssertionResponse } from '../auth';
-import { DeviceUsage } from '../auth/types';
-import { CreateNewHardwareDeviceRequest } from '../auth/types';
+import { AuthProviderType } from 'shared/services';
+
+import { Base64urlString, CreateNewHardwareDeviceRequest } from '../auth/types';
+
+export type DeviceType = 'totp' | 'webauthn' | 'sso';
+
+/** The intended usage of the device (as an MFA method or a passkey). */
+export type DeviceUsage = 'passwordless' | 'mfa';
 
 export interface MfaDevice {
   id: string;
@@ -45,9 +50,81 @@ export type SaveNewHardwareDeviceRequest = {
   credential: Credential;
 };
 
-export type DeviceType = 'totp' | 'webauthn' | 'sso';
+export type MfaAuthenticateChallengeJson = {
+  sso_challenge?: SsoChallenge;
+  totp_challenge?: boolean;
+  webauthn_challenge?: {
+    publicKey: PublicKeyCredentialRequestOptionsJSON;
+  };
+};
 
-// MfaAuthnResponse is a response to a MFA device challenge.
-export type MfaAuthnResponse =
-  | { totp_code: string }
-  | { webauthn_response: WebauthnAssertionResponse };
+export type MfaAuthenticateChallenge = {
+  ssoChallenge?: SsoChallenge;
+  totpChallenge?: boolean;
+  webauthnPublicKey?: PublicKeyCredentialRequestOptions;
+};
+
+export type SsoChallenge = {
+  channelId: string;
+  redirectUrl: string;
+  requestId: string;
+  device: {
+    connectorId: string;
+    connectorType: AuthProviderType;
+    displayName: string;
+  };
+};
+
+export type MfaRegistrationChallengeJson = {
+  totp?: {
+    qrCode: Base64urlString;
+  };
+  webauthn?: {
+    publicKey: PublicKeyCredentialCreationOptionsJSON;
+  };
+};
+
+export type MfaRegistrationChallenge = {
+  qrCode: Base64urlString;
+  webauthnPublicKey: PublicKeyCredentialCreationOptions;
+};
+
+export type MfaChallengeResponse = {
+  totp_code?: string;
+  webauthn_response?: WebauthnAssertionResponse;
+  sso_response?: SsoChallengeResponse;
+};
+
+export type SsoChallengeResponse = {
+  requestId: string;
+  token: string;
+};
+
+export type WebauthnAssertionResponse = {
+  id: string;
+  type: string;
+  extensions: {
+    appid: boolean;
+  };
+  rawId: string;
+  response: {
+    authenticatorData: string;
+    clientDataJSON: string;
+    signature: string;
+    userHandle: string;
+  };
+};
+
+export type WebauthnAttestationResponse = {
+  id: string;
+  type: string;
+  extensions: {
+    appid: boolean;
+    credProps: CredentialPropertiesOutput;
+  };
+  rawId: string;
+  response: {
+    attestationObject: string;
+    clientDataJSON: string;
+  };
+};

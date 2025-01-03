@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
+import {
   createContext,
   PropsWithChildren,
   useCallback,
@@ -26,21 +26,15 @@ import React, {
   useState,
 } from 'react';
 
+import { Indicator } from 'design';
+import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { Indicator } from 'design';
-
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-
-import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
-
-import { StyledIndicator } from 'teleport/Main';
-
-import * as service from 'teleport/services/userPreferences';
 import cfg from 'teleport/config';
-
+import { StyledIndicator } from 'teleport/Main';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
-
+import * as service from 'teleport/services/userPreferences';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 export interface UserContextValue {
@@ -109,7 +103,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
       setPreferences(preferences);
       storageService.setUserPreferences(preferences);
-    } catch (err) {
+    } catch {
       if (storedPreferences) {
         setPreferences(storedPreferences);
 

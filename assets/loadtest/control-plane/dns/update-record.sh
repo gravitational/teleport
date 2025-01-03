@@ -4,6 +4,10 @@ set -euo pipefail
 
 source vars.env
 
+if [[ "$TELEPORT_BACKEND" == "firestore" ]]; then
+  exit 0
+fi
+
 action="${1}"
 
 case "$action" in

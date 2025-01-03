@@ -44,7 +44,7 @@ func onProxyCommand(
 		return trace.Wrap(err)
 	}
 
-	destination, err := tshwrap.GetDestinationDirectory(botConfig)
+	destination, err := tshwrap.GetDestinationDirectory(proxyCmd.DestinationDir, botConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}

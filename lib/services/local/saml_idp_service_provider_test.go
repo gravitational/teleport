@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -588,4 +589,38 @@ func TestCreateSAMLIdPServiceProvider_GetTeleportSPSSODescriptor(t *testing.T) {
 	})
 	index, _ := GetTeleportSPSSODescriptor(ed.SPSSODescriptors)
 	require.Equal(t, 3, index)
+}
+
+func TestDeleteSAMLServiceProviderWhenReferencedByPlugin(t *testing.T) {
+	ctx := context.Background()
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	samlService, err := NewSAMLIdPServiceProviderService(backend)
+	require.NoError(t, err)
+	pluginService := NewPluginsService(backend)
+
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("sp"),
+			EntityID:         "sp",
+		})
+	require.NoError(t, err)
+	require.NoError(t, samlService.CreateSAMLIdPServiceProvider(ctx, sp))
+
+	// service provider should not be deleted when referenced by the plugin.
+	require.NoError(t, pluginService.CreatePlugin(ctx, fixtures.NewIdentityCenterPlugin(t, sp.GetName(), sp.GetName())))
+	err = samlService.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
+	require.ErrorContains(t, err, "referenced by AWS Identity Center integration")
+
+	// service provider should be deleted once the referenced plugin itself is deleted.
+	// other existing plugin should not prevent SAML service provider from deletion.
+	require.NoError(t, pluginService.CreatePlugin(ctx, fixtures.NewMattermostPlugin(t)))
+	require.NoError(t, pluginService.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
+	require.NoError(t, samlService.DeleteSAMLIdPServiceProvider(ctx, sp.GetName()))
 }

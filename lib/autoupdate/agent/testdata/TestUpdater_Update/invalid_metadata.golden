@@ -1,0 +1,9 @@
+version: ""
+kind: ""
+spec:
+    proxy: localhost
+    enabled: false
+    pinned: false
+status:
+    active:
+        version: ""

@@ -275,7 +275,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.IsSuccessful = NonNilErrorIsSuccess
 	}
 
-	c.TrippedPeriod = retryutils.NewSeventhJitter()(c.TrippedPeriod)
+	c.TrippedPeriod = retryutils.SeventhJitter(c.TrippedPeriod)
 
 	return nil
 }

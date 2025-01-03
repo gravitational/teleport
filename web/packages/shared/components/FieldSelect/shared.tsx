@@ -16,22 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useId } from 'react';
 import { GroupBase, OnChangeValue, OptionsOrGroups } from 'react-select';
 
 import Box, { BoxProps } from 'design/Box';
-
-import React, { useId } from 'react';
-import LabelInput from 'design/LabelInput';
-
 import Flex from 'design/Flex';
+import LabelInput from 'design/LabelInput';
+import { IconTooltip } from 'design/Tooltip';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';
-import { useRule } from '../Validation';
 import {
   AsyncProps as AsyncSelectProps,
   Props as SelectProps,
 } from '../Select';
-import { ToolTipInfo } from '../ToolTip';
+import { useRule } from '../Validation';
 
 export const defaultRule = () => () => ({ valid: true });
 
@@ -95,7 +93,7 @@ export const FieldSelectWrapper = <Opt, IsMulti extends boolean>({
           {toolTipContent ? (
             <Flex gap={1} alignItems="center">
               {label}
-              <ToolTipInfo children={toolTipContent} />
+              <IconTooltip children={toolTipContent} />
             </Flex>
           ) : (
             label
@@ -191,6 +189,10 @@ export function splitSelectProps<
     markAsError,
     maxMenuHeight,
     menuIsOpen,
+    onMenuOpen,
+    onMenuClose,
+    closeMenuOnSelect,
+    hideSelectedOptions,
     menuPosition,
     name,
     noOptionsMessage,
@@ -198,6 +200,7 @@ export function splitSelectProps<
     onChange,
     onInputChange,
     onKeyDown,
+    openMenuOnClick,
     options,
     placeholder,
     rule,
@@ -222,8 +225,12 @@ export function splitSelectProps<
       isMulti,
       isSearchable,
       maxMenuHeight,
-      menuIsOpen,
       menuPosition,
+      menuIsOpen,
+      onMenuOpen,
+      onMenuClose,
+      closeMenuOnSelect,
+      hideSelectedOptions,
       name,
       noOptionsMessage,
       onBlur,
@@ -231,6 +238,7 @@ export function splitSelectProps<
       onInputChange,
       onKeyDown,
       options,
+      openMenuOnClick,
       placeholder,
       stylesConfig,
       value,
@@ -267,12 +275,17 @@ type KeysRemovedFromOthers =
   | 'maxMenuHeight'
   | 'menuIsOpen'
   | 'menuPosition'
+  | 'onMenuOpen'
+  | 'onMenuClose'
+  | 'closeMenuOnSelect'
+  | 'hideSelectedOptions'
   | 'name'
   | 'noOptionsMessage'
   | 'onBlur'
   | 'onChange'
   | 'onInputChange'
   | 'onKeyDown'
+  | 'openMenuOnClick'
   | 'options'
   | 'placeholder'
   | 'rule'

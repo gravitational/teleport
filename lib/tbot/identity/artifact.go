@@ -44,7 +44,7 @@ type Artifact struct {
 }
 
 // Matches returns true if this artifact's Kind matches any one of the given
-// kinds or if it's kind is KindAlways
+// kinds or if its kind is KindAlways
 func (a *Artifact) Matches(kinds ...ArtifactKind) bool {
 	if a.Kind == KindAlways {
 		return true

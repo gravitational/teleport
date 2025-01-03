@@ -87,3 +87,13 @@ func (s sortedLabels) Less(i, j int) bool {
 func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
+
+func TransformCommandLabels(commandLabels map[string]types.CommandLabel) map[string]string {
+	labels := make(map[string]string, len(commandLabels))
+
+	for name, cmd := range commandLabels {
+		labels[name] = cmd.GetResult()
+	}
+
+	return labels
+}

@@ -16,26 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex, Text } from 'design';
-import { height, space, color } from 'design/system';
+import { Box, Flex, P3, Text } from 'design';
+import { color, height, space } from 'design/system';
 
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { useUser } from 'teleport/User/UserContext';
+import { storageService } from 'teleport/services/storageService';
 
+import { RecentHistory, RecentHistoryItem } from '../RecentHistory';
+import { CustomNavigationCategory } from './categories';
 import { NavigationSection, NavigationSubsection } from './Navigation';
 import {
-  Section,
-  RightPanel,
-  verticalPadding,
+  CustomChildrenSection,
   getSubsectionStyles,
+  RightPanel,
+  RightPanelHeader,
 } from './Section';
-import { CategoryIcon } from './CategoryIcon';
-import { CustomNavigationCategory } from './categories';
-import { getResourcesSectionForSearch } from './ResourcesSection';
 
 export function SearchSection({
   navigationSections,
@@ -43,41 +41,32 @@ export function SearchSection({
   previousExpandedSection,
   handleSetExpandedSection,
   currentView,
+  stickyMode,
+  toggleStickyMode,
+  canToggleStickyMode,
 }: {
   navigationSections: NavigationSection[];
   expandedSection: NavigationSection;
   previousExpandedSection: NavigationSection;
   currentView: NavigationSubsection;
   handleSetExpandedSection: (section: NavigationSection) => void;
+  stickyMode: boolean;
+  toggleStickyMode: () => void;
+  canToggleStickyMode: boolean;
 }) {
   const section: NavigationSection = {
     category: CustomNavigationCategory.Search,
     subsections: [],
   };
-  const { clusterId } = useStickyClusterId();
-  const { preferences, updatePreferences } = useUser();
-
-  const searchParams = new URLSearchParams(location.search);
-
-  const searchableNavSections: NavigationSection[] = [
-    getResourcesSectionForSearch({
-      clusterId,
-      preferences,
-      updatePreferences,
-      searchParams,
-    }),
-    ...navigationSections,
-  ];
 
   const isExpanded =
     expandedSection?.category === CustomNavigationCategory.Search;
   return (
-    <Section
+    <CustomChildrenSection
       key="search"
       section={section}
       $active={false}
-      onClick={() => null}
-      setExpandedSection={() => handleSetExpandedSection(section)}
+      onExpandSection={() => handleSetExpandedSection(section)}
       aria-controls={`panel-${expandedSection?.category}`}
       isExpanded={isExpanded}
     >
@@ -87,12 +76,25 @@ export function SearchSection({
         id={`panel-${section.category}`}
         onFocus={() => handleSetExpandedSection(section)}
       >
-        <SearchContent
-          navigationSections={searchableNavSections}
-          currentView={currentView}
-        />
+        <Box
+          css={`
+            overflow-y: auto;
+            padding: 3px;
+          `}
+        >
+          <RightPanelHeader
+            title={section.category}
+            stickyMode={stickyMode}
+            toggleStickyMode={toggleStickyMode}
+            canToggleStickyMode={canToggleStickyMode}
+          />
+          <SearchContent
+            navigationSections={navigationSections}
+            currentView={currentView}
+          />
+        </Box>
       </RightPanel>
-    </Section>
+    </CustomChildrenSection>
   );
 }
 
@@ -120,13 +122,30 @@ function SearchContent({
     )
   );
 
+  const [recentHistory, setRecentHistory] = useState<RecentHistoryItem[]>(
+    storageService.getRecentHistory()
+  );
+
+  useEffect(() => {
+    if (currentView) {
+      const newRecentHistory = storageService.addRecentHistoryItem({
+        category: currentView?.category,
+        title: currentView?.title,
+        route: currentView?.route,
+        exact: currentView?.exact,
+      });
+
+      setRecentHistory(newRecentHistory);
+    }
+  }, [currentView]);
+
+  function handleRemoveItem(route: string) {
+    const newRecentHistory = storageService.removeRecentHistoryItem(route);
+    setRecentHistory(newRecentHistory);
+  }
+
   return (
     <Flex flexDirection="column">
-      <Flex py={verticalPadding} px={3}>
-        <Text typography="h2" color="text.slightlyMuted">
-          Search
-        </Text>
-      </Flex>
       <Flex alignItems="center" flexDirection="column">
         <SearchInput
           type="text"
@@ -150,6 +169,12 @@ function SearchContent({
             ))}
           </Flex>
         )}
+        {searchInput.length === 0 && (
+          <RecentHistory
+            recentHistoryItems={recentHistory}
+            onRemoveItem={handleRemoveItem}
+          />
+        )}
       </Flex>
     </Flex>
   );
@@ -170,20 +195,16 @@ function SearchResult({
       onClick={subsection.onClick}
     >
       <Flex width="100%" gap={2} alignItems="start">
-        <Box pt={1}>
-          <CategoryIcon
-            category={subsection.category}
-            size={20}
-            color="text.slightlyMuted"
-          />
-        </Box>
+        <Flex height="24px" alignItems="center" justifyContent="center">
+          <subsection.icon size={20} color="text.slightlyMuted" />
+        </Flex>
         <Flex flexDirection="column" alignItems="start">
           <Text typography="body2" color="text.slightlyMuted">
             {subsection.title}
           </Text>
-          <Text typography="body3" color="text.muted">
-            {subsection.category}
-          </Text>
+          {subsection.category && (
+            <P3 color="text.muted">{subsection.category}</P3>
+          )}
         </Flex>
       </Flex>
     </SearchResultWrapper>

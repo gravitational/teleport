@@ -335,7 +335,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		if err := generateDBLocalProxyCert(keyRing.TLSPrivateKey, profile); err != nil {
 			return trace.Wrap(err)
 		}
-		err = oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile)
+		err = oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -539,7 +539,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	case dbFormatCommand:
 		cmd, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster,
 			dbcmd.WithPrintFormat(),
-			dbcmd.WithLogger(log),
+			dbcmd.WithLogger(logger),
 			dbcmd.WithGetDatabaseFunc(getDatabase),
 		).GetConnectCommand(cf.Context)
 		if err != nil {
@@ -655,7 +655,6 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	host := "localhost"
 	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
-		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}
 	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
@@ -678,6 +677,11 @@ type localProxyConfig struct {
 }
 
 func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile *client.ProfileStatus) (net.Listener, error) {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if route.Protocol == defaults.ProtocolOracle {
 		localCert, err := tls.LoadX509KeyPair(
 			profile.DatabaseLocalCAPath(),
@@ -686,14 +690,15 @@ func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		l, err := tls.Listen("tcp", addr, &tls.Config{
+		config := &tls.Config{
 			Certificates: []tls.Certificate{localCert},
 			ServerName:   "localhost",
-		})
-		return l, trace.Wrap(err)
+		}
+
+		l = NewTLSMuxListener(l, config)
 	}
-	l, err := net.Listen("tcp", addr)
-	return l, trace.Wrap(err)
+
+	return l, nil
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -761,7 +766,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
-	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase)
+	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase, cf.LocalProxyTunnel)
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
 	}
@@ -779,7 +784,10 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	opts = append(opts, dbcmd.WithLogger(log))
+	opts = append(opts,
+		dbcmd.WithLogger(logger),
+		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
+	)
 
 	if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
@@ -787,6 +795,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
 	}
+	opts = maybeAddOracleOptions(cf.Context, tc, dbInfo, opts)
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
 	cmd, err := bb.GetConnectCommand(cf.Context)
@@ -1105,6 +1114,29 @@ func getDatabase(ctx context.Context, tc *client.TeleportClient, name string) (t
 		return nil, trace.NotFound("database %q not found among registered databases in cluster %v", name, tc.SiteName)
 	}
 	return databases[0], nil
+}
+
+func getDatabaseServers(ctx context.Context, tc *client.TeleportClient, name string) ([]types.DatabaseServer, error) {
+	var databases []types.DatabaseServer
+
+	err := client.RetryWithRelogin(ctx, tc, func() error {
+		matchName := makeNamePredicate(name)
+
+		var err error
+		predicate := makePredicateConjunction(matchName, tc.PredicateExpression)
+		log.Debugf("Listing databases with predicate (%v) and labels %v", predicate, tc.Labels)
+
+		databases, err = tc.ListDatabaseServersWithFilters(ctx, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			ResourceType:        types.KindDatabaseServer,
+			PredicateExpression: predicate,
+			Labels:              tc.Labels,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
+		})
+		return trace.Wrap(err)
+	})
+
+	return databases, trace.Wrap(err)
 }
 
 // getDatabaseByNameOrDiscoveredName fetches a database that unambiguously
@@ -1676,8 +1708,13 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 	return &out
 }
 
-func getDBConnectLocalProxyRequirement(ctx context.Context, tc *client.TeleportClient, route tlsca.RouteToDatabase) *dbLocalProxyRequirement {
+func getDBConnectLocalProxyRequirement(ctx context.Context, tc *client.TeleportClient, route tlsca.RouteToDatabase, tunnelFlag bool) *dbLocalProxyRequirement {
 	r := getDBLocalProxyRequirement(tc, route)
+	// Forces local proxy tunnel when --tunnel is on.
+	if !r.tunnel && tunnelFlag {
+		r.addLocalProxyWithTunnel(dbConnectRequireReasonTunnelFlag)
+	}
+	// Forces local proxy when cluster has TLS routing enabled.
 	if !r.localProxy && tc.TLSRoutingEnabled {
 		r.addLocalProxy(formatTLSRoutingReason(tc.SiteName))
 	}
@@ -1851,6 +1888,12 @@ const (
 	dbFormatJSON = "json"
 	// dbFormatYAML prints database info as YAML.
 	dbFormatYAML = "yaml"
+)
+
+const (
+	// dbConnectRequireReasonTunnelFlag is the reason used in local proxy
+	// requirement calculation when --tunnel flag is specified.
+	dbConnectRequireReasonTunnelFlag = "--tunnel flag is specified"
 )
 
 var (

@@ -58,14 +58,16 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
+	clt := &mockLocalSiteClient{}
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
 			Logger:    utils.NewSlogLoggerForTests(),
 			Clock:     clock,
-			Client:    &mockLocalSiteClient{},
+			Client:    clt,
 		},
-		ProxiesC: make(chan []types.Server, 2),
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
 	})
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
@@ -75,7 +77,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
 		localAuthClient:  &mockLocalSiteClient{},
-		log:              utils.NewLoggerForTests(),
+		logger:           utils.NewSlogLoggerForTests(),
 		offlineThreshold: time.Second,
 		proxyWatcher:     watcher,
 	}
@@ -100,7 +102,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// terminated by too many missed heartbeats
 	go func() {
-		site.handleHeartbeat(conn1, nil, reqs)
+		site.handleHeartbeat(ctx, conn1, nil, reqs)
 		cancel()
 	}()
 
@@ -249,17 +251,19 @@ func TestProxyResync(t *testing.T) {
 	proxy2, err := types.NewServer(uuid.NewString(), types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
 
+	clt := &mockLocalSiteClient{
+		proxies: []types.Server{proxy1, proxy2},
+	}
 	// set up the watcher and wait for it to be initialized
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
 			Logger:    utils.NewSlogLoggerForTests(),
 			Clock:     clock,
-			Client: &mockLocalSiteClient{
-				proxies: []types.Server{proxy1, proxy2},
-			},
+			Client:    clt,
 		},
-		ProxiesC: make(chan []types.Server, 2),
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
 	})
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
@@ -269,7 +273,7 @@ func TestProxyResync(t *testing.T) {
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
 		localAuthClient:  &mockLocalSiteClient{},
-		log:              utils.NewLoggerForTests(),
+		logger:           utils.NewSlogLoggerForTests(),
 		offlineThreshold: 24 * time.Hour,
 		proxyWatcher:     watcher,
 	}
@@ -308,7 +312,7 @@ func TestProxyResync(t *testing.T) {
 
 	// terminated by canceled context
 	go func() {
-		site.handleHeartbeat(conn1, nil, reqs)
+		site.handleHeartbeat(ctx, conn1, nil, reqs)
 	}()
 
 	expected := []types.Server{proxy1, proxy2}

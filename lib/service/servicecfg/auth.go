@@ -20,8 +20,8 @@ package servicecfg
 
 import (
 	"slices"
+	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -117,6 +117,12 @@ type AuthConfig struct {
 
 	// AccessMonitoring configures access monitoring.
 	AccessMonitoring *AccessMonitoringOptions
+
+	// AgentRolloutControllerSyncPeriod controls the period between two
+	// reconciliations of the agent rollout controller. This value is jittered.
+	// Empty value means the controller uses its default.
+	// Used in tests.
+	AgentRolloutControllerSyncPeriod time.Duration
 }
 
 // AccessMonitoringOptions configures access monitoring.
@@ -178,7 +184,14 @@ type HostedPluginsConfig struct {
 // PluginOAuthProviders holds application credentials for each
 // 3rd party API provider
 type PluginOAuthProviders struct {
-	Slack *oauth2.ClientCredentials
+	SlackCredentials *OAuthClientCredentials
+}
+
+// OAuthClientCredentials stores the client_id and client_secret
+// of an OAuth application.
+type OAuthClientCredentials struct {
+	ClientID     string
+	ClientSecret string
 }
 
 // KeystoreConfig configures the auth keystore.
@@ -188,7 +201,7 @@ type KeystoreConfig struct {
 	// GCPKMS holds configuration parameters specific to GCP KMS keystores.
 	GCPKMS GCPKMSConfig
 	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
-	AWSKMS AWSKMSConfig
+	AWSKMS *AWSKMSConfig
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -207,7 +220,7 @@ func (cfg *KeystoreConfig) CheckAndSetDefaults() error {
 		}
 		count++
 	}
-	if cfg.AWSKMS != (AWSKMSConfig{}) {
+	if cfg.AWSKMS != nil {
 		if err := cfg.AWSKMS.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating aws_kms config")
 		}
@@ -278,6 +291,16 @@ type AWSKMSConfig struct {
 	AWSAccount string
 	// AWSRegion is the AWS region where the keys will reside.
 	AWSRegion string
+	// MultiRegion contains configuration for multi-region AWS KMS.
+	MultiRegion struct {
+		// Enabled configures new keys to be multi-region.
+		Enabled bool
+	}
+	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
+	// tag is added automatically if not specified in the set of tags. Changing tags
+	// after Teleport has already created KMS keys may require manually updating
+	// the tags of existing keys.
+	Tags map[string]string
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are

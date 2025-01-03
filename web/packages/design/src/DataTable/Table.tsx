@@ -16,24 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode } from 'react';
+import React, { PropsWithChildren, ReactNode } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { StyledTable, StyledPanel } from './StyledTable';
+import { SortHeaderCell, TextCell } from './Cells';
+import InputSearch from './InputSearch';
+import { ClientSidePager, ServerSidePager } from './Pager';
+import { StyledPanel, StyledTable } from './StyledTable';
 import {
   BasicTableProps,
   PagedTableProps,
   PagerPosition,
   SearchableBasicTableProps,
   ServersideTableProps,
-  TableProps,
   SortDir,
+  TableProps,
 } from './types';
-import { SortHeaderCell, TextCell } from './Cells';
-import { ClientSidePager, ServerSidePager } from './Pager';
-import InputSearch from './InputSearch';
 import useTable from './useTable';
 
 export default function Table<T>(props: TableProps<T>) {
@@ -108,6 +108,22 @@ export default function Table<T>(props: TableProps<T>) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {
+      const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
+        <tr
+          key={rowIdx}
+          onClick={() => row?.onClick?.(item)}
+          style={row?.getStyle?.(item)}
+        >
+          {children}
+        </tr>
+      );
+
+      const customRow = row?.customRow?.(item);
+      if (customRow) {
+        rows.push(<TableRow key={rowIdx}>{customRow}</TableRow>);
+        return;
+      }
+
       const cells = columns.flatMap((column, columnIdx) => {
         if (column.isNonRender) {
           return []; // does not include this column.
@@ -125,15 +141,7 @@ export default function Table<T>(props: TableProps<T>) {
           </React.Fragment>
         );
       });
-      rows.push(
-        <tr
-          key={rowIdx}
-          onClick={() => row?.onClick?.(item)}
-          style={row?.getStyle?.(item)}
-        >
-          {cells}
-        </tr>
-      );
+      rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
     });
 
     if (rows.length) {
@@ -180,6 +188,7 @@ export default function Table<T>(props: TableProps<T>) {
       searchValue: state.searchValue,
       setSearchValue,
       fetching,
+      isSearchable,
     };
 
     if (state.pagination.CustomTable) {
@@ -271,6 +280,7 @@ function PagedTable<T>({
   fetching,
   className,
   style,
+  isSearchable,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
   const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
@@ -280,21 +290,25 @@ function PagedTable<T>({
 
   return (
     <>
-      <StyledPanel>
-        <InputSearch
-          searchValue={searchValue}
-          setSearchValue={setSearchValue}
-        />
-        {(showTopPager || showBothPager) && (
-          <ClientSidePager
-            nextPage={nextPage}
-            prevPage={prevPage}
-            data={data}
-            {...fetching}
-            {...pagination}
-          />
-        )}
-      </StyledPanel>
+      {(isSearchable || showTopPager || showBothPager) && (
+        <StyledPanel>
+          {isSearchable && (
+            <InputSearch
+              searchValue={searchValue}
+              setSearchValue={setSearchValue}
+            />
+          )}
+          {(showTopPager || showBothPager) && (
+            <ClientSidePager
+              nextPage={nextPage}
+              prevPage={prevPage}
+              data={data}
+              {...fetching}
+              {...pagination}
+            />
+          )}
+        </StyledPanel>
+      )}
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}

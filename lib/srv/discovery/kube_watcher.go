@@ -20,7 +20,6 @@ package discovery
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -50,7 +49,7 @@ func (s *Server) startKubeWatchers() error {
 			GetCurrentResources: func() map[string]types.KubeCluster {
 				kcs, err := s.AccessPoint.GetKubernetesClusters(s.ctx)
 				if err != nil {
-					s.Log.WithError(err).Warn("Unable to get Kubernetes clusters from cache.")
+					s.Log.WarnContext(s.ctx, "Unable to get Kubernetes clusters from cache", "error", err)
 					return nil
 				}
 
@@ -61,8 +60,7 @@ func (s *Server) startKubeWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(kubeResources, types.KubeCluster.GetName)
 			},
-			// TODO(tross): update to user the server logger once it is converted to use slog
-			Logger:   slog.With("kind", types.KindKubernetesCluster),
+			Logger:   s.Log.With("kind", types.KindKubernetesCluster),
 			OnCreate: s.onKubeCreate,
 			OnUpdate: s.onKubeUpdate,
 			OnDelete: s.onKubeDelete,
@@ -78,7 +76,7 @@ func (s *Server) startKubeWatchers() error {
 			s.submitFetchersEvent(kubeNonIntegrationFetchers)
 			return kubeNonIntegrationFetchers
 		},
-		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
+		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
@@ -108,7 +106,7 @@ func (s *Server) startKubeWatchers() error {
 				mu.Unlock()
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
-					s.Log.WithError(err).Warn("Unable to reconcile resources.")
+					s.Log.WarnContext(s.ctx, "Unable to reconcile resources", "error", err)
 				}
 
 			case <-s.ctx.Done():
@@ -120,7 +118,7 @@ func (s *Server) startKubeWatchers() error {
 }
 
 func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster) error {
-	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
+	s.Log.DebugContext(ctx, "Creating kube_cluster", "kube_cluster_name", kubeCluster.GetName())
 	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
 	// If the kube already exists but has an empty discovery group, update it.
 	if err != nil {
@@ -140,17 +138,17 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 		},
 	})
 	if err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
+		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
 
 func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster, _ types.KubeCluster) error {
-	s.Log.Debugf("Updating kube_cluster %s.", kubeCluster.GetName())
+	s.Log.DebugContext(ctx, "Updating kube_cluster", "kube_cluster_name", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateKubernetesCluster(ctx, kubeCluster))
 }
 
 func (s *Server) onKubeDelete(ctx context.Context, kubeCluster types.KubeCluster) error {
-	s.Log.Debugf("Deleting kube_cluster %s.", kubeCluster.GetName())
+	s.Log.DebugContext(ctx, "Deleting kube_cluster", "kube_cluster_name", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteKubernetesCluster(ctx, kubeCluster.GetName()))
 }

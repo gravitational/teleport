@@ -21,11 +21,11 @@ package teleterm
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -65,21 +65,21 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPaths []st
 		Certificates: []tls.Certificate{serverKeyPair},
 	}
 
-	config.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
+	config.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		certPool := x509.NewCertPool()
 
 		for _, clientCertPath := range clientCertPaths {
-			log := log.WithField("cert_path", clientCertPath)
+			log := slog.With("cert_path", clientCertPath)
 
 			clientCert, err := os.ReadFile(clientCertPath)
 			if err != nil {
-				log.WithError(err).Error("Failed to read the client cert file")
+				log.ErrorContext(info.Context(), "Failed to read the client cert file", "error", err)
 				// Fall back to the default config.
 				return nil, nil
 			}
 
 			if !certPool.AppendCertsFromPEM(clientCert) {
-				log.Error("Failed to add the client cert to the pool")
+				log.ErrorContext(info.Context(), "Failed to add the client cert to the pool")
 				// Fall back to the default config.
 				return nil, nil
 			}

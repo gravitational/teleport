@@ -16,24 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { createRef, cloneElement } from 'react';
-import styled, { StyleFunction } from 'styled-components';
+import React, { cloneElement, ComponentProps, createRef } from 'react';
 import { createPortal } from 'react-dom';
+import styled, { StyleFunction } from 'styled-components';
 
 export type ModalProps = {
   /**
    * If `true`, the modal is open.
    */
   open: boolean;
+  /**
+   * Prevent unmounting the component and its children from the DOM when closed.
+   * Instead, hides it with CSS.
+   */
+  keepInDOMAfterClose?: boolean;
 
   className?: string;
 
   /**
    * Styles passed to the modal, the parent of the children.
    */
-  // TODO(ravicious): The type for modalCss might need some work after we migrate the components
-  // that use <Modal> to TypeScript.
-  modalCss?: StyleFunction<any>;
+  modalCss?: StyleFunction<ComponentProps<'div'>>;
 
   /**
    * The child must be a single HTML element. Modal used to call methods such as focus and
@@ -91,7 +94,7 @@ export type ModalProps = {
 
 export default class Modal extends React.Component<ModalProps> {
   lastFocus: HTMLElement | undefined;
-  modalRef = createRef<HTMLElement>();
+  modalRef = createRef<HTMLDivElement>();
   mounted = false;
 
   componentDidMount() {
@@ -200,15 +203,23 @@ export default class Modal extends React.Component<ModalProps> {
   }
 
   render() {
-    const { BackdropProps, children, modalCss, hideBackdrop, open, className } =
-      this.props;
+    const {
+      BackdropProps,
+      children,
+      modalCss,
+      hideBackdrop,
+      open,
+      className,
+      keepInDOMAfterClose,
+    } = this.props;
 
-    if (!open) {
+    if (!open && !keepInDOMAfterClose) {
       return null;
     }
 
     return createPortal(
       <StyledModal
+        hiddenInDom={!open}
         modalCss={modalCss}
         data-testid="Modal"
         ref={this.modalRef}
@@ -259,8 +270,8 @@ const StyledBackdrop = styled.div<BackdropProps>`
 `;
 
 const StyledModal = styled.div<{
-  modalCss?: StyleFunction<any>;
-  ref: React.RefObject<HTMLElement>;
+  modalCss?: StyleFunction<ComponentProps<'div'>>;
+  hiddenInDom?: boolean;
 }>`
   position: fixed;
   z-index: 1200;
@@ -268,5 +279,6 @@ const StyledModal = styled.div<{
   bottom: 0;
   top: 0;
   left: 0;
+  ${props => props.hiddenInDom && `display: none;`};
   ${props => props.modalCss?.(props)}
 `;

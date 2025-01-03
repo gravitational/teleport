@@ -16,20 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useRef } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
-import Input from 'design/Input';
-import { useRef } from 'react';
-import styled, { useTheme } from 'styled-components';
+import { useRule } from 'shared/components/Validation';
+import {
+  precomputed,
+  Rule,
+  ValidationResult,
+} from 'shared/components/Validation/rules';
+
+import FieldInput from '../FieldInput';
+
+type StringListValidationResult = ValidationResult & {
+  /**
+   * A list of validation results, one per list item. Note: results are
+   * optional just because `useRule` by default returns only
+   * `ValidationResult`. For the actual validation, it's not optional; if it's
+   * undefined, or there are fewer results in this list than the list items,
+   * the corresponding items will be treated as valid.
+   */
+  results?: ValidationResult[];
+};
 
 export type FieldMultiInputProps = {
   label?: string;
   value: string[];
   disabled?: boolean;
   onChange?(val: string[]): void;
+  rule?: Rule<string[], StringListValidationResult>;
 };
 
 /**
@@ -45,7 +65,13 @@ export function FieldMultiInput({
   value,
   disabled,
   onChange,
+  rule = defaultRule,
 }: FieldMultiInputProps) {
+  // It's important to first validate, and then treat an empty array as a
+  // single-item list with an empty string, since this "synthetic" empty
+  // string is technically not a part of the model and should not be
+  // validated.
+  const validationResult: StringListValidationResult = useRule(rule(value));
   if (value.length === 0) {
     value = [''];
   }
@@ -90,8 +116,11 @@ export function FieldMultiInput({
           // procedure whose complexity would probably outweigh the benefits).
           <Flex key={i} alignItems="center" gap={2}>
             <Box flex="1">
-              <Input
+              <FieldInput
                 value={val}
+                rule={precomputed(
+                  validationResult.results?.[i] ?? { valid: true }
+                )}
                 ref={toFocus.current === i ? setFocus : null}
                 onChange={e =>
                   onChange?.(
@@ -99,6 +128,7 @@ export function FieldMultiInput({
                   )
                 }
                 onKeyDown={e => handleKeyDown(i, e)}
+                mb={0}
               />
             </Box>
             <ButtonIcon
@@ -122,6 +152,8 @@ export function FieldMultiInput({
     </Box>
   );
 }
+
+const defaultRule = () => () => ({ valid: true });
 
 const Fieldset = styled.fieldset`
   border: none;

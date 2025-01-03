@@ -207,7 +207,7 @@ name="example.teleport.sh:443" /> to the host **and port** of your Teleport
 Proxy Service, and <Var name="endpoint:port" /> to the host **and port** of your RDS
 database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
 
-```var
+```yaml
 authToken: <Var name="token" />
 proxyAddr: <Var name="example.teleport.sh:443" />
 roles: db
@@ -294,6 +294,8 @@ Retrieve credentials for the database and connect to it as the `alice` user:
 ```code
 $ tsh db connect --db-user=alice --db-name=postgres rds-example
 ```
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 <Admonition type="note" title="Note">
   The appropriate database command-line client (`psql`, `mysql`, `mariadb`) should be

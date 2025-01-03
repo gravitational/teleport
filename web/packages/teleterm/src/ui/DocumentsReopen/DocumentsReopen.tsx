@@ -16,29 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 import { Cross } from 'design/Icon';
+import { P } from 'design/Text/Text';
 import { pluralize } from 'shared/utils/text';
 
-import { P } from 'design/Text/Text';
-
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
-interface DocumentsReopenProps {
+export function DocumentsReopen(props: {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
-  onCancel(): void;
+  onDiscard(): void;
   onConfirm(): void;
-}
-
-export function DocumentsReopen(props: DocumentsReopenProps) {
+  hidden?: boolean;
+}) {
   const { rootClusterUri } = props;
   const { clustersService } = useAppContext();
   // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
@@ -49,8 +46,9 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
 
   return (
     <DialogConfirmation
-      open={true}
-      onClose={props.onCancel}
+      open={!props.hidden}
+      keepInDOMAfterClose
+      onClose={props.onDiscard}
       dialogCss={() => ({
         maxWidth: '400px',
         width: '100%',
@@ -70,7 +68,8 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
           <H2 mb={4}>Reopen previous session</H2>
           <ButtonIcon
             type="button"
-            onClick={props.onCancel}
+            onClick={props.onDiscard}
+            title="Close"
             color="text.slightlyMuted"
           >
             <Cross size="medium" />
@@ -105,7 +104,7 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
           <ButtonPrimary autoFocus mr={3} type="submit">
             Reopen
           </ButtonPrimary>
-          <ButtonSecondary type="button" onClick={props.onCancel}>
+          <ButtonSecondary type="button" onClick={props.onDiscard}>
             Start New Session
           </ButtonSecondary>
         </DialogFooter>

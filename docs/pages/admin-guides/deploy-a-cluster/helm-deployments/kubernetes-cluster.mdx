@@ -198,12 +198,12 @@ chart.
 
 1. Install the `teleport-cluster` Helm chart using the values file you wrote:
 
-    ```code
-    $ helm install teleport-cluster teleport/teleport-cluster \
-      --create-namespace \
-      --version (=teleport.version=) \
-      --values teleport-cluster-values.yaml
-    ```
+   ```code
+   $ helm install teleport-cluster teleport/teleport-cluster \
+     --create-namespace \
+     --version (=teleport.version=) \
+     --values teleport-cluster-values.yaml
+   ```
 
 1. After installing the `teleport-cluster` chart, wait a minute or so and ensure
    that both the Auth Service and Proxy Service pods are running:

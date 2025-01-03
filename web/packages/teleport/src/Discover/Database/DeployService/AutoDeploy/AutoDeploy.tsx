@@ -16,59 +16,59 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import { useEffect, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import {
   Box,
   ButtonSecondary,
-  Link,
-  Text,
-  Mark,
-  H3,
-  Subtitle3,
   Link as ExternalLink,
   Flex,
+  H3,
+  Link,
+  Mark,
+  Subtitle3,
+  Text,
 } from 'design';
 import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
-
-import { P } from 'design/Text/Text';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import cfg from 'teleport/config';
 import {
   HintBox,
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import type { Database } from 'teleport/services/databases';
 import { integrationService, Regions } from 'teleport/services/integrations';
-import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import {
   DiscoverEventStatus,
   DiscoverServiceDeployMethod,
   DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import {
   ActionButtons,
+  AlternateInstructionButton,
+  Header,
   HeaderSubtitle,
   TextIcon,
   useShowHint,
-  Header,
-  AlternateInstructionButton,
 } from '../../../Shared';
-
+import awsEcsBblp from '../../aws-ecs-bblp.svg';
+import awsEcsDark from '../../aws-ecs-dark.svg';
+import awsEcsLight from '../../aws-ecs-light.svg';
 import { DeployServiceProp } from '../DeployService';
-
 import { SelectSecurityGroups } from './SelectSecurityGroups';
 import { SelectSubnetIds } from './SelectSubnetIds';
-
-import type { Database } from 'teleport/services/databases';
 
 export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const { emitErrorEvent, nextStep, emitEvent, agentMeta, updateAgentMeta } =
@@ -246,7 +246,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             <StyledBox mb={5}>
               <header>
-                <H3>Step 3 (Optional)</H3>
+                <H3>Step 3</H3>
               </header>
               <SelectSecurityGroups
                 selectedSecurityGroups={selectedSecurityGroups}
@@ -343,6 +343,11 @@ const Heading = ({
   region: string;
   wantAutoDiscover: boolean;
 }) => {
+  const theme = useTheme();
+  let img = theme.type === 'light' ? awsEcsLight : awsEcsDark;
+  if (theme.isCustomTheme && theme.name === 'bblp') {
+    img = awsEcsBblp;
+  }
   return (
     <>
       <Header>Automatically Deploy a Database Service</Header>
@@ -352,19 +357,23 @@ const Heading = ({
         ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
         the ability to access databases in this region (<Mark>{region}</Mark>).
         You will only need to do this once per geographical region.
+      </HeaderSubtitle>
+      <Box mb={5} mt={-3}>
+        <Box minWidth="500px" maxWidth="998px">
+          <img src={img} width="100%" />
+        </Box>
         {!wantAutoDiscover && (
           <>
             <br />
-            <br />
-            Want to deploy a database service manually from one of your existing
-            servers?{' '}
+            Do you want to deploy a database service manually from one of your
+            existing servers?{' '}
             <AlternateInstructionButton
               onClick={toggleDeployMethod}
               disabled={togglerDisabled}
             />
           </>
         )}
-      </HeaderSubtitle>
+      </Box>
     </>
   );
 };
@@ -533,6 +542,16 @@ const DeployHints = ({
               </AlternateInstructionButton>
             </li>
           </ul>
+          <Text>
+            Refer to the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/management/guides/awsoidc-integration-rds/#troubleshooting"
+            >
+              troubleshooting documentation
+            </Link>{' '}
+            for more details.
+          </Text>
         </Flex>
       </HintBox>
     );

@@ -16,19 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import ConsoleCtx from 'teleport/Console/consoleContext';
-
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
-import TeleportContext from 'teleport/teleportContext';
+import ConsoleCtx from 'teleport/Console/consoleContext';
 import * as stores from 'teleport/Console/stores/types';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import type { Session } from 'teleport/services/session';
+import TeleportContext from 'teleport/teleportContext';
 
 import DocumentKubeExec from './DocumentKubeExec';
-
-import type { Session } from 'teleport/services/session';
 
 export default {
   title: 'Teleport/Console/DocumentKubeExec',

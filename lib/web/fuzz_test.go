@@ -55,9 +55,9 @@ func FuzzTdpMFACodecDecodeChallenge(f *testing.F) {
 	var normalBuf bytes.Buffer
 	var maxSizeBuf bytes.Buffer
 	// add initial bytes for protocol
-	_, err = normalBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketWebauthnChallenge)[0]})
+	_, err = normalBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketMFAChallenge)[0]})
 	require.NoError(f, err)
-	_, err = maxSizeBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketWebauthnChallenge)[0]})
+	_, err = maxSizeBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketMFAChallenge)[0]})
 	require.NoError(f, err)
 	// Write the length using BigEndian encoding
 	require.NoError(f, binary.Write(&normalBuf, binary.BigEndian, uint32(len(jsonData))))
@@ -84,9 +84,9 @@ func FuzzTdpMFACodecDecodeResponse(f *testing.F) {
 	var normalBuf bytes.Buffer
 	var maxSizeBuf bytes.Buffer
 	// add initial bytes for protocol
-	_, err := normalBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketWebauthnChallenge)[0]})
+	_, err := normalBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketMFAChallenge)[0]})
 	require.NoError(f, err)
-	_, err = maxSizeBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketWebauthnChallenge)[0]})
+	_, err = maxSizeBuf.Write([]byte{byte(tdp.TypeMFA), []byte(defaults.WebsocketMFAChallenge)[0]})
 	require.NoError(f, err)
 	mfaData := []byte("fake-data")
 	// Write the length using BigEndian encoding

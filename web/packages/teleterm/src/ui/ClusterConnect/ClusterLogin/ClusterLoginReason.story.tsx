@@ -15,22 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-import { FC, PropsWithChildren } from 'react';
-import { Box } from 'design';
-import { Attempt } from 'shared/hooks/useAsync';
-
-import * as types from 'teleterm/ui/services/clusters/types';
 import {
-  appUri,
+  makeApp,
   makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
+import { routing } from 'teleterm/ui/uri';
 
-import {
-  ClusterLoginPresentation,
-  ClusterLoginPresentationProps,
-} from './ClusterLogin';
+import { ClusterLoginPresentation } from './ClusterLogin';
+import { makeProps, TestContainer } from './storyHelpers';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin/Reason',
@@ -85,12 +78,19 @@ export const GatewayCertExpiredWithoutGateway = () => {
 };
 
 export const VnetCertExpired = () => {
+  const app = makeApp();
   const props = makeProps();
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.vnet-cert-expired',
-    targetUri: appUri,
-    publicAddr: 'tcp-app.teleport.example.com',
+    targetUri: app.uri,
+    routeToApp: {
+      name: 'tcp-app',
+      publicAddr: 'tcp-app.teleport.example.com',
+      clusterName: routing.parseAppUri(app.uri).params.rootClusterId,
+      uri: app.endpointUri,
+      targetPort: 0,
+    },
   };
 
   return (
@@ -100,55 +100,31 @@ export const VnetCertExpired = () => {
   );
 };
 
-function makeProps(): ClusterLoginPresentationProps {
-  return {
-    shouldPromptSsoStatus: false,
-    title: 'localhost',
-    loginAttempt: {
-      status: '',
-      statusText: '',
-    } as Attempt<void>,
-    init: () => null,
-    initAttempt: {
-      status: 'success',
-      statusText: '',
-      data: {
-        localAuthEnabled: true,
-        authProviders: [],
-        type: '',
-        hasMessageOfTheDay: false,
-        allowPasswordless: true,
-        localConnectorName: '',
-        authType: 'local',
-      } as types.AuthSettings,
-    } as const,
-
-    loggedInUserName: null,
-    onCloseDialog: () => null,
-    onAbort: () => null,
-    onLoginWithLocal: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithPasswordless: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithSso: () => null,
-    clearLoginAttempt: () => null,
-    passwordlessLoginState: null,
-    reason: undefined,
+export const VnetCertExpiredMultiPort = () => {
+  const app = makeApp({
+    endpointUri: 'tcp://localhost',
+    tcpPorts: [{ port: 1337, endPort: 0 }],
+  });
+  const props = makeProps();
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.vnet-cert-expired',
+    targetUri: app.uri,
+    routeToApp: {
+      name: 'tcp-app',
+      publicAddr: 'tcp-app.teleport.example.com',
+      clusterName: routing.parseAppUri(app.uri).params.rootClusterId,
+      uri: app.endpointUri,
+      targetPort: 1337,
+    },
   };
-}
 
-const TestContainer: FC<PropsWithChildren> = ({ children }) => (
-  <>
-    <span>Bordered box is not part of the component</span>
-    <Box
-      css={`
-        width: 450px;
-        border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surface};
-      `}
-    >
-      {children}
-    </Box>
-  </>
-);
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
 
 const dbGateway = makeDatabaseGateway({
   uri: '/gateways/gateway1',

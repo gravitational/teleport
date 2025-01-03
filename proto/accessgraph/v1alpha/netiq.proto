@@ -1,0 +1,187 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// NetIQResourceList is a request that contains resources to be sync.
+message NetIQResourceList {
+  // resources is a list of NetIQ resources to sync.
+  repeated NetIQObject resources = 1;
+}
+
+// NetIQObject represents a NetIQ resource
+message NetIQObject {
+  oneof object {
+    // group represents a NetIQ group in an organization.
+    NetIQGroup group = 1;
+    // group_member represents a NetIQ group member.
+    NetIQGroupMember group_member = 2;
+    // resource represents a NetIQ resource.
+    NetIQResource resource = 3;
+    // role represents a role with certain access levels to a resource.
+    NetIQRole role = 4;
+    // parent_role_ref represents a parent relationship between roles.
+    NetIQRoleRef parent_role_ref = 5;
+    // user represents a NetIQ user.
+    NetIQUser user = 6;
+    // resource_role_ref represents a resource assignment to a role.
+    NetIQResourceAssignmentRef resource_role_ref = 7;
+    //role_member_ref represents a member being member of a role.
+    NetIQMemberAssignmentRef role_member_ref = 8;
+  }
+}
+
+// NetIQGroup represents a NetIQ group
+message NetIQGroup {
+  // name is the group name.
+  string name = 1;
+  // id is the universal identifier for the group.
+  string id = 2;
+  // description is the group description.
+  string description = 3;
+}
+
+// NetIQGroupMember represents a NetIQ group member
+message NetIQGroupMember {
+  // group_id is the group id.
+  string group_id = 1;
+  // user_id is the universal identifier for the user.
+  string user_id = 2;
+  // is_group_assignment is a flag that determines whether the member is a group assignment.
+  bool is_group_assignment = 3;
+}
+
+// NetIQResource represents a NetIQ resource
+message NetIQResource {
+  // name is the resource name.
+  string name = 1;
+  // id is the universal identifier for the resource.
+  string id = 2;
+  // description is the project description.
+  string description = 3;
+
+  // categories is the list of categories the resource belongs to.
+  repeated NetIQCategory categories = 4;
+}
+
+// NetIQCategory is a resource category.
+message NetIQCategory {
+  // name is the resource name.
+  string name = 1;
+  // id is the universal identifier for the category.
+  string id = 2;
+}
+
+// NetIQRole represents a NetIQ role
+message NetIQRole {
+  // name is the resource name.
+  string name = 1;
+  // id is the universal identifier for the role.
+  string id = 2;
+  // description is the project description.
+  string description = 3;
+  // categories is the list of categories the resource belongs to.
+  repeated NetIQCategory categories = 4;
+
+  // RoleLevel represents the role level.
+  message RoleLevel {
+    // name is the name of the role level.
+    string name = 1;
+    // level is the level of the role level.
+    int32 level = 2;
+    // cn is the common name.
+    string cn = 3;
+  }
+  RoleLevel level = 5;
+}
+
+// NetIQRoleRef represents a NetIQ Role reference.
+message NetIQRoleRef {
+  // child_role_id is the group id of a role that is a child role of parent_role_id.
+  string child_role_id = 1;
+  // parent_role_id is the universal identifier for the role that is parent to child_role_id.
+  string parent_role_id = 2;
+  // level is the level of the role.
+  int32 level = 3;
+  // request_description is the description of the request.
+  string request_description = 4;
+}
+
+// NetIQUser represents a NetIQ user.
+message NetIQUser {
+  // id is the id of the user.
+  string id = 1;
+  // email is the user's email.
+  string email = 2;
+  // name is the user's name.
+  string name = 3;
+  // is_disabled indicates if a user is disabled.
+  bool is_disabled = 4;
+}
+
+// NetIQResourceAssignmentRef represents a NetIQ resource assignment reference.
+message NetIQResourceAssignmentRef {
+  // role_id is the group id of a role that is assigned to resource_id.
+  string role_id = 1;
+  // resource_id is the universal identifier for the resource that is assigned to role_id.
+  string resource_id = 2;
+  // mapping_description is the description of the mapping.
+  string mapping_description = 4;
+  // status_code is the status code of the role assignment.
+  uint32 status_code = 5;
+}
+
+// NetIQMemberAssignmentRef represents a NetIQ resource assignment reference.
+message NetIQMemberAssignmentRef {
+  // role_id is the group id of a role that user_id is member of.
+  string role_id = 1;
+  // dn is the universal identifier for the user that is member of role_id.
+  string dn = 2;
+  // recipient_type identifies the recipient provenance.
+  RoleRecipientType recipient_type = 3;
+  // recipient_type_subcontainer is the sub container of the recipient type.
+  string recipient_type_subcontainer = 4;
+  // status_code is the status code of the role assignment.
+  uint32 status_code = 5;
+  // StatusDstatus_displayisplay is the display of the status.
+  string status_display = 6;
+  // effective_date is the effective date of the role assignment.
+  google.protobuf.Timestamp effective_date = 7;
+  // expiry_date is the expiry date of the role assignment.
+  google.protobuf.Timestamp expiry_date = 8;
+  // description is the description of the role assignment.
+  string description = 9;
+  // grant is a flag that determines whether the role assignment is granted.
+  bool grant = 10;
+}
+
+// RoleRecipientType is the type of the recipient.
+enum RoleRecipientType {
+  // ROLE_RECIPIENT_TYPE_UNSPECIFIED is a unspecified role recipient type.
+  ROLE_RECIPIENT_TYPE_UNSPECIFIED = 0;
+  // ROLE_RECIPIENT_TYPE_USER represents a user being member of a role.
+  ROLE_RECIPIENT_TYPE_USER = 1;
+  // ROLE_RECIPIENT_TYPE_GROUP represents a group being member of a role.
+  ROLE_RECIPIENT_TYPE_GROUP = 2;
+}

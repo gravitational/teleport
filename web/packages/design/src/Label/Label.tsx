@@ -19,8 +19,8 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Theme } from '../theme';
 import { space, SpaceProps } from '../system';
+import { Theme } from '../theme';
 
 const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
   if (kind === 'secondary') {
@@ -59,7 +59,12 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
   };
 };
 
-type LabelKind = 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+export type LabelKind =
+  | 'primary'
+  | 'secondary'
+  | 'warning'
+  | 'danger'
+  | 'success';
 
 interface LabelProps extends SpaceProps {
   kind?: LabelKind;

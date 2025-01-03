@@ -21,13 +21,13 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -41,8 +41,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		// TODO(tross): update to use the server logger once it is converted to slog
-		Logger: slog.With("kind", types.KindApp),
+		Logger:              s.log.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -67,7 +66,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to application resources and
 // registers/unregisters the proxied applications accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher, error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application, readonly.Application], error) {
 	if len(s.c.ResourceMatchers) == 0 {
 		s.log.DebugContext(ctx, "Not initializing application resource watcher.")
 		return nil, nil
@@ -76,10 +75,10 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
-			// TODO(tross): update this once converted to use slog
-			// Log:       s.log,
-			Client: s.c.AccessPoint,
+			Logger:    s.log,
+			Client:    s.c.AccessPoint,
 		},
+		AppGetter: s.c.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -88,7 +87,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 		defer watcher.Close()
 		for {
 			select {
-			case apps := <-watcher.AppsC:
+			case apps := <-watcher.ResourcesC:
 				appsWithAddr := make(types.Apps, 0, len(apps))
 				for _, app := range apps {
 					appsWithAddr = append(appsWithAddr, s.guessPublicAddr(app))

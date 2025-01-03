@@ -41,7 +41,7 @@ func (s *MsTeamsBaseSuite) checkPluginData(ctx context.Context, reqID string, co
 
 func (s *MsTeamsBaseSuite) getNewMessages(ctx context.Context, n int) (MsgSlice, error) {
 	msgs := MsgSlice{}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < n; i++ {
 		msg, err := s.fakeTeams.CheckNewMessage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)

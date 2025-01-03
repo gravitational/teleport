@@ -47,16 +47,16 @@ const (
     --uri="http://localhost:8080" \
     --labels=group=dev
   Same as the above, but the app server runs with "group=dev" label which only
-  allows access to users with the role "group=dev".`
+  allows access to users with the application label "group: dev" in an assigned role.`
 
 	dbUsageExamples = `
 > teleport db start --token=xyz --auth-server=proxy.example.com:3080 \
   --name="example-db" \
   --protocol="postgres" \
   --uri="localhost:5432"
-Starts a database server that proxies PostgreSQL database "example-db" running
-at localhost:5432. The database must be configured with Teleport CA and key
-pair issued by "tctl auth sign --format=db".
+  Starts a database server that proxies PostgreSQL database "example-db" running
+  at localhost:5432. The database must be configured with Teleport CA and key
+  pair issued by "tctl auth sign --format=db".
 
 > teleport db start --token=xyz --auth-server=proxy.example.com:3080 \
   --name="aurora-db" \
@@ -64,8 +64,9 @@ pair issued by "tctl auth sign --format=db".
   --uri="example.cluster-abcdefghij.us-west-1.rds.amazonaws.com:3306" \
   --aws-region=us-west-1 \
   --labels=env=aws
-Starts a database server that proxies Aurora MySQL database running in AWS
-region us-west-1 which only allows access to users with the role "env=aws".`
+  Starts a database server that proxies Aurora MySQL database running in AWS
+  region us-west-1 which only allows access to users with the database label
+  "env: aws" in an assigned role.`
 
 	systemdInstallExamples = `
   > teleport install systemd

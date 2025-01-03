@@ -361,8 +361,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				tc: &TeleportClient{
 					localAgent: agent,
 					Config: Config{
-						SiteName: "test",
-						Tracer:   tracing.NoopTracer("test"),
+						WebProxyAddr: "proxy.example.com",
+						SiteName:     "test",
+						Tracer:       tracing.NoopTracer("test"),
 						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
 							return test.prompt
 						},

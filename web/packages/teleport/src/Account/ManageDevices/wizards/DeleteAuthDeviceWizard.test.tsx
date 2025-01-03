@@ -16,40 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-import React from 'react';
-
-import { within } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
-import TeleportContext from 'teleport/teleportContext';
+import { render, screen } from 'design/utils/testing';
+
 import { ContextProvider } from 'teleport';
-import MfaService from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
-
-import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
-
-import { dummyPasskey, dummyHardwareDevice, deviceCases } from './deviceCases';
+import MfaService, { SsoChallenge } from 'teleport/services/mfa';
+import TeleportContext from 'teleport/teleportContext';
 
 import { DeleteAuthDeviceWizard } from '.';
+import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
+import { dummyHardwareDevice, dummyPasskey } from './deviceCases';
 
 let ctx: TeleportContext;
 let user: UserEvent;
 let onSuccess: jest.Mock;
+
+const dummyMfaChallenge = {
+  totpChallenge: true,
+  webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+  ssoChallenge: {} as SsoChallenge,
+};
 
 beforeEach(() => {
   ctx = new TeleportContext();
   user = userEvent.setup();
   onSuccess = jest.fn();
 
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(dummyMfaChallenge);
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
-  jest
-    .spyOn(auth, 'createPrivilegeTokenWithTotp')
-    .mockImplementationOnce(token =>
-      Promise.resolve(`totp-privilege-token-${token}`)
-    );
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   jest
     .spyOn(MfaService.prototype, 'removeDevice')
     .mockResolvedValueOnce(undefined);
@@ -61,9 +61,7 @@ function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
   return (
     <ContextProvider ctx={ctx}>
       <DeleteAuthDeviceWizard
-        devices={deviceCases.all}
         deviceToDelete={dummyPasskey}
-        auth2faType="on"
         onClose={() => {}}
         onSuccess={onSuccess}
         {...props}
@@ -75,14 +73,21 @@ function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
 test('deletes a device with WebAuthn reauthentication', async () => {
   render(<TestWizard />);
 
-  const reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
-  await user.click(reauthenticateStep.getByText('Verify my identity'));
+  await waitFor(() => {
+    expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+  });
+  await user.click(screen.getByText('Verify my identity'));
 
-  const deleteStep = within(screen.getByTestId('delete-step'));
-  await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
+  expect(screen.getByTestId('delete-step')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
 
+  expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+    dummyMfaChallenge,
+    'webauthn',
+    ''
+  );
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
-    'webauthn-privilege-token',
+    'privilege-token',
     'TouchID'
   );
   expect(onSuccess).toHaveBeenCalled();
@@ -91,19 +96,46 @@ test('deletes a device with WebAuthn reauthentication', async () => {
 test('deletes a device with OTP reauthentication', async () => {
   render(<TestWizard />);
 
-  const reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
-  await user.click(reauthenticateStep.getByText('Authenticator App'));
-  await user.type(
-    reauthenticateStep.getByLabelText('Authenticator Code'),
+  await waitFor(() => {
+    expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+  });
+  await user.click(screen.getByText('Authenticator App'));
+  await user.type(screen.getByLabelText('Authenticator Code'), '654987');
+  await user.click(screen.getByText('Verify my identity'));
+
+  expect(screen.getByTestId('delete-step')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+  expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+    dummyMfaChallenge,
+    'totp',
     '654987'
   );
-  await user.click(reauthenticateStep.getByText('Verify my identity'));
-
-  const deleteStep = within(screen.getByTestId('delete-step'));
-  await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
-
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
-    'totp-privilege-token-654987',
+    'privilege-token',
+    'TouchID'
+  );
+});
+
+test('deletes a device with SSO reauthentication', async () => {
+  render(<TestWizard />);
+
+  await waitFor(() => {
+    expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+  });
+  await user.click(screen.getByText('SSO'));
+  await user.click(screen.getByText('Verify my identity'));
+
+  expect(screen.getByTestId('delete-step')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+  expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+    dummyMfaChallenge,
+    'sso',
+    ''
+  );
+  expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
+    'privilege-token',
     'TouchID'
   );
 });
@@ -126,13 +158,13 @@ test.each([
   async ({ device, title, message }) => {
     render(<TestWizard deviceToDelete={device} />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
-    await user.click(reauthenticateStep.getByText('Verify my identity'));
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('Verify my identity'));
 
-    const deleteStep = within(screen.getByTestId('delete-step'));
-    expect(deleteStep.getByText(title)).toBeVisible();
-    expect(deleteStep.getByText(message)).toBeVisible();
+    expect(screen.getByTestId('delete-step')).toBeInTheDocument();
+    expect(screen.getByText(title)).toBeVisible();
+    expect(screen.getByText(message)).toBeVisible();
   }
 );

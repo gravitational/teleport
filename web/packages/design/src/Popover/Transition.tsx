@@ -16,18 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useLayoutEffect } from 'react';
+import React, { RefObject, useLayoutEffect } from 'react';
 
+import { useResizeObserver } from 'design/utils/useResizeObserver';
+
+/**
+ * Transition is a helper for firing certain effects from Popover, as it's way easier to use them
+ * this way than integrating with the component lifecycle.
+ */
 export function Transition({
   onEntering,
+  enablePaperResizeObserver,
+  paperRef,
+  onPaperResize,
   children,
 }: React.PropsWithChildren<{
   onEntering: () => void;
+  enablePaperResizeObserver: boolean | undefined;
+  paperRef: RefObject<HTMLElement>;
+  onPaperResize: () => void;
 }>) {
   // Note: useLayoutEffect to prevent flickering improperly positioned popovers.
   // It's especially noticeable on Safari.
-  useLayoutEffect(() => {
-    onEntering();
-  }, []);
+  useLayoutEffect(onEntering, []);
+
+  useResizeObserver(paperRef, onPaperResize, {
+    enabled: enablePaperResizeObserver,
+  });
+
   return children;
 }

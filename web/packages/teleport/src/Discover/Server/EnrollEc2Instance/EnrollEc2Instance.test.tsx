@@ -16,41 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import {
+  act,
+  fireEvent,
   render,
   screen,
-  fireEvent,
-  act,
   userEvent,
 } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import {
-  Ec2InstanceConnectEndpoint,
-  IntegrationKind,
-  IntegrationStatusCode,
-  integrationService,
-} from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
 import {
   DiscoverContextState,
   DiscoverProvider,
   NodeMeta,
 } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import * as discoveryApi from 'teleport/services/discovery/discovery';
+import { DEFAULT_DISCOVERY_GROUP_NON_CLOUD } from 'teleport/services/discovery/discovery';
+import {
+  Ec2InstanceConnectEndpoint,
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 import { Node } from 'teleport/services/nodes';
-
 import {
   DiscoverEvent,
   DiscoverEventStatus,
   userEventService,
 } from 'teleport/services/userEvent';
-import * as discoveryApi from 'teleport/services/discovery/discovery';
-import { DEFAULT_DISCOVERY_GROUP_NON_CLOUD } from 'teleport/services/discovery/discovery';
+import TeleportContext from 'teleport/teleportContext';
 
 import { EnrollEc2Instance } from './EnrollEc2Instance';
 

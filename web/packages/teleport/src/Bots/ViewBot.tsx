@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ButtonSecondary, Flex, Text } from 'design';
 import Dialog, {
   DialogContent,
@@ -24,11 +23,9 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
-
 import TextEditor from 'shared/components/TextEditor';
 
 import { ViewBotProps } from 'teleport/Bots/types';
-
 import useTeleport from 'teleport/useTeleport';
 
 import { getWorkflowExampleYaml } from './Add/GitHubActions/AddBotToWorkflow';

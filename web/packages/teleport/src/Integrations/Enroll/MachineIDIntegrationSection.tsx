@@ -16,10 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Box, H2 } from 'design';
-
 import { P } from 'design/Text/Text';
 
 import { BotTiles } from 'teleport/Bots/Add/AddBotsPicker';

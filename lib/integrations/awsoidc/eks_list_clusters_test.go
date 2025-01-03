@@ -101,6 +101,12 @@ func TestListEKSClusters(t *testing.T) {
 				Arn:    aws.String(fmt.Sprintf("%s_%d", baseArn, c)),
 				Tags:   map[string]string{"label": "value"},
 				Status: "active",
+				AccessConfig: &eksTypes.AccessConfigResponse{
+					AuthenticationMode: eksTypes.AuthenticationModeApi,
+				},
+				ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+					EndpointPublicAccess: true,
+				},
 			})
 		}
 
@@ -153,6 +159,12 @@ func TestListEKSClusters(t *testing.T) {
 					Name:   aws.String("EKS"),
 					Status: "active",
 					Tags:   map[string]string{"label": "value"},
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApi,
+					},
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: true,
+					},
 				},
 			},
 			expectedClusters: []EKSCluster{
@@ -166,7 +178,9 @@ func TestListEKSClusters(t *testing.T) {
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
 					},
-					Status: "active",
+					Status:               "active",
+					AuthenticationMode:   "API",
+					EndpointPublicAccess: true,
 				},
 			},
 			expectedFetchingErrors: map[string]error{},
@@ -179,12 +193,24 @@ func TestListEKSClusters(t *testing.T) {
 					Name:   aws.String("EKS"),
 					Status: "active",
 					Tags:   map[string]string{"label": "value"},
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApi,
+					},
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: true,
+					},
 				},
 				{
 					Arn:    aws.String(baseArn + "2"),
 					Name:   aws.String("EKS2"),
 					Status: "active",
 					Tags:   map[string]string{"label2": "value2"},
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApi,
+					},
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: true,
+					},
 				},
 			},
 			expectedClusters: []EKSCluster{
@@ -198,7 +224,9 @@ func TestListEKSClusters(t *testing.T) {
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
 					},
-					Status: "active",
+					Status:               "active",
+					AuthenticationMode:   "API",
+					EndpointPublicAccess: true,
 				},
 				{
 					Name:   "EKS2",
@@ -210,25 +238,51 @@ func TestListEKSClusters(t *testing.T) {
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
 					},
-					Status: "active",
+					Status:               "active",
+					AuthenticationMode:   "API",
+					EndpointPublicAccess: true,
 				},
 			},
 			expectedFetchingErrors: map[string]error{},
 		},
 		{
-			name: "two clusters, one success, one error",
+			name: "three clusters, one success, two error",
 			inputEKSClusters: []eksTypes.Cluster{
 				{
 					Arn:    aws.String(baseArn),
 					Name:   aws.String("EKS"),
 					Status: "active",
 					Tags:   map[string]string{"label": "value"},
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApi,
+					},
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: true,
+					},
 				},
 				{
 					Arn:    aws.String(baseArn),
 					Name:   aws.String("erroredCluster"),
 					Status: "active",
 					Tags:   map[string]string{"label2": "value2"},
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApi,
+					},
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: true,
+					},
+				},
+				{
+					Arn:    aws.String(baseArn),
+					Name:   aws.String("erroredCluster"),
+					Status: "active",
+					Tags:   map[string]string{"label2": "value2"},
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeConfigMap,
+					},
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: true,
+					},
 				},
 			},
 			expectedClusters: []EKSCluster{
@@ -242,7 +296,9 @@ func TestListEKSClusters(t *testing.T) {
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
 					},
-					Status: "active",
+					Status:               "active",
+					AuthenticationMode:   "API",
+					EndpointPublicAccess: true,
 				},
 			},
 			expectedFetchingErrors: map[string]error{"erroredCluster": errors.New("erroredCluster")},

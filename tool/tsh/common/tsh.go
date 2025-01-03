@@ -41,7 +41,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -74,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -93,16 +93,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTSH,
-})
+var (
+	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentTSH)
+	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTSH)
+)
 
 const (
 	// mfaModeAuto automatically chooses the best MFA device(s), without any
@@ -118,6 +121,8 @@ const (
 	mfaModePlatform = "platform"
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
+	// mfaModeSSO utilizes only SSO devices.
+	mfaModeSSO = "sso"
 )
 
 const (
@@ -423,8 +428,13 @@ type CLIConf struct {
 
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
+	// LocalProxyPortMapping is a listening port and an optional target port used by local proxy
+	// listener, in the form of "1234" or "1234:5678".
+	LocalProxyPortMapping string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
+	// TargetPort is a port used for routing connections to multi-port TCP apps.
+	TargetPort uint16
 
 	// Exec is the command to run via tsh aws.
 	Exec string
@@ -564,6 +574,9 @@ type CLIConf struct {
 	// allows users with potentially stale credentials preventing access to gain the required access
 	// without having to manually run tsh login and the failed command again.
 	Relogin bool
+
+	// profileStatusOverride overrides return of ProfileStatus(). used in tests.
+	profileStatusOverride *client.ProfileStatus
 }
 
 // Stdout returns the stdout writer.
@@ -607,7 +620,7 @@ func Main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
@@ -705,6 +718,10 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
+	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+		return trace.Wrap(err)
+	}
+
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -766,7 +783,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
@@ -878,6 +895,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
+	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
 	appLogin.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
@@ -922,7 +940,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
-	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\"").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
@@ -994,6 +1012,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -1019,6 +1038,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	scp.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	scp.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes.")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1233,12 +1253,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
 	vnetDaemonCmd := newVnetDaemonCommand(app)
 
+	gitCmd := newGitCommands(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
 
 	var err error
-
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1611,6 +1632,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetAdminSetupCmd.run(&cf)
 	case vnetDaemonCmd.FullCommand():
 		err = vnetDaemonCmd.run(&cf)
+	case gitCmd.list.FullCommand():
+		err = gitCmd.list.run(&cf)
+	case gitCmd.login.FullCommand():
+		err = gitCmd.login.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1864,6 +1889,14 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
+	// The user is not logged in and has typed in `tsh --proxy=... login`, if
+	// the running binary needs to be updated, update and re-exec.
+	if profile == nil {
+		if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(time.Now()) {
 		switch {
@@ -1874,6 +1907,13 @@ func onLogin(cf *CLIConf) error {
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1887,6 +1927,13 @@ func onLogin(cf *CLIConf) error {
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1957,7 +2004,11 @@ func onLogin(cf *CLIConf) error {
 
 		// otherwise just pass through to standard login
 		default:
-
+			// The user is logged in and has typed in `tsh --proxy=... login`, if
+			// the running binary needs to be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -2658,6 +2709,10 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
+			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
+				friendlyMsg := fmt.Sprintf("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
+				return trace.BadParameter(friendlyMsg)
+			}
 			return trace.Wrap(err)
 		}
 		cf.RequestID = req.GetName()
@@ -2785,13 +2840,26 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, w io.Writer, 
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showAppsAsText(apps, active, verbose, w)
+		appListings := make([]appListing, 0, len(apps))
+		for _, app := range apps {
+			appListings = append(appListings, appListing{App: app})
+		}
+
+		if err := writeAppTable(w, appListings, appTableConfig{
+			listAll: false, // showApps lists apps from a single cluster.
+			active:  active,
+			verbose: verbose,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeApps(apps, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(w, out)
+		if _, err := fmt.Fprintln(w, out); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -2812,46 +2880,130 @@ func serializeApps(apps []types.Application, format string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-func getAppRow(proxy, cluster string, app types.Application, active []tlsca.RouteToApp, verbose bool) []string {
-	var row []string
-	if proxy != "" && cluster != "" {
-		row = append(row, proxy, cluster)
-	}
-
-	name := app.GetName()
-	for _, a := range active {
-		if name == a.Name {
-			name = fmt.Sprintf("> %v", name)
-			break
-		}
-	}
-
-	labels := common.FormatLabels(app.GetAllLabels(), verbose)
-	if verbose {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels)
-	} else {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), labels)
-	}
-
-	return row
+type appTableConfig struct {
+	// active is a list of apps for which the user retrieved a short-lived cert with tsh app login.
+	active []tlsca.RouteToApp
+	// verbose makes the table show extra columns.
+	verbose bool
+	// listAll makes the table render two extra columns: Proxy and Cluster.
+	listAll bool
 }
 
-func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool, w io.Writer) {
-	var rows [][]string
-	for _, app := range apps {
-		rows = append(rows, getAppRow("", "", app, active, verbose))
+func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig) error {
+	includesMultiPortApp := slices.ContainsFunc(appListings, func(al appListing) bool {
+		return len(al.App.GetTCPPorts()) > 0
+	})
+
+	getName := func(app types.Application) string {
+		isActive := slices.ContainsFunc(config.active, func(route tlsca.RouteToApp) bool {
+			// TODO(ravicious): This should be based on name _and_ route.ClusterName, so that we don't
+			// incorrectly show multiple apps with the same name but from different clusters as active.
+			// However, to do this we'd need to double check if route.ClusterName always matches
+			// appListing.Cluster (and also fill out that field in showApps).
+			return route.Name == app.GetName()
+		})
+
+		if isActive {
+			return fmt.Sprintf("> %s", app.GetName())
+		}
+
+		return app.GetName()
 	}
-	// In verbose mode, print everything on a single line and include host UUID.
+	getLabels := func(app types.Application) string {
+		return common.FormatLabels(app.GetAllLabels(), config.verbose)
+	}
+	getTargetPorts := func(app types.Application) string {
+		return app.GetTCPPorts().String()
+	}
+
+	const labelsColumn = "Labels"
+	allColumns := []appTableColumn{
+		appTableColumn{
+			name:           "Proxy",
+			getFromListing: appListing.GetProxy,
+			hide:           !config.listAll,
+		},
+		appTableColumn{
+			name:           "Cluster",
+			getFromListing: appListing.GetCluster,
+			hide:           !config.listAll,
+		},
+		appTableColumn{
+			name: "Application",
+			get:  getName,
+		},
+		appTableColumn{
+			name: "Description",
+			get:  types.Application.GetDescription,
+		},
+		appTableColumn{
+			name: "Type",
+			get:  types.Application.GetProtocol,
+		},
+		appTableColumn{
+			name: "Public Address",
+			get:  types.Application.GetPublicAddr,
+		},
+		appTableColumn{
+			name: "Target Ports",
+			get:  getTargetPorts,
+			hide: !includesMultiPortApp,
+		},
+		appTableColumn{
+			name: "URI",
+			get:  types.Application.GetURI,
+			hide: !config.verbose,
+		},
+		appTableColumn{
+			name: labelsColumn,
+			get:  getLabels,
+		},
+	}
+	columns := slices.DeleteFunc(allColumns, func(column appTableColumn) bool { return column.hide })
+
+	headers := make([]string, 0, len(columns))
+	for _, column := range columns {
+		headers = append(headers, column.name)
+	}
+
+	rows := make([][]string, 0, len(appListings))
+	for _, appListing := range appListings {
+		appRow := make([]string, 0, len(columns))
+
+		for _, column := range columns {
+			var content string
+			switch {
+			case column.get != nil:
+				content = column.get(appListing.App)
+			case column.getFromListing != nil:
+				content = column.getFromListing(appListing)
+			}
+
+			appRow = append(appRow, content)
+		}
+
+		rows = append(rows, appRow)
+	}
+
+	// In verbose mode, print everything on a single line.
 	// In normal mode, chunk the labels, print two per line and allow multiple
-	// lines per node.
+	// lines per app.
 	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Application", "Description", "Type", "Public Address", "URI", "Labels"}, rows...)
+	if config.verbose {
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, labelsColumn)
 	}
-	fmt.Fprintln(w, t.AsBuffer().String())
+
+	_, err := fmt.Fprintln(w, t.AsBuffer().String())
+	return trace.Wrap(err)
+}
+
+type appTableColumn struct {
+	name           string
+	get            func(app types.Application) string
+	getFromListing func(listing appListing) string
+	hide           bool
 }
 
 func showDatabases(cf *CLIConf, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker) error {
@@ -3576,19 +3728,15 @@ func onSSHLatency(cf *CLIConf) error {
 	}
 	defer clt.Close()
 
-	// detect the common error when users use host:port address format
-	_, port, err := net.SplitHostPort(tc.Host)
-	// client has used host:port notation
-	if err == nil {
-		return trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	target, err := tc.GetTargetNode(cf.Context, clt.AuthClient, nil)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
 
 	nodeClient, err := tc.ConnectToNode(
 		cf.Context,
 		clt,
-		client.NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		client.NodeDetails{Addr: target.Addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -3774,7 +3922,9 @@ func onSSH(cf *CLIConf) error {
 			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
 		}
 		if err != nil {
-			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+			if errors.Is(err, teleport.ErrNodeIsAmbiguous) ||
+				// TODO(tross) DELETE IN v20.0.0
+				strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
 				if err != nil {
 					return trace.Wrap(err)
@@ -3852,7 +4002,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")
 	if cf.BenchExport {
-		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
+		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
@@ -3891,6 +4041,10 @@ func onJoin(cf *CLIConf) error {
 
 // onSCP executes 'tsh scp' command
 func onSCP(cf *CLIConf) error {
+	if len(cf.CopySpec) < 2 {
+		return trace.Errorf("local and remote destinations are required")
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3903,13 +4057,27 @@ func onSCP(cf *CLIConf) error {
 	cf.Context = ctx
 	defer cancel()
 
-	opts := sftp.Options{
-		Recursive:     cf.RecursiveCopy,
-		PreserveAttrs: cf.PreserveAttrs,
+	executor := client.RetryWithRelogin
+	if !cf.Relogin {
+		executor = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, option ...client.RetryWithReloginOption) error {
+			return f()
+		}
 	}
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SFTP(cf.Context, cf.CopySpec, int(cf.NodePort), opts, cf.Quiet)
+
+	err = executor(cf.Context, tc, func() error {
+		return trace.Wrap(tc.SFTP(
+			cf.Context,
+			cf.CopySpec[:len(cf.CopySpec)-1],
+			cf.CopySpec[len(cf.CopySpec)-1],
+			sftp.Options{
+				Recursive:      cf.RecursiveCopy,
+				PreserveAttrs:  cf.PreserveAttrs,
+				Quiet:          cf.Quiet,
+				ProgressWriter: cf.Stdout(),
+			},
+		))
 	})
+
 	// don't print context canceled errors to the user
 	if err == nil || errors.Is(err, context.Canceled) {
 		return nil
@@ -4011,14 +4179,20 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	} else if cf.CopySpec != nil {
 		for _, location := range cf.CopySpec {
 			// Extract username and host from "username@host:file/path"
-			parts := strings.Split(location, ":")
-			parts = strings.Split(parts[0], "@")
-			partsLength := len(parts)
-			if partsLength > 1 {
-				hostLogin = strings.Join(parts[:partsLength-1], "@")
-				hostUser = parts[partsLength-1]
-				break
+			userHost, _, found := strings.Cut(location, ":")
+			if !found {
+				continue
 			}
+
+			login, hostname, found := strings.Cut(userHost, "@")
+			if found {
+				hostLogin = login
+				hostUser = hostname
+			} else {
+				hostUser = userHost
+			}
+			break
+
 		}
 	}
 
@@ -4253,6 +4427,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 	c.PreferOTP = mfaOpts.PreferOTP
+	c.PreferSSO = mfaOpts.PreferSSO
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -4367,6 +4542,10 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 }
 
 func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
+	if c.profileStatusOverride != nil {
+		return c.profileStatusOverride, nil
+	}
+
 	clientStore, err := initClientStore(c, c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4434,6 +4613,7 @@ func (c *CLIConf) GetProfile() (*profile.Profile, error) {
 type mfaModeOpts struct {
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	PreferOTP               bool
+	PreferSSO               bool
 }
 
 func parseMFAMode(mode string) (*mfaModeOpts, error) {
@@ -4446,6 +4626,8 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 		opts.AuthenticatorAttachment = wancli.AttachmentPlatform
 	case mfaModeOTP:
 		opts.PreferOTP = true
+	case mfaModeSSO:
+		opts.PreferSSO = true
 	default:
 		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}
@@ -4673,6 +4855,9 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
+	if p.GitHubIdentity != nil {
+		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
+	}
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
@@ -4799,7 +4984,18 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	// `tsh status` should run without requiring user interaction.
+	// To achieve this, we avoid remote calls that might prompt for
+	// hardware key touch or require a PIN.
+	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
+
+	var accessListsToReview []*accesslist.AccessList
+	if hardwareKeyInteractionRequired {
+		log.Debug("Skipping fetching access lists to review due to Hardware Key PIN/Touch requirement.")
+	} else {
+		accessListsToReview = cf.getAccessListsToReview(tc)
+	}
+	if err := printLoginInformation(cf, profile, profiles, accessListsToReview); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4812,7 +5008,7 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	if tc.PrivateKeyPolicy.MFAVerified() {
+	if hardwareKeyInteractionRequired {
 		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
@@ -4825,22 +5021,23 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL           string             `json:"profile_url"`
-	Username           string             `json:"username"`
-	ActiveRequests     []string           `json:"active_requests,omitempty"`
-	Cluster            string             `json:"cluster"`
-	Roles              []string           `json:"roles,omitempty"`
-	Traits             wrappers.Traits    `json:"traits,omitempty"`
-	Logins             []string           `json:"logins,omitempty"`
-	KubernetesEnabled  bool               `json:"kubernetes_enabled"`
-	KubernetesCluster  string             `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers    []string           `json:"kubernetes_users,omitempty"`
-	KubernetesGroups   []string           `json:"kubernetes_groups,omitempty"`
-	Databases          []string           `json:"databases,omitempty"`
-	ValidUntil         time.Time          `json:"valid_until"`
-	Extensions         []string           `json:"extensions,omitempty"`
-	CriticalOptions    map[string]string  `json:"critical_options,omitempty"`
-	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
+	ProxyURL           string                 `json:"profile_url"`
+	Username           string                 `json:"username"`
+	ActiveRequests     []string               `json:"active_requests,omitempty"`
+	Cluster            string                 `json:"cluster"`
+	Roles              []string               `json:"roles,omitempty"`
+	Traits             wrappers.Traits        `json:"traits,omitempty"`
+	Logins             []string               `json:"logins,omitempty"`
+	KubernetesEnabled  bool                   `json:"kubernetes_enabled"`
+	KubernetesCluster  string                 `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers    []string               `json:"kubernetes_users,omitempty"`
+	KubernetesGroups   []string               `json:"kubernetes_groups,omitempty"`
+	Databases          []string               `json:"databases,omitempty"`
+	ValidUntil         time.Time              `json:"valid_until"`
+	Extensions         []string               `json:"extensions,omitempty"`
+	CriticalOptions    map[string]string      `json:"critical_options,omitempty"`
+	AllowedResourceIDs []types.ResourceID     `json:"allowed_resources,omitempty"`
+	GitHubIdentity     *client.GitHubIdentity `json:"github_identity,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -4890,6 +5087,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Extensions:         p.Extensions,
 		CriticalOptions:    p.CriticalOptions,
 		AllowedResourceIDs: p.AllowedResourceIDs,
+		GitHubIdentity:     p.GitHubIdentity,
 	}
 
 	// update active profile info from env
@@ -5141,6 +5339,14 @@ type appListing struct {
 	App     types.Application `json:"app"`
 }
 
+func (al appListing) GetProxy() string {
+	return al.Proxy
+}
+
+func (al appListing) GetCluster() string {
+	return al.Cluster
+}
+
 type appListings []appListing
 
 func (l appListings) Len() int {
@@ -5250,35 +5456,26 @@ func listAppsAllClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printAppsWithClusters(listings, active, cf.Verbose)
+		if err := writeAppTable(cf.Stdout(), listings, appTableConfig{
+			listAll: true,
+			active:  active,
+			verbose: cf.Verbose,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeAppsWithClusters(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(cf.Stdout(), out)
+		if _, err := fmt.Fprintln(cf.Stdout(), out); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
 	return nil
-}
-
-func printAppsWithClusters(apps []appListing, active []tlsca.RouteToApp, verbose bool) {
-	var rows [][]string
-	for _, app := range apps {
-		rows = append(rows, getAppRow(app.Proxy, app.Cluster, app.App, active, verbose))
-	}
-	// In verbose mode, print everything on a single line and include host UUID.
-	// In normal mode, chunk the labels, print two per line and allow multiple
-	// lines per node.
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Type", "Public Address", "URI", "Labels"}, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Proxy", "Cluster", "Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
-	}
-	fmt.Println(t.AsBuffer().String())
 }
 
 func serializeAppsWithClusters(apps []appListing, format string) (string, error) {

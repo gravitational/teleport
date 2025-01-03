@@ -471,6 +471,7 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	wantTLSCert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
+	wantTLSCert.Leaf = nil
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
 	expiry, ok := cred.Expiry()
@@ -529,6 +530,7 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	wantTLSCert, err = tls.X509KeyPair(secondTLSCertPem, keyPEM)
 	require.NoError(t, err)
+	wantTLSCert.Leaf = nil
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
 	expiry, ok = cred.Expiry()

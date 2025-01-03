@@ -417,7 +417,7 @@ agent. This follows from the behavior described in the â€œDownloading the agentâ
 
 #### Log rotation
 
-The MVP is not going to perform any extra log rotation beyond what the Teleport agent offerts out of
+The MVP is not going to perform any extra log rotation beyond what the Teleport agent offers out of
 the box which is creating a new log file every 24 hours. The logs are thus stored in the same
 directory as the data directory of the agent and are removed together with the agent.
 

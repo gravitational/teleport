@@ -18,20 +18,21 @@
 
 import { useMemo } from 'react';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
+  DisplayResults,
   isClusterSearchFilter,
   isResourceTypeSearchFilter,
   SearchFilter,
-  DisplayResults,
 } from 'teleterm/ui/Search/searchResult';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 
 export function useDisplayResults(args: {
   filters: SearchFilter[];
   inputValue: string;
 }): DisplayResults {
   const { workspacesService } = useAppContext();
-  workspacesService.useState();
+  useWorkspaceServiceState();
 
   const localClusterUri =
     workspacesService.getActiveWorkspace()?.localClusterUri;

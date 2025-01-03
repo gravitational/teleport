@@ -15,61 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
-import { FC, PropsWithChildren } from 'react';
-
-import { Box } from 'design';
-import {
-  Attempt,
-  makeErrorAttempt,
-  makeProcessingAttempt,
-} from 'shared/hooks/useAsync';
-
-import * as types from 'teleterm/ui/services/clusters/types';
-
-import {
-  ClusterLoginPresentation,
-  ClusterLoginPresentationProps,
-} from './ClusterLogin';
+import { ClusterLoginPresentation } from './ClusterLogin';
+import { makeProps, TestContainer } from './storyHelpers';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin',
 };
-
-function makeProps(): ClusterLoginPresentationProps {
-  return {
-    shouldPromptSsoStatus: false,
-    title: 'localhost',
-    loginAttempt: {
-      status: '',
-      statusText: '',
-    } as Attempt<void>,
-    init: () => null,
-    initAttempt: {
-      status: 'success',
-      statusText: '',
-      data: {
-        localAuthEnabled: true,
-        authProviders: [],
-        type: '',
-        hasMessageOfTheDay: false,
-        allowPasswordless: true,
-        localConnectorName: '',
-        authType: 'local',
-      } as types.AuthSettings,
-    } as const,
-
-    loggedInUserName: null,
-    onCloseDialog: () => null,
-    onAbort: () => null,
-    onLoginWithLocal: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithPasswordless: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithSso: () => null,
-    clearLoginAttempt: () => null,
-    passwordlessLoginState: null,
-    reason: undefined,
-  };
-}
 
 export const LocalOnly = () => {
   const props = makeProps();
@@ -131,6 +84,19 @@ export const LocalProcessing = () => {
   );
 };
 
+export const LocalError = () => {
+  const props = makeProps();
+  props.initAttempt.data.allowPasswordless = false;
+  props.loginAttempt = makeErrorAttempt(new Error('invalid credentials'));
+  props.loggedInUserName = 'alice';
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
 const authProviders = [
   { type: 'github', name: 'github', displayName: 'GitHub' },
   { type: 'saml', name: 'microsoft', displayName: 'Microsoft' },
@@ -142,6 +108,32 @@ export const SsoOnly = () => {
   props.initAttempt.data.authType = 'github';
   props.initAttempt.data.authProviders = authProviders;
 
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const SsoPrompt = () => {
+  const props = makeProps();
+  props.loginAttempt.status = 'processing';
+  props.shouldPromptSsoStatus = true;
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const SsoError = () => {
+  const props = makeProps();
+  props.initAttempt.data.localAuthEnabled = false;
+  props.initAttempt.data.authType = 'github';
+  props.initAttempt.data.authProviders = authProviders;
+  props.loginAttempt = makeErrorAttempt(
+    new Error("Failed to log in. Please check Teleport's log for more details.")
+  );
   return (
     <TestContainer>
       <ClusterLoginPresentation {...props} />
@@ -308,28 +300,3 @@ export const HardwareCredentialPromptProcessing = () => {
     </TestContainer>
   );
 };
-export const SsoPrompt = () => {
-  const props = makeProps();
-  props.loginAttempt.status = 'processing';
-  props.shouldPromptSsoStatus = true;
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-const TestContainer: FC<PropsWithChildren> = ({ children }) => (
-  <>
-    <span>Bordered box is not part of the component</span>
-    <Box
-      css={`
-        width: 450px;
-        border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surface};
-      `}
-    >
-      {children}
-    </Box>
-  </>
-);

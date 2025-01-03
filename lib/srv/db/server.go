@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
@@ -313,7 +314,7 @@ type Server struct {
 	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]srv.HeartbeatI
 	// watcher monitors changes to database resources.
-	watcher *services.DatabaseWatcher
+	watcher *services.GenericWatcher[types.Database, readonly.Database]
 	// proxiedDatabases contains databases this server currently is proxying.
 	// Proxied databases are reconciled against monitoredDatabases below.
 	proxiedDatabases map[string]types.Database
@@ -716,21 +717,21 @@ func (s *Server) getServerInfoFunc(database types.Database) func(context.Context
 	if s.cfg.GetServerInfoFn != nil {
 		return s.cfg.GetServerInfoFn(database)
 	}
-	return func(context.Context) (*types.DatabaseServerV3, error) {
-		return s.getServerInfo(database)
+	return func(ctx context.Context) (*types.DatabaseServerV3, error) {
+		return s.getServerInfo(ctx, database)
 	}
 }
 
 // getServerInfo returns up-to-date database resource e.g. with updated dynamic
 // labels.
-func (s *Server) getServerInfo(database types.Database) (*types.DatabaseServerV3, error) {
+func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*types.DatabaseServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.copyDatabaseWithUpdatedLabelsLocked(database)
 	s.mu.RUnlock()
 	if s.cfg.CloudIAM != nil {
-		s.cfg.CloudIAM.UpdateIAMStatus(copy)
+		s.cfg.CloudIAM.UpdateIAMStatus(ctx, copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 

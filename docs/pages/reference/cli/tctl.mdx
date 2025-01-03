@@ -107,7 +107,7 @@ which could result in the error,
 
 ## tctl acl get
 
-Gets and displays information about a particular access list.
+Gets and displays information about a particular Access List.
 
 ```code
 $ tctl acl get <id>
@@ -123,7 +123,7 @@ $ tctl acl ls
 
 ## tctl acl users add
 
-Adds a user to an access list.
+Adds a user to an Access List.
 
 ```code
 $ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
@@ -131,7 +131,7 @@ $ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
 
 ## tctl acl users ls
 
-Lists the users in an access list.
+Lists the users in an Access List.
 
 ```code
 $ tctl acl users ls <access-list-name>
@@ -139,7 +139,7 @@ $ tctl acl users ls <access-list-name>
 
 ## tctl acl users rm
 
-Removes a user from an access list.
+Removes a user from an Access List.
 
 ```code
 $ tctl acl users rm <access-list-name> <user>
@@ -419,6 +419,95 @@ Create a new bot named `example` that may assume the `access` role and log in as
 
 ```code
 $ tctl bots add example --roles=access --logins=root
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots instances add
+
+Onboard a new instance of an existing bot with a one-time use join token:
+
+```code
+$ tctl bots instances add <name> [flags]
+```
+
+Note that a new instance will not be generated immediately; the bot will appear
+in `tctl bots instances list` as soon as it joins the cluster and is allocated a
+UUID.
+
+### Arguments
+
+- `<name>` - the name of the existing bot for which a new join token should be
+  generated
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--token` | none | String name of an existing join token. | Optional. Specifies an existing join token to be used rather than creating one as part of the Bot creation. |
+| `--format` | `text` | `text`, `json` | If set to `json`, return new bot information as a machine-readable JSON string. |
+
+### Examples
+
+This generates a new one-time use join token for the bot named "example",
+without modifying roles or other configuration:
+
+```code
+$ tctl bots instances add example
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots instances list
+
+List all current instances of a Machine ID bot:
+
+```code
+$ tctl bots instances list [<name>]
+```
+
+### Arguments
+
+- `[<name>]` - an optional bot name. If provided, filters the result to show
+  only instances for the named bot. Otherwise, shows all instances for all bots.
+
+### Examples
+
+This shows all known instances for the bot named "example":
+
+```code
+$ tctl bots instance list example
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots instances show
+
+Shows details about a particular instance of a bot, including join metadata and
+current status:
+
+```code
+$ tctl bots instances show <name>/<uuid>
+```
+
+### Arguments
+
+- `<name>` - the name of the existing bot
+- `<uuid>` - the UUID of the existing bot instance, as shown in `tctl bots instance list`
+
+### Examples
+
+```code
+$ tctl bots instances show example/28e605c9-2fe1-423f-afe1-5122335e1c75
 ```
 
 ### Global flags
@@ -1346,7 +1435,7 @@ Supported presets:
 |------------|--------------------------------------|-----------|
 | `okta`     | Okta                                 | Okta      |
 | `onelogin` | OneLogin                             | OneLogin  |
-| `ad`       | Azure Active Directory               | Microsoft |
+| `ad`       | Microsoft Entra ID                   | Microsoft |
 | `adfs`     | Active Directory Federation Services | ADFS      |
 
 ### Global flags
@@ -1641,11 +1730,9 @@ These flags are available for all commands `--debug, --config`. Run
 ### Examples
 
 ```code
-# Adds teleport user "joe" with mappings to
-# OS users and {{ internal.logins }} to "joe" and "ubuntu"
-$ tctl users add joe --roles=access,requester joe,ubuntu
-# Adds Teleport user "joe" with mappings to the editor role
-$ tctl users add joe --roles=editor,reviewer
+# Adds Teleport user "joe" with the "access" and "requester" roles and
+# permissions to assume the "joe" and "ubuntu" logins
+$ tctl users add joe --roles=access,requester --logins=joe,ubuntu
 ```
 
 ## tctl users ls
@@ -1658,7 +1745,7 @@ $ tctl users ls [<flags>]
 
 ## tctl users reset
 
-Reset local user account password and any associated second factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
+Reset local user account password and any associated multi-factor devices with expiring link to populate values. **Usage**: `tctl users reset <account>`
 
 ### Arguments
 

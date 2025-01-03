@@ -21,12 +21,11 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -37,7 +36,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -50,7 +48,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -111,28 +108,70 @@ type MFAChallengeResponse struct {
 	TOTPCode string `json:"totp_code,omitempty"`
 	// WebauthnResponse is a response from a webauthn device.
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+	// SSOResponse is a response from an SSO MFA flow.
+	SSOResponse *SSOResponse `json:"sso_response"`
+	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+}
+
+// SSOResponse is a json compatible [proto.SSOResponse].
+type SSOResponse struct {
+	RequestID string `json:"requestId,omitempty"`
+	Token     string `json:"token,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
 // if there were any responses set. Otherwise returns nil.
 func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
-	if r.TOTPCode != "" && r.WebauthnResponse != nil {
+	var availableResponses int
+	if r.TOTPCode != "" {
+		availableResponses++
+	}
+	if r.WebauthnResponse != nil {
+		availableResponses++
+	}
+	if r.SSOResponse != nil {
+		availableResponses++
+	}
+
+	if availableResponses > 1 {
 		return nil, trace.BadParameter("only one MFA response field can be set")
 	}
 
-	if r.TOTPCode != "" {
+	switch {
+	case r.WebauthnResponse != nil:
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
+		}}, nil
+	case r.SSOResponse != nil:
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: r.SSOResponse.RequestID,
+				Token:     r.SSOResponse.Token,
+			},
+		}}, nil
+	case r.TOTPCode != "":
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
 		}}, nil
-	}
-
-	if r.WebauthnResponse != nil {
+	case r.WebauthnAssertionResponse != nil:
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnAssertionResponse),
 		}}, nil
 	}
 
 	return nil, nil
+}
+
+// ParseMFAChallengeResponse parses [MFAChallengeResponse] from JSON and returns it as a [proto.MFAAuthenticateResponse].
+func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateResponse, error) {
+	var resp MFAChallengeResponse
+	if err := json.Unmarshal(mfaResponseJSON, &resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoResp, err := resp.GetOptionalMFAResponseProtoReq()
+	return protoResp, trace.Wrap(err)
 }
 
 // CreateSSHCertReq is passed by tsh to authenticate a local user without MFA
@@ -457,6 +496,37 @@ type MFAAuthenticateChallenge struct {
 	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
+	// SSOChallenge is an SSO MFA challenge.
+	SSOChallenge *SSOChallenge `json:"sso_challenge"`
+}
+
+// SSOChallenge is a json compatible [proto.SSOChallenge].
+type SSOChallenge struct {
+	RequestID   string        `json:"requestId,omitempty"`
+	RedirectURL string        `json:"redirectUrl,omitempty"`
+	Device      *SSOMFADevice `json:"device"`
+	// ChannelID is used by the front end to differentiate multiple ongoing SSO
+	// MFA requests so they don't interfere with each other.
+	ChannelID string `json:"channelId"`
+}
+
+// SSOMFADevice is a json compatible [proto.SSOMFADevice].
+type SSOMFADevice struct {
+	ConnectorID   string `json:"connectorId,omitempty"`
+	ConnectorType string `json:"connectorType,omitempty"`
+	DisplayName   string `json:"displayName,omitempty"`
+}
+
+func SSOChallengeFromProto(ssoChal *proto.SSOChallenge) *SSOChallenge {
+	return &SSOChallenge{
+		RequestID:   ssoChal.RequestId,
+		RedirectURL: ssoChal.RedirectUrl,
+		Device: &SSOMFADevice{
+			ConnectorID:   ssoChal.Device.ConnectorId,
+			ConnectorType: ssoChal.Device.ConnectorType,
+			DisplayName:   ssoChal.Device.DisplayName,
+		},
+	}
 }
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
@@ -474,16 +544,18 @@ type TOTPRegisterChallenge struct {
 
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentClient,
-	})
-	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
+	log := slog.With(teleport.ComponentKey, teleport.ComponentClient)
+	log.DebugContext(context.Background(), "Initializing proxy HTTPS client",
+		"proxy_addr", proxyAddr,
+		"insecure", insecure,
+		"extra_headers", extraHeaders,
+	)
 
 	// validate proxy address
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
-			log.Error(err)
+			log.ErrorContext(context.Background(), "invalid proxy address", "error", err)
 		}
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
@@ -838,12 +910,6 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 		return nil, nil, trace.Wrap(err)
 	}
 
-	token := make([]byte, 32)
-	if _, err := rand.Read(token); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	csrfToken := hex.EncodeToString(token)
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -859,15 +925,7 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 			return nil, err
 		}
 
-		cookie := &http.Cookie{
-			Name:  csrf.CookieName,
-			Value: csrfToken,
-		}
-
-		req.AddCookie(cookie)
-
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(csrf.HeaderName, csrfToken)
 		return clt.HTTPClient().Do(req)
 	}))
 	if err != nil {

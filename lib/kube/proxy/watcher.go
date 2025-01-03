@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -36,7 +36,7 @@ import (
 // kubernetes clusters according to the up-to-date list of kube_cluster resources.
 func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
-		s.log.Debug("Not initializing Kube Cluster resource watcher.")
+		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil
 	}
 	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig[types.KubeCluster]{
@@ -46,8 +46,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		// TODO(tross): update to use the server logger once it has been converted to slog
-		Logger: slog.With("kind", types.KindKubernetesCluster),
+		Logger:              s.log.With("kind", types.KindKubernetesCluster),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -70,16 +69,16 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 			select {
 			case <-reconcileTicker.C:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Error("Failed to reconcile.")
+					s.log.ErrorContext(ctx, "Failed to reconcile", "error", err)
 				}
 			case <-s.reconcileCh:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Error("Failed to reconcile.")
+					s.log.ErrorContext(ctx, "Failed to reconcile", "error", err)
 				} else if s.OnReconcile != nil {
 					s.OnReconcile(s.fwd.kubeClusters())
 				}
 			case <-ctx.Done():
-				s.log.Debug("Reconciler done.")
+				s.log.DebugContext(ctx, "Reconciler done")
 				return
 			}
 		}
@@ -89,19 +88,19 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
-func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
+func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
-		s.log.Debug("Not initializing Kube Cluster resource watcher.")
+		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil, nil
 	}
-	s.log.Debug("Initializing Kube Cluster resource watcher.")
+	s.log.DebugContext(ctx, "Initializing Kube Cluster resource watcher")
 	watcher, err := services.NewKubeClusterWatcher(ctx, services.KubeClusterWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: s.Component,
-			// TODO(tross): update this once converted to use slog
-			// Logger:       s.log,
-			Client: s.AccessPoint,
+			Logger:    s.log,
+			Client:    s.AccessPoint,
 		},
+		KubernetesClusterGetter: s.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -110,7 +109,7 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 		defer watcher.Close()
 		for {
 			select {
-			case clusters := <-watcher.KubeClustersC:
+			case clusters := <-watcher.ResourcesC:
 				s.monitoredKubeClusters.setResources(clusters)
 				select {
 				case s.reconcileCh <- struct{}{}:
@@ -118,7 +117,7 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 					return
 				}
 			case <-ctx.Done():
-				s.log.Debug("Kube Cluster resource watcher done.")
+				s.log.DebugContext(ctx, "Kube Cluster resource watcher done")
 				return
 			}
 		}

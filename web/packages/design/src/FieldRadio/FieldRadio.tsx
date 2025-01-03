@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { forwardRef, ReactNode, ChangeEvent } from 'react';
+import { ChangeEvent, forwardRef, ReactNode } from 'react';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
-import { RadioButtonSize, RadioButton } from 'design/RadioButton';
 import Flex from 'design/Flex';
 import LabelInput from 'design/LabelInput';
-import Text from 'design/Text';
+import { RadioButton, RadioButtonSize } from 'design/RadioButton';
 import { SpaceProps } from 'design/system';
+import Text from 'design/Text';
 
 interface FieldRadioProps extends SpaceProps {
   name?: string;

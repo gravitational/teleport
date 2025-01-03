@@ -20,7 +20,7 @@ package testlib
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -88,12 +88,11 @@ func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace)
 	require.NoError(t, err)
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-
 func ValidRandomResourceName(prefix string) string {
-	b := make([]rune, 5)
+	const letters = "abcdefghijklmnopqrstuvwxyz1234567890"
+	b := make([]byte, 5)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letters[rand.N(len(letters))]
 	}
 	return prefix + string(b)
 }

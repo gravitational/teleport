@@ -16,129 +16,146 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useCallback, useEffect, useState } from 'react';
 
-import cfg from 'teleport/config';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import {
+  DeviceType,
+  DeviceUsage,
+  getMfaChallengeOptions,
+  MfaAuthenticateChallenge,
+  MfaChallengeResponse,
+  MfaOption,
+} from 'teleport/services/mfa';
 
-import type { MfaAuthnResponse } from 'teleport/services/mfa';
+export default function useReAuthenticate({
+  challengeScope,
+  onMfaResponse,
+}: ReauthProps): ReauthState {
+  const [mfaOptions, setMfaOptions] = useState<MfaOption[]>();
+  const [challengeState, setChallengeState] = useState<challengeState>();
 
-// useReAuthenticate will have different "submit" behaviors depending on:
-//  - If prop field `onMfaResponse` is defined, after a user submits, the
-//    function `onMfaResponse` is called with the user's MFA response.
-//  - If prop field `onAuthenticated` is defined, after a user submits, the
-//    user's MFA response are submitted with the request to get a privilege
-//    token, and after successfully obtaining the token, the function
-//    `onAuthenticated` will be called with this token.
-export default function useReAuthenticate(props: Props) {
-  const { onClose, actionText = defaultActionText } = props;
-
-  // Note that attempt state "success" is not used or required.
-  // After the user submits, the control is passed back
-  // to the caller who is reponsible for rendering the `ReAuthenticate`
-  // component.
-  const { attempt, setAttempt, handleError } = useAttempt('');
-
-  function submitWithTotp(secondFactorToken: string) {
-    if ('onMfaResponse' in props) {
-      props.onMfaResponse({ totp_code: secondFactorToken });
-      return;
-    }
-
-    setAttempt({ status: 'processing' });
-    auth
-      .createPrivilegeTokenWithTotp(secondFactorToken)
-      .then(props.onAuthenticated)
-      .catch(handleError);
+  function setMfaChallenge(challenge: MfaAuthenticateChallenge) {
+    setChallengeState({ challenge, deviceUsage: 'mfa' });
   }
 
-  function submitWithWebauthn() {
-    setAttempt({ status: 'processing' });
+  const [initAttempt, init] = useAsync(async () => {
+    const challenge = await auth.getMfaChallenge({
+      scope: challengeScope,
+    });
+    setMfaChallenge(challenge);
+    setMfaOptions(getMfaChallengeOptions(challenge));
+  });
 
-    if ('onMfaResponse' in props) {
-      auth
-        .getWebauthnResponse(props.challengeScope)
-        .then(webauthnResponse =>
-          props.onMfaResponse({ webauthn_response: webauthnResponse })
-        )
-        .catch(handleError);
-      return;
-    }
+  useEffect(() => {
+    init();
+  }, []);
 
-    auth
-      .createPrivilegeTokenWithWebauthn()
-      .then(props.onAuthenticated)
-      .catch((err: Error) => {
-        // This catches a webauthn frontend error that occurs on Firefox and replaces it with a more helpful error message.
-        if (
-          err.message.includes('attempt was made to use an object that is not')
-        ) {
-          setAttempt({
-            status: 'failed',
-            statusText:
-              'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.',
-          });
-        } else {
-          setAttempt({ status: 'failed', statusText: err.message });
-        }
+  const getChallenge = useCallback(
+    async (deviceUsage: DeviceUsage = 'mfa') => {
+      if (challengeState?.deviceUsage === deviceUsage) {
+        return challengeState.challenge;
+      }
+
+      // If the challenge state is empty, used, or has different args,
+      // retrieve a new mfa challenge and set it in the state.
+      const challenge = await auth.getMfaChallenge({
+        scope: challengeScope,
+        userVerificationRequirement:
+          deviceUsage === 'passwordless' ? 'required' : 'discouraged',
       });
-  }
+      setChallengeState({
+        challenge,
+        deviceUsage,
+      });
+      return challenge;
+    },
+    [challengeState, challengeScope]
+  );
 
-  function clearAttempt() {
-    setAttempt({ status: '' });
+  const [submitAttempt, submitWithMfa, setSubmitAttempt] = useAsync(
+    useCallback(
+      async (
+        mfaType?: DeviceType,
+        deviceUsage?: DeviceUsage,
+        totpCode?: string
+      ) => {
+        const challenge = await getChallenge(deviceUsage);
+
+        let response: MfaChallengeResponse;
+        try {
+          response = await auth.getMfaChallengeResponse(
+            challenge,
+            mfaType,
+            totpCode
+          );
+        } catch (err) {
+          throw new Error(getReAuthenticationErrorMessage(err));
+        }
+
+        try {
+          await onMfaResponse(response);
+        } finally {
+          // once onMfaResponse is called, assume the challenge
+          // has been consumed and clear the state.
+          setChallengeState(null);
+        }
+      },
+      [getChallenge, onMfaResponse]
+    )
+  );
+
+  function clearSubmitAttempt() {
+    setSubmitAttempt(makeEmptyAttempt());
   }
 
   return {
-    attempt,
-    clearAttempt,
-    submitWithTotp,
-    submitWithWebauthn,
-    auth2faType: cfg.getAuth2faType(),
-    preferredMfaType: cfg.getPreferredMfaType(),
-    actionText,
-    onClose,
+    initAttempt,
+    mfaOptions,
+    setMfaChallenge,
+    submitWithMfa,
+    submitAttempt,
+    clearSubmitAttempt,
   };
 }
 
-const defaultActionText = 'performing this action';
-
-type BaseProps = {
-  onClose?: () => void;
-  /**
-   * The text that will be appended to the text in the re-authentication dialog.
-   *
-   * Default value: "performing this action"
-   *
-   * Example: If `actionText` is set to "registering a new device" then the dialog will say
-   * "You must verify your identity with one of your existing two-factor devices before registering a new device."
-   *
-   * */
-  actionText?: string;
-};
-
-// MfaResponseProps defines a function
-// that accepts a MFA response. No
-// authentication has been done at this point.
-type MfaResponseProps = BaseProps & {
-  onMfaResponse(res: MfaAuthnResponse): void;
-  /**
-   * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
-   */
+export type ReauthProps = {
   challengeScope: MfaChallengeScope;
-  onAuthenticated?: never;
+  onMfaResponse(res: MfaChallengeResponse): Promise<void>;
 };
 
-// DefaultProps defines a function that
-// accepts a privilegeTokenId that is only
-// obtained after MFA response has been
-// validated.
-type DefaultProps = BaseProps & {
-  onAuthenticated(privilegeTokenId: string): void;
-  onMfaResponse?: never;
-  challengeScope?: never;
+export type ReauthState = {
+  initAttempt: Attempt<any>;
+  mfaOptions: MfaOption[];
+  setMfaChallenge: (challenge: MfaAuthenticateChallenge) => void;
+  submitWithMfa: (
+    mfaType?: DeviceType,
+    deviceUsage?: DeviceUsage,
+    totpCode?: string
+  ) => Promise<[void, Error]>;
+  submitAttempt: Attempt<void>;
+  clearSubmitAttempt: () => void;
 };
 
-export type Props = MfaResponseProps | DefaultProps;
+type challengeState = {
+  challenge: MfaAuthenticateChallenge;
+  deviceUsage: DeviceUsage;
+};
 
-export type State = ReturnType<typeof useReAuthenticate>;
+function getReAuthenticationErrorMessage(err: Error): string {
+  if (err.message.includes('attempt was made to use an object that is not')) {
+    // Catch a webauthn frontend error that occurs on Firefox and replace it with a more helpful error message.
+    return 'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.';
+  }
+
+  if (err.message === 'invalid totp token') {
+    // This message relies on the status message produced by the auth server in
+    // lib/auth/Server.checkOTP function. Please keep these in sync.
+    return 'Invalid authenticator code';
+  }
+
+  return err.message;
+}

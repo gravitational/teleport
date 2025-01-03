@@ -85,7 +85,6 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 }
 
 // AppendDiagnosticTrace adds a Trace into the ConnectionDiagnostics.
-// It does a CompareAndSwap to ensure atomicity.
 func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
 	existing, err := s.Get(ctx, backend.NewKey(connectionDiagnosticPrefix, name))
 	if err != nil {
@@ -115,7 +114,7 @@ func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context,
 		Revision: existing.Revision,
 	}
 
-	_, err = s.CompareAndSwap(ctx, *existing, newItem)
+	_, err = s.ConditionalUpdate(ctx, newItem)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

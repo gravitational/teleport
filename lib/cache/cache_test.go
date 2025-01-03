@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"strconv"
@@ -33,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
@@ -121,6 +121,7 @@ type testPack struct {
 	webSessionS             types.WebSessionInterface
 	webTokenS               types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
+	dynamicWindowsDesktops  services.DynamicWindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
 	okta                    services.Okta
@@ -140,17 +141,21 @@ type testPack struct {
 	autoUpdateService       services.AutoUpdateService
 	provisioningStates      services.ProvisioningStates
 	identityCenter          services.IdentityCenter
+	pluginStaticCredentials *local.PluginStaticCredentialsService
+	gitServers              services.GitServers
+	workloadIdentity        *local.WorkloadIdentityService
 }
 
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T types.Resource] struct {
-	newResource func(string) (T, error)
-	create      func(context.Context, T) error
-	list        func(context.Context) ([]T, error)
-	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context) ([]T, error)
-	update      func(context.Context, T) error
-	deleteAll   func(context.Context) error
+	newResource    func(string) (T, error)
+	create         func(context.Context, T) error
+	list           func(context.Context) ([]T, error)
+	cacheGet       func(context.Context, string) (T, error)
+	cacheList      func(context.Context) ([]T, error)
+	update         func(context.Context, T) error
+	deleteAll      func(context.Context) error
+	changeResource func(T)
 }
 
 // testFuncs153 are functions to support testing an RFD153-style resource in a cache.
@@ -174,7 +179,7 @@ func (t *testPack) Close() {
 		errors = append(errors, t.cache.Close())
 	}
 	if err := trace.NewAggregate(errors...); err != nil {
-		log.Warningf("Failed to close %v", err)
+		slog.WarnContext(context.Background(), "Failed to close", "error", err)
 	}
 }
 
@@ -269,6 +274,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dynamicWindowsDesktopService, err := local.NewDynamicWindowsDesktopService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
@@ -288,6 +298,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -355,6 +366,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.spiffeFederations = spiffeFederationsSvc
 
+	workloadIdentitySvc, err := local.NewWorkloadIdentityService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.workloadIdentity = workloadIdentitySvc
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -395,6 +412,16 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.pluginStaticCredentials, err = local.NewPluginStaticCredentialsService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.gitServers, err = local.NewGitServerService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -428,6 +455,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -447,6 +475,9 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
+		PluginStaticCredentials: p.pluginStaticCredentials,
+		GitServers:              p.gitServers,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -657,6 +688,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		WebSession:              p.cache.webSessionCache,
 		WebToken:                p.cache.webTokenCache,
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
+		DynamicWindowsDesktops:  p.cache.dynamicWindowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		StaticHostUsers:         p.staticHostUsers,
@@ -838,6 +870,7 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseServices:        p.databaseServices,
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
+			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
@@ -856,9 +889,12 @@ func TestCompletenessInit(t *testing.T) {
 			StaticHostUsers:         p.staticHostUsers,
 			AutoUpdateService:       p.autoUpdateService,
 			ProvisioningStates:      p.provisioningStates,
+			WorkloadIdentity:        p.workloadIdentity,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			IdentityCenter:          p.identityCenter,
+			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
+			GitServers:              p.gitServers,
 		}))
 		require.NoError(t, err)
 
@@ -921,6 +957,7 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -940,8 +977,11 @@ func TestCompletenessReset(t *testing.T) {
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
+		PluginStaticCredentials: p.pluginStaticCredentials,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1130,6 +1170,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1149,9 +1190,12 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
+		PluginStaticCredentials: p.pluginStaticCredentials,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1224,6 +1268,7 @@ func initStrategy(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1243,8 +1288,11 @@ func initStrategy(t *testing.T) {
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
+		PluginStaticCredentials: p.pluginStaticCredentials,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -2573,16 +2621,17 @@ func TestAccessListMembers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	count, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
+	count, listCount, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
 	require.NoError(t, err)
 	require.Equal(t, uint32(40), count)
+	require.Equal(t, uint32(0), listCount)
 
 	// Eventually, this should be reflected in the cache.
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
-		count, err := p.cache.CountAccessListMembers(ctx, al.GetName())
+		count, listCount, err := p.cache.CountAccessListMembers(ctx, al.GetName())
 		assert.NoError(t, err)
-		return count == uint32(40)
+		return count == uint32(40) && listCount == uint32(0)
 	}, time.Second*2, time.Millisecond*250)
 }
 
@@ -2912,10 +2961,20 @@ func TestStaticHostUsers(t *testing.T) {
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
+	if funcs.changeResource == nil {
+		funcs.changeResource = func(t T) {
+			if t.Expiry().IsZero() {
+				t.SetExpiry(time.Now().Add(30 * time.Minute))
+			} else {
+				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
+			}
+		}
+	}
+
 	// Create a resource.
 	r, err := funcs.newResource("test-sp")
 	require.NoError(t, err)
-	r.SetExpiry(time.Now().Add(30 * time.Minute))
+	funcs.changeResource(r)
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
@@ -2949,7 +3008,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
 		// Update the resource and upsert it into the backend again.
-		r.SetExpiry(r.Expiry().Add(30 * time.Minute))
+		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
 		require.NoError(t, err)
 	}
@@ -3507,6 +3566,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
+		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
+		types.KindGitServer:                         &types.ServerV2{},
+		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 	}
 
 	for name, cfg := range cases {
@@ -4083,9 +4145,9 @@ func newAutoUpdateAgentRollout(t *testing.T) *autoupdate.AutoUpdateAgentRollout 
 	r, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.3",
 		TargetVersion:  "2.3.4",
-		Schedule:       "regular",
-		AutoupdateMode: "enabled",
-		Strategy:       "time-based",
+		Schedule:       update.AgentsScheduleImmediate,
+		AutoupdateMode: update.AgentsUpdateModeEnabled,
+		Strategy:       update.AgentsStrategyTimeBased,
 	})
 	require.NoError(t, err)
 	return r

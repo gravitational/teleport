@@ -20,26 +20,26 @@ import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpr
 
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreNotifications, StoreUserContext } from './stores';
-import * as types from './types';
-import AuditService from './services/audit';
-import RecordingsService from './services/recordings';
-import NodeService from './services/nodes';
-import sessionService from './services/session';
-import ResourceService from './services/resources';
-import userService from './services/user';
+import { notificationContentFactory } from './Notifications';
+import { agentService } from './services/agents';
 import appService from './services/apps';
-import JoinTokenService from './services/joinToken';
-import KubeService from './services/kube';
+import AuditService from './services/audit';
+import ClustersService from './services/clusters/clusters';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
-import userGroupService from './services/userGroups';
+import JoinTokenService from './services/joinToken';
+import KubeService from './services/kube';
 import MfaService from './services/mfa';
-import { agentService } from './services/agents';
-import { storageService } from './services/storageService';
-import ClustersService from './services/clusters/clusters';
+import NodeService from './services/nodes';
 import { NotificationService } from './services/notifications';
-import { notificationContentFactory } from './Notifications';
+import RecordingsService from './services/recordings';
+import ResourceService from './services/resources';
+import sessionService from './services/session';
+import { storageService } from './services/storageService';
+import userService from './services/user';
+import userGroupService from './services/userGroups';
+import { StoreNav, StoreNotifications, StoreUserContext } from './stores';
+import * as types from './types';
 
 class TeleportContext implements types.Context {
   // stores
@@ -110,7 +110,10 @@ class TeleportContext implements types.Context {
 
     if (user.acl.accessGraph.list) {
       // If access graph is enabled, check what features are enabled and store them in local storage.
-      userService
+      // We await this so it is done by the time the page renders, otherwise the local storage event
+      // wouldn't trigger a re-render and Policy could end up not being displayed until the navigation
+      // is re-rendered.
+      await userService
         .fetchAccessGraphFeatures()
         .then(features => {
           for (let key in features) {
@@ -161,6 +164,7 @@ class TeleportContext implements types.Context {
       // having list access, requestable roles, or allowed search_as_roles.
       if (cfg.hideInaccessibleFeatures) {
         return !!(
+          userContext.getReviewRequests() ||
           userContext.getAccessRequestAccess().list ||
           userContext.getRequestableRoles().length ||
           userContext.getAllowedSearchAsRoles().length
@@ -175,6 +179,16 @@ class TeleportContext implements types.Context {
       return (
         userContext.getAuditQueryAccess().list ||
         userContext.getSecurityReportAccess().list
+      );
+    }
+
+    function hasAccessGraphIntegrationsAccess() {
+      return (
+        userContext.getIntegrationsAccess().list &&
+        userContext.getIntegrationsAccess().read &&
+        userContext.getPluginsAccess().read &&
+        userContext.getDiscoveryConfigAccess().list &&
+        userContext.getDiscoveryConfigAccess().read
       );
     }
 
@@ -221,6 +235,7 @@ class TeleportContext implements types.Context {
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
       tokens: userContext.getTokenAccess().create,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
@@ -261,6 +276,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  accessGraphIntegrations: false,
   externalAuditStorage: false,
   addBots: false,
   listBots: false,

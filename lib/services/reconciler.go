@@ -23,7 +23,6 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -54,9 +53,6 @@ type GenericReconcilerConfig[K comparable, T any] struct {
 	OnUpdate func(ctx context.Context, new, old T) error
 	// OnDelete is called when an existing resource is deleted.
 	OnDelete func(context.Context, T) error
-	// Log is the reconciler's logger.
-	// TODO(tross) remove this when all components in e have been updated
-	Log logrus.FieldLogger
 	// Logger emits log messages.
 	Logger *slog.Logger
 }

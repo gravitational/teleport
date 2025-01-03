@@ -17,22 +17,22 @@
  */
 
 import styled from 'styled-components';
-import { Flex, ButtonText, Box } from 'design';
+
+import { Box, ButtonText, Flex } from 'design';
 import * as Alerts from 'design/Alert';
-import { StepSlider } from 'design/StepSlider';
+import { StepSlider, type StepComponentProps } from 'design/StepSlider';
 import { Attempt } from 'shared/hooks/useAsync';
+import type { PrimaryAuthType } from 'shared/services';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
-import { PromptPasswordless } from './PromptPasswordless';
-import PromptSsoStatus from './PromptSsoStatus';
+import { outermostPadding } from '../../spacing';
+import type { PasswordlessLoginState } from '../useClusterLogin';
+import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
 import { FormSso } from './FormSso';
-import { FormLocal } from './FormLocal';
-
-import type { PasswordlessLoginState } from '../useClusterLogin';
-import type { PrimaryAuthType } from 'shared/services';
-import type { StepComponentProps } from 'design/StepSlider';
+import { PromptPasswordless } from './PromptPasswordless';
+import PromptSsoStatus from './PromptSsoStatus';
 
 export default function LoginForm(props: Props) {
   const {
@@ -46,12 +46,18 @@ export default function LoginForm(props: Props) {
 
   if (passwordlessLoginState) {
     return (
-      <PromptPasswordless onCancel={onAbort} {...passwordlessLoginState} />
+      <OutermostPadding>
+        <PromptPasswordless onCancel={onAbort} {...passwordlessLoginState} />
+      </OutermostPadding>
     );
   }
 
   if (shouldPromptSsoStatus) {
-    return <PromptSsoStatus onCancel={onAbort} />;
+    return (
+      <OutermostPadding>
+        <PromptSsoStatus onCancel={onAbort} />
+      </OutermostPadding>
+    );
   }
 
   const ssoEnabled = authProviders?.length > 0;
@@ -60,9 +66,9 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!localAuthEnabled && ssoEnabled) {
     return (
-      <FlexBordered p={4} pb={5}>
+      <FlexBordered px={outermostPadding}>
         {loginAttempt.status === 'error' && (
-          <Alerts.Danger m={5} mb={0} details={loginAttempt.statusText}>
+          <Alerts.Danger m={0} details={loginAttempt.statusText}>
             Could not log in
           </Alerts.Danger>
         )}
@@ -73,8 +79,11 @@ export default function LoginForm(props: Props) {
 
   if (!localAuthEnabled) {
     return (
-      <FlexBordered p={4}>
-        <Alerts.Danger details="The ability to login has not been enabled. Please contact your system administrator for more information.">
+      <FlexBordered px={outermostPadding}>
+        <Alerts.Danger
+          m={0}
+          details="The ability to login has not been enabled. Please contact your system administrator for more information."
+        >
           Login has not been enabled
         </Alerts.Danger>
       </FlexBordered>
@@ -83,9 +92,16 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
+    // No extra padding so that StepSlider children can span the whole width of the parent
+    // component. This way when they slide, they slide from one side to the other, without
+    // disappearing behind padding.
     <FlexBordered>
       {loginAttempt.status === 'error' && (
-        <Alerts.Danger m={4} mb={0} details={loginAttempt.statusText}>
+        <Alerts.Danger
+          mx={outermostPadding}
+          my={0}
+          details={loginAttempt.statusText}
+        >
           Could not log in
         </Alerts.Danger>
       )}
@@ -130,8 +146,13 @@ const Primary = ({
   }
 
   return (
-    <Box ref={refCallback} px={4} py={3}>
-      <Box mb={3}>{$primary}</Box>
+    <Flex
+      px={outermostPadding}
+      flexDirection="column"
+      gap={2}
+      ref={refCallback}
+    >
+      <Box>{$primary}</Box>
       {otherOptionsAvailable && (
         <Box textAlign="center">
           <ButtonText
@@ -146,7 +167,7 @@ const Primary = ({
           </ButtonText>
         </Box>
       )}
-    </Box>
+    </Flex>
   );
 };
 
@@ -207,20 +228,24 @@ const Secondary = ({
   }
 
   return (
-    <Box ref={refCallback} px={4} py={3}>
-      {$secondary}
-      <Box pt={3} textAlign="center">
-        <ButtonText
-          disabled={otherProps.loginAttempt.status === 'processing'}
-          onClick={() => {
-            otherProps.clearLoginAttempt();
-            prev();
-          }}
-        >
-          Back
-        </ButtonText>
-      </Box>
-    </Box>
+    <Flex
+      px={outermostPadding}
+      flexDirection="column"
+      gap={2}
+      ref={refCallback}
+    >
+      <div>{$secondary}</div>
+      <ButtonText
+        alignSelf="center"
+        disabled={otherProps.loginAttempt.status === 'processing'}
+        onClick={() => {
+          otherProps.clearLoginAttempt();
+          prev();
+        }}
+      >
+        Back
+      </ButtonText>
+    </Flex>
   );
 };
 
@@ -239,9 +264,11 @@ const Divider = () => (
   </Flex>
 );
 
-const FlexBordered = props => (
-  <Flex justifyContent="center" flexDirection="column" {...props} />
-);
+const FlexBordered = styled(Flex).attrs({
+  justifyContent: 'center',
+  flexDirection: 'column',
+  gap: 3,
+})``;
 
 const StyledOr = styled.div`
   background: ${props => props.theme.colors.levels.surface};
@@ -272,3 +299,5 @@ export type Props = types.AuthSettings & {
   onLogin(username: string, password: string): void;
   autoFocus?: boolean;
 };
+
+const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;

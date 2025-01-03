@@ -18,9 +18,9 @@
 
 import { PromptHardwareKeyPINChangeResponse } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
+import Logger from 'teleterm/logger';
 import { TshdEventContextBridgeService } from 'teleterm/types';
 import { IAppContext } from 'teleterm/ui/types';
-import Logger from 'teleterm/logger';
 
 export function createTshdEventsContextBridgeService(
   ctx: IAppContext
@@ -58,6 +58,9 @@ export function createTshdEventsContextBridgeService(
           kind: 'reauthenticate',
           promptMfaRequest: request,
           onSuccess: totpCode => resolve({ hasCanceledModal: false, totpCode }),
+          onSsoContinue: (redirectUrl: string) => {
+            window.open(redirectUrl);
+          },
           onCancel: () =>
             resolve({
               hasCanceledModal: true,
@@ -82,7 +85,9 @@ export function createTshdEventsContextBridgeService(
         };
       }
 
-      return { totpCode };
+      return {
+        totpCode,
+      };
     },
 
     getUsageReportingSettings: async () => {

@@ -3,6 +3,14 @@ title: Networking
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
 ---
 
+A Teleport cluster is a distributed system that may comprise a number of
+networks. On Teleport Enterprise (Cloud), for example, the Auth Service and
+Proxy Service run in Teleport-managed infrastructure, while Teleport users
+manage Agents and `tbot` instances.
+
+This reference guide describes the networking requirements of a Teleport
+cluster.
+
 ## Public address
 
 <Tabs>
@@ -36,21 +44,9 @@ following use cases:
 </TabItem>
 <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
-All Teleport services (e.g., the Application Service and Database Service) have
-an optional `public_addr` property that you can modify in each service's
-configuration file. The public address can take an IP or a DNS name. It can also
-be a list of values:
+On Teleport Enterprise (Cloud) the Teleport Agent services always
+connect using reverse tunnels so there is no need to set a public address for an Agent.
 
-```yaml
-public_addr: ["service-one.example.com", "service-two.example.com"]
-```
-
-Specifying a public address for a Teleport agent may be useful in the
-following use cases:
-
-- You have multiple identical services behind a load balancer.
-- You want Teleport to issue an SSH certificate for the service with additional
-  principals, e.g., host names.
 </TabItem>
 </Tabs>
 

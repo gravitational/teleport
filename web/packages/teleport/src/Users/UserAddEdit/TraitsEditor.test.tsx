@@ -16,18 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { fireEvent, render, screen } from 'design/utils/testing';
-
 import Validation from 'shared/components/Validation';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { TraitsEditor, emptyTrait } from './TraitsEditor';
-
+import { emptyTrait, TraitsEditor, type TraitsOption } from './TraitsEditor';
 import { traitsToTraitsOption } from './useDialog';
-
-import type { TraitsOption } from './TraitsEditor';
 
 test('Available traits are rendered', async () => {
   const setConfiguredTraits = jest.fn();

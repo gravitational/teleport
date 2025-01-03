@@ -656,7 +656,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -695,7 +695,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -791,7 +791,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 loop:
 	for {
 		select {
-		case event := <-main.UploadEventsC:
+		case event := <-aux.UploadEventsC:
 			sessionID = event.SessionID
 			break loop
 		case <-timeoutC:
@@ -800,7 +800,7 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	capturedStream, _ := streamSession(ctx, t, aux.Process.GetAuthServer(), sessionID)
 	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
@@ -935,7 +935,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubernetesLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -971,7 +971,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -1467,7 +1467,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	sessCreatorTerm := NewTerminal(250)
 	group := &errgroup.Group{}
 	group.Go(func() error {
-		cmd := []string{"/bin/sh", "echo", "hello from an ephemeral container"}
+		cmd := []string{"/bin/sh", "-c", "echo hello from an ephemeral container"}
 		debugPod, _, err := generateDebugContainer(contName, cmd, pod)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1572,7 +1572,7 @@ func generateDebugContainer(name string, cmd []string, pod *v1.Pod) (*v1.Pod, *v
 	ec := &v1.EphemeralContainer{
 		EphemeralContainerCommon: v1.EphemeralContainerCommon{
 			Name:                     name,
-			Image:                    "alpine:latest",
+			Image:                    localPodImage,
 			Command:                  cmd,
 			ImagePullPolicy:          v1.PullIfNotPresent,
 			Stdin:                    true,
@@ -1614,7 +1614,6 @@ func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, 
 		}
 
 		s := getContainerStatusByName(p, containerName)
-		fmt.Println("test", s)
 		if s == nil {
 			return false, nil
 		}
@@ -1769,7 +1768,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1790,7 +1789,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
@@ -1928,6 +1927,13 @@ func newNamespace(name string) *v1.Namespace {
 	}
 }
 
+// localPodImage is a container image that is used for testing
+// It's a docker image that runs a simple web server
+// that listens on port 80 and returns "Hello, World!" on GET /
+// This image is vendored in the Teleport repository in the
+// fixtures/alpine directory. Check the Dockerfile there for details.
+const localPodImage = "alpine-webserver:v1"
+
 func newPod(ns, name string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1937,7 +1943,7 @@ func newPod(ns, name string) *v1.Pod {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{{
 				Name:  "nginx",
-				Image: "nginx:alpine",
+				Image: localPodImage,
 			}},
 		},
 	}

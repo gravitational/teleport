@@ -737,10 +737,10 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketWebauthnChallenge:
+	case defaults.WebsocketMFAChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
+			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.WebsocketMFAChallenge)
 	}
 
 	var length uint32
@@ -780,10 +780,10 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketWebauthnChallenge:
+	case defaults.WebsocketMFAChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
+			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.WebsocketMFAChallenge)
 	}
 
 	var length uint32

@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -61,11 +62,15 @@ func TestWatcher(t *testing.T) {
 	}
 
 	clock := clockwork.NewFakeClock()
+	fetchIterations := atomic.Uint32{}
 	watcher, err := NewWatcher(ctx, WatcherConfig{
 		FetchersFn: StaticFetchers([]Fetcher{appFetcher, noAuthFetcher, dbFetcher}),
 		Interval:   time.Hour,
 		Clock:      clock,
 		Origin:     types.OriginCloud,
+		PreFetchHookFn: func() {
+			fetchIterations.Add(1)
+		},
 	})
 	require.NoError(t, err)
 	go watcher.Start()
@@ -77,6 +82,8 @@ func TestWatcher(t *testing.T) {
 	// Watcher should fetch again after interval.
 	clock.Advance(time.Hour + time.Minute)
 	assertFetchResources(t, watcher, wantResources)
+
+	require.Equal(t, uint32(2), fetchIterations.Load())
 }
 
 func TestWatcherWithDynamicFetchers(t *testing.T) {
@@ -167,6 +174,13 @@ func (m *mockFetcher) FetcherType() string {
 	return "empty"
 }
 
+func (m *mockFetcher) IntegrationName() string {
+	return ""
+}
+
+func (m *mockFetcher) GetDiscoveryConfigName() string {
+	return ""
+}
 func (m *mockFetcher) Cloud() string {
 	return m.cloud
 }

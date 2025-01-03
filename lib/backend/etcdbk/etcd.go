@@ -47,6 +47,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -266,11 +267,11 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	closeCtx, cancel := context.WithCancel(ctx)
 
 	leaseCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             utils.SeventhJitter(time.Minute * 2),
+		TTL:             retryutils.SeventhJitter(time.Minute * 2),
 		Context:         closeCtx,
 		Clock:           options.clock,
 		ReloadOnErr:     true,
-		CleanupInterval: utils.SeventhJitter(time.Minute * 2),
+		CleanupInterval: retryutils.SeventhJitter(time.Minute * 2),
 	})
 	if err != nil {
 		cancel()
@@ -288,7 +289,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		ctx:         closeCtx,
 		watchDone:   make(chan struct{}),
 		buf:         buf,
-		leaseBucket: utils.SeventhJitter(options.leaseBucket),
+		leaseBucket: retryutils.SeventhJitter(options.leaseBucket),
 		leaseCache:  leaseCache,
 	}
 
@@ -513,7 +514,7 @@ WatchEvents:
 
 		// pause briefly to prevent excessive watcher creation attempts
 		select {
-		case <-time.After(utils.HalfJitter(time.Millisecond * 1500)):
+		case <-time.After(retryutils.HalfJitter(time.Millisecond * 1500)):
 		case <-b.ctx.Done():
 			break WatchEvents
 		}

@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -33,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	protobuf "google.golang.org/protobuf/proto"
@@ -488,6 +488,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
+	srv.Spec.Hostname = "llama"
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	require.NoError(t, err)
 
@@ -513,6 +514,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
+	proxy.Spec.Hostname = "proxy.llama"
 	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
@@ -533,6 +535,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
+	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()
@@ -2137,7 +2140,7 @@ skiploop:
 	for {
 		select {
 		case event := <-w.Events():
-			log.Debugf("Skipping pre-test event: %v", event)
+			slog.DebugContext(ctx, "Skipping pre-test event", "event", event)
 			continue skiploop
 		default:
 			break skiploop
@@ -2212,11 +2215,11 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpPut {
-				log.Debugf("Skipping event %+v", event)
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue
 			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
-				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue waitLoop
 			}
 			require.Empty(t, cmp.Diff(resource, event.Resource))
@@ -2237,7 +2240,10 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpDelete {
-				log.Debugf("Skipping stale event %v %v", event.Type, event.Resource.GetName())
+				slog.DebugContext(context.Background(), "Skipping stale event",
+					"event_type", event.Type,
+					"resource_name", event.Resource.GetName(),
+				)
 				continue
 			}
 

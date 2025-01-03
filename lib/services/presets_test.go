@@ -19,6 +19,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -349,13 +350,41 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						ReviewRequests: &types.AccessReviewConditions{
-							Roles: []string{"some-role"},
+							Roles:          []string{"some-role"},
+							PreviewAsRoles: []string{"preview-role"},
 						},
 					},
 				},
 			},
-			enterprise:  true,
-			expectedErr: noChange,
+			enterprise:     true,
+			expectedErr:    require.NoError,
+			reviewNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{
+								teleport.PresetAccessRoleName,
+								teleport.SystemIdentityCenterAccessRoleName,
+								teleport.PresetGroupAccessRoleName,
+								"some-role",
+							},
+							PreviewAsRoles: []string{
+								teleport.PresetAccessRoleName,
+								teleport.SystemIdentityCenterAccessRoleName,
+								teleport.PresetGroupAccessRoleName,
+								"preview-role",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "requester (not enterprise)",
@@ -420,13 +449,36 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
-							Roles: []string{"some-role"},
+							Roles:         []string{"some-role"},
+							SearchAsRoles: []string{"search-as-role"},
 						},
 					},
 				},
 			},
-			enterprise:  true,
-			expectedErr: noChange,
+			enterprise:             true,
+			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"some-role"},
+							SearchAsRoles: []string{
+								teleport.PresetAccessRoleName,
+								teleport.SystemIdentityCenterAccessRoleName,
+								teleport.PresetGroupAccessRoleName,
+								"search-as-role",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "okta resources (not enterprise)",
@@ -555,8 +607,28 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
-			enterprise:  true,
-			expectedErr: noChange,
+			enterprise:             true,
+			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"some-role"},
+							SearchAsRoles: []string{
+								teleport.SystemOktaAccessRoleName,
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -568,14 +640,21 @@ func TestAddRoleDefaults(t *testing.T) {
 				})
 			}
 
-			role, err := AddRoleDefaults(test.role)
+			role, err := AddRoleDefaults(context.Background(), test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))
 
 			if test.expected != nil {
-				require.Equal(t, test.reviewNotEmpty, !role.GetAccessReviewConditions(types.Allow).IsEmpty())
-				require.Equal(t, test.accessRequestsNotEmpty, !role.GetAccessRequestConditions(types.Allow).IsEmpty())
+				require.Equal(t, test.reviewNotEmpty,
+					!role.GetAccessReviewConditions(types.Allow).IsEmpty(),
+					"Expected populated Access Review Conditions (%t)",
+					test.reviewNotEmpty)
+
+				require.Equal(t, test.accessRequestsNotEmpty,
+					!role.GetAccessRequestConditions(types.Allow).IsEmpty(),
+					"Expected populated Access Request Conditions (%t)",
+					test.accessRequestsNotEmpty)
 			}
 		})
 	}

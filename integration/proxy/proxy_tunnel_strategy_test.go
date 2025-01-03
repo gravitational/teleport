@@ -325,7 +325,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 }
 
 // makeProxy bootstraps a new teleport proxy instance.
-// It's public address points to a load balancer.
+// Its public address points to a load balancer.
 func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	proxy := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,

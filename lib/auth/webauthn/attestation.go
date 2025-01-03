@@ -19,16 +19,21 @@
 package webauthn
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"log/slog"
 	"slices"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "WebAuthn")
 
 // x5cFormats enumerates all attestation formats that supply an attestation
 // chain through the "x5c" field.
@@ -138,13 +143,17 @@ func getChainFromX5C(obj protocol.AttestationObject) ([]*x509.Certificate, error
 
 	// Print out attestation certs if debug is enabled.
 	// This may come in handy for people having trouble with their setups.
-	if log.IsLevelEnabled(log.DebugLevel) {
+	ctx := context.Background()
+	if log.Handler().Enabled(ctx, slog.LevelDebug) {
 		for _, cert := range chain {
 			certPEM := pem.EncodeToMemory(&pem.Block{
 				Type:  "CERTIFICATE",
 				Bytes: cert.Raw,
 			})
-			log.Debugf("WebAuthn: got %q attestation certificate:\n\n%s", obj.Format, certPEM)
+			log.DebugContext(context.Background(), "got attestation certificate",
+				"format", obj.Format,
+				"certificate", string(certPEM),
+			)
 		}
 	}
 

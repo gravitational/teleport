@@ -16,31 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useCallback, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
-import { Link } from 'react-router-dom';
-import { Flex, Image, Text, TopNav } from 'design';
+import type * as history from 'history';
+import React, { useCallback, useEffect, useState } from 'react';
 import { matchPath, useHistory } from 'react-router';
-import { Theme } from 'design/theme/themes/types';
+import { Link } from 'react-router-dom';
+import styled, { useTheme } from 'styled-components';
+
+import { Flex, Image, Text, TopNav } from 'design';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { Theme } from 'design/theme/themes/types';
+import { HoverTooltip } from 'design/Tooltip';
 
-import useTeleport from 'teleport/useTeleport';
-import { UserMenuNav } from 'teleport/components/UserMenuNav';
-import { useFeatures } from 'teleport/FeaturesContext';
-import { NavigationCategory } from 'teleport/Navigation/categories';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import cfg from 'teleport/config';
-import { TeleportFeature } from 'teleport/types';
-import { useLayout } from 'teleport/Main/LayoutContext';
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
-
+import { UserMenuNav } from 'teleport/components/UserMenuNav';
+import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { useLayout } from 'teleport/Main/LayoutContext';
+import { NavigationCategory } from 'teleport/Navigation/categories';
+import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 import { Notifications } from 'teleport/Notifications';
+import { TeleportFeature } from 'teleport/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 import { ButtonIconContainer } from './Shared';
-
-import type * as history from 'history';
 
 function getCategoryForRoute(
   features: TeleportFeature[],
@@ -168,7 +167,11 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 />
               )}
 
-              {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+              {topBarLinks.map(({ topMenuItem, navigationItem, hasAccess }) => {
+                const canAccess = hasAccess(ctx.getFeatureFlags());
+                if (!canAccess) {
+                  return;
+                }
                 const link = navigationItem.getLink(clusterId);
                 const currentPath = history.location.pathname;
                 const selected =
