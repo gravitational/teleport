@@ -232,7 +232,7 @@ describe('useMfa', () => {
       expect(auth.getMfaChallenge).toHaveBeenCalled();
     });
 
-    mfa.current.resetAttempt();
+    mfa.current.cancelAttempt();
 
     await expect(respPromise).rejects.toThrow(
       new Error('MFA attempt cancelled by user')

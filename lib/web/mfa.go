@@ -235,6 +235,9 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(Joerger): return whether MFA is required along with the challenge. Useful for determining
+	// whether the challenge is empty because the user has no devices, or because the user does not
+	// require MFA for the action.
 	return makeAuthenticateChallenge(chal, channelID), nil
 }
 

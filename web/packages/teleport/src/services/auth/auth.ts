@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import api from 'teleport/services/api';
 import {
   DeviceType,
@@ -44,7 +45,13 @@ import {
   UserCredentials,
 } from './types';
 
+let mfaContext: MfaContextValue;
+
 const auth = {
+  setMfaContext(mfa: MfaContextValue) {
+    mfaContext = mfa;
+  },
+
   checkWebauthnSupport() {
     if (window.PublicKeyCredential) {
       return Promise.resolve();
@@ -277,24 +284,9 @@ const auth = {
   // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
   async getMfaChallengeResponse(
     challenge: MfaAuthenticateChallenge,
-    mfaType?: DeviceType,
+    mfaType: DeviceType,
     totpCode?: string
   ): Promise<MfaChallengeResponse | undefined> {
-    if (!challenge) return;
-
-    // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
-    // to display a component, similar to the one used in useMfa. For now we just default to
-    // whichever method we can succeed with first.
-    if (!mfaType) {
-      if (totpCode) {
-        mfaType = 'totp';
-      } else if (challenge.webauthnPublicKey) {
-        mfaType = 'webauthn';
-      } else if (challenge.ssoChallenge) {
-        mfaType = 'sso';
-      }
-    }
-
     if (mfaType === 'webauthn') {
       return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
     }
@@ -389,7 +381,7 @@ const auth = {
   createPrivilegeTokenWithWebauthn() {
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(auth.getMfaChallengeResponse)
+      .then(chal => auth.getMfaChallengeResponse(chal, 'webauthn'))
       .then(mfaResp => auth.createPrivilegeToken(mfaResp));
   },
 
@@ -442,27 +434,33 @@ const auth = {
       .then(res => res?.webauthn_response);
   },
 
-  getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
-    // If the client is checking if MFA is required for an admin action,
-    // but we know admin action MFA is not enforced, return early.
-    if (!cfg.isAdminActionMfaEnforced()) {
-      return;
+  getAdminActionMfaResponse(allowReuse?: boolean) {
+    // mfaContext is set once the react-scoped MFA Context Provider is initialized.
+    // Since this is a global object outside of the react scope, there is a marginal
+    // chance for a race condition here (the react scope should generally be initialized
+    // before this has a chance of being called). This conditional is not expected to
+    // be hit, but will catch any major issues that could arise from this solution.
+    if (!mfaContext) {
+      setTimeout(() => {
+        if (!mfaContext)
+          throw new Error(
+            'Failed to set up MFA prompt for admin action. This is a bug.'
+          );
+      }, 1000);
     }
 
-    return auth
-      .getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-        allowReuse: allowReuse,
-        isMfaRequiredRequest: {
-          admin_action: {},
-        },
-      })
-      .then(auth.getMfaChallengeResponse);
+    return mfaContext.getMfaChallengeResponse({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
   },
 
   // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
   getWebauthnResponseForAdminAction(allowReuse?: boolean) {
-    return auth.getMfaChallengeResponseForAdminAction(allowReuse);
+    return auth.getAdminActionMfaResponse(allowReuse);
   },
 };
 

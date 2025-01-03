@@ -21,8 +21,9 @@ import api from 'teleport/services/api';
 
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
-import auth, { MfaChallengeScope } from '../auth/auth';
+import auth from '../auth/auth';
 import makeNode from '../nodes/makeNode';
+
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
@@ -271,16 +272,7 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<string> {
-    const challenge = await auth.getMfaChallenge({
-      scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse: true,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
-    });
-
-    const response = await auth.getMfaChallengeResponse(challenge);
-
+    const response = await auth.getAdminActionMfaResponse(true);
     return api
       .post(
         cfg.getAwsDeployTeleportServiceUrl(integrationName),
@@ -301,8 +293,7 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployDatabaseServicesRequest
   ): Promise<string> {
-    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
-
+    const mfaResponse = await auth.getAdminActionMfaResponse(true);
     return api
       .post(
         cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
@@ -317,7 +308,7 @@ export const integrationService = {
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
-    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+    const mfaResponse = await auth.getAdminActionMfaResponse(true);
 
     return api.post(
       cfg.getEnrollEksClusterUrl(integrationName),

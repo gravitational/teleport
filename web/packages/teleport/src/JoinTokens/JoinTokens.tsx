@@ -70,11 +70,12 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
+
   const [creatingToken, setCreatingToken] = useState(false);
   const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
-    useAsync(async () => await ctx.joinTokenService.fetchJoinTokens());
+    useAsync(() => ctx.joinTokenService.fetchJoinTokens(null));
 
   const resources = useResources(
     joinTokensAttempt.data?.items.map(makeTokenResource) || [],

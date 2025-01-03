@@ -38,12 +38,16 @@ import { LoginClose } from './Login/LoginClose';
 import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
-import { Main } from './Main';
-import { Player } from './Player';
 import { SingleLogoutFailed } from './SingleLogoutFailed';
+import { Welcome } from './Welcome';
+
+import { Player } from './Player';
+
+import { MfaContextProvider } from './MFAContext/MFAContext';
+
+import { Main } from './Main';
 import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
-import { Welcome } from './Welcome';
 
 const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;
@@ -86,13 +90,15 @@ const Teleport: React.FC<Props> = props => {
                   <Authenticated>
                     <UserContextProvider>
                       <TeleportContextProvider ctx={ctx}>
-                        <Switch>
-                          <Route
-                            path={cfg.routes.appLauncher}
-                            component={AppLauncher}
-                          />
-                          <Route>{createPrivateRoutes()}</Route>
-                        </Switch>
+                        <MfaContextProvider>
+                          <Switch>
+                            <Route
+                              path={cfg.routes.appLauncher}
+                              component={AppLauncher}
+                            />
+                            <Route>{createPrivateRoutes()}</Route>
+                          </Switch>
+                        </MfaContextProvider>
                       </TeleportContextProvider>
                     </UserContextProvider>
                   </Authenticated>
