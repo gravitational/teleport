@@ -414,7 +414,7 @@ At this time, the `spec.provider` field should not be set for any other identity
 ## Configuring SSO for MFA checks
 
 Teleport administrators can configure Teleport to delegate MFA checks to an 
-SSO provider as an alternative to registering MFA devices directly with the Teleport Cluster.
+SSO provider as an alternative to registering MFA devices directly with the Teleport cluster.
 This allows Teleport users to use MFA devices and custom flows configured in the SSO provider
 to carry out privileged actions in Teleport, such as:
 
@@ -423,18 +423,15 @@ to carry out privileged actions in Teleport, such as:
 - [Moderated sessions](../guides/moderated-sessions.mdx)
 - [Admin actions](../guides/mfa-for-admin-actions.mdx)
 
-<Admonition type="warning">
-  SSO MFA is an enterprise feature. Only OIDC and SAML auth connectors are supported.
-</Admonition>
-
-### Considerations
-
 Administrators may want to consider enabling this feature for the following benefits:
 
 - All authentication (login and MFA) goes through the IDP, reducing administrative overhead
 - Make custom MFA flows, such as prompting for 2 distinct devices for a single MFA check
 - Integrate with non-webauthn devices supported directly by your IDP
-- Enable new SSO users to carry out privileged actions without requiring them to register their device through Teleport first
+
+<Admonition type="warning">
+  SSO MFA is an enterprise feature. Only OIDC and SAML auth connectors are supported.
+</Admonition>
 
 ### Configure the IDP App / Client
 
