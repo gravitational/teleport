@@ -5,7 +5,7 @@ description: "Deploying a high-availability Teleport cluster using Proxy Peering
 
 This deployment architecture features two important design decisions:
 
-- AWS Route 53 latency-based routing is used for global server load balancing 
+- Amazon Route 53 latency-based routing is used for global server load balancing 
    ([GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)).
    This allows for efficient distribution of traffic across resources that are globally distributed.
 - Teleport's [Proxy Peering](../../../reference/architecture/proxy-peering.mdx) is used to reduce the total number of tunnel connections in the Teleport cluster.
@@ -22,12 +22,12 @@ entry while also ensuring minimal latency when accessing connected resources.
 - Deployed exclusively in the AWS ecosystem
 - High-availability Auto Scaling group of Auth Service instances that must remain in a single region
 - High-availability Auto Scaling group of Proxy Service instances deployed across multiple regions
-- [AWS Route 53 latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
+- [Amazon Route 53 latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
 - [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
 - [Teleport TLS Routing](../../../reference/architecture/tls-routing.mdx) to reduce the number of ports needed to use Teleport
 - [Teleport Proxy Peering](../../../reference/architecture/proxy-peering.mdx) for reducing the number of resource connections
 - [AWS Network Load Balancing](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
-- [AWS DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html) for cluster state storage
+- [Amazon DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html) for cluster state storage
 - [AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for session recording storage
 
 ## Advantages of this deployment architecture
@@ -37,7 +37,7 @@ entry while also ensuring minimal latency when accessing connected resources.
 - Provides a highly resilient, redundant HA architecture for Teleport that can quickly 
   scale with an organization's needs.
 - All required Teleport components can be provisioned within the AWS ecosystem.
-- Using load balancers for the Proxy and Auth Services allows for increased availability 
+- Using load balancers for the Proxy Service and Auth Service allows for increased availability 
   during Teleport cluster upgrades.
 
 ## Disadvantages of this deployment architecture
@@ -61,7 +61,7 @@ In other words, this must be a Layer 4 load balancer, not a Layer 7
   type="warning"
   title="Note"
 >
-Cross-zone load balancing is required for the Auth and Proxy service NLB configurations to route 
+Cross-zone load balancing is required for the Auth Service and Proxy Service NLB configurations to route 
 traffic across multiple zones. Doing this improves resiliency against localized AWS zone outages.
 </Admonition>
 
@@ -182,7 +182,7 @@ additional settings.
 In this deployment architecture, [Proxy Peering](../../../reference/architecture/proxy-peering.mdx) is used to restrict the number of connections made from 
 resources to proxies in the Teleport Cluster.
 
-This guide covers the necessary Proxy Peering settings for deploying an HA Teleport Cluster routing resource
+This guide covers the necessary Proxy Peering settings for deploying an HA Teleport cluster routing resource
 traffic with GSLB. 
 
 ### Auth Service Proxy Peering configuration 
@@ -196,7 +196,7 @@ auth_service:
   type: proxy_peering
   agent_connection_count: 2
 ```
-Reference the [Auth Server configuration](../../../reference/config.mdx) reference page 
+Reference the [Auth Service configuration](../../../reference/config.mdx) reference page 
 for additional settings.
 
 ### Proxy Service Proxy Peering configuration 
