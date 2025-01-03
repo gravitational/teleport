@@ -20,6 +20,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
+import "teleport/workloadidentity/v1/join_attrs.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
@@ -108,6 +109,11 @@ message BotInstanceStatusAuthentication {
 
   reserved 7;
   reserved "fingerprint";
+
+  // The attributes generated during the join process. Typically, this is
+  // information from the join attestation process itself. This field will
+  // eventually replace the `metadata` field, which is structureless.
+  teleport.workloadidentity.v1.JoinAttrs join_attrs = 8;
 }
 
 // BotInstanceStatus holds the status of a BotInstance.
