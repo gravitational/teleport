@@ -251,6 +251,8 @@ type CommandLineFlags struct {
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
 
+	IntegrationConfAccessGraphAzureSyncArguments IntegrationConfAccessGraphAzureSync
+
 	// IntegrationConfAzureOIDCArguments contains the arguments of
 	// `teleport integration configure azure-oidc` command
 	IntegrationConfAzureOIDCArguments IntegrationConfAzureOIDC
@@ -280,6 +282,19 @@ type IntegrationConfAccessGraphAWSSync struct {
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
+// IntegrationConfAccessGraphAzureSync contains the arguments of
+// `teleport integration configure access-graph azure` command.
+type IntegrationConfAccessGraphAzureSync struct {
+	// ManagedIdentity is the principal performing the discovery
+	ManagedIdentity string
+	// RoleName is the name of the Azure Role to create and assign to the managed identity
+	RoleName string
+	// SubscriptionID is the Azure subscription containing resources for sync
+	SubscriptionID string
+	// AutoConfirm skips user confirmation of the operation plan if true
 	AutoConfirm bool
 }
 

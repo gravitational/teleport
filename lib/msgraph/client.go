@@ -336,6 +336,15 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 	return out.Value, nil
 }
 
+func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
+	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
+	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
+}
+
 // GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-post-approleassignedto]
 func (c *Client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string, assignment *AppRoleAssignment) (*AppRoleAssignment, error) {
