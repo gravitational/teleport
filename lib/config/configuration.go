@@ -289,11 +289,11 @@ type IntegrationConfAccessGraphAWSSync struct {
 type IntegrationConfAccessGraphAzureSync struct {
 	// ManagedIdentity is the principal performing the discovery
 	ManagedIdentity string
-	// Role is the Azure Role associated with the integration
-	Role string
+	// RoleName is the name of the Azure Role to create and assign to the managed identity
+	RoleName string
 	// SubscriptionID is the Azure subscription containing resources for sync
 	SubscriptionID string
-	// AutoConfirm skips user confirmation of the operation plan if true.
+	// AutoConfirm skips user confirmation of the operation plan if true
 	AutoConfirm bool
 }
 
