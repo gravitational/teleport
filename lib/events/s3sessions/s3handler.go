@@ -423,7 +423,11 @@ func (h *Handler) fromPath(p string) session.ID {
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
 func (h *Handler) ensureBucket(ctx context.Context) error {
-	_, err := h.client.HeadBucket(ctx, &s3.HeadBucketInput{
+	// Use a short timeout for the HeadBucket call in case it takes too long, in
+	// #50747 this call would hang.
+	shortCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err := h.client.HeadBucket(shortCtx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	err = awsutils.ConvertS3Error(err)
@@ -434,7 +438,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	case trace.IsBadParameter(err):
 		return trace.Wrap(err)
 	case !trace.IsNotFound(err):
-		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", "bucket", h.Bucket, "error", err)
+		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. This is expected if External Audit Storage is enabled or if Teleport has write-only access to the bucket, otherwise S3 session uploads may fail.", "bucket", h.Bucket, "error", err)
 		return nil
 	}
 
