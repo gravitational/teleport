@@ -62,12 +62,15 @@ type CredentialsCache struct {
 	roleARN     arn.ARN
 	integration string
 
-	// generateOIDCTokenFn is dynamically set after auth is initialized.
+	// generateOIDCTokenFn can be dynamically set after auth is initialized.
 	generateOIDCTokenFn GenerateOIDCTokenFn
 
 	// initialized communicates (via closing channel) that generateOIDCTokenFn is set.
-	initialized      chan struct{}
-	closeInitialized func()
+	initialized chan struct{}
+	// allowRetrieveBeforeInit allows the Retrieve method to return an error if
+	// initialized has not been closed yet, instead of waiting for it to be
+	// closed.
+	allowRetrieveBeforeInit bool
 
 	// gotFirstCredsOrErr communicates (via closing channel) that the first
 	// credsOrErr has been set.
@@ -91,6 +94,15 @@ type CredentialsCacheOptions struct {
 	// STSClient is the AWS sts client implementation to use when communicating
 	// with AWS
 	STSClient stscreds.AssumeRoleWithWebIdentityAPIClient
+
+	// GenerateOIDCTokenFn is a function that should return a valid, signed JWT for
+	// authenticating to AWS via OIDC.
+	GenerateOIDCTokenFn GenerateOIDCTokenFn
+
+	// AllowRetrieveBeforeInit allows the Retrieve method to return with an
+	// error before the cache has been initialized, instead of waiting for the
+	// first credentials to be generated.
+	AllowRetrieveBeforeInit bool
 
 	// Log is the logger to use. A default will be supplied if no logger is
 	// explicitly set
@@ -125,14 +137,18 @@ func NewCredentialsCache(options CredentialsCacheOptions) (*CredentialsCache, er
 	}
 
 	initialized := make(chan struct{})
+	if options.GenerateOIDCTokenFn != nil {
+		close(initialized)
+	}
 	gotFirstCredsOrErr := make(chan struct{})
 
 	return &CredentialsCache{
 		roleARN:                 options.RoleARN,
 		integration:             options.Integration,
-		log:                     options.Log.With("integration", options.Integration),
+		generateOIDCTokenFn:     options.GenerateOIDCTokenFn,
 		initialized:             initialized,
-		closeInitialized:        sync.OnceFunc(func() { close(initialized) }),
+		allowRetrieveBeforeInit: options.AllowRetrieveBeforeInit,
+		log:                     options.Log.With("integration", options.Integration),
 		gotFirstCredsOrErr:      gotFirstCredsOrErr,
 		closeGotFirstCredsOrErr: sync.OnceFunc(func() { close(gotFirstCredsOrErr) }),
 		credsOrErr:              credsOrErr{err: errNotReady},
@@ -141,19 +157,27 @@ func NewCredentialsCache(options CredentialsCacheOptions) (*CredentialsCache, er
 	}, nil
 }
 
+// SetGenerateOIDCTokenFn can be used to set a GenerateOIDCTokenFn after
+// creating the credential cache, when dependencies require the credential cache
+// to be created before a valid GenerateOIDCTokenFn can be created.
+//
+// This must be called exactly once if and only if no GenerateOIDCTokenFn was
+// passed to NewCredentialsCache.
 func (cc *CredentialsCache) SetGenerateOIDCTokenFn(fn GenerateOIDCTokenFn) {
 	cc.generateOIDCTokenFn = fn
-	cc.closeInitialized()
+	close(cc.initialized)
 }
 
 // Retrieve implements [aws.CredentialsProvider] and returns the latest cached
 // credentials, or an error if no credentials have been generated yet or the
 // last generated credentials have expired.
 func (cc *CredentialsCache) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	select {
-	case <-cc.gotFirstCredsOrErr:
-	case <-ctx.Done():
-		return aws.Credentials{}, ctx.Err()
+	if !cc.allowRetrieveBeforeInit {
+		select {
+		case <-cc.gotFirstCredsOrErr:
+		case <-ctx.Done():
+			return aws.Credentials{}, ctx.Err()
+		}
 	}
 	creds, err := cc.retrieve(ctx)
 	return creds, trace.Wrap(err)
