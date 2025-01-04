@@ -142,15 +142,20 @@ type awsApp struct {
 
 // newAWSApp creates a new AWS app.
 func newAWSApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*awsApp, error) {
+	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &awsApp{
-		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: localProxyApp,
 		cf:            cf,
 	}, nil
 }
 
 // GetAppName returns the app name.
 func (a *awsApp) GetAppName() string {
-	return a.appInfo.RouteToApp.Name
+	return a.routeToApp.Name
 }
 
 // StartLocalProxies sets up local proxies for serving AWS clients.
@@ -236,7 +241,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.appInfo.appLocalCAPath(a.cf.SiteName),
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
 	}
 
 	// Set proxy settings.
