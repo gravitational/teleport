@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/config"
@@ -109,7 +108,8 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 	}
 	cfg := provisioning.ActionConfig{
 		Name:     "NewSyncManagedId",
-		Summary:  "Creates a new Azure managed ID for the discovery service to use",
+		Summary:  "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
+		Details:  "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
 		RunnerFn: runnerFn,
 	}
 	return provisioning.NewAction(cfg)
@@ -122,7 +122,7 @@ func ConfigureAccessGraphSyncAzure(ctx context.Context, params config.Integratio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	managedIdAction, err := newManagedIdAction(cred, params.SubscriptionID, params.ManagedIdentity)
+	managedIdAction, err := newManagedIdAction(cred, params.SubscriptionID, params.ManagedIdentity, params.RoleName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
