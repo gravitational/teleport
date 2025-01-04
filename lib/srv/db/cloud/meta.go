@@ -24,14 +24,14 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
@@ -45,13 +45,36 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// rdsClient defines a subset of the AWS RDS client API.
+type rdsClient interface {
+	rds.DescribeDBClustersAPIClient
+	rds.DescribeDBInstancesAPIClient
+	rds.DescribeDBProxiesAPIClient
+	rds.DescribeDBProxyEndpointsAPIClient
+	ModifyDBCluster(ctx context.Context, params *rds.ModifyDBClusterInput, optFns ...func(*rds.Options)) (*rds.ModifyDBClusterOutput, error)
+	ModifyDBInstance(ctx context.Context, params *rds.ModifyDBInstanceInput, optFns ...func(*rds.Options)) (*rds.ModifyDBInstanceOutput, error)
+}
+
 // redshiftClient defines a subset of the AWS Redshift client API.
 type redshiftClient interface {
 	redshift.DescribeClustersAPIClient
 }
 
-// redshiftClientProviderFunc provides a [redshiftClient].
-type redshiftClientProviderFunc func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+// awsClientProvider is an AWS SDK client provider.
+type awsClientProvider interface {
+	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
+	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
+	return rds.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
+	return redshift.NewFromConfig(cfg, optFns...)
+}
 
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
@@ -60,9 +83,8 @@ type MetadataConfig struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 
-	// redshiftClientProviderFn is an internal-only [redshiftClient] provider
-	// func that is only set in tests.
-	redshiftClientProviderFn redshiftClientProviderFunc
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
 }
 
 // Check validates the metadata service config.
@@ -78,10 +100,8 @@ func (c *MetadataConfig) Check() error {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
 
-	if c.redshiftClientProviderFn == nil {
-		c.redshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		}
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -147,20 +167,21 @@ func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetch
 // fetchRDSMetadata fetches metadata for the provided RDS or Aurora database.
 func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clt := m.cfg.awsClients.getRDSClient(awsCfg)
 
 	if meta.RDS.ClusterID != "" {
-		return fetchRDSClusterMetadata(ctx, rds, meta.RDS.ClusterID)
+		return fetchRDSClusterMetadata(ctx, clt, meta.RDS.ClusterID)
 	}
 
 	// Try to fetch the RDS instance fetchedMeta.
-	fetchedMeta, err := fetchRDSInstanceMetadata(ctx, rds, meta.RDS.InstanceID)
+	fetchedMeta, err := fetchRDSInstanceMetadata(ctx, clt, meta.RDS.InstanceID)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -172,11 +193,11 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 		if clusterID == "" {
 			clusterID = meta.RDS.InstanceID
 		}
-		return fetchRDSClusterMetadata(ctx, rds, clusterID)
+		return fetchRDSClusterMetadata(ctx, clt, clusterID)
 	}
 	// If instance was found, it may be a part of an Aurora cluster.
 	if fetchedMeta.RDS.ClusterID != "" {
-		return fetchRDSClusterMetadata(ctx, rds, fetchedMeta.RDS.ClusterID)
+		return fetchRDSClusterMetadata(ctx, clt, fetchedMeta.RDS.ClusterID)
 	}
 	return fetchedMeta, nil
 }
@@ -184,18 +205,19 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 // fetchRDSProxyMetadata fetches metadata for the provided RDS Proxy database.
 func (m *Metadata) fetchRDSProxyMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clt := m.cfg.awsClients.getRDSClient(awsCfg)
 
 	if meta.RDSProxy.CustomEndpointName != "" {
-		return fetchRDSProxyCustomEndpointMetadata(ctx, rds, meta.RDSProxy.CustomEndpointName, database.GetURI())
+		return fetchRDSProxyCustomEndpointMetadata(ctx, clt, meta.RDSProxy.CustomEndpointName, database.GetURI())
 	}
-	return fetchRDSProxyMetadata(ctx, rds, meta.RDSProxy.Name)
+	return fetchRDSProxyMetadata(ctx, clt, meta.RDSProxy.Name)
 }
 
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.
@@ -208,7 +230,7 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	redshift := m.cfg.redshiftClientProviderFn(awsCfg)
+	redshift := m.cfg.awsClients.getRedshiftClient(awsCfg)
 	cluster, err := describeRedshiftCluster(ctx, redshift, meta.Redshift.ClusterID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -275,8 +297,8 @@ func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Dat
 }
 
 // fetchRDSInstanceMetadata fetches metadata about specified RDS instance.
-func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, instanceID string) (*types.AWS, error) {
-	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
+func fetchRDSInstanceMetadata(ctx context.Context, clt rdsClient, instanceID string) (*types.AWS, error) {
+	rdsInstance, err := describeRDSInstance(ctx, clt, instanceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,22 +306,22 @@ func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, in
 }
 
 // describeRDSInstance returns AWS RDS instance for the specified ID.
-func describeRDSInstance(ctx context.Context, rdsClient rdsiface.RDSAPI, instanceID string) (*rds.DBInstance, error) {
-	out, err := rdsClient.DescribeDBInstancesWithContext(ctx, &rds.DescribeDBInstancesInput{
+func describeRDSInstance(ctx context.Context, clt rdsClient, instanceID string) (*rdstypes.DBInstance, error) {
+	out, err := clt.DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(instanceID),
 	})
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
 	if len(out.DBInstances) != 1 {
-		return nil, trace.BadParameter("expected 1 RDS instance for %v, got %+v", instanceID, out.DBInstances)
+		return nil, trace.BadParameter("expected 1 RDS instance for %v, got %d", instanceID, len(out.DBInstances))
 	}
-	return out.DBInstances[0], nil
+	return &out.DBInstances[0], nil
 }
 
 // fetchRDSClusterMetadata fetches metadata about specified Aurora cluster.
-func fetchRDSClusterMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterID string) (*types.AWS, error) {
-	rdsCluster, err := describeRDSCluster(ctx, rdsClient, clusterID)
+func fetchRDSClusterMetadata(ctx context.Context, clt rdsClient, clusterID string) (*types.AWS, error) {
+	rdsCluster, err := describeRDSCluster(ctx, clt, clusterID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -307,8 +329,8 @@ func fetchRDSClusterMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, clu
 }
 
 // describeRDSCluster returns AWS Aurora cluster for the specified ID.
-func describeRDSCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterID string) (*rds.DBCluster, error) {
-	out, err := rdsClient.DescribeDBClustersWithContext(ctx, &rds.DescribeDBClustersInput{
+func describeRDSCluster(ctx context.Context, clt rdsClient, clusterID string) (*rdstypes.DBCluster, error) {
+	out, err := clt.DescribeDBClusters(ctx, &rds.DescribeDBClustersInput{
 		DBClusterIdentifier: aws.String(clusterID),
 	})
 	if err != nil {
@@ -317,7 +339,7 @@ func describeRDSCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterI
 	if len(out.DBClusters) != 1 {
 		return nil, trace.BadParameter("expected 1 RDS cluster for %v, got %+v", clusterID, out.DBClusters)
 	}
-	return out.DBClusters[0], nil
+	return &out.DBClusters[0], nil
 }
 
 // describeRedshiftCluster returns AWS Redshift cluster for the specified ID.
@@ -364,8 +386,8 @@ func describeMemoryDBCluster(ctx context.Context, client memorydbiface.MemoryDBA
 }
 
 // fetchRDSProxyMetadata fetches metadata about specified RDS Proxy name.
-func fetchRDSProxyMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyName string) (*types.AWS, error) {
-	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyName)
+func fetchRDSProxyMetadata(ctx context.Context, clt rdsClient, proxyName string) (*types.AWS, error) {
+	rdsProxy, err := describeRDSProxy(ctx, clt, proxyName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -373,28 +395,28 @@ func fetchRDSProxyMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxy
 }
 
 // describeRDSProxy returns AWS RDS Proxy for the specified RDS Proxy name.
-func describeRDSProxy(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyName string) (*rds.DBProxy, error) {
-	out, err := rdsClient.DescribeDBProxiesWithContext(ctx, &rds.DescribeDBProxiesInput{
+func describeRDSProxy(ctx context.Context, clt rdsClient, proxyName string) (*rdstypes.DBProxy, error) {
+	out, err := clt.DescribeDBProxies(ctx, &rds.DescribeDBProxiesInput{
 		DBProxyName: aws.String(proxyName),
 	})
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
 	if len(out.DBProxies) != 1 {
-		return nil, trace.BadParameter("expected 1 RDS Proxy for %v, got %s", proxyName, out.DBProxies)
+		return nil, trace.BadParameter("expected 1 RDS Proxy for %v, got %d", proxyName, len(out.DBProxies))
 	}
-	return out.DBProxies[0], nil
+	return &out.DBProxies[0], nil
 }
 
 // fetchRDSProxyCustomEndpointMetadata fetches metadata about specified RDS
 // proxy custom endpoint.
-func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName, uri string) (*types.AWS, error) {
-	rdsProxyEndpoint, err := describeRDSProxyCustomEndpointAndFindURI(ctx, rdsClient, proxyEndpointName, uri)
+func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, clt rdsClient, proxyEndpointName, uri string) (*types.AWS, error) {
+	rdsProxyEndpoint, err := describeRDSProxyCustomEndpointAndFindURI(ctx, clt, proxyEndpointName, uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rdsProxy, err := describeRDSProxy(ctx, rdsClient, aws.ToString(rdsProxyEndpoint.DBProxyName))
+	rdsProxy, err := describeRDSProxy(ctx, clt, aws.ToString(rdsProxyEndpoint.DBProxyName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -404,21 +426,27 @@ func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, rdsClient rdsiface
 
 // describeRDSProxyCustomEndpointAndFindURI returns AWS RDS Proxy endpoint for
 // the specified RDS Proxy custom endpoint.
-func describeRDSProxyCustomEndpointAndFindURI(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName, uri string) (*rds.DBProxyEndpoint, error) {
-	out, err := rdsClient.DescribeDBProxyEndpointsWithContext(ctx, &rds.DescribeDBProxyEndpointsInput{
+func describeRDSProxyCustomEndpointAndFindURI(ctx context.Context, clt rdsClient, proxyEndpointName, uri string) (*rdstypes.DBProxyEndpoint, error) {
+	out, err := clt.DescribeDBProxyEndpoints(ctx, &rds.DescribeDBProxyEndpointsInput{
 		DBProxyEndpointName: aws.String(proxyEndpointName),
 	})
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
-	for _, customEndpoint := range out.DBProxyEndpoints {
+	var endpoints []string
+	for _, e := range out.DBProxyEndpoints {
+		endpoint := aws.ToString(e.Endpoint)
+		if endpoint == "" {
+			continue
+		}
 		// Double check if it has the same URI in case multiple custom
 		// endpoints have the same name.
-		if strings.Contains(uri, aws.ToString(customEndpoint.Endpoint)) {
-			return customEndpoint, nil
+		if strings.Contains(uri, endpoint) {
+			return &e, nil
 		}
+		endpoints = append(endpoints, endpoint)
 	}
-	return nil, trace.BadParameter("could not find RDS Proxy custom endpoint %v with URI %v, got %s", proxyEndpointName, uri, out.DBProxyEndpoints)
+	return nil, trace.BadParameter("could not find RDS Proxy custom endpoint %v with URI %v, got %s", proxyEndpointName, uri, endpoints)
 }
 
 func fetchRedshiftServerlessWorkgroupMetadata(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) (*types.AWS, error) {

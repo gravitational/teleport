@@ -29,11 +29,16 @@ import (
 )
 
 type AWSConfigProvider struct {
+	Err                   error
 	STSClient             *STSClient
 	OIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
 
 func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns ...awsconfig.OptionsFn) (aws.Config, error) {
+	if f.Err != nil {
+		return aws.Config{}, f.Err
+	}
+
 	stsClt := f.STSClient
 	if stsClt == nil {
 		stsClt = &STSClient{}

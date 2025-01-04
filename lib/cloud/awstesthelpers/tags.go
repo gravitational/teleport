@@ -22,6 +22,7 @@ import (
 	"maps"
 	"slices"
 
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 )
 
@@ -36,6 +37,25 @@ func LabelsToRedshiftTags(labels map[string]string) []redshifttypes.Tag {
 		value := labels[key]
 
 		ret = append(ret, redshifttypes.Tag{
+			Key:   &key,
+			Value: &value,
+		})
+	}
+
+	return ret
+}
+
+// LabelsToRDSTags converts labels into a [rdstypes.Tag] list.
+func LabelsToRDSTags(labels map[string]string) []rdstypes.Tag {
+	keys := slices.Collect(maps.Keys(labels))
+	slices.Sort(keys)
+
+	ret := make([]rdstypes.Tag, 0, len(keys))
+	for _, key := range keys {
+		key := key
+		value := labels[key]
+
+		ret = append(ret, rdstypes.Tag{
 			Key:   &key,
 			Value: &value,
 		})

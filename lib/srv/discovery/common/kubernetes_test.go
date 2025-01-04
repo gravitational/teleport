@@ -98,9 +98,8 @@ func TestNewKubeClusterFromAWSEKS(t *testing.T) {
 			require.NoError(t, err)
 
 			cluster := &ekstypes.Cluster{
-				Name:   aws.String("cluster1"),
-				Arn:    aws.String("arn:aws:eks:eu-west-1:123456789012:cluster/cluster1"),
-				Status: ekstypes.ClusterStatusActive,
+				Name: aws.String("cluster1"),
+				Arn:  aws.String("arn:aws:eks:eu-west-1:123456789012:cluster/cluster1"),
 				Tags: map[string]string{
 					overrideLabel: "override-1",
 					"env":         "prod",
