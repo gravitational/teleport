@@ -3,17 +3,19 @@ package azureoidc
 import (
 	"context"
 	"fmt"
+	"os"
+	"slices"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/msgraph"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
-	"github.com/gravitational/trace"
-	"os"
-	"slices"
-	"strings"
 )
 
 // graphAppId is the pre-defined application ID of the Graph API
@@ -33,7 +35,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 		// Create the role
 		roleDefCli, err := armauthorization.NewRoleDefinitionsClient(cred, nil)
 		if err != nil {
-			return trace.Wrap(fmt.Errorf("failed to create role definitions client: %v", err))
+			return trace.Wrap(fmt.Errorf("failed to create role definitions client: %w", err))
 		}
 		roleDefId := uuid.New().String()
 		customRole := "CustomRole"
@@ -58,17 +60,17 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 		}
 		roleRes, err := roleDefCli.CreateOrUpdate(ctx, scope, roleDefId, roleDefinition, nil)
 		if err != nil {
-			return trace.Wrap(fmt.Errorf("failed to create custom role: %v", err))
+			return trace.Wrap(fmt.Errorf("failed to create custom role: %w", err))
 		}
 
 		// Assign the new role to the managed identity
 		roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subId, cred, nil)
 		if err != nil {
-			return fmt.Errorf("failed to create role assignments client: %v", err)
+			return fmt.Errorf("failed to create role assignments client: %w", err)
 		}
 		assignName := uuid.New().String()
 		if err != nil {
-			return trace.Wrap(fmt.Errorf("failed to create role assignments client: %v", err))
+			return trace.Wrap(fmt.Errorf("failed to create role assignments client: %w", err))
 		}
 		roleAssignParams := armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
@@ -78,14 +80,21 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 		}
 		_, err = roleAssignCli.Create(ctx, scope, assignName, roleAssignParams, nil)
 		if err != nil {
-			return fmt.Errorf("failed to create role assignment: %v", err)
+			return fmt.Errorf(
+				"failed to assign role %s to principal %s: %w", roleName, managedId, err)
 		}
 
 		// Assign the Graph API permissions to the managed identity
 		graphCli, err := msgraph.NewClient(msgraph.Config{
 			TokenProvider: cred,
 		})
+		if err != nil {
+			return trace.Wrap(fmt.Errorf("failed to create msgraph client: %w", err))
+		}
 		graphPrincipal, err := graphCli.GetServicePrincipalByAppId(ctx, graphAppId)
+		if err != nil {
+			return trace.Wrap(fmt.Errorf("failed to get the graph API service principal: %w", err))
+		}
 		var graphRoleIds []string
 		for _, appRole := range graphPrincipal.AppRoles {
 			if slices.Contains(requiredGraphRoleNames, *appRole.Value) {
@@ -99,7 +108,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 				ResourceID:  graphPrincipal.ID,
 			})
 			if err != nil {
-				return trace.Wrap(fmt.Errorf("failed to create graph API role assignment: %v", err))
+				return trace.Wrap(fmt.Errorf("failed to assign graph API role to %s: %w", managedId, err))
 			}
 		}
 		return nil
