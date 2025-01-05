@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 	"os"
 	"slices"
+	"strings"
 )
 
 // graphAppId is the pre-defined application ID of the Graph API
@@ -46,9 +47,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 					{
 						Actions: tslices.ToPointers([]string{
 							"Microsoft.Compute/virtualMachines/read",
-							"Microsoft.Compute/virtualMachines/list",
 							"Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read",
-							"Microsoft.Compute/virtualMachineScaleSets/virtualMachines/list",
 							"Microsoft.Authorization/roleDefinitions/read",
 							"Microsoft.Authorization/roleAssignments/read",
 						}),
@@ -62,7 +61,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 			return trace.Wrap(fmt.Errorf("failed to create custom role: %v", err))
 		}
 
-		// Assign the Azure role to the managed identity
+		// Assign the new role to the managed identity
 		roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subId, cred, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create role assignments client: %v", err)
@@ -100,16 +99,22 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, subId string, m
 				ResourceID:  graphPrincipal.ID,
 			})
 			if err != nil {
-				return trace.Wrap(fmt.Errorf("failed to create role assignment: %v", err))
+				return trace.Wrap(fmt.Errorf("failed to create graph API role assignment: %v", err))
 			}
 		}
-
 		return nil
 	}
 	cfg := provisioning.ActionConfig{
-		Name:     "NewSyncManagedId",
-		Summary:  "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
-		Details:  "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
+		Name:    "NewSyncManagedId",
+		Summary: "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
+		Details: strings.Join([]string{
+			"The Discovery service needs to run as a credentialed Azure managed identity. This managed identity ",
+			"can be system assigned (i.e. tied to the lifecycle of a virtual machine running the Discovery service), ",
+			"or user-assigned (i.e. a persistent identity). The managed identity requires two types of permissions: ",
+			"1) Azure resource permissions in order to fetch virtual machines, role definitions, etc, and 2) Graph ",
+			"API permissions to fetch users, groups, and service principals. The command assigns both Azure resource ",
+			"permissions as well as Graph API permissions to the specified managed identity.",
+		}, ""),
 		RunnerFn: runnerFn,
 	}
 	return provisioning.NewAction(cfg)
