@@ -41,6 +41,8 @@ jobs:
       contents: read
 
     steps:
+      - name: debug
+        run: git ls-remote --tags --heads ssh://git@github.com/highlightjs/highlightjs-terraform.git
       - name: Checkout
         uses: actions/checkout@v4
         with:
