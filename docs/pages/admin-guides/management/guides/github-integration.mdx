@@ -3,8 +3,8 @@ title: GitHub Integration
 description:  How to use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.
 ---
 
-Teleport can proxy Git commands and use short-lived SSH certificate to
-authenticate GitHub organizations that trust Teleport's certificate authorities.
+Teleport can proxy Git commands and use short-lived SSH certificates to
+authenticate GitHub organizations.
 
 In this guide, you will:
 - Create a GitHub OAuth application.
@@ -17,14 +17,15 @@ In this guide, you will:
 GitHub enables organizations to configure a list of SSH Certificate Authorities
 (CAs) for authentication. This feature allows access to the organization's
 repositories using short-lived SSH certificates signed by an approved CA, such
-as a Teleport CA. Additionally, organizations can enforce stricter security by
+as a Teleport CA. Optionally, organizations can enforce stricter security by
 requiring these signed SSH certificates for access, effectively disabling the
 use of personal SSH keys and access tokens.
 
 Teleport users can configure their Git repositories to proxy through Teleport.
 After setup, Git commands automatically route through Teleport, which
 impersonates their GitHub identities using short-lived SSH certificates signed
-by Teleport's CA for authentication with GitHub.
+by Teleport's CA for authentication with GitHub. Each Git command proxied
+through Teleport is also logged in Teleport's audit events.
 
 To retrieve a user's GitHub identity, `tsh` initiates the GitHub OAuth flow by
 opening a browser window for the user to log in with their GitHub credentials.
@@ -32,11 +33,11 @@ opening a browser window for the user to log in with their GitHub credentials.
 ![GitHub SSH certificate authorities](../../../../img/management/how-it-works-github-proxy.svg)
 
 Note that Teleport proxies Git commands through SSH but the users should
-continue to access github.com regularly through their browsers.
+continue to access github.com website regularly through their browsers.
 
 ## Prerequisites
 
-- Teleport Enterprise or Teleport Enterprise Cloud cluster version 17.2 or higher.
+(!docs/pages/includes/edition-prereqs-tabs-enterprise.mdx version="17.2"!)
 - Access to GitHub Enterprise and permissions to modify GitHub's SSH certificate
   authorities and configure OAuth applications.
 - (!docs/pages/includes/tctl.mdx!)
