@@ -1,5 +1,13 @@
 # Changelog
 
+## 17.1.4 (1/6/25)
+
+* Fixes a bug where S3 bucket details fail to fetch due to incorrect bucket region. [#50763](https://github.com/gravitational/teleport/pull/50763)
+* Present connection errors to the Web UI terminal during database sessions. [#50700](https://github.com/gravitational/teleport/pull/50700)
+
+Enterprise:
+* Fix missing cleanup actions if the Oracle db connection is closed in its initial phases.
+
 ## 17.1.3 (1/2/25)
 
 * Fixes a bug where v16 Teleport cannot connect to v17.1.0, v17.1.1 and v17.1.2 clusters. [#50658](https://github.com/gravitational/teleport/pull/50658)
