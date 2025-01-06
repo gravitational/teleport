@@ -19,6 +19,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -26,7 +27,6 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -65,13 +65,13 @@ type GlobalCLIFlags struct {
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
 func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+	ctx := context.TODO()
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
 		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
-		log.Debugf("Debug logging has been enabled.")
+		slog.DebugContext(ctx, "Debug logging has been enabled")
 	}
-	cfg.Log = log.StandardLogger()
 	cfg.Logger = slog.Default()
 
 	if cfg.Version == "" {
@@ -126,9 +126,9 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	if !localAuthSvcConf {
 		// Try profile or identity file.
 		if fileConf == nil {
-			log.Debug("no config file, loading auth config via extension")
+			slog.DebugContext(ctx, "no config file, loading auth config via extension")
 		} else {
-			log.Debug("auth_service disabled in config file, loading auth config via extension")
+			slog.DebugContext(ctx, "auth_service disabled in config file, loading auth config via extension")
 		}
 		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {

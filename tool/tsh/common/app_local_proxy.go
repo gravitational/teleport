@@ -209,7 +209,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping cli
 
 	go func() {
 		if err = a.localALPNProxy.Start(ctx); err != nil {
-			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
+			logger.ErrorContext(ctx, "Failed to start local ALPN proxy", "error", err)
 		}
 	}()
 	return nil
@@ -252,7 +252,7 @@ func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, port int, fo
 
 	go func() {
 		if err := a.localForwardProxy.Start(); err != nil {
-			log.WithError(err).Errorf("Failed to start local forward proxy.")
+			logger.ErrorContext(ctx, "Failed to start local forward proxy", "error", err)
 		}
 	}()
 	return nil
