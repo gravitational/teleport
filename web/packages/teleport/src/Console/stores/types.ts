@@ -23,7 +23,7 @@ interface DocumentBase {
   title?: string;
   clusterId?: string;
   url: string;
-  kind: 'terminal' | 'nodes' | 'kubeExec' | 'blank';
+  kind: 'terminal' | 'nodes' | 'kubeExec' | 'db' | 'blank';
   created: Date;
 }
 
@@ -64,10 +64,17 @@ export interface DocumentKubeExec extends DocumentBase {
   command: string;
 }
 
+export interface DocumentDb extends DocumentBase {
+  kind: 'db';
+  sid?: string;
+  name: string;
+}
+
 export type Document =
   | DocumentNodes
   | DocumentSsh
   | DocumentKubeExec
+  | DocumentDb
   | DocumentBlank;
 
 export type Parties = Record<string, Participant[]>;

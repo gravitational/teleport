@@ -81,6 +81,9 @@ breaking:
     - WIRE_JSON
   except:
     - FIELD_SAME_DEFAULT
+  ignore:
+    # TODO(codingllama): Remove ignore once the PDP API is stable.
+    - api/proto/teleport/decision/v1alpha1
   ignore_only:
     RESERVED_ENUM_NO_DELETE:
       - api/proto/teleport/legacy/types/types.proto

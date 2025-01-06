@@ -503,6 +503,10 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *AccessRequestExpire) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *AccessRequestResourceSearch) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
@@ -1944,6 +1948,25 @@ func (m *AccessListMemberDelete) TrimToMaxSize(maxSize int) AuditEvent {
 }
 
 func (m *AccessListMemberDeleteAllForAccessList) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Status.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+
+	return out
+}
+
+func (m *UserLoginAccessListInvalid) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
 		return m

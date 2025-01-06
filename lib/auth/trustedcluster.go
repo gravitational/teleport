@@ -46,6 +46,7 @@ import (
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
+// Deprecated: UpsertTrustedClusterV2 should be preferred instead.
 func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	const validateNameFalse = false
 	upserted, err := a.upsertTrustedCluster(ctx, tc, validateNameFalse)
@@ -60,20 +61,11 @@ func (a *Server) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedClu
 	return upserted, trace.Wrap(err)
 }
 
-// CreateTrustedClusterV2 creates a Trusted Cluster relationship.
-func (a *Server) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+// CreateTrustedCluster creates a Trusted Cluster relationship.
+func (a *Server) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// verify that trusted cluster role map does not reference non-existent roles
 	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	_, err := a.GetTrustedCluster(ctx, tc.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	if err == nil {
-		return nil, trace.AlreadyExists("trusted cluster with name %s already exists", tc.GetName())
 	}
 
 	const validateNameTrue = true
@@ -81,8 +73,8 @@ func (a *Server) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedClu
 	return created, trace.Wrap(err)
 }
 
-// UpdateTrustedClusterV2 updates a Trusted Cluster relationship.
-func (a *Server) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+// UpdateTrustedCluster updates a Trusted Cluster relationship.
+func (a *Server) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// verify that trusted cluster role map does not reference non-existent roles
 	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
 		return nil, trace.Wrap(err)
@@ -96,8 +88,10 @@ func (a *Server) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedClu
 	return updated, trace.Wrap(err)
 }
 
-// upsertTrustedCluster creates or toggles a Trusted Cluster relationship.
-func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (newTrustedCluster types.TrustedCluster, returnErr error) {
+// upsertTrustedCluster upserts the trusted cluster.
+// If validateName is true, the trusted cluster resource name must be validated
+// before the trusted cluster is created.
+func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (types.TrustedCluster, error) {
 	// verify that trusted cluster role map does not reference non-existent roles
 	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
 		return nil, trace.Wrap(err)
@@ -122,10 +116,42 @@ func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 		return a.createTrustedCluster(ctx, tc, validateName)
 	}
 
-	updated, err := a.updateTrustedCluster(ctx, tc, existingCluster)
-	return updated, trace.Wrap(err)
+	if err := existingCluster.CanChangeStateTo(tc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// always load all current CAs. even if we aren't changing them as part of
+	// this function, Services.UpdateTrustedCluster will only correctly activate/deactivate
+	// CAs that are explicitly passed to it. note that we pass in the existing cluster state
+	// since where CAs are stored depends on the current state of the trusted cluster.
+	cas, err := a.getCAsForTrustedCluster(ctx, existingCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// propagate any role map changes to cas
+	configureCAsForTrustedCluster(tc, cas)
+
+	// state transition is valid, set the expected revision
+	tc.SetRevision(existingCluster.GetRevision())
+
+	revision, err := a.Services.UpdateTrustedCluster(ctx, tc, cas)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tc.SetRevision(revision)
+
+	if err := a.onTrustedClusterWrite(ctx, tc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tc, nil
 }
 
+// createTrustedCluster creates the trusted cluster.
+// If validateName is true, the trusted cluster resource name must be validated
+// before the trusted cluster is created.
 func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (types.TrustedCluster, error) {
 	remoteCAs, err := a.establishTrust(ctx, tc, validateName)
 	if err != nil {
@@ -153,8 +179,8 @@ func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedClust
 	return tc, nil
 }
 
-// updateTrustedCluster updates the Trusted Cluster.
-func (a *Server) updateTrustedCluster(ctx context.Context, tc, existingCluster types.TrustedCluster) (types.TrustedCluster, error) {
+// updateTrustedCluster updates the trusted cluster.
+func (a *Server) updateTrustedCluster(ctx context.Context, tc types.TrustedCluster, existingCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	if err := existingCluster.CanChangeStateTo(tc); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,9 +196,6 @@ func (a *Server) updateTrustedCluster(ctx context.Context, tc, existingCluster t
 
 	// propagate any role map changes to cas
 	configureCAsForTrustedCluster(tc, cas)
-
-	// state transition is valid, set the expected revision
-	tc.SetRevision(existingCluster.GetRevision())
 
 	revision, err := a.Services.UpdateTrustedCluster(ctx, tc, cas)
 	if err != nil {

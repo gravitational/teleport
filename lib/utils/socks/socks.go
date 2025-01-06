@@ -27,14 +27,7 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport"
 )
-
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentSOCKS,
-})
 
 const (
 	socks5Version               byte = 0x05

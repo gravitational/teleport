@@ -430,13 +430,14 @@ func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn, adminU
 	// support WITH INHERIT FALSE or WITH SET FALSE syntax, so we only specify
 	// WITH ADMIN OPTION.
 	// See: https://www.postgresql.org/docs/16/release-16.html
-	stmt := fmt.Sprintf("grant role %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
+	stmt := fmt.Sprintf("grant %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
 	_, err = conn.Exec(ctx, stmt)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot be granted back") && !strings.Contains(err.Error(), "already") {
 			e.Log.DebugContext(ctx, "Failed to grant required role to the Teleport database admin, user auto-provisioning may not work until the database admin is granted the role by a superuser",
 				"role", teleportAutoUserRole,
 				"database_admin", adminUser,
+				"error", err,
 			)
 		}
 	}

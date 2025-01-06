@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Dialog from 'design/Dialog';
 import { forwardRef, useRef } from 'react';
 import { Transition, TransitionStatus } from 'react-transition-group';
 import { css } from 'styled-components';
+
+import Dialog from 'design/Dialog';
 
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { RoleWithYaml } from 'teleport/services/resources';
@@ -37,13 +38,11 @@ export function RoleEditorDialog({
   onClose,
   resources,
   onSave,
-  onDelete,
 }: {
   open: boolean;
   onClose(): void;
   resources: ResourcesState;
   onSave(role: Partial<RoleWithYaml>): Promise<void>;
-  onDelete(): Promise<void>;
 }) {
   const transitionRef = useRef<HTMLDivElement>();
   return (
@@ -61,7 +60,6 @@ export function RoleEditorDialog({
           transitionState={transitionState}
           resources={resources}
           onSave={onSave}
-          onDelete={onDelete}
         />
       )}
     </Transition>
@@ -75,9 +73,8 @@ const DialogInternal = forwardRef<
     transitionState: TransitionStatus;
     resources: ResourcesState;
     onSave(role: Partial<RoleWithYaml>): Promise<void>;
-    onDelete(): Promise<void>;
   }
->(({ onClose, transitionState, resources, onSave, onDelete }, ref) => {
+>(({ onClose, transitionState, resources, onSave }, ref) => {
   return (
     <Dialog
       dialogCss={() => fullScreenDialogCss()}
@@ -89,7 +86,6 @@ const DialogInternal = forwardRef<
       <RoleEditorAdapter
         resources={resources}
         onSave={onSave}
-        onDelete={onDelete}
         onCancel={onClose}
       />
     </Dialog>

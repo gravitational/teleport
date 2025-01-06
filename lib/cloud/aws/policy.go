@@ -21,6 +21,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/url"
 	"slices"
 	"sort"
@@ -29,7 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -517,7 +517,10 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			return "", trace.Wrap(err)
 		}
 
-		log.Debugf("Created new policy %q with ARN %q", policy.Name, policyARN)
+		slog.DebugContext(ctx, "Created new policy",
+			"policy_name", policy.Name,
+			"policy_arn", policyARN,
+		)
 		return policyARN, nil
 	}
 
@@ -543,7 +546,10 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			return "", trace.Wrap(err)
 		}
 
-		log.Debugf("Max policy versions reached for policy %q, deleted policy version %q", policyARN, policyVersionID)
+		slog.DebugContext(ctx, "Max policy versions reached for policy, deleted non-default policy version",
+			"policy_arn", policyARN,
+			"policy_version", policyVersionID,
+		)
 	}
 
 	// Create new policy version.
@@ -552,7 +558,10 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	log.Debugf("Created new policy version %q for %q", versionID, policyARN)
+	slog.DebugContext(ctx, "Created new policy version",
+		"policy_version", versionID,
+		"policy_arn", policyARN,
+	)
 	return policyARN, nil
 }
 

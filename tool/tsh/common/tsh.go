@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
@@ -101,9 +102,10 @@ import (
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTSH,
-})
+var (
+	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentTSH)
+	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTSH)
+)
 
 const (
 	// mfaModeAuto automatically chooses the best MFA device(s), without any
@@ -426,8 +428,13 @@ type CLIConf struct {
 
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
+	// LocalProxyPortMapping is a listening port and an optional target port used by local proxy
+	// listener, in the form of "1234" or "1234:5678".
+	LocalProxyPortMapping string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
+	// TargetPort is a port used for routing connections to multi-port TCP apps.
+	TargetPort uint16
 
 	// Exec is the command to run via tsh aws.
 	Exec string
@@ -888,6 +895,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
+	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
 	appLogin.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
@@ -932,7 +940,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
-	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\"").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
@@ -3720,19 +3728,15 @@ func onSSHLatency(cf *CLIConf) error {
 	}
 	defer clt.Close()
 
-	// detect the common error when users use host:port address format
-	_, port, err := net.SplitHostPort(tc.Host)
-	// client has used host:port notation
-	if err == nil {
-		return trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	target, err := tc.GetTargetNode(cf.Context, clt.AuthClient, nil)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
 
 	nodeClient, err := tc.ConnectToNode(
 		cf.Context,
 		clt,
-		client.NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		client.NodeDetails{Addr: target.Addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -3918,7 +3922,9 @@ func onSSH(cf *CLIConf) error {
 			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
 		}
 		if err != nil {
-			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+			if errors.Is(err, teleport.ErrNodeIsAmbiguous) ||
+				// TODO(tross) DELETE IN v20.0.0
+				strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
 				if err != nil {
 					return trace.Wrap(err)
@@ -3996,7 +4002,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")
 	if cf.BenchExport {
-		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
+		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {

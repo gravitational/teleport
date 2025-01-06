@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { renderHook } from '@testing-library/react';
 
 import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';

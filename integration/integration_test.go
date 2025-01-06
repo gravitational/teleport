@@ -811,9 +811,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	// attempting to run a command by hostname should generate NodeIsAmbiguous error.
 	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: Host}, 1)
 	require.Error(t, err)
-	if !strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
-		require.FailNowf(t, "Expected %s, got %s", teleport.NodeIsAmbiguous, err.Error())
-	}
+	require.ErrorContains(t, err, "ambiguous")
 
 	// attempting to run a command by uuid should succeed.
 	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: uuid1}, 1)
@@ -3087,7 +3085,7 @@ func createAndUpdateTrustedClusters(t *testing.T, suite *integrationTestSuite, t
 	// Note that the trusted cluster resource name must match the cluster name.
 	// Modify the trusted cluster resource name and expect the create to fail.
 	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-	_, err = aux.Process.GetAuthServer().CreateTrustedClusterV2(ctx, trustedCluster)
+	_, err = aux.Process.GetAuthServer().CreateTrustedCluster(ctx, trustedCluster)
 	require.ErrorContains(t, err, "trusted cluster resource name must be the same as the remote cluster name", "expected failure due to tc name mismatch")
 
 	// Modify the trusted cluster resource name back to what it was originally.
@@ -4432,12 +4430,18 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
+	// Wait for the nodes to be visible to both Proxy instances.
+	require.NoError(t, main.WaitForNodeCount(ctx, helpers.Site, 1))
+	instance := helpers.TeleInstance{Tunnel: proxyTunnel}
+	require.NoError(t, instance.WaitForNodeCount(ctx, helpers.Site, 1))
+
 	// Execute the connection via first proxy.
 	cfg := helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    "cluster-main-node",
 	}
+
 	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)

@@ -17,31 +17,32 @@
  */
 
 import React, { useState } from 'react';
+
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import {
   LoginItem,
   MenuInputType,
   MenuLogin,
 } from 'shared/components/MenuLogin';
-import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
+import { AwsRole } from 'shared/services/apps';
 
-import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { Database } from 'teleport/services/databases';
-import { openNewTab } from 'teleport/lib/util';
-import { Kube } from 'teleport/services/kube';
-import { Desktop } from 'teleport/services/desktops';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
-import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { Node, sortNodeLogins } from 'teleport/services/nodes';
-import { App } from 'teleport/services/apps';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
-
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
+import { openNewTab } from 'teleport/lib/util';
+import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
+import { UnifiedResource } from 'teleport/services/agents';
+import { App, AppSubKind } from 'teleport/services/apps';
+import { Database } from 'teleport/services/databases';
+import { Desktop } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
+import { Node, sortNodeLogins } from 'teleport/services/nodes';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 type Props = {
   resource: UnifiedResource;
@@ -162,21 +163,43 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     samlApp,
     samlAppSsoUrl,
     samlAppPreset,
+    subKind,
+    permissionSets,
   } = app;
   const { actions, userSamlIdPPerm } = useSamlAppAction();
-  if (awsConsole) {
+
+  const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
+  if (awsConsole || isAwsIdentityCenterApp) {
+    let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
+    if (isAwsIdentityCenterApp) {
+      awsConsoleOrIdentityCenterRoles = permissionSets.map(
+        (ps): AwsRole => ({
+          name: ps.name,
+          arn: ps.name,
+          display: ps.name,
+          accountId: name,
+        })
+      );
+    }
+    function getAwsLaunchUrl(arnOrPermSetName: string) {
+      if (isAwsIdentityCenterApp) {
+        return `${publicAddr}&role_name=${arnOrPermSetName}`;
+      } else {
+        return cfg.getAppLauncherRoute({
+          fqdn,
+          clusterId,
+          publicAddr,
+          arn: arnOrPermSetName,
+        });
+      }
+    }
+
     return (
       <AwsLaunchButton
         width="123px"
-        awsRoles={awsRoles}
-        getLaunchUrl={arn =>
-          cfg.getAppLauncherRoute({
-            fqdn,
-            clusterId,
-            publicAddr,
-            arn,
-          })
-        }
+        awsRoles={awsConsoleOrIdentityCenterRoles}
+        getLaunchUrl={getAwsLaunchUrl}
+        isAwsIdentityCenterApp={isAwsIdentityCenterApp}
       />
     );
   }
@@ -262,7 +285,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
 };
 
 function DatabaseConnect({ database }: { database: Database }) {
-  const { name, protocol } = database;
+  const { name, protocol, supportsInteractive } = database;
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const [open, setOpen] = useState(false);
@@ -290,6 +313,7 @@ function DatabaseConnect({ database }: { database: Database }) {
           onClose={() => setOpen(false)}
           authType={authType}
           accessRequestId={accessRequestId}
+          supportsInteractive={supportsInteractive}
         />
       )}
     </>

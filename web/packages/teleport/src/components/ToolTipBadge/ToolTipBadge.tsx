@@ -18,7 +18,8 @@
 
 import React, { PropsWithChildren, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Popover, Box } from 'design';
+
+import { Box, Popover } from 'design';
 
 type Props = {
   borderRadius?: number;

@@ -16,20 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter, Route } from 'react-router-dom';
-import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { MemoryRouter, Route } from 'react-router-dom';
 
-import { render, waitFor, screen } from 'design/utils/testing';
+import { render, screen, waitFor } from 'design/utils/testing';
 
-import { ContextProvider } from 'teleport/index';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { ContentMinWidth } from 'teleport/Main/Main';
 import cfg from 'teleport/config';
+import { ContextProvider } from 'teleport/index';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { clusterInfoFixture } from '../fixtures';
-
 import { ManageCluster } from './ManageCluster';
 
 function renderElement(element, ctx) {

@@ -136,6 +136,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessRequestCreate{
 			AccessRequestCreate: e,
 		}
+	case *AccessRequestExpire:
+		out.Event = &OneOf_AccessRequestExpire{
+			AccessRequestExpire: e,
+		}
 	case *AccessRequestResourceSearch:
 		out.Event = &OneOf_AccessRequestResourceSearch{
 			AccessRequestResourceSearch: e,
@@ -603,6 +607,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AccessListMemberDeleteAllForAccessList:
 		out.Event = &OneOf_AccessListMemberDeleteAllForAccessList{
 			AccessListMemberDeleteAllForAccessList: e,
+		}
+	case *UserLoginAccessListInvalid:
+		out.Event = &OneOf_UserLoginAccessListInvalid{
+			UserLoginAccessListInvalid: e,
 		}
 	case *AuditQueryRun:
 		out.Event = &OneOf_AuditQueryRun{

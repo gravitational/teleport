@@ -16,31 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import * as Alerts from 'design/Alert';
+import { useState } from 'react';
+
 import {
-  ButtonIcon,
-  Text,
-  ButtonSecondary,
-  Image,
-  Flex,
   Box,
+  ButtonIcon,
+  ButtonSecondary,
+  Flex,
   H2,
+  Image,
+  Text,
 } from 'design';
+import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
   DialogContent,
-  DialogHeader,
   DialogFooter,
+  DialogHeader,
 } from 'design/DialogConfirmation';
-import { Attempt } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
-
 import { P, P3 } from 'design/Text/Text';
-
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import type * as tsh from 'teleterm/services/tshd/types';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 export type HeadlessPromptProps = {
   cluster: tsh.Cluster;

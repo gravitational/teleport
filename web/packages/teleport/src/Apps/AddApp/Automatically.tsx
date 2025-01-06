@@ -16,33 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { KeyboardEvent } from 'react';
+import { KeyboardEvent, useEffect, useState } from 'react';
+
 import {
+  Alert,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
   Link,
   Text,
-  Flex,
-  Alert,
-  ButtonSecondary,
-  ButtonPrimary,
 } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
-import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
+import Validation, { Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
+import cfg from 'teleport/config';
 
 import { State } from './useAddApp';
 
 export function Automatically(props: Props) {
   const { onClose, attempt, token } = props;
 
-  const [name, setName] = React.useState('');
-  const [uri, setUri] = React.useState('');
-  const [cmd, setCmd] = React.useState('');
+  const [name, setName] = useState('');
+  const [uri, setUri] = useState('');
+  const [cmd, setCmd] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (name && uri) {
       const cmd = createAppBashCommand(token.id, name, uri);
       setCmd(cmd);

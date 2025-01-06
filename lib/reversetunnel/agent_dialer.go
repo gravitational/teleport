@@ -20,10 +20,10 @@ package reversetunnel
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -55,7 +55,7 @@ type agentDialer struct {
 	authMethods []ssh.AuthMethod
 	fips        bool
 	options     []proxy.DialerOptionFunc
-	log         logrus.FieldLogger
+	logger      *slog.Logger
 	isClaimed   func(principals ...string) bool
 }
 
@@ -65,7 +65,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
 	pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)
 	if err != nil {
-		d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
+		d.logger.DebugContext(ctx, "Failed to dial", "error", err, "target_addr", addr.Addr)
 		return nil, trace.Wrap(err)
 	}
 
@@ -75,7 +75,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			GetHostCheckers: d.hostCheckerFunc(ctx),
 			OnCheckCert: func(c *ssh.Certificate) error {
 				if d.isClaimed != nil && d.isClaimed(c.ValidPrincipals...) {
-					d.log.Debugf("Aborting SSH handshake because the proxy %q is already claimed by some other agent.", c.ValidPrincipals[0])
+					d.logger.DebugContext(ctx, "Aborting SSH handshake because the proxy is already claimed by some other agent.", "proxy_id", c.ValidPrincipals[0])
 					// the error message must end with
 					// [proxyAlreadyClaimedError] to be recognized by
 					// [isProxyAlreadyClaimed]
@@ -88,7 +88,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			FIPS: d.fips,
 		})
 	if err != nil {
-		d.log.Debugf("Failed to create host key callback for %v: %v.", addr.Addr, err)
+		d.logger.DebugContext(ctx, "Failed to create host key callback", "target_addr", addr.Addr, "error", err)
 		return nil, trace.Wrap(err)
 	}
 

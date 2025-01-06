@@ -71,14 +71,18 @@ message AgentAutoUpdateSchedules {
 
 // AgentAutoUpdateGroup specifies the update schedule for a group of agents.
 message AgentAutoUpdateGroup {
+  reserved 4;
+  reserved "wait_days";
+
   // name of the group
   string name = 1;
   // days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
   repeated string days = 2;
   // start_hour to initiate update
   int32 start_hour = 3;
-  // wait_days after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
-  int64 wait_days = 4;
+  // wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
+  // This field must be positive.
+  int32 wait_hours = 5;
 }
 
 // AutoUpdateVersion is a resource singleton with version required for
@@ -159,16 +163,38 @@ message AutoUpdateAgentRolloutSpec {
   //   availability. A group finishes its update once most of its agents are running the correct version. Agents that
   //   missed the group update will try to catch back as soon as possible.
   string strategy = 5;
+  // maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based".
+  // Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next
+  // maintenance window.
+  google.protobuf.Duration maintenance_window_duration = 6;
 }
 
 // AutoUpdateAgentRolloutStatus tracks the current agent rollout status.
+// The status is reset if any spec field changes except the mode.
 message AutoUpdateAgentRolloutStatus {
   repeated AutoUpdateAgentRolloutStatusGroup groups = 1;
   AutoUpdateAgentRolloutState state = 2;
+  // The start time is set when the rollout is created or reset. Usually this is caused by a version change.
+  // The timestamp allows the controller to detect that the rollout just changed.
+  // The controller will not start any group that should have been active before the start_time to avoid a double-update
+  // effect.
+  // For example, a group updates every day between 13:00 and 14:00. If the target version changes to 13:30, the group
+  // will not start updating to the new version directly. The controller sees that the group theoretical start time is
+  // before the rollout start time and the maintenance window belongs to the previous rollout.
+  // When the timestamp is nil, the controller will ignore the start time and check and allow groups to activate.
+  google.protobuf.Timestamp start_time = 3;
+
+  // Time override is an optional timestamp making the autoupdate_agent_rollout controller use a specific time instead
+  // of the system clock when evaluating time-based criteria. This field is used for testing and troubleshooting
+  // purposes.
+  google.protobuf.Timestamp time_override = 4;
 }
 
 // AutoUpdateAgentRolloutStatusGroup tracks the current agent rollout status of a specific group.
 message AutoUpdateAgentRolloutStatusGroup {
+  reserved 8;
+  reserved "config_wait_days";
+
   // name of the group
   string name = 1;
   // start_time of the rollout
@@ -183,8 +209,9 @@ message AutoUpdateAgentRolloutStatusGroup {
   repeated string config_days = 6;
   // config_start_hour to initiate update
   int32 config_start_hour = 7;
-  // config_wait_days after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
-  int64 config_wait_days = 8;
+  // config_wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
+  // This field must be positive.
+  int32 config_wait_hours = 9;
 }
 
 // AutoUpdateAgentGroupState represents the agent group state. This state controls whether the agents from this group
@@ -199,7 +226,7 @@ enum AutoUpdateAgentGroupState {
   AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE = 2;
   // AUTO_UPDATE_AGENT_GROUP_STATE_DONE represents that the group has been updated. New agents should run v2.
   AUTO_UPDATE_AGENT_GROUP_STATE_DONE = 3;
-  // AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK represents that the group has been rolleback.
+  // AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK represents that the group has been rolled back.
   // New agents should run v1, existing agents should update to v1.
   AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK = 4;
 }

@@ -230,15 +230,16 @@ spec:
 
 - [ ] Existing locks listing page.
   - [ ] It lists all of the existing locks in the system.
-  - [ ] Locks without a `Locked By` and `Start Date` are still shown with those fields empty.
+  - [ ] Locks without a `Message` are shown with this field as empty.
+  - [ ] Locks without an `Expiration` field are shown with this field as "Never".
   - [ ] Clicking the trash can deletes the lock with a spinner.
-  - [ ] Table columns are sortable.
+  - [ ] Table columns are sortable, except for the `Locked Items` column.
   - [ ] Table search field filters the results.
 - [ ] Adding a new lock. (+ Add New Lock).
   - [ ] Target switcher shows the locks for the various target types (User, Role, Login, Node, MFA Device, Windows Desktop, Access Request).
   - [ ] Target switcher has "Access Request" in E build but not in OSS.
   - [ ] You can add lock targets from multiple target types.
-  - [ ] Adding a target disables that "add button".
+  - [ ] Adding a target turnst the `Add Target` button into a `Remove` button.
   - [ ] You cannot proceed if you haven't selected targets to lock.
   - [ ] You can clear the selected targets prior to creating locks.
   - [ ] Proceeding to lock opens an animated slide panel from the right.

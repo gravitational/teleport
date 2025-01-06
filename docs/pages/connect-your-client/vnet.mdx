@@ -43,12 +43,22 @@ tsh.app under "Allow in the Background".
 ## Step 3/3. Connect
 
 Once VNet is running, you can connect to the application using the application client you would
-normally use to connect to it. The port number is inconsequential. VNet forwards connections over
-any port number under the public address of the app to the app itself.
+normally use to connect to it.
 
 ```code
 $ psql postgres://postgres@tcp-app.teleport.example.com/postgres
 ```
+
+<Admonition type="note" title="Support for multiple ports">
+Unless the application specifies [multiple
+ports](../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports),
+VNet proxies connections over any port used by the application client. For multi-port apps, the port
+number must match one of the target ports of the app. To see a list of target ports, click the
+three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
+
+If [per-session MFA](../admin-guides/access-controls/guides/per-session-mfa.mdx) is enabled, the
+first connection over each port triggers an MFA check.
+</Admonition>
 
 VNet is going to automatically start on the next Teleport Connect launch, unless you stop VNet
 before closing Teleport Connect.

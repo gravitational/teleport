@@ -29,8 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// UpsertTrustedClusterV2 upserts a Trusted Cluster.
-func (s *Service) UpsertTrustedClusterV2(ctx context.Context, req *trustpb.UpsertTrustedClusterV2Request) (*types.TrustedClusterV2, error) {
+// UpsertTrustedCluster upserts a Trusted Cluster.
+func (s *Service) UpsertTrustedCluster(ctx context.Context, req *trustpb.UpsertTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
 	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
@@ -50,8 +50,10 @@ func (s *Service) UpsertTrustedClusterV2(ctx context.Context, req *trustpb.Upser
 	if err = services.ValidateTrustedCluster(req.GetTrustedCluster()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	tc, err := s.authServer.UpsertTrustedClusterV2(ctx, req.GetTrustedCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
@@ -59,8 +61,8 @@ func (s *Service) UpsertTrustedClusterV2(ctx context.Context, req *trustpb.Upser
 	return trustedClusterV2, nil
 }
 
-// CreateTrustedClusterV2 creates a Trusted Cluster.
-func (s *Service) CreateTrustedClusterV2(ctx context.Context, req *trustpb.CreateTrustedClusterV2Request) (*types.TrustedClusterV2, error) {
+// CreateTrustedCluster creates a Trusted Cluster.
+func (s *Service) CreateTrustedCluster(ctx context.Context, req *trustpb.CreateTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
 	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
@@ -80,7 +82,7 @@ func (s *Service) CreateTrustedClusterV2(ctx context.Context, req *trustpb.Creat
 	if err = services.ValidateTrustedCluster(req.GetTrustedCluster()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tc, err := s.authServer.CreateTrustedClusterV2(ctx, req.GetTrustedCluster())
+	tc, err := s.authServer.CreateTrustedCluster(ctx, req.GetTrustedCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,8 +93,8 @@ func (s *Service) CreateTrustedClusterV2(ctx context.Context, req *trustpb.Creat
 	return trustedClusterV2, nil
 }
 
-// UpdateTrustedClusterV2 updates a Trusted Cluster.
-func (s *Service) UpdateTrustedClusterV2(ctx context.Context, req *trustpb.UpdateTrustedClusterV2Request) (*types.TrustedClusterV2, error) {
+// UpdateTrustedCluster updates a Trusted Cluster.
+func (s *Service) UpdateTrustedCluster(ctx context.Context, req *trustpb.UpdateTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
 	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
@@ -112,7 +114,7 @@ func (s *Service) UpdateTrustedClusterV2(ctx context.Context, req *trustpb.Updat
 	if err = services.ValidateTrustedCluster(req.GetTrustedCluster()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tc, err := s.authServer.UpdateTrustedClusterV2(ctx, req.GetTrustedCluster())
+	tc, err := s.authServer.UpdateTrustedCluster(ctx, req.GetTrustedCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

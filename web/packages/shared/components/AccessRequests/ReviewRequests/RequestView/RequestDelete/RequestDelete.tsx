@@ -16,24 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonWarning, ButtonSecondary, Flex, Alert } from 'design';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
-
+import { Alert, ButtonSecondary, ButtonWarning, Flex } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-
 import { P } from 'design/Text/Text';
-
 import { Attempt } from 'shared/hooks/useAsync';
+import type { RequestState } from 'shared/services/accessRequests';
+
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 import RolesRequested from '../RolesRequested';
-
-import type { RequestState } from 'shared/services/accessRequests';
 
 export interface RequestDeleteProps {
   requestId: string;

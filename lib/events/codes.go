@@ -363,6 +363,8 @@ const (
 	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
 	AccessRequestResourceSearchCode = "T5004I"
+	// AccessRequestExpireCode is the access request expires code.
+	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -580,6 +582,9 @@ const (
 
 	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
 	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
+
+	// UserLoginAccessListInvalidCode is the user login access list invalid code. This event is a warning that an access list is invalid and was not applied upon the user's login.
+	UserLoginAccessListInvalidCode = "TAL009W"
 
 	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
 	SecReportsAuditQueryRunCode = "SRE001I"

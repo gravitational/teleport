@@ -42,7 +42,7 @@ hosts on-prem is more challenging.
 The following burdens currently exist:
 
 - When using the `token` join method, a Bot must be created for each Bot instance. This
-  means that the privileges of many distinct Bots need to be synchronised where
+  means that the privileges of many distinct Bots need to be synchronized where
   those hosts are performing the same function.
 - When using the `token` join method, a token can only be used once. This means
   creating hundreds of join tokens and managing securely distributing these to
@@ -63,7 +63,7 @@ scale.
 Currently, the `token` join method introduces a generation counter as a label
 on the Bot user. This counter is contained within the Bot certificate and on
 each renewal, this counter is incremented. When the counter within the certificate
-de-synchronises with the counter on the user, the Bot is locked out as a security
+de-synchronizes with the counter on the user, the Bot is locked out as a security
 measure.
 
 The fact that this counter is stored within a label on the Bot user creates a
@@ -403,7 +403,7 @@ Pros:
 - Avoids introducing a new RPC and ensures that all data within the Heartbeat
   comes from the same instance in time.
 - Allows self-reported information to be used as part of renewal decision.
-  This is not a strong defence as it is self-reported and cannot be trusted.
+  This is not a strong defense as it is self-reported and cannot be trusted.
 - Avoids a state where the BotInstance is incomplete immediately after joining
   and before it has called SubmitHeartbeat.
 

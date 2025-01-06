@@ -18,8 +18,9 @@
 
 import { Auth2faType } from 'shared/services';
 
-import { DeviceType, MfaAuthenticateChallenge, SSOChallenge } from './types';
+import { DeviceType, MfaAuthenticateChallenge, SsoChallenge } from './types';
 
+// returns mfa challenge options in order of preferences: WebAuthn > SSO > TOTP.
 export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
   const mfaOptions: MfaOption[] = [];
 
@@ -27,12 +28,12 @@ export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
     mfaOptions.push(MFA_OPTION_WEBAUTHN);
   }
 
-  if (mfaChallenge?.totpChallenge) {
-    mfaOptions.push(MFA_OPTION_TOTP);
+  if (mfaChallenge?.ssoChallenge) {
+    mfaOptions.push(getSsoMfaOption(mfaChallenge.ssoChallenge));
   }
 
-  if (mfaChallenge?.ssoChallenge) {
-    mfaOptions.push(getSsoOption(mfaChallenge.ssoChallenge));
+  if (mfaChallenge?.totpChallenge) {
+    mfaOptions.push(MFA_OPTION_TOTP);
   }
 
   return mfaOptions;
@@ -57,22 +58,28 @@ export type MfaOption = {
   label: string;
 };
 
-const MFA_OPTION_WEBAUTHN: MfaOption = {
+export const MFA_OPTION_WEBAUTHN: MfaOption = {
   value: 'webauthn',
   label: 'Passkey or Security Key',
 };
 
-const MFA_OPTION_TOTP: MfaOption = {
+export const MFA_OPTION_TOTP: MfaOption = {
   value: 'totp',
   label: 'Authenticator App',
 };
 
-const getSsoOption = (ssoChallenge: SSOChallenge): MfaOption => {
+// SSO MFA option used in tests.
+export const MFA_OPTION_SSO_DEFAULT: MfaOption = {
+  value: 'sso',
+  label: 'SSO',
+};
+
+const getSsoMfaOption = (ssoChallenge: SsoChallenge): MfaOption => {
   return {
     value: 'sso',
     label:
-      ssoChallenge.device?.displayName ||
-      ssoChallenge.device?.connectorId ||
+      ssoChallenge?.device?.displayName ||
+      ssoChallenge?.device?.connectorId ||
       'SSO',
   };
 };

@@ -21,6 +21,8 @@ package teleport
 import (
 	"strings"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 // WebAPIVersion is a current webapi version
@@ -285,6 +287,9 @@ const (
 
 	// ComponentUpdater represents the teleport-update binary.
 	ComponentUpdater = "updater"
+
+	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
+	ComponentRolloutController = "rollout-controller"
 
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -704,6 +709,11 @@ const (
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
 	SystemOktaAccessRoleName = "okta-access"
+
+	// SystemIdentityCenterAccessRoleName specifies the name of a system role
+	// that grants a user access to AWS Identity Center resources via
+	// Access Requests.
+	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -818,9 +828,15 @@ const (
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
 )
 
+// ErrNodeIsAmbiguous serves as an identifying error string indicating that
+// the proxy subsystem found multiple nodes matching the specified hostname.
+var ErrNodeIsAmbiguous = &trace.NotFoundError{Message: "ambiguous host could match multiple nodes"}
+
 const (
 	// NodeIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
+	// TODO(tross) DELETE IN v20.0.0
+	// Deprecated: Prefer using ErrNodeIsAmbiguous
 	NodeIsAmbiguous = "err-node-is-ambiguous"
 
 	// MaxLeases serves as an identifying error string indicating that the

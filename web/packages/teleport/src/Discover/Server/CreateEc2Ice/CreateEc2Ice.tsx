@@ -16,32 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import Table from 'design/DataTable';
-import { Box, Indicator, Text, Flex, H3 } from 'design';
-import { Warning } from 'design/Icon';
-import { Danger } from 'design/Alert';
-import { FetchStatus } from 'design/DataTable/types';
+import React, { useEffect, useState } from 'react';
 
+import { Box, Flex, H3, Indicator, Text } from 'design';
+import { Danger } from 'design/Alert';
+import Table from 'design/DataTable';
+import { FetchStatus } from 'design/DataTable/types';
+import { Warning } from 'design/Icon';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import {
-  AwsOidcDeployEc2InstanceConnectEndpointRequest,
-  SecurityGroup,
-  integrationService,
-} from 'teleport/services/integrations';
-import {
-  DiscoverEvent,
-  DiscoverEventStatus,
-} from 'teleport/services/userEvent';
-import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   ActionButtons,
   ButtonBlueText,
   Header,
   SecurityGroupPicker,
 } from 'teleport/Discover/Shared';
+import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  AwsOidcDeployEc2InstanceConnectEndpointRequest,
+  integrationService,
+  SecurityGroup,
+} from 'teleport/services/integrations';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
 import { CreateEc2IceDialog } from './CreateEc2IceDialog';
 

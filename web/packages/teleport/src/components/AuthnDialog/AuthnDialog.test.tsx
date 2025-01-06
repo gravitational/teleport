@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render, screen, fireEvent } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { makeDefaultMfaState, MfaState } from 'teleport/lib/useMfa';
-
-import { SSOChallenge } from 'teleport/services/mfa';
+import { getMfaChallengeOptions, SsoChallenge } from 'teleport/services/mfa';
 
 import AuthnDialog from './AuthnDialog';
 
-const mockSsoChallenge: SSOChallenge = {
+const mockSsoChallenge: SsoChallenge = {
   redirectUrl: 'url',
   requestId: '123',
   device: {
@@ -52,8 +50,17 @@ describe('AuthnDialog', () => {
   });
 
   test('renders single option dialog', () => {
-    const mfa = makeMockState({ ssoChallenge: mockSsoChallenge });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    const mfa = makeMockState({
+      challenge: {
+        ssoChallenge: mockSsoChallenge,
+      },
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+    });
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
 
     expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
@@ -64,13 +71,22 @@ describe('AuthnDialog', () => {
   });
 
   test('renders multi option dialog', () => {
-    const mfa = makeMockState({
+    const challenge = {
       ssoChallenge: mockSsoChallenge,
       webauthnPublicKey: {
         challenge: new ArrayBuffer(1),
       },
+    };
+    const mfa = makeMockState({
+      options: getMfaChallengeOptions(challenge),
+      challenge,
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
 
     expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
@@ -84,8 +100,16 @@ describe('AuthnDialog', () => {
 
   test('displays error text when provided', () => {
     const errorText = 'Authentication failed';
-    const mfa = makeMockState({ errorText });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    const mfa = makeMockState({
+      challenge: {},
+      attempt: {
+        status: 'error',
+        statusText: errorText,
+        data: null,
+        error: new Error(errorText),
+      },
+    });
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
 
     expect(screen.getByTestId('danger-alert')).toBeInTheDocument();
     expect(screen.getByText(errorText)).toBeInTheDocument();
@@ -93,23 +117,37 @@ describe('AuthnDialog', () => {
 
   test('sso button renders with callback', async () => {
     const mfa = makeMockState({
-      ssoChallenge: mockSsoChallenge,
-      onSsoAuthenticate: jest.fn(),
+      challenge: {
+        ssoChallenge: mockSsoChallenge,
+      },
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+      submit: jest.fn(),
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
     const ssoButton = screen.getByText('Okta');
     fireEvent.click(ssoButton);
-    expect(mfa.onSsoAuthenticate).toHaveBeenCalledTimes(1);
+    expect(mfa.submit).toHaveBeenCalledTimes(1);
   });
 
   test('webauthn button renders with callback', async () => {
     const mfa = makeMockState({
-      webauthnPublicKey: { challenge: new ArrayBuffer(0) },
-      onWebauthnAuthenticate: jest.fn(),
+      challenge: {
+        webauthnPublicKey: { challenge: new ArrayBuffer(0) },
+      },
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+      submit: jest.fn(),
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
     const webauthn = screen.getByText('Passkey or MFA Device');
     fireEvent.click(webauthn);
-    expect(mfa.onWebauthnAuthenticate).toHaveBeenCalledTimes(1);
+    expect(mfa.submit).toHaveBeenCalledTimes(1);
   });
 });

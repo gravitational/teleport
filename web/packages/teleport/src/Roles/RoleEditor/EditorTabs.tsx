@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { SlideTabs } from 'design/SlideTabs';
 import * as Icon from 'design/Icon';
+import { SlideTabs } from 'design/SlideTabs';
 
 export enum EditorTab {
   Standard,

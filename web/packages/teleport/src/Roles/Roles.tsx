@@ -16,30 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import styled from 'styled-components';
+
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import {
+  Notification,
+  NotificationItem,
+  NotificationSeverity,
+} from 'shared/components/Notification';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import useTeleport from 'teleport/useTeleport';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import { useServerSidePagination } from 'teleport/components/hooks';
-import { storageService } from 'teleport/services/storageService';
-import { RoleWithYaml, RoleResource } from 'teleport/services/resources';
 import useResources from 'teleport/components/useResources';
+import { RoleResource, RoleWithYaml } from 'teleport/services/resources';
+import { storageService } from 'teleport/services/storageService';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
-import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
-import { useRoles, State } from './useRoles';
-import templates from './templates';
 import { RoleEditorDialog } from './RoleEditor/RoleEditorDialog';
+import { RoleList } from './RoleList';
+import templates from './templates';
+import { State, useRoles } from './useRoles';
 
 export function RolesContainer() {
   const ctx = useTeleport();
@@ -52,6 +59,18 @@ const useNewRoleEditor = storageService.getUseNewRoleEditor();
 export function Roles(props: State) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  function addNotification(content: string, severity: NotificationSeverity) {
+    setNotifications(notifications => [
+      ...notifications,
+      { id: crypto.randomUUID(), content, severity },
+    ]);
+  }
+
+  function removeNotification(id: string) {
+    setNotifications(n => n.filter(item => item.id !== id));
+  }
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -75,6 +94,13 @@ export function Roles(props: State) {
     const response: RoleResource = await (resources.status === 'creating'
       ? create(role)
       : update(resources.item.name, role));
+
+    addNotification(
+      resources.status === 'creating'
+        ? `Role ${response.name} has been created`
+        : `Role ${response.name} has been updated`,
+      'success'
+    );
 
     if (useNewRoleEditor) {
       // We don't really disregard anything, since we already saved the role;
@@ -193,7 +219,6 @@ export function Roles(props: State) {
             onClose={resources.disregard}
             resources={resources}
             onSave={handleSave}
-            onDelete={handleDelete}
           />
         )}
         <Box
@@ -246,6 +271,17 @@ export function Roles(props: State) {
           onDelete={handleDelete}
         />
       )}
+
+      <NotificationContainer>
+        {notifications.map(item => (
+          <Notification
+            mb={3}
+            key={item.id}
+            item={item}
+            onRemove={() => removeNotification(item.id)}
+          />
+        ))}
+      </NotificationContainer>
     </FeatureBox>
   );
 }
@@ -265,3 +301,9 @@ function Directions() {
     </>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  bottom: ${props => props.theme.space[2]}px;
+  right: ${props => props.theme.space[5]}px;
+`;

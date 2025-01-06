@@ -101,15 +101,15 @@ func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.Rota
 }
 
 func (f *fakeAuthServer) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return nil, trace.NotImplemented("UpsertTrustedClusterV2")
+	return tc, nil
 }
 
-func (f *fakeAuthServer) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return nil, trace.NotImplemented("CreateTrustedClusterV2")
+func (f *fakeAuthServer) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
 }
 
-func (f *fakeAuthServer) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return nil, trace.NotImplemented("UpdateTrustedClusterV2")
+func (f *fakeAuthServer) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
 }
 
 type fakeChecker struct {
@@ -1038,66 +1038,6 @@ func TestGenerateHostCert(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, test.want, got)
-		})
-	}
-}
-
-func TestCreateTrustedCluster(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	p := newTestPack(t)
-
-	authorizer := &fakeAuthorizer{
-		checker: &fakeChecker{
-			allow: map[check]bool{
-				{types.KindTrustedCluster, types.VerbCreate}: true,
-				{types.KindTrustedCluster, types.VerbUpdate}: true,
-			},
-		},
-	}
-
-	fakeErr := trace.BadParameter("bad thing happened")
-
-	trust := local.NewCAService(p.mem)
-	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
-		AuthServer: &fakeAuthServer{},
-	}
-
-	tests := []struct {
-		name    string
-		req     *trustpb.CreateTrustedClusterV2Request
-		wantErr error
-	}{
-		{
-			name: "success",
-			req: &trustpb.CreateTrustedClusterV2Request{
-				TrustedCluster: &types.TrustedClusterV2{},
-			},
-		},
-		{
-			name: "fail",
-			req: &trustpb.CreateTrustedClusterV2Request{
-				TrustedCluster: &types.TrustedClusterV2{},
-			},
-			wantErr: fakeErr,
-		},
-	}
-
-	service, err := NewService(cfg)
-	require.NoError(t, err)
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			_, err := service.RotateCertAuthority(ctx, test.req)
-			if test.wantErr != nil {
-				require.ErrorIs(t, err, test.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
 		})
 	}
 }

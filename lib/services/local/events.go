@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -48,14 +48,14 @@ import (
 
 // EventsService implements service to watch for events
 type EventsService struct {
-	*logrus.Entry
+	logger  *slog.Logger
 	backend backend.Backend
 }
 
 // NewEventsService returns new events service instance
 func NewEventsService(b backend.Backend) *EventsService {
 	return &EventsService{
-		Entry:   logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Events"}),
+		logger:  slog.With(teleport.ComponentKey, "Events"),
 		backend: b,
 	}
 }
@@ -287,13 +287,13 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newWatcher(w, e.Entry, parsers, validKinds), nil
+	return newWatcher(w, e.logger, parsers, validKinds), nil
 }
 
-func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser, kinds []types.WatchKind) *watcher {
+func newWatcher(backendWatcher backend.Watcher, l *slog.Logger, parsers []resourceParser, kinds []types.WatchKind) *watcher {
 	w := &watcher{
 		backendWatcher: backendWatcher,
-		Entry:          l,
+		logger:         l,
 		parsers:        parsers,
 		eventsC:        make(chan types.Event),
 		kinds:          kinds,
@@ -303,7 +303,7 @@ func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resou
 }
 
 type watcher struct {
-	*logrus.Entry
+	logger         *slog.Logger
 	parsers        []resourceParser
 	backendWatcher backend.Watcher
 	eventsC        chan types.Event
@@ -350,7 +350,7 @@ func (w *watcher) forwardEvents() {
 				// node events as well, and there could be no
 				// handler registered for nodes, only for namespaces
 				if !trace.IsNotFound(err) {
-					w.Warning(trace.DebugReport(err))
+					w.logger.WarnContext(context.Background(), "failed parsing event", "error", err)
 				}
 			}
 			for _, c := range converted {
@@ -2944,7 +2944,7 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 				return res, nil
 			}
 			if !trace.IsCompareFailed(err) {
-				logrus.WithError(err).Debug("Failed to match event.")
+				slog.DebugContext(ctx, "Failed to match event", "error", err)
 			}
 		case <-watcher.Done():
 			// Watcher closed, probably due to a network error.

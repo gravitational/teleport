@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AllUserTraits } from 'teleport/services/user';
-
 import { RequestState } from 'shared/services/accessRequests';
+
+import { AllUserTraits } from 'teleport/services/user';
 
 export type RequestFlags = {
   /** Describes request is own request and request is approved */

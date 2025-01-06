@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
-import * as Icon from 'design/Icon';
 import Flex from 'design/Flex';
+import * as Icon from 'design/Icon';
 
 import { SlideTabs, TabSpec } from './SlideTabs';
 

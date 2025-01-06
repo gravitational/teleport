@@ -41,28 +41,28 @@ service TrustService {
   // a SSH certificate signed by the Host CA.
   rpc GenerateHostCert(GenerateHostCertRequest) returns (GenerateHostCertResponse);
 
-  // UpsertTrustedClusterV2 upserts a Trusted Cluster in a backend.
-  rpc UpsertTrustedClusterV2(UpsertTrustedClusterV2Request) returns (types.TrustedClusterV2);
-  // CreateTrustedClusterV2 creates a Trusted Cluster in a backend.
-  rpc CreateTrustedClusterV2(CreateTrustedClusterV2Request) returns (types.TrustedClusterV2);
-  // UpdateTrustedClusterV2 updates a Trusted Cluster in a backend.
-  rpc UpdateTrustedClusterV2(UpdateTrustedClusterV2Request) returns (types.TrustedClusterV2);
+  // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
+  rpc UpsertTrustedCluster(UpsertTrustedClusterRequest) returns (types.TrustedClusterV2);
+  // CreateTrustedCluster creates a Trusted Cluster in a backend.
+  rpc CreateTrustedCluster(CreateTrustedClusterRequest) returns (types.TrustedClusterV2);
+  // UpdateTrustedCluster updates a Trusted Cluster in a backend.
+  rpc UpdateTrustedCluster(UpdateTrustedClusterRequest) returns (types.TrustedClusterV2);
 }
 
-// Request for UpsertTrustedClusterV2.
-message UpsertTrustedClusterV2Request {
+// Request for UpsertTrustedCluster.
+message UpsertTrustedClusterRequest {
   // TrustedCluster specifies a Trusted Cluster resource.
   types.TrustedClusterV2 trusted_cluster = 1;
 }
 
-// Request for CreateTrustedClusterV2.
-message CreateTrustedClusterV2Request {
+// Request for CreateTrustedCluster.
+message CreateTrustedClusterRequest {
   // TrustedCluster specifies a Trusted Cluster resource.
   types.TrustedClusterV2 trusted_cluster = 1;
 }
 
-// Request for UpdateTrustedClusterV2.
-message UpdateTrustedClusterV2Request {
+// Request for UpdateTrustedCluster.
+message UpdateTrustedClusterRequest {
   // TrustedCluster specifies a Trusted Cluster resource.
   types.TrustedClusterV2 trusted_cluster = 1;
 }

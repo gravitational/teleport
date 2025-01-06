@@ -20,25 +20,25 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, dialog, globalShortcut, shell, nativeTheme } from 'electron';
+import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 
-import MainProcess from 'teleterm/mainProcess';
-import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
-import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
-import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
+import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
-import * as types from 'teleterm/types';
+import MainProcess from 'teleterm/mainProcess';
+import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
+import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
+import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
+import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import {
   createConfigService,
   runConfigFileMigration,
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
-import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import { parseDeepLink } from 'teleterm/deepLinks';
+import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
+import * as types from 'teleterm/types';
 import { assertUnreachable } from 'teleterm/ui/utils';
-import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 
 if (!app.isPackaged) {
   // Sets app name and data directories to Electron.

@@ -18,7 +18,7 @@ they are not part of the product and no support will be provided.
 Start by creating a working cluster:
 
 - Create EKS cluster with the correct policies
-  [according to our EKS guide](https://goteleport.com/docs/ver/12.x/deploy-a-cluster/helm-deployments/aws/)
+  [according to our EKS guide](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/aws/)
 - Make sure EBS CSI addon is deployed
 - Make sure the policy `AmazonEBSCSIDriverPolicy` is granted to the instance
   role associated with the EKS nodegroups which are running your Kubernetes nodes.

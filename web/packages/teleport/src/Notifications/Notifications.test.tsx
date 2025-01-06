@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { subMinutes, subSeconds } from 'date-fns';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
+
 import { render, screen } from 'design/utils/testing';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getOSSFeatures } from 'teleport/features';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import TeleportContext from 'teleport/teleportContext';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { NotificationSubKind } from 'teleport/services/notifications';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { Notifications } from './Notifications';
 

@@ -16,49 +16,46 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
 import {
+  Box,
   ButtonPrimary,
   ButtonSecondary,
-  Text,
-  Box,
-  LabelInput,
-  Indicator,
-  Link,
   H3,
+  Indicator,
+  LabelInput,
+  Link,
   Subtitle3,
+  Text,
 } from 'design';
-import Select from 'shared/components/Select';
-import { useAsync } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
-import * as connectMyComputer from 'shared/connectMyComputer';
-
 import { P } from 'design/Text/Text';
+import Select, { type Option } from 'shared/components/Select';
+import * as connectMyComputer from 'shared/connectMyComputer';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
-import { openNewTab } from 'teleport/lib/util';
+import cfg from 'teleport/config';
 import {
-  useConnectionDiagnostic,
-  Header,
   ActionButtons,
-  HeaderSubtitle,
   ConnectionDiagnosticResult,
+  Header,
+  HeaderSubtitle,
   StyledBox,
   TextIcon,
+  useConnectionDiagnostic,
 } from 'teleport/Discover/Shared';
-import { sortNodeLogins } from 'teleport/services/nodes';
-import { ApiError } from 'teleport/services/api/parseError';
-
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
-import { NodeMeta } from '../../useDiscover';
-
-import type { Option } from 'shared/components/Select';
-import type { AgentStepProps } from '../../types';
-import type { MfaChallengeResponse } from 'teleport/services/mfa';
+import { openNewTab } from 'teleport/lib/util';
 import type { ConnectionDiagnosticRequest } from 'teleport/services/agents';
+import { ApiError } from 'teleport/services/api/parseError';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import type { MfaChallengeResponse } from 'teleport/services/mfa';
+import { sortNodeLogins } from 'teleport/services/nodes';
+import useTeleport from 'teleport/useTeleport';
+
+import type { AgentStepProps } from '../../types';
+import { NodeMeta } from '../../useDiscover';
 
 export function TestConnection(props: AgentStepProps) {
   const { userService, storeUser } = useTeleport();
@@ -170,13 +167,13 @@ export function TestConnection(props: AgentStepProps) {
     <Box>
       {showMfaDialog && (
         <ReAuthenticate
-          onMfaResponse={res =>
-            testConnection({
+          onMfaResponse={async res => {
+            await testConnection({
               login: selectedLoginOpt.value,
               sshPrincipalSelectionMode,
               mfaResponse: res,
-            })
-          }
+            });
+          }}
           onClose={cancelMfaDialog}
           challengeScope={MfaChallengeScope.USER_SESSION}
         />
