@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { matchPath } from 'react-router';
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import { useAttempt } from 'shared/hooks';
@@ -70,8 +71,25 @@ export default function useLogin() {
 
   useEffect(() => {
     if (session.isValid()) {
-      history.replace(cfg.routes.root);
-      return;
+      try {
+        const redirectUrlWithBase = new URL(getEntryRoute());
+        const matched = matchPath(redirectUrlWithBase.pathname, {
+          path: cfg.routes.samlIdpSso,
+          strict: true,
+          exact: true,
+        });
+        if (matched) {
+          history.push(redirectUrlWithBase, true);
+          return;
+        } else {
+          history.replace(cfg.routes.root);
+          return;
+        }
+      } catch (e) {
+        console.error(e);
+        history.replace(cfg.routes.root);
+        return;
+      }
     }
     setCheckingValidSession(false);
   }, []);
@@ -150,6 +168,11 @@ function loginSuccess() {
   history.push(redirect, withPageRefresh);
 }
 
+/**
+ * getEntryRoute returns a base ensured redirect URL value that is safe
+ * for redirect.
+ * @returns base ensured URL string.
+ */
 function getEntryRoute() {
   let entryUrl = history.getRedirectParam();
   if (entryUrl) {
