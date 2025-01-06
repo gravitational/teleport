@@ -44,7 +44,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		res := queryResult{metadata: dirObjMetadata{objectType: "user"}, dirObj: user.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
-	}, msgraph.IterateWithExpandMembers())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -52,7 +52,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		res := queryResult{metadata: dirObjMetadata{objectType: "group"}, dirObj: group.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
-	}, msgraph.IterateWithExpandMembers())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,7 +60,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		res := queryResult{metadata: dirObjMetadata{objectType: "servicePrincipal"}, dirObj: servicePrincipal.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
-	}, msgraph.IterateWithExpandMembers())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,16 +74,11 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 				trace.BadParameter("nil values on msgraph directory object: %v", res.dirObj))
 			continue
 		}
-		var memberOf []string
-		for _, member := range res.dirObj.MemberOf {
-			memberOf = append(memberOf, member.ID)
-		}
 		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
 			Id:             *res.dirObj.ID,
 			SubscriptionId: subscriptionID,
 			LastSyncTime:   timestamppb.Now(),
 			DisplayName:    *res.dirObj.DisplayName,
-			MemberOf:       memberOf,
 			ObjectType:     res.metadata.objectType,
 		})
 	}
