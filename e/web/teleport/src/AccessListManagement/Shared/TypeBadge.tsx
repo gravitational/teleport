@@ -7,6 +7,8 @@ import { AccessListType } from 'e-teleport/services/accessmanagement';
  * or from which the Access List was created.
  */
 export const TypeBadge = ({ type }: { type: AccessListType }) => {
+  if (type === AccessListType.Unspecified || !type) return null;
+
   function RenderBadge() {
     let iconName, title;
     switch (type) {

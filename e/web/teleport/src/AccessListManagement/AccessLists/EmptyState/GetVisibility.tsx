@@ -1,4 +1,6 @@
-import { Flex } from 'design';
+import styled from 'styled-components';
+
+import { Box } from 'design';
 
 import { AccessCard } from '../AccessCard';
 import { mockAccessLists } from './fixtures';
@@ -20,17 +22,7 @@ export const GetVisibility = ({ active, onClick, isSliding }: FeatureProps) => {
 
 export const GetVisibilityPreview = () => {
   return (
-    <Flex
-      flexWrap="wrap"
-      gap={3}
-      css={`
-        transform: var(--feature-preview-scale);
-        max-width: 700px;
-        @media (max-width: 1445px) {
-          margin-top: -70px;
-        }
-      `}
-    >
+    <PreviewWrapper>
       {mockAccessLists.map(accessList => (
         <AccessCard
           key={accessList.id}
@@ -39,6 +31,20 @@ export const GetVisibilityPreview = () => {
           onClick={() => null}
         />
       ))}
-    </Flex>
+    </PreviewWrapper>
   );
 };
+
+const PreviewWrapper = styled(Box)`
+  display: grid;
+  grid-template-columns: repeat(
+    2,
+    minmax(350px, 1fr)
+  ); /* Two equal-width columns */
+  gap: 16px; /* Spacing between grid items */
+  transform: var(--feature-preview-scale);
+  max-width: 700px;
+  @media (max-width: 1445px) {
+    margin-top: -70px;
+  }
+`;

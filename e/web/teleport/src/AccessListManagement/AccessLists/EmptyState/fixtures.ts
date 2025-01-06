@@ -1,6 +1,7 @@
 import {
   AccessListMember,
   AccessListMemberKind,
+  AccessListType,
   IneligibleStatus,
 } from 'e-teleport/services/accessmanagement';
 import { getIneligibleReason } from 'e-teleport/services/accessmanagement/accessmanagement';
@@ -21,6 +22,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     membersCount: 273,
     audit: {} as any,
     ownershipRequires: {} as any,
+    type: AccessListType.Okta,
     owners: [],
     needsReviewBy: null,
     inheritedMemberGrants: { roles: [], traits: {} },
@@ -91,6 +93,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   {
     id: '5',
     title: 'HR',
+    type: AccessListType.AwsIdentityCenter,
     description: 'All things human resource...',
     grants: {
       traits: {},
