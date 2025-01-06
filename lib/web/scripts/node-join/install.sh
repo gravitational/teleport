@@ -464,7 +464,7 @@ app_service:
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
     labels:{{range $index, $line := .appServerResourceLabels}}
-        {{$line -}}
+      {{$line -}}
 {{end}}
 EOF
 }
