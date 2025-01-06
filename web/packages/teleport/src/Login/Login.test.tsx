@@ -23,6 +23,7 @@ import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
+import session from 'teleport/services/websession';
 import cfg from 'teleport/config';
 
 import { Login } from './Login';
@@ -32,6 +33,7 @@ let user: UserEvent;
 beforeEach(() => {
   jest.restoreAllMocks();
   jest.spyOn(history, 'push').mockImplementation();
+  jest.spyOn(history, 'replace').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
   user = userEvent.setup();
 });
@@ -184,4 +186,26 @@ describe('test MOTD', () => {
       screen.queryByText('Welcome to cluster, your activity will be recorded.')
     ).not.toBeInTheDocument();
   });
+});
+
+test('redirect to root if session is valid and path is not "/enterprise/saml-idp/sso"', () => {
+  jest.spyOn(session, 'isValid').mockImplementation(() => true);
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(
+      'http://localhost/web/login?redirect_url=http://localhost/web/cluster/localhost/resources'
+    );
+  render(<Login />);
+
+  expect(history.replace).toHaveBeenCalledWith('/web');
+});
+
+test('redirect if session is valid and path matches "/enterprise/saml-idp/sso"', () => {
+  const samlIdPPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
+  jest.spyOn(session, 'isValid').mockImplementation(() => true);
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(samlIdPPath.toString());
+  render(<Login />);
+  expect(history.push).toHaveBeenCalledWith(samlIdPPath, true);
 });
