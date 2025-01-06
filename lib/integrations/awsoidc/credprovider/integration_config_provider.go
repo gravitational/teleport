@@ -34,7 +34,8 @@ import (
 )
 
 // Options represents additional options for configuring the AWS credentials provider.
-// There are currently no options.
+// There are currently no options but this type is still referenced from
+// teleport.e.
 type Options struct{}
 
 // Option is a function that modifies the Options struct for the AWS configuration.
