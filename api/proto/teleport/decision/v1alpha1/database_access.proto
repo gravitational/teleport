@@ -19,6 +19,7 @@ package teleport.decision.v1alpha1;
 import "teleport/decision/v1alpha1/denial_metadata.proto";
 import "teleport/decision/v1alpha1/permit_metadata.proto";
 import "teleport/decision/v1alpha1/request_metadata.proto";
+import "teleport/decision/v1alpha1/resource.proto";
 import "teleport/decision/v1alpha1/tls_identity.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
@@ -28,6 +29,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 message EvaluateDatabaseAccessRequest {
   RequestMetadata metadata = 1;
   TLSIdentity tls_identity = 2;
+  Resource database = 3;
 }
 
 // EvaluateDatabaseAccessResponse describes the result of a database access
