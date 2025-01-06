@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
@@ -147,7 +148,27 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
-	// TODO(noah): Add support for SDS back in.
+	sdsHandler := &spiffeSDSHandler{
+		log:              s.log,
+		botCfg:           s.botCfg,
+		trustBundleCache: s.trustBundleCache,
+		clientAuthenticator: func(ctx context.Context) (*slog.Logger, svidFetcher, error) {
+			log, attrs, err := s.authenticateClient(ctx)
+			if err != nil {
+				return log, nil, trace.Wrap(err, "authenticating client")
+			}
+
+			fetchSVIDs := func(
+				ctx context.Context,
+				localBundle *spiffebundle.Bundle,
+			) ([]*workloadpb.X509SVID, error) {
+				return s.fetchX509SVIDs(ctx, log, localBundle, attrs)
+			}
+
+			return log, fetchSVIDs, nil
+		},
+	}
+	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
 	lis, err := createListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {

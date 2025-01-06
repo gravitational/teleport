@@ -228,13 +228,27 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler := &spiffeSDSHandler{
-		log:    s.log,
-		cfg:    s.cfg,
-		botCfg: s.botCfg,
-
-		trustBundleCache:    s.trustBundleCache,
-		clientAuthenticator: s.authenticateClient,
-		svidFetcher:         s.fetchX509SVIDs,
+		log:              s.log,
+		botCfg:           s.botCfg,
+		trustBundleCache: s.trustBundleCache,
+		clientAuthenticator: func(ctx context.Context) (*slog.Logger, svidFetcher, error) {
+			log, attrs, err := s.authenticateClient(ctx)
+			if err != nil {
+				return log, nil, trace.Wrap(err, "authenticating client")
+			}
+			fetchSVIDs := func(
+				ctx context.Context,
+				localBundle *spiffebundle.Bundle,
+			) ([]*workloadpb.X509SVID, error) {
+				return s.fetchX509SVIDs(
+					ctx,
+					log,
+					localBundle,
+					filterSVIDRequests(ctx, log, s.cfg.SVIDs, attrs),
+				)
+			}
+			return log, fetchSVIDs, nil
+		},
 	}
 	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
