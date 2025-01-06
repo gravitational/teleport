@@ -96,16 +96,19 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 		}
 		buckets = rsp.Buckets
 		getBucketRegion = func(bucket *string) (string, error) {
-			rsp, err := globalS3Client.HeadBucketWithContext(
+			rsp, err := globalS3Client.GetBucketLocationWithContext(
 				ctx,
-				&s3.HeadBucketInput{
+				&s3.GetBucketLocationInput{
 					Bucket: bucket,
 				},
 			)
 			if err != nil {
 				return "", trace.Wrap(err, "failed to fetch bucket %q region", aws.ToString(bucket))
 			}
-			return aws.ToString(rsp.BucketRegion), nil
+			if rsp.LocationConstraint == nil {
+				return "us-east-1", nil
+			}
+			return aws.ToString(rsp.LocationConstraint), nil
 		}
 	}
 
@@ -260,6 +263,12 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 	details.policy, err = s3Client.GetBucketPolicyWithContext(ctx, &s3.GetBucketPolicyInput{
 		Bucket: bucket.Name,
 	})
+	const noSuchBucketPolicy = "NoSuchBucketPolicy"
+	var awsErr awserr.Error
+	if errors.As(err, &awsErr) && awsErr.Code() == noSuchBucketPolicy {
+		// If there is no policy, set the error to nil.
+		err = nil
+	}
 	if err != nil {
 		errs = append(errs,
 			trace.Wrap(err, "failed to fetch bucket %q inline policy", aws.ToString(bucket.Name)),
@@ -270,6 +279,10 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 	details.policyStatus, err = s3Client.GetBucketPolicyStatusWithContext(ctx, &s3.GetBucketPolicyStatusInput{
 		Bucket: bucket.Name,
 	})
+	if errors.As(err, &awsErr) && awsErr.Code() == noSuchBucketPolicy {
+		// If there is no policy status, set the error to nil.
+		err = nil
+	}
 	if err != nil {
 		errs = append(errs,
 			trace.Wrap(err, "failed to fetch bucket %q policy status", aws.ToString(bucket.Name)),
@@ -290,7 +303,7 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 	details.tags, err = s3Client.GetBucketTaggingWithContext(ctx, &s3.GetBucketTaggingInput{
 		Bucket: bucket.Name,
 	})
-	var awsErr awserr.Error
+
 	const noSuchTagSet = "NoSuchTagSet" // error code when there are no tags or the bucket does not support them
 	if errors.As(err, &awsErr) && awsErr.Code() == noSuchTagSet {
 		// If there are no tags, set the error to nil.
