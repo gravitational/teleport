@@ -187,7 +187,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	defer func() {
 		if err := listener.Close(); err != nil {
-			log.WithError(err).Warnf("Failed to close listener.")
+			logger.WarnContext(cf.Context, "Failed to close listener", "error", err)
 		}
 	}()
 
@@ -353,7 +353,7 @@ func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, db
 	dbServers, err := getDatabaseServers(ctx, tc, dbInfo.ServiceName)
 	if err != nil {
 		// log, but treat this error as non-fatal.
-		log.Warnf("Error getting database servers: %s", err.Error())
+		logger.WarnContext(ctx, "Error getting database servers", "error", err)
 		return opts
 	}
 
@@ -362,7 +362,7 @@ func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, db
 	for _, server := range dbServers {
 		ver, err := semver.NewVersion(server.GetTeleportVersion())
 		if err != nil {
-			log.Debugf("Failed to parse teleport version %q: %v", server.GetTeleportVersion(), err)
+			logger.DebugContext(ctx, "Failed to parse teleport version", "version", server.GetTeleportVersion(), "error", err)
 			continue
 		}
 
@@ -377,10 +377,17 @@ func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, db
 		}
 	}
 
-	log.Debugf("Agents for database %q with Oracle support: total %v, old %v, new %v.", dbInfo.ServiceName, len(dbServers), oldServers, newServers)
+	logger.DebugContext(ctx, "Retrieved agents for database with Oracle support",
+		"database", dbInfo.ServiceName,
+		"total", len(dbServers),
+		"old_count", oldServers,
+		"new_count", newServers,
+	)
 
 	if oldServers > 0 {
-		log.Warnf("Detected database agents older than %v. For improved client support upgrade all database agents in your cluster to a newer version.", cutoffVersion)
+		logger.WarnContext(ctx, "Detected outdated database agent, for improved client support upgrade all database agents in your cluster to a newer version",
+			"lowest_supported_version", cutoffVersion,
+		)
 	}
 
 	opts = append(opts, dbcmd.WithOracleOpts(oldServers == 0, newServers > 0))
@@ -504,7 +511,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	defer func() {
 		if err := proxyApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close app proxy.")
+			logger.ErrorContext(cf.Context, "Failed to close app proxy", "error", err)
 		}
 	}()
 
@@ -531,7 +538,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close AWS app.")
+			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
 		}
 	}()
 
@@ -624,7 +631,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 	defer func() {
 		if err := azApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close Azure app.")
+			logger.ErrorContext(cf.Context, "Failed to close Azure app", "error", err)
 		}
 	}()
 
@@ -655,7 +662,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 
 	defer func() {
 		if err := gcpApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -795,7 +802,7 @@ Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
 {{if .canUseTCP }}Other clients can use:
-  - a direct connection to {{.address}} without a username and password  
+  - a direct connection to {{.address}} without a username and password
   - a custom JDBC connection string: {{.jdbcConnectionString}}
 
 {{else }}You can also connect using Oracle JDBC connection string:
