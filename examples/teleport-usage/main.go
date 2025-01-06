@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"strconv"
@@ -334,7 +334,7 @@ func (a *adaptiveRateLimiter) wait(permits float64) {
 	durationToWait := time.Duration(permits / a.permitCapacity * float64(time.Second))
 	time.Sleep(durationToWait)
 
-	if rand.Intn(10) == 0 {
+	if rand.N(10) == 0 {
 		a.adjustUp()
 	}
 }

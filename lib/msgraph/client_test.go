@@ -19,6 +19,7 @@ package msgraph
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -226,9 +227,13 @@ func TestIterateUsers(t *testing.T) {
 	require.Equal(t, "alice@example.com", *users[0].Mail)
 	require.Equal(t, "Alice Alison", *users[0].DisplayName)
 	require.Equal(t, "alice@example.com", *users[0].UserPrincipalName)
+	require.Nil(t, users[0].Surname)
+	require.Nil(t, users[0].GivenName)
 
 	require.Equal(t, "bob@example.com", *users[1].Mail)
 	require.Equal(t, "bob@example.com", *users[1].UserPrincipalName)
+	require.Equal(t, "Bobert", *users[1].Surname)
+	require.Equal(t, "Bob", *users[1].GivenName)
 
 	require.Equal(t, "admin@example.com", *users[2].Mail)
 	require.Equal(t, "admin@example.com", *users[2].UserPrincipalName)
@@ -474,3 +479,81 @@ func TestIterateGroupMembers(t *testing.T) {
 		require.Equal(t, "Test Group 1", *group.DisplayName)
 	}
 }
+
+const getApplicationPayload = `
+{
+        "id": "aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4",
+        "appId": "d2a39a2a-1636-457f-82f9-c2d76527e20e",
+        "displayName": "test SAML App",
+        "groupMembershipClaims": "SecurityGroup",
+        "identifierUris": [
+            "goteleport.com"
+        ],
+        "optionalClaims": {
+            "accessToken": [],
+            "idToken": [],
+            "saml2Token": [
+                {
+                    "additionalProperties": [
+                        "sam_account_name"
+                    ],
+                    "essential": false,
+                    "name": "groups",
+                    "source": null
+                }
+            ]
+        }
+    }`
+
+func TestGetApplication(t *testing.T) {
+
+	mux := http.NewServeMux()
+	appID := "d2a39a2a-1636-457f-82f9-c2d76527e20e"
+	mux.Handle(fmt.Sprintf("GET /applications(appId='%s')", appID),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(getApplicationPayload))
+		}))
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(func() { srv.Close() })
+
+	uri, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	client := &Client{
+		httpClient:    &http.Client{},
+		tokenProvider: &fakeTokenProvider{},
+		retryConfig:   retryConfig,
+		baseURL:       uri,
+		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	}
+
+	app, err := client.GetApplication(context.Background(), appID)
+	require.NoError(t, err)
+	require.Equal(t, "aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4", *app.ID)
+
+	expectation := &Application{
+		AppID: toPtr("d2a39a2a-1636-457f-82f9-c2d76527e20e"),
+		DirectoryObject: DirectoryObject{
+			DisplayName: toPtr("test SAML App"),
+			ID:          toPtr("aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4"),
+		},
+		GroupMembershipClaims: toPtr("SecurityGroup"),
+		IdentifierURIs:        &[]string{"goteleport.com"},
+		OptionalClaims: &OptionalClaims{
+			AccessToken: []OptionalClaim{},
+			IDToken:     []OptionalClaim{},
+			SAML2Token: []OptionalClaim{
+				{
+					AdditionalProperties: []string{"sam_account_name"},
+					Essential:            toPtr(false),
+					Name:                 toPtr("groups"),
+					Source:               nil,
+				},
+			},
+		},
+	}
+	require.EqualValues(t, expectation, app)
+
+}
+
+func toPtr[T any](s T) *T { return &s }

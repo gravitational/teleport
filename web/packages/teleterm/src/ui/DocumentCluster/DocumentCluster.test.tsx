@@ -16,26 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { act } from '@testing-library/react';
-import { render, screen } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { render, screen } from 'design/utils/testing';
+
 import {
-  makeRootCluster,
+  makeAcl,
   makeLoggedInUser,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import * as tsh from 'teleterm/services/tshd/types';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-
-import { ResourcesContextProvider } from './resourcesContext';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import DocumentCluster from './DocumentCluster';
+import { ResourcesContextProvider } from './resourcesContext';
 
 const mio = mockIntersectionObserver();
 
@@ -50,7 +50,7 @@ it('displays a button for Connect My Computer in the empty state if the user can
         uri: doc.clusterUri,
         loggedInUser: makeLoggedInUser({
           userType: tsh.LoggedInUser_UserType.LOCAL,
-          acl: {
+          acl: makeAcl({
             tokens: {
               create: true,
               list: true,
@@ -59,7 +59,7 @@ it('displays a button for Connect My Computer in the empty state if the user can
               read: true,
               use: true,
             },
-          },
+          }),
         }),
       })
     );
@@ -123,7 +123,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
         uri: doc.clusterUri,
         loggedInUser: makeLoggedInUser({
           userType: tsh.LoggedInUser_UserType.LOCAL,
-          acl: {
+          acl: makeAcl({
             tokens: {
               create: false,
               list: true,
@@ -132,7 +132,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
               read: true,
               use: true,
             },
-          },
+          }),
         }),
       })
     );

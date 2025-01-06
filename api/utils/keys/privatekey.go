@@ -173,15 +173,8 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *PrivateKey) PPKFile() ([]byte, error) {
-	rsaKey, ok := k.Signer.(*rsa.PrivateKey)
-	if !ok {
-		return nil, trace.BadParameter("only RSA keys are supported for PPK files, found private key of type %T", k.Signer)
-	}
-	ppkFile, err := ppk.ConvertToPPK(rsaKey, k.MarshalSSHPublicKey())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ppkFile, nil
+	ppkFile, err := ppk.ConvertToPPK(k.Signer, k.sshPub)
+	return ppkFile, trace.Wrap(err)
 }
 
 // SoftwarePrivateKeyPEM returns the PEM encoding of the private key. If the key

@@ -18,10 +18,10 @@
 
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useAssumeAccess() {
   const ctx = useAppContext();
@@ -30,12 +30,12 @@ export function useAssumeAccess() {
     rootClusterUri,
     documentsService,
   } = useWorkspaceContext();
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
 
   const [assumeRoleAttempt, runAssumeRole] = useAsync((requestId: string) =>
     retryWithRelogin(ctx, clusterUri, async () => {
       await ctx.clustersService.assumeRoles(rootClusterUri, [requestId]);
-      // refresh the current resource tabs
+      // Refresh the current resource tabs in the workspace.
       requestResourcesRefresh();
     })
   );
@@ -58,7 +58,7 @@ export function useAssumeAccess() {
       return;
     }
 
-    // refresh the current resource tabs
+    // Refresh the current resource tabs in the workspace.
     requestResourcesRefresh();
 
     // open new cluster tab

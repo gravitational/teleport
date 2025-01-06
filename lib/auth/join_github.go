@@ -21,9 +21,9 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -35,6 +35,10 @@ type ghaIDTokenValidator interface {
 		ctx context.Context, GHESHost string, enterpriseSlug string, token string,
 	) (*githubactions.IDTokenClaims, error)
 }
+
+type ghaIDTokenJWKSValidator func(
+	now time.Time, jwksData []byte, token string,
+) (*githubactions.IDTokenClaims, error)
 
 func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*githubactions.IDTokenClaims, error) {
 	if req.IDToken == "" {
@@ -63,17 +67,29 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		}
 	}
 
-	claims, err := a.ghaIDTokenValidator.Validate(
-		ctx, enterpriseOverride, enterpriseSlug, req.IDToken,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var claims *githubactions.IDTokenClaims
+	if token.Spec.GitHub.StaticJWKS != "" {
+		claims, err = a.ghaIDTokenJWKSValidator(
+			a.clock.Now().UTC(),
+			[]byte(token.Spec.GitHub.StaticJWKS),
+			req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with jwks")
+		}
+	} else {
+		claims, err = a.ghaIDTokenValidator.Validate(
+			ctx, enterpriseOverride, enterpriseSlug, req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with oidc")
+		}
 	}
 
-	log.WithFields(logrus.Fields{
-		"claims": claims,
-		"token":  pt.GetName(),
-	}).Info("Github actions run trying to join cluster")
+	a.logger.InfoContext(ctx, "Github actions run trying to join cluster",
+		"claims", claims,
+		"token", pt.GetName(),
+	)
 
 	return claims, trace.Wrap(checkGithubAllowRules(token, claims))
 }

@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import {
@@ -25,11 +26,10 @@ import {
   MenuLogin,
 } from 'shared/components/MenuLogin';
 
-import { Node } from 'teleport/services/nodes';
-import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
-import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
-
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
+import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
+import { Node } from 'teleport/services/nodes';
 
 export function NodeList(props: {
   nodes: Node[];
@@ -42,8 +42,6 @@ export function NodeList(props: {
   params: ResourceFilter;
   setParams: (params: ResourceFilter) => void;
   setSort: (sort: SortType) => void;
-  pathname: string;
-  replaceHistory: (path: string) => void;
   onLabelClick: (label: ResourceLabel) => void;
   pageIndicators: PageIndicators;
 }) {
@@ -58,8 +56,6 @@ export function NodeList(props: {
     params,
     setParams,
     setSort,
-    pathname,
-    replaceHistory,
     onLabelClick,
     pageIndicators,
   } = props;
@@ -108,8 +104,6 @@ export function NodeList(props: {
             pageIndicators={pageIndicators}
             params={params}
             setParams={setParams}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
             disabled={fetchStatus === 'loading'}
           />
         ),

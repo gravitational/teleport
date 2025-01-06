@@ -19,6 +19,7 @@
 package client
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -27,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
@@ -109,9 +109,6 @@ func (ms *MemProfileStore) SaveProfile(profile *profile.Profile, makecurrent boo
 //
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSProfileStore struct {
-	// log holds the structured logger.
-	log logrus.FieldLogger
-
 	// Dir is the directory where all keys are stored.
 	Dir string
 }
@@ -120,7 +117,6 @@ type FSProfileStore struct {
 func NewFSProfileStore(dirPath string) *FSProfileStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSProfileStore{
-		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }
@@ -203,6 +199,9 @@ type ProfileStatus struct {
 	// ValidUntil is the time at which this SSH certificate will expire.
 	ValidUntil time.Time
 
+	// GetKeyRingError is any error encountered while loading the KeyRing.
+	GetKeyRingError error
+
 	// Extensions is a list of enabled SSH features for the certificate.
 	Extensions []string
 
@@ -245,6 +244,17 @@ type ProfileStatus struct {
 
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+
+	// GitHubIdentity is the GitHub identity attached to the user.
+	GitHubIdentity *GitHubIdentity
+}
+
+// GitHubIdentity is the GitHub identity attached to the user.
+type GitHubIdentity struct {
+	// UserID is the unique ID of the GitHub user.
+	UserID string
+	// Username is the GitHub username.
+	Username string
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
@@ -316,7 +326,9 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			ext == teleport.CertExtensionTeleportTraits ||
 			ext == teleport.CertExtensionTeleportRouteToCluster ||
 			ext == teleport.CertExtensionTeleportActiveRequests ||
-			ext == teleport.CertExtensionAllowedResources {
+			ext == teleport.CertExtensionAllowedResources ||
+			ext == teleport.CertExtensionGitHubUserID ||
+			ext == teleport.CertExtensionGitHubUsername {
 			continue
 		}
 		extensions = append(extensions, ext)
@@ -352,6 +364,14 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		}
 	}
 
+	var gitHubIdentity *GitHubIdentity
+	if gitHubUserID := sshCert.Extensions[teleport.CertExtensionGitHubUserID]; gitHubUserID != "" {
+		gitHubIdentity = &GitHubIdentity{
+			UserID:   gitHubUserID,
+			Username: sshCert.Extensions[teleport.CertExtensionGitHubUsername],
+		}
+	}
+
 	return &ProfileStatus{
 		Name: opts.ProfileName,
 		Dir:  opts.ProfileDir,
@@ -380,6 +400,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		AllowedResourceIDs:      allowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 		SSOHost:                 opts.SSOHost,
+		GitHubIdentity:          gitHubIdentity,
 	}, nil
 }
 
@@ -409,14 +430,17 @@ func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualP
 	// If we can't resolve any env vars, this will return garbage which we
 	// should at least warn about. As ugly as this is, arguably making every
 	// profile path lookup fallible is even uglier.
-	log.Debugf("Could not resolve path to virtual profile entry of type %s "+
-		"with parameters %+v.", kind, params)
+	log.DebugContext(context.Background(), "Could not resolve path to virtual profile entry",
+		"entry_type", kind,
+		"parameters", params,
+	)
 
 	virtualPathWarnOnce.Do(func() {
-		log.Errorf("A virtual profile is in use due to an identity file " +
+		const msg = "A virtual profile is in use due to an identity file " +
 			"(`-i ...`) but this functionality requires additional files on " +
 			"disk and may fail. Consider using a compatible wrapper " +
-			"application (e.g. Machine ID) for this command.")
+			"application (e.g. Machine ID) for this command."
+		log.ErrorContext(context.Background(), msg)
 	})
 
 	return "", false

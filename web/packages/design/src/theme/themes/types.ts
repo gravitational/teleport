@@ -141,6 +141,7 @@ export type ThemeColors = {
 
   tooltip: {
     background: string;
+    inverseBackground: string;
   };
 
   progressBarColor: string;
@@ -208,6 +209,8 @@ export type ThemeColors = {
     brightBlue: string;
     brightMagenta: string;
     brightCyan: string;
+    searchMatch: string;
+    activeSearchMatch: string;
   };
 
   editor: {

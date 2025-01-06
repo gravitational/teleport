@@ -23,8 +23,8 @@ import { Logger } from 'design/logger';
 import {
   DATE_FORMAT,
   DATE_TIME_FORMAT,
-  SHORT_DATE_FORMAT,
   DATE_WITH_PREFIXED_TIME_FORMAT,
+  SHORT_DATE_FORMAT,
 } from './constants';
 
 const DEFAULT_LOCALE = 'en-US';

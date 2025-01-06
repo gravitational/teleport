@@ -344,9 +344,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
-			a.handleJoinFailure(
-				err, provisionToken, nil, joinRequest,
-			)
+			a.handleJoinFailure(ctx, err, provisionToken, nil, joinRequest)
 		}
 	}()
 

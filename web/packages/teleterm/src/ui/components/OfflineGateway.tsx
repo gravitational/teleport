@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { ButtonPrimary, Flex, H2, Text } from 'design';
+import { useState } from 'react';
 
+import { ButtonPrimary, Flex, H2, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';

@@ -20,7 +20,7 @@ package services
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -112,7 +112,7 @@ func TestFanoutV2StreamOrdering(t *testing.T) {
 	var inputs []string
 	for i := 0; i < events; i++ {
 		kind := "spam"
-		if rand.Int()%2 == 0 {
+		if rand.N(2) == 0 {
 			kind = "eggs"
 		}
 		inputs = append(inputs, kind)

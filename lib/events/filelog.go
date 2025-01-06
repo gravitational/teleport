@@ -345,7 +345,11 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 }
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.logger.DebugContext(ctx, "SearchSessionEvents", "from", req.From, "to", req.To, "order", req.Order, "limit", req.Limit, "cond", logutils.StringerAttr(req.Cond))
+	var whereExp types.WhereExpr
+	if req.Cond != nil {
+		whereExp = *req.Cond
+	}
+	l.logger.DebugContext(ctx, "SearchSessionEvents", "from", req.From, "to", req.To, "order", req.Order, "limit", req.Limit, "cond", logutils.StringerAttr(whereExp))
 	filter := searchEventsFilter{eventTypes: SessionRecordingEvents}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)

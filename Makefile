@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.0-dev
+VERSION=18.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -48,9 +48,12 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
+# teleport-update builds with disabled cgo, buildmode=pie is not required.
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -240,7 +243,8 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINS_default = teleport tctl tsh tbot fdpass-teleport
+BINS_default = teleport tctl tsh tbot fdpass-teleport teleport-update
+BINS_darwin = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
@@ -312,6 +316,8 @@ endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+# teleport-update builds with disabled cgo, buildmode=pie is not required.
+BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 ifeq ("$(OS)","darwin")
@@ -397,7 +403,7 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS) ./tool/teleport-update
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -594,6 +600,7 @@ build-archive: | $(RELEASE_DIR)
 		"$(INSTALL_SCRIPT)" \
 		README.md \
 		CHANGELOG.md \
+		build.assets/LICENSE-community \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
@@ -1803,10 +1810,10 @@ rustup-install-target-toolchain: rustup-set-version
 # usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
-CHANGELOG = github.com/gravitational/shared-workflows/tools/changelog@latest
 .PHONY: changelog
 changelog:
-	@go run $(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+	@go run github.com/gravitational/shared-workflows/tools/changelog@latest \
+		--base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.
@@ -1820,13 +1827,19 @@ changelog:
 #
 # For more information on release notes generation see:
 #   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
-RELEASE_NOTES_GEN = github.com/gravitational/shared-workflows/tools/release-notes@latest
 .PHONY: create-github-release
 create-github-release: LATEST = false
 create-github-release: GITHUB_RELEASE_LABELS = ""
 create-github-release:
-	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	@NOTES=$$( \
+		go run github.com/gravitational/shared-workflows/tools/release-notes@latest \
+			--labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md \
+	) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \
 	--verify-tag \
 	-F - <<< "$$NOTES"
+
+.PHONY: go-mod-tidy-all
+go-mod-tidy-all:
+	find . -type "f" -name "go.mod" -execdir go mod tidy \;

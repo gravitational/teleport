@@ -36,11 +36,14 @@ import (
 // the error without modifying it.
 func ConvertRequestFailureError(err error) error {
 	var requestErr awserr.RequestFailure
-	if !errors.As(err, &requestErr) {
-		return err
+	if errors.As(err, &requestErr) {
+		return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
 	}
-
-	return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
+	var re *awshttp.ResponseError
+	if errors.As(err, &re) {
+		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)
+	}
+	return err
 }
 
 func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) error {

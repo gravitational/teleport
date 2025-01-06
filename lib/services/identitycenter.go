@@ -18,10 +18,15 @@ package services
 
 import (
 	"context"
+	"fmt"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -48,10 +53,15 @@ type IdentityCenterAccount struct {
 }
 
 // CloneResource creates a deep copy of the underlying account resource
-func (a IdentityCenterAccount) CloneResource() IdentityCenterAccount {
+func (a IdentityCenterAccount) CloneResource() types.ClonableResource153 {
 	return IdentityCenterAccount{
-		Account: proto.Clone(a.Account).(*identitycenterv1.Account),
+		Account: apiutils.CloneProtoMsg(a.Account),
 	}
+}
+
+// GetDisplayName returns a human-readable name for the account for UI display.
+func (a IdentityCenterAccount) GetDisplayName() string {
+	return a.Account.GetSpec().GetName()
 }
 
 // IdentityCenterAccountID is a strongly-typed Identity Center account ID.
@@ -90,7 +100,7 @@ type IdentityCenterAccounts interface {
 	DeleteIdentityCenterAccount(context.Context, IdentityCenterAccountID) error
 
 	// DeleteAllIdentityCenterAccounts deletes all Identity Center Account records
-	DeleteAllIdentityCenterAccounts(context.Context) error
+	DeleteAllIdentityCenterAccounts(context.Context, *identitycenterv1.DeleteAllIdentityCenterAccountsRequest) (*emptypb.Empty, error)
 }
 
 // PrincipalAssignmentID is a strongly-typed ID for Identity Center Principal
@@ -124,7 +134,7 @@ type IdentityCenterPrincipalAssignments interface {
 	DeletePrincipalAssignment(context.Context, PrincipalAssignmentID) error
 
 	// DeleteAllPrincipalAssignments deletes all assignment record
-	DeleteAllPrincipalAssignments(context.Context) error
+	DeleteAllPrincipalAssignments(context.Context, *identitycenterv1.DeleteAllPrincipalAssignmentsRequest) (*emptypb.Empty, error)
 }
 
 // PermissionSetID is a strongly typed ID for an identitycenterv1.PermissionSet
@@ -150,6 +160,9 @@ type IdentityCenterPermissionSets interface {
 
 	// DeletePermissionSet deletes a specific Identity Center PermissionSet
 	DeletePermissionSet(context.Context, PermissionSetID) error
+
+	// DeleteAllPermissionSets deletes all Identity Center PermissionSets.
+	DeleteAllPermissionSets(context.Context, *identitycenterv1.DeleteAllPermissionSetsRequest) (*emptypb.Empty, error)
 }
 
 // IdentityCenterAccountAssignment wraps a raw identitycenterv1.AccountAssignment
@@ -175,9 +188,9 @@ type IdentityCenterAccountAssignment struct {
 }
 
 // CloneResource creates a deep copy of the underlying account resource
-func (a IdentityCenterAccountAssignment) CloneResource() IdentityCenterAccountAssignment {
+func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource153 {
 	return IdentityCenterAccountAssignment{
-		AccountAssignment: proto.Clone(a.AccountAssignment).(*identitycenterv1.AccountAssignment),
+		AccountAssignment: apiutils.CloneProtoMsg(a.AccountAssignment),
 	}
 }
 
@@ -185,20 +198,26 @@ func (a IdentityCenterAccountAssignment) CloneResource() IdentityCenterAccountAs
 // IdentityCenterAccountAssignment
 type IdentityCenterAccountAssignmentID string
 
-// IdentityCenterAccountAssignments defines the operations to create and maintain
-// Identity Center account assignment records in the service.
-type IdentityCenterAccountAssignments interface {
+// IdentityCenterAccountAssignmentGetter provides read-only access to Identity
+// Center Account Assignment records
+type IdentityCenterAccountAssignmentGetter interface {
+	// GetAccountAssignment fetches a specific Account Assignment record.
+	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
+
 	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
 	// known to the service
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+}
+
+// IdentityCenterAccountAssignments defines the operations to create and maintain
+// Identity Center account assignment records in the service.
+type IdentityCenterAccountAssignments interface {
+	IdentityCenterAccountAssignmentGetter
 
 	// CreateAccountAssignment creates a new Account Assignment record in
 	// the service from the supplied in-memory representation. Returns the
 	// created record on success.
 	CreateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
-
-	// GetAccountAssignment fetches a specific Account Assignment record.
-	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
 
 	// UpdateAccountAssignment performs a conditional update on the supplied
 	// Account Assignment, returning the updated record on success.
@@ -212,7 +231,7 @@ type IdentityCenterAccountAssignments interface {
 	DeleteAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
 
 	// DeleteAllAccountAssignments deletes all known account assignments
-	DeleteAllAccountAssignments(context.Context) error
+	DeleteAllAccountAssignments(context.Context, *identitycenterv1.DeleteAllAccountAssignmentsRequest) (*emptypb.Empty, error)
 }
 
 // IdentityCenter combines all the resource managers used by the Identity Center plugin
@@ -221,4 +240,100 @@ type IdentityCenter interface {
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
 	IdentityCenterAccountAssignments
+}
+
+// NewIdentityCenterAccountMatcher creates a new [RoleMatcher] configured to
+// match the supplied [IdentityCenterAccount].
+func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) *IdentityCenterAccountMatcher {
+	return &IdentityCenterAccountMatcher{
+		accountID: account.GetSpec().GetId(),
+	}
+}
+
+// IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
+// Account resources against the AccountAssignments specified in a Role condition.
+type IdentityCenterAccountMatcher struct {
+	accountID string
+}
+
+// Match implements Role Matching for Identity Center Account resources. It
+// attempts to match the Account Assignments in a Role Condition against a
+// known Account ID.
+func (m *IdentityCenterAccountMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
+	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
+		accountMatches, err := matchExpression(m.accountID, asmt.Account)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if accountMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *IdentityCenterAccountMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterAccountMatcher(account=%v)", m.accountID)
+}
+
+// NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
+// configured to match the supplied [IdentityCenterAccountAssignment].
+func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) *IdentityCenterAccountAssignmentMatcher {
+	return &IdentityCenterAccountAssignmentMatcher{
+		accountID:        assignment.GetSpec().GetAccountId(),
+		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,
+	}
+}
+
+// IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
+// Account Assignment resources against the AccountAssignments specified in a
+// Role condition.
+type IdentityCenterAccountAssignmentMatcher struct {
+	accountID        string
+	permissionSetARN string
+}
+
+// Match implements Role Matching for Identity Center Account resources. It
+// attempts to match the Account Assignments in a Role Condition against a
+// known Account ID.
+func (m *IdentityCenterAccountAssignmentMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
+	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
+		accountMatches, err := matchExpression(m.accountID, asmt.Account)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if !accountMatches {
+			continue
+		}
+
+		permissionSetMatches, err := matchExpression(m.permissionSetARN, asmt.PermissionSet)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if permissionSetMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *IdentityCenterAccountAssignmentMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterAccountMatcher(account=%v, permissionSet=%v)",
+		m.accountID, m.permissionSetARN)
+}
+
+func matchExpression(target, expression string) (bool, error) {
+	if expression == types.Wildcard {
+		return true, nil
+	}
+	matches, err := utils.MatchString(target, expression)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return matches, nil
 }

@@ -37,6 +37,7 @@ type mockIDTokenValidator struct {
 	tokens                   map[string]githubactions.IDTokenClaims
 	lastCalledGHESHost       string
 	lastCalledEnterpriseSlug string
+	lastCalledJWKS           string
 }
 
 var errMockInvalidToken = errors.New("invalid token")
@@ -57,6 +58,18 @@ func (m *mockIDTokenValidator) Validate(
 func (m *mockIDTokenValidator) reset() {
 	m.lastCalledGHESHost = ""
 	m.lastCalledEnterpriseSlug = ""
+	m.lastCalledJWKS = ""
+}
+
+func (m *mockIDTokenValidator) ValidateJWKS(
+	_ time.Time, jwks []byte, token string,
+) (*githubactions.IDTokenClaims, error) {
+	m.lastCalledJWKS = string(jwks)
+	claims, ok := m.tokens[token]
+	if !ok {
+		return nil, errMockInvalidToken
+	}
+	return &claims, nil
 }
 
 func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
@@ -77,6 +90,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 	}
 	var withTokenValidator ServerOption = func(server *Server) error {
 		server.ghaIDTokenValidator = idTokenValidator
+		server.ghaIDTokenJWKSValidator = idTokenValidator.ValidateJWKS
 		return nil
 	}
 	ctx := context.Background()
@@ -140,6 +154,36 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 			request:     newRequest(validIDToken),
 			assertError: require.NoError,
+		},
+		{
+			name: "success with jwks",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+					StaticJWKS: "my-jwks",
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "failure with jwks",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+					StaticJWKS: "my-jwks",
+				},
+			},
+			request:     newRequest("invalid"),
+			assertError: require.Error,
 		},
 		{
 			name: "ghes override",
@@ -384,6 +428,11 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				t,
 				tt.tokenSpec.GitHub.EnterpriseSlug,
 				idTokenValidator.lastCalledEnterpriseSlug,
+			)
+			require.Equal(
+				t,
+				tt.tokenSpec.GitHub.StaticJWKS,
+				idTokenValidator.lastCalledJWKS,
 			)
 		})
 	}

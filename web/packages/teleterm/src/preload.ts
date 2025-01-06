@@ -16,28 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { contextBridge, webUtils } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+import { contextBridge, webUtils } from 'electron';
 
-import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
-import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
-import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
-import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
-import { createPtyService } from 'teleterm/services/pty/ptyService';
+import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import {
-  GrpcCertName,
   createClientCredentials,
-  createServerCredentials,
   createInsecureClientCredentials,
   createInsecureServerCredentials,
+  createServerCredentials,
   generateAndSaveGrpcCert,
+  GrpcCertName,
   readGrpcCert,
   shouldEncryptConnection,
 } from 'teleterm/services/grpcCredentials';
-import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
+import { createFileLoggerService } from 'teleterm/services/logger';
+import { createPtyService } from 'teleterm/services/pty/ptyService';
+import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
+import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();

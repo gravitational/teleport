@@ -1300,7 +1300,7 @@ An alert will eventually fire, warning the user about the stuck update.
 > [!NOTE]
 > In the first version, canary selection will happen randomly. As most instances are running the ssh_service and not
 > the other ones, we are less likely to catch an issue in a less common service.
-> An optimisation would be to try to pick canaries maximizing the service coverage.
+> An optimization would be to try to pick canaries maximizing the service coverage.
 > This would make the test more robust and provide better availability guarantees.
 
 #### Updating a group
@@ -1451,7 +1451,7 @@ Hello messages are sent on connection and are used to build the serve's local in
 This information is available almost instantaneously after the connection and can be cheaply queried by the auth (
 everything is in memory). The inventory is then used to count the local instances and drive the rollout.
 
-Both instance heartbeats and Hello merssages will be extended to incorporate and send data that is written to
+Both instance heartbeats and Hello messages will be extended to incorporate and send data that is written to
 `/var/lib/teleport/versions/update.yaml` and `/tmp/teleport_update_uuid` by the `teleport-update` binary.
 
 The following data related to the update is sent by the agent:
@@ -1656,7 +1656,7 @@ $ ls -l /usr/local/bin/teleport
 $ ls -l /usr/local/bin/teleport-update
 /usr/local/teleport/clusterA/bin/teleport-update -> /var/lib/teleport/install/clusterA/versions/15.0.0/bin/teleport-update
 $ ls -l /usr/local/lib/systemd/system/teleport-clusterA.service
-/usr/local/lib/systemd/system/teleport-clutserA.service -> /var/lib/teleport/install/clusterA/versions/15.0.0/etc/systemd/teleport.service
+/usr/local/lib/systemd/system/teleport-clusterA.service -> /var/lib/teleport/install/clusterA/versions/15.0.0/etc/systemd/teleport.service
 ```
 
 ##### update.yaml
@@ -1686,7 +1686,7 @@ status:
   version_history: ["15.1.3", "15.0.4"]
   # rollback specifies whether the most recent version was deployed by an automated rollback.
   rollback: true
-  # error specifies the last error encounted
+  # error specifies the last error encountered
   error: "" 
 ```
 

@@ -192,8 +192,8 @@ in each suite.
 Try it and let us know!
 We aim to balance security, performance, and compatibility with the chosen
 signature algorithm suites.
-It is okay to continue using the `legacy` suite for the forseeable future and we
-expect it may be required for some user's environments.
+It is okay to continue using the `legacy` suite for the foreseeable future and we
+expect it may be required for some users' environments.
 
 ### How did you choose these algorithms?
 
@@ -215,3 +215,63 @@ The signature algorithm suites are designed to simplify the configuration burden
 We did not want to expose 100 configuration knobs to modify every single
 signature Teleport does, which could lead to thousands of possible combinations
 we'd have to support, and could create the possibility for insecure combinations.
+
+### What if my HSM doesn't support ECDSA keys?
+
+If you are using a PKCS#11 HSM that does not support ECDSA keys, we recommend
+you continue to use the `legacy` algorithm suite.
+
+If you have a strong need to have users and hosts use Ed25519 and/or ECDSA keys,
+you could switch to the `hsm-v1` suite, but whenever a new CA key is generated
+it may fail if the CA uses non-RSA keys.
+This may cause the Auth Service to terminate with an error after trying to
+generate the key.
+New CA keys may be generated the first time a new Auth Service starts, when a CA
+rotation is initiated, or during a version upgrade when a new CA has been added
+in the new version.
+For these reasons we recommend continuing to use the `legacy` algorithm suite.
+
+### My YubiHSM2 authentication key does not have capabilities for ECDSA keys, what do I do?
+
+Our [YubiHSM2 guide](../admin-guides/deploy-a-cluster/hsm.mdx) recommends
+creating an
+[authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
+to be used by the Teleport Auth Service to authenticate with the YubiHSM2.
+The example in the original version of that guide created an authentication key
+without the necessary
+[capabilities](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#capability)
+to create and sign with ECDSA keys.
+Before upgrading to v17 and/or switching your algorithm suite, we recommend
+creating a new authentication key with the necessary capabilities and updating
+your Auth Service configuration to use the new key.
+The new authentication key will still be able to use your existing CA keys.
+
+To create a new authentication key with `yubihsm-shell`:
+```text
+$ yubihsm-shell
+Using default connector URL: http://localhost:12345
+yubihsm> connect
+Session keepalive set up to run every 15 seconds
+
+# Open a session with an admin authentication key that has capabilities to create
+# new authentication keys. The factory default authentication key has id:1 and
+# password:password. Use the appropriate ID and password if you have changed
+# these parameters.
+yubihsm> session open 1
+Enter password:
+Created session 0
+
+# Create a new authentication key for Teleport.
+yubihsm> put authkey 0 0 "New Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
+Enter password:
+Stored Authentication key 0x1a92
+
+# Make sure you can open a session with the new authentication key and password
+yubihsm> session open 0x1a92
+Enter password:
+Created session 1
+```
+
+Update `auth_service.ca_key_params.pkcs11.pin` or the file referenced by
+`auth_service.ca_key_params.pkcs11.pin_path` to use the ID of the new
+authentication key, then restart the Auth Service.

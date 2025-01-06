@@ -70,7 +70,7 @@ outputs: []
 services: []
 
 # joinMethod(string) -- describes how tbot joins the Teleport cluster.
-# See [the join method reference](../../join-methods.mdx) for a list fo supported values and detailed explanations.
+# See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
 # Ignored if `customConfig` is set.
 joinMethod: "kubernetes"
 

@@ -695,7 +695,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -791,7 +791,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 loop:
 	for {
 		select {
-		case event := <-main.UploadEventsC:
+		case event := <-aux.UploadEventsC:
 			sessionID = event.SessionID
 			break loop
 		case <-timeoutC:
@@ -800,7 +800,7 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	capturedStream, _ := streamSession(ctx, t, aux.Process.GetAuthServer(), sessionID)
 	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
@@ -971,7 +971,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -1614,7 +1614,6 @@ func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, 
 		}
 
 		s := getContainerStatusByName(p, containerName)
-		fmt.Println("test", s)
 		if s == nil {
 			return false, nil
 		}
@@ -1769,7 +1768,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1790,7 +1789,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)

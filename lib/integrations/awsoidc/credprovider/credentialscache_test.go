@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,6 +40,7 @@ type fakeSTSClient struct {
 	clock clockwork.Clock
 	err   error
 	sync.Mutex
+	called int32
 }
 
 func (f *fakeSTSClient) setError(err error) {
@@ -55,6 +56,7 @@ func (f *fakeSTSClient) getError() error {
 }
 
 func (f *fakeSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, optFns ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+	atomic.AddInt32(&f.called, 1)
 	if err := f.getError(); err != nil {
 		return nil, err
 	}
@@ -72,8 +74,6 @@ func (f *fakeSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *s
 }
 
 func TestCredentialsCache(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 

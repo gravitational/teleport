@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -113,11 +114,6 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 		return trace.AlreadyExists("another relogin request is in progress")
 	}
 	defer s.reloginMu.Unlock()
-
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	defer s.importantModalSemaphore.Release()
 
 	const reloginUserTimeout = time.Minute
 	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
@@ -361,7 +357,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+			gateway.Log().WarnContext(ctx, "Failed to handle a gateway connection", "error", err)
 		}
 	}()
 
@@ -420,7 +416,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			},
 		})
 		if notifyErr != nil {
-			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
+			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -563,9 +559,9 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 		// Rather than continuing in presence of the race condition, let's attempt to close the new
 		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
-			newGateway.Log().Warnf(
-				"Failed to close the new gateway after failing to close the old gateway: %v",
-				newGatewayCloseErr,
+			newGateway.Log().WarnContext(s.closeContext,
+				"Failed to close the new gateway after failing to close the old gateway",
+				"error", newGatewayCloseErr,
 			)
 		}
 		return nil, trace.Wrap(err)
@@ -575,7 +571,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 	go func() {
 		if err := newGateway.Serve(); err != nil {
-			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+			newGateway.Log().WarnContext(s.closeContext, "Failed to handle a gateway connection", "error", err)
 		}
 	}()
 
@@ -799,21 +795,21 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
-func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
-	cluster, tc, err := s.ResolveClusterURI(clusterURI)
+func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
+	_, tc, err := s.ResolveClusterURI(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var resources *kubeproto.ListKubernetesResourcesResponse
+	var resources []types.ResourceWithLabels
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		kubenetesServiceClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
+		kubeServiceClient, err := tc.NewKubernetesServiceClient(ctx, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		resources, err = kubenetesServiceClient.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
+		req := &kubeproto.ListKubernetesResourcesRequest{
 			ResourceType:        req.GetResourceType(),
 			Limit:               req.GetLimit(),
 			StartKey:            req.GetNextKey(),
@@ -822,8 +818,10 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 			UseSearchAsRoles:    req.GetUseSearchAsRoles(),
 			KubernetesCluster:   req.GetKubernetesCluster(),
 			KubernetesNamespace: req.GetKubernetesNamespace(),
-			TeleportCluster:     cluster.Name,
-		})
+			TeleportCluster:     tc.SiteName,
+		}
+
+		resources, err = apiclient.GetKubernetesResourcesWithFilters(ctx, kubeServiceClient, req)
 		return trace.Wrap(err)
 	})
 
@@ -844,7 +842,7 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	s.cfg.Log.Info("Stopping")
+	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
@@ -853,14 +851,14 @@ func (s *Service) Stop() {
 	s.StopHeadlessWatchers()
 
 	if err := s.clientCache.Clear(); err != nil {
-		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
+		s.cfg.Logger.ErrorContext(s.closeContext, "Failed to close remote clients", "error", err)
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
+		s.cfg.Logger.ErrorContext(timeoutCtx, "Gracefully stopping usage reporter failed", "error", err)
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
@@ -892,7 +890,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	client := api.NewTshdEventsServiceClient(conn)
 
 	s.tshdEventsClient = client
-	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
+	s.headlessAuthSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
 	return nil
 }
@@ -925,7 +923,12 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 		return trace.Wrap(err)
 	}
 
-	return cluster.TransferFile(ctx, request, sendProgress)
+	clt, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return cluster.TransferFile(ctx, clt, request, sendProgress)
 }
 
 // CreateConnectMyComputerRole creates a role which allows access to nodes with the label
@@ -1128,10 +1131,14 @@ func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.
 	}
 	devicesClient := proxyClient.CurrentCluster().DevicesClient()
 
-	ceremony := dtauthn.NewCeremony()
-	confirmationToken, err := ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
-		Id:    req.DeviceWebToken.Id,
-		Token: req.DeviceWebToken.Token,
+	var confirmationToken *devicepb.DeviceConfirmationToken
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		ceremony := dtauthn.NewCeremony()
+		confirmationToken, err = ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
+			Id:    req.DeviceWebToken.Id,
+			Token: req.DeviceWebToken.Token,
+		})
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1191,20 +1198,32 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// tshdEventsClient is a client to send events to the Electron App.
 	tshdEventsClient api.TshdEventsServiceClient
-	// The Electron App can only display one important Modal at a time. tshd events
-	// that trigger an important modal (relogin, headless login) should use this
-	// lock to ensure it doesn't overwrite existing tshd-initiated important modals.
+
+	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
+	// However, we should be careful with it, and generally try to limit the number of prompts on the tshd side,
+	// to avoid flooding the app.
+	// Multiple prompts of the same type may also conflict with each other. This is currently possible with
+	// MFA prompts (see the mfaMu comment for details).
+	// Generally, only one prompt of each type (e.g., re-login, MFA) should be allowed at the same time.
 	//
-	// We use a semaphore instead of a mutex in order to cancel important modals that
-	// are no longer relevant before acquisition.
-	//
-	// We use a waitSemaphore in order to make sure there is a clear transition between modals.
-	importantModalSemaphore *waitSemaphore
+	// But why do we allow multiple important modals at all? It is necessary in specific scenarios where one
+	// modal action requires completing in another. Currently, there are two cases:
+	// 1. A hardware key prompt may appear during a re-login process.
+	// 2. An MFA prompt may appear during a re-login process.
+
+	// We use a waitSemaphore to make sure there is a clear transition between modals.
+	// We allow a single headless auth prompt at a time.
+	headlessAuthSemaphore *waitSemaphore
+	// mfaMu prevents concurrent MFA prompts. These can happen when using VNet with per-session MFA.
+	// Issuing an MFA prompt starts the Webauthn goroutine which prompts for key touch on hardware level.
+	// Webauthn does not support concurrent prompts, so without this semaphore, one of the prompts would fail immediately.
+	mfaMu sync.Mutex
+	// reloginMu is used when a goroutine needs to request a relogin from the Electron app.
+	// We allow a single relogin prompt at a time.
+	reloginMu sync.Mutex
+
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
-	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
-	// app can show only one login modal at a time, we need to submit only one request at a time.
-	reloginMu sync.Mutex
 	// headlessWatcherClosers holds a map of root cluster URIs to headless watchers.
 	headlessWatcherClosers   map[string]context.CancelFunc
 	headlessWatcherClosersMu sync.Mutex

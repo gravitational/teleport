@@ -16,34 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Box, LabelInput, H3, Subtitle3 } from 'design';
+import { useState } from 'react';
 
+import { Box, H3, LabelInput, Subtitle3 } from 'design';
+import { P } from 'design/Text/Text';
 import Select, { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 
-import { P } from 'design/Text/Text';
-
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { generateTshLoginCommand } from 'teleport/lib/util';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
-import { CustomInputFieldForAsterisks } from 'teleport/Discover/Shared/CustomInputFieldForAsterisks';
-
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import { MfaAuthnResponse } from 'teleport/services/mfa';
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { WILD_CARD } from 'teleport/Discover/Shared/const';
+import { CustomInputFieldForAsterisks } from 'teleport/Discover/Shared/CustomInputFieldForAsterisks';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { generateTshLoginCommand } from 'teleport/lib/util';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { DatabaseEngine, getDatabaseProtocol } from '../../SelectResource';
 import {
   ActionButtons,
-  HeaderSubtitle,
-  Header,
   ConnectionDiagnosticResult,
+  Header,
+  HeaderSubtitle,
   StyledBox,
   useConnectionDiagnostic,
 } from '../../Shared';
-import { DatabaseEngine } from '../../SelectResource';
 
 export function TestConnection() {
   const { resourceSpec, agentMeta } = useDiscover();
@@ -93,7 +91,7 @@ export function TestConnection() {
 
   function testConnection(
     validator: Validator,
-    mfaResponse?: MfaAuthnResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     if (!validator.validate()) {
       return;
@@ -117,7 +115,7 @@ export function TestConnection() {
         <Box>
           {showMfaDialog && (
             <ReAuthenticate
-              onMfaResponse={res => testConnection(validator, res)}
+              onMfaResponse={async res => testConnection(validator, res)}
               onClose={cancelMfaDialog}
               challengeScope={MfaChallengeScope.USER_SESSION}
             />
@@ -185,8 +183,7 @@ export function TestConnection() {
                 isDisabled={
                   attempt.status === 'processing' || nameOpts.length === 0
                 }
-                // Database name is required for Postgres.
-                isClearable={dbEngine !== DatabaseEngine.Postgres}
+                isClearable={!isDbNameRequired(dbEngine)}
               />
               <CustomInputFieldForAsterisks
                 selectedOption={selectedDbName}
@@ -237,4 +234,18 @@ function getInputValue(input: string, inputKind: 'name' | 'user') {
     return inputKind === 'name' ? '<name>' : '<user>';
   }
   return input;
+}
+
+function isDbNameRequired(engine: DatabaseEngine) {
+  const protocol = getDatabaseProtocol(engine);
+  switch (protocol) {
+    case 'mongodb':
+    case 'oracle':
+    case 'postgres':
+    case 'spanner':
+    case 'sqlserver':
+      return true;
+    default:
+      return false;
+  }
 }

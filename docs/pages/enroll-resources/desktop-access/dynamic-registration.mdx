@@ -1,0 +1,147 @@
+---
+title: Dynamic Windows Desktop Registration
+description: Register/unregister Windows desktops without restarting Teleport.
+---
+
+Dynamic Windows desktop registration allows Teleport administrators to register
+new Windows desktops (or update/unregister existing ones) without having to
+update the static configuration files read by Teleport Windows Desktop Service
+instances.
+
+Windows Desktop Service instances watch for updates from the Teleport Auth
+Service for `dynamic_windows_desktop` resources, each of which includes the
+information that the Windows Desktop Service needs to connect to a Windows
+desktop.
+
+## Required permissions
+
+In order to interact with dynamically registered Windows desktops, a user must have
+a Teleport role with permissions to manage `dynamic_windows_desktop` resources.
+
+In the following example, a role allows a user to perform all possible
+operations against `dynamic_windows_desktop` resources:
+
+```yaml
+allow:
+  rules:
+    - resources: [dynamic_windows_desktop]
+      verbs: [list, create, read, update, delete]
+```
+
+## Enabling dynamic registration
+
+To enable dynamic registration, include a `resources` section in your Windows Desktop
+Service configuration with a list of resource label selectors you'd like this
+service to monitor for registering:
+
+```yaml
+windows_desktop_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+You can use a wildcard selector to register all dynamic Windows desktop resources in the cluster
+on the Windows Desktop Service or provide a specific set of labels for a subset:
+
+```yaml
+resources:
+- labels:
+    "env": "prod"
+- labels:
+    "env": "test"
+```
+
+## Creating a dynamic_windows_desktop resource
+
+Configure Teleport to register a Windows desktop dynamically by creating an `dynamic_windows_desktop`
+resource. The following example configures Teleport for connecting to Windows desktop
+called `example` at `host1.example.com:3089`.
+
+```yaml
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  name: example
+  description: "Example desktop"
+  labels:
+    env: test
+spec:
+  addr: host1.example.com:3089
+  # non_ad should be true for logging with local Windows user and false for Active Directory users
+  non_ad: true
+  # domain specifies domain used for AD-joined machines
+  domain: ""
+
+  # Optional - ensures that all sessions use the same screen size,
+  # no matter what the size of the browser window is.
+  # Leave blank to use the size of the browser window.
+  screen_size:
+    width: 1024
+    height: 768
+```
+
+The user creating the dynamic Windows desktop needs to have a role with access
+to the Windows desktop labels and the `dynamic_windows_desktop` resource. In
+this example role the user can only create and maintain dynamic Windows desktops
+labeled `env: test`.
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example
+spec:
+  allow:
+    windows_desktop_labels:
+      env: test
+    rules:
+    - resources: [dynamic_windows_desktop]
+      verbs: [list, create, read, update, delete]
+```
+
+To create a dynamic Windows desktop resource, run:
+
+<Tabs>
+    <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+        ```code
+        # Log in to your cluster with tsh so you can use tctl from your local machine.
+        # You can also run tctl on your Auth Service host without running "tsh login"
+        # first.
+        $ tsh login --proxy=teleport.example.com --user=myuser
+        $ tctl create dynamic_windows_desktop.yaml
+        ```
+
+    </TabItem>
+    <TabItem scope={["cloud"]} label="Teleport Enterprise (Cloud)">
+
+        ```code
+        # Log in to your Teleport cluster so you can use tctl remotely.
+        $ tsh login --proxy=mytenant.teleport.sh --user=myuser
+        $ tctl create dynamic_windows_desktop.yaml
+        ```
+
+    </TabItem>
+
+</Tabs>
+
+After the resource has been created, it will appear among the list of available
+Windows desktops (in the web UI) as long as at least one Windows Desktop Service
+instance picks it up according to its label selectors.
+
+To update an existing dynamic Windows desktop resource, run:
+
+```code
+$ tctl create -f dynamic_windows_desktop.yaml
+```
+
+If the updated resource's labels no longer match a particular Windows Desktop Service, it
+will unregister and stop routing traffic to it.
+
+To delete a dynamic Windows desktop resource, run:
+
+```code
+$ tctl rm dynamic_windows_desktop/example
+```

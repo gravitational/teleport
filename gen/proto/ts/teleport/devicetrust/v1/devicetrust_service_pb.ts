@@ -229,6 +229,49 @@ export interface ListDevicesResponse {
     nextPageToken: string;
 }
 /**
+ * Request for ListDevicesByUser.
+ *
+ * Follows the pagination semantics of
+ * https://cloud.google.com/apis/design/standard_methods#list.
+ *
+ * @generated from protobuf message teleport.devicetrust.v1.ListDevicesByUserRequest
+ */
+export interface ListDevicesByUserRequest {
+    /**
+     * The maximum number of items to return.
+     * The server may impose a different page size at its discretion.
+     *
+     * @generated from protobuf field: int32 page_size = 1;
+     */
+    pageSize: number;
+    /**
+     * The next_page_token value returned from a previous List request, if any.
+     *
+     * @generated from protobuf field: string page_token = 2;
+     */
+    pageToken: string;
+}
+/**
+ * Response for ListDevicesByUser.
+ *
+ * @generated from protobuf message teleport.devicetrust.v1.ListDevicesByUserResponse
+ */
+export interface ListDevicesByUserResponse {
+    /**
+     * Devices owned by the user.
+     *
+     * @generated from protobuf field: repeated teleport.devicetrust.v1.Device devices = 1;
+     */
+    devices: Device[];
+    /**
+     * Token to retrieve the next page of results, or empty if there are no
+     * more results in the list.
+     *
+     * @generated from protobuf field: string next_page_token = 2;
+     */
+    nextPageToken: string;
+}
+/**
  * Request for BulkCreateDevices.
  *
  * @generated from protobuf message teleport.devicetrust.v1.BulkCreateDevicesRequest
@@ -1480,6 +1523,116 @@ class ListDevicesResponse$Type extends MessageType<ListDevicesResponse> {
  * @generated MessageType for protobuf message teleport.devicetrust.v1.ListDevicesResponse
  */
 export const ListDevicesResponse = new ListDevicesResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDevicesByUserRequest$Type extends MessageType<ListDevicesByUserRequest> {
+    constructor() {
+        super("teleport.devicetrust.v1.ListDevicesByUserRequest", [
+            { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListDevicesByUserRequest>): ListDevicesByUserRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pageSize = 0;
+        message.pageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListDevicesByUserRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDevicesByUserRequest): ListDevicesByUserRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 page_size */ 1:
+                    message.pageSize = reader.int32();
+                    break;
+                case /* string page_token */ 2:
+                    message.pageToken = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListDevicesByUserRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 page_size = 1; */
+        if (message.pageSize !== 0)
+            writer.tag(1, WireType.Varint).int32(message.pageSize);
+        /* string page_token = 2; */
+        if (message.pageToken !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.pageToken);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.devicetrust.v1.ListDevicesByUserRequest
+ */
+export const ListDevicesByUserRequest = new ListDevicesByUserRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDevicesByUserResponse$Type extends MessageType<ListDevicesByUserResponse> {
+    constructor() {
+        super("teleport.devicetrust.v1.ListDevicesByUserResponse", [
+            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Device },
+            { no: 2, name: "next_page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListDevicesByUserResponse>): ListDevicesByUserResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.devices = [];
+        message.nextPageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListDevicesByUserResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDevicesByUserResponse): ListDevicesByUserResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.devicetrust.v1.Device devices */ 1:
+                    message.devices.push(Device.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string next_page_token */ 2:
+                    message.nextPageToken = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListDevicesByUserResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.devicetrust.v1.Device devices = 1; */
+        for (let i = 0; i < message.devices.length; i++)
+            Device.internalBinaryWrite(message.devices[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string next_page_token = 2; */
+        if (message.nextPageToken !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.nextPageToken);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.devicetrust.v1.ListDevicesByUserResponse
+ */
+export const ListDevicesByUserResponse = new ListDevicesByUserResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class BulkCreateDevicesRequest$Type extends MessageType<BulkCreateDevicesRequest> {
     constructor() {
@@ -3137,6 +3290,7 @@ export const DeviceTrustService = new ServiceType("teleport.devicetrust.v1.Devic
     { name: "FindDevices", options: {}, I: FindDevicesRequest, O: FindDevicesResponse },
     { name: "GetDevice", options: {}, I: GetDeviceRequest, O: Device },
     { name: "ListDevices", options: {}, I: ListDevicesRequest, O: ListDevicesResponse },
+    { name: "ListDevicesByUser", options: {}, I: ListDevicesByUserRequest, O: ListDevicesByUserResponse },
     { name: "BulkCreateDevices", options: {}, I: BulkCreateDevicesRequest, O: BulkCreateDevicesResponse },
     { name: "CreateDeviceEnrollToken", options: {}, I: CreateDeviceEnrollTokenRequest, O: DeviceEnrollToken },
     { name: "EnrollDevice", serverStreaming: true, clientStreaming: true, options: {}, I: EnrollDeviceRequest, O: EnrollDeviceResponse },

@@ -43,11 +43,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
-	smithyendpoints "github.com/aws/smithy-go/endpoints"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -61,6 +61,7 @@ import (
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 const (
@@ -148,6 +149,12 @@ type Config struct {
 
 	// EnableAutoScaling is used to enable auto scaling policy.
 	EnableAutoScaling bool
+
+	// CredentialsProvider if supplied is used to override the credentials source.
+	CredentialsProvider aws.CredentialsProvider
+
+	// Insecure is an optional switch to opt out of https connections
+	Insecure bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -200,6 +207,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.UIDGenerator == nil {
 		cfg.UIDGenerator = utils.NewRealUID()
+	}
+
+	if cfg.Endpoint != "" {
+		cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
 	}
 
 	return nil
@@ -262,7 +273,7 @@ const (
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	l := slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB)
-	l.InfoContext(ctx, "Initializing event backend.")
+	l.InfoContext(ctx, "Initializing event backend")
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -282,24 +293,36 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
 
-	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if cfg.CredentialsProvider != nil {
+		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
+	}
+
+	resolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
-
-	var dynamoOpts []func(*dynamodb.Options)
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(resolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
 	if cfg.Endpoint != "" {
-		u, err := url.Parse(cfg.Endpoint)
-		if err != nil {
+		if _, err := url.Parse(cfg.Endpoint); err != nil {
 			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
 		}
 
-		dynamoOpts = append(dynamoOpts, dynamodb.WithEndpointResolverV2(&staticResolver{endpoint: u}))
+		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
@@ -311,25 +334,28 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		})
 	}
 
+	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{
 		logger: l,
 		Config: cfg,
-		svc:    dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
+		svc:    client,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	l.InfoContext(ctx, "Connection established to DynamoDB events database",
+		"table", cfg.Tablename,
+		"region", cfg.Region,
+	)
+
 	return b, nil
-}
-
-type staticResolver struct {
-	endpoint *url.URL
-}
-
-func (s *staticResolver) ResolveEndpoint(ctx context.Context, params dynamodb.EndpointParameters) (smithyendpoints.Endpoint, error) {
-	return smithyendpoints.Endpoint{URI: *s.endpoint}, nil
 }
 
 type tableStatus int

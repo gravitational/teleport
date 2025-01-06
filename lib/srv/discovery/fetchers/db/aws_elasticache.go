@@ -63,14 +63,17 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 	var eligibleClusters []*elasticache.ReplicationGroup
 	for _, cluster := range clusters {
 		if !libcloudaws.IsElastiCacheClusterSupported(cluster) {
-			cfg.Log.Debugf("ElastiCache cluster %q is not supported. Skipping.", aws.StringValue(cluster.ReplicationGroupId))
+			cfg.Logger.DebugContext(ctx, "Skipping unsupported ElastiCache cluster",
+				"cluster", aws.StringValue(cluster.ReplicationGroupId),
+			)
 			continue
 		}
 
 		if !libcloudaws.IsElastiCacheClusterAvailable(cluster) {
-			cfg.Log.Debugf("The current status of ElastiCache cluster %q is %q. Skipping.",
-				aws.StringValue(cluster.ReplicationGroupId),
-				aws.StringValue(cluster.Status))
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable ElastiCache cluster",
+				"cluster", aws.StringValue(cluster.ReplicationGroupId),
+				"status", aws.StringValue(cluster.Status),
+			)
 			continue
 		}
 
@@ -86,17 +89,17 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 	allNodes, err := getElastiCacheNodes(ctx, ecClient)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			cfg.Log.WithError(err).Debug("No permissions to describe nodes")
+			cfg.Logger.DebugContext(ctx, "No permissions to describe nodes", "error", err)
 		} else {
-			cfg.Log.WithError(err).Info("Failed to describe nodes.")
+			cfg.Logger.InfoContext(ctx, "Failed to describe nodes", "error", err)
 		}
 	}
 	allSubnetGroups, err := getElastiCacheSubnetGroups(ctx, ecClient)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			cfg.Log.WithError(err).Debug("No permissions to describe subnet groups")
+			cfg.Logger.DebugContext(ctx, "No permissions to describe subnet groups", "error", err)
 		} else {
-			cfg.Log.WithError(err).Info("Failed to describe subnet groups.")
+			cfg.Logger.InfoContext(ctx, "Failed to describe subnet groups", "error", err)
 		}
 	}
 
@@ -108,17 +111,22 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 		tags, err := getElastiCacheResourceTags(ctx, ecClient, cluster.ARN)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				cfg.Log.WithError(err).Debug("No permissions to list resource tags")
+				cfg.Logger.DebugContext(ctx, "No permissions to list resource tags", "error", err)
 			} else {
-				cfg.Log.WithError(err).Infof("Failed to list resource tags for ElastiCache cluster %q.", aws.StringValue(cluster.ReplicationGroupId))
+				cfg.Logger.InfoContext(ctx, "Failed to list resource tags for ElastiCache cluster",
+					"cluster", aws.StringValue(cluster.ReplicationGroupId),
+					"error", err,
+				)
 			}
 		}
 
 		extraLabels := common.ExtraElastiCacheLabels(cluster, tags, allNodes, allSubnetGroups)
 
 		if dbs, err := common.NewDatabasesFromElastiCacheReplicationGroup(cluster, extraLabels); err != nil {
-			cfg.Log.Infof("Could not convert ElastiCache cluster %q to database resources: %v.",
-				aws.StringValue(cluster.ReplicationGroupId), err)
+			cfg.Logger.InfoContext(ctx, "Could not convert ElastiCache cluster to database resources",
+				"cluster", aws.StringValue(cluster.ReplicationGroupId),
+				"error", err,
+			)
 		} else {
 			databases = append(databases, dbs...)
 		}

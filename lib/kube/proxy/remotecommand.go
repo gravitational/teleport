@@ -22,12 +22,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,6 +56,7 @@ type remoteCommandRequest struct {
 	onResize           resizeCallback
 	context            context.Context
 	pingPeriod         time.Duration
+	idleTimeout        time.Duration
 }
 
 func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
@@ -74,7 +75,7 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCred
 	// here shouldn't prevent a session from starting.
 	pod, err := creds.getKubeClient().CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
 	if err != nil {
-		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
+		slog.DebugContext(ctx, "Failed fetching pod from kubernetes API; skipping additional metadata on the audit event", "error", err)
 		return meta
 	}
 	meta.KubernetesNodeName = pod.Spec.NodeName
@@ -120,7 +121,7 @@ func upgradeRequestToRemoteCommandProxy(req remoteCommandRequest, exec func(*rem
 		err = nil
 	}
 	if err := proxy.sendStatus(err); err != nil {
-		log.Warningf("Failed to send status: %v", err)
+		slog.WarnContext(req.context, "Failed to send status", "error", err)
 	}
 	// return rsp=nil, err=nil to indicate that the request has been handled
 	// by the hijacked connection. If we return an error, the request will be
@@ -156,15 +157,15 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		return nil, trace.ConnectionProblem(trace.BadParameter("missing connection"), "missing connection")
 	}
 
-	conn.SetIdleTimeout(IdleTimeout)
+	conn.SetIdleTimeout(req.idleTimeout)
 
 	var handler protocolHandler
 	switch protocol {
 	case "":
-		log.Warningf("Client did not request protocol negotiation.")
+		slog.WarnContext(ctx, "Client did not request protocol negotiation")
 		fallthrough
 	case StreamProtocolV4Name:
-		log.Infof("Negotiated protocol %v.", protocol)
+		slog.InfoContext(ctx, "Negotiated protocol", "protocol", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
 		err = trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
@@ -356,7 +357,7 @@ func (t *termQueue) handleResizeEvents(stream io.Reader) {
 		size := remotecommand.TerminalSize{}
 		if err := decoder.Decode(&size); err != nil {
 			if !errors.Is(err, io.EOF) {
-				log.Warningf("Failed to decode resize event: %v", err)
+				slog.WarnContext(t.done, "Failed to decode resize event", "error", err)
 			}
 			t.cancel()
 			return
@@ -411,7 +412,7 @@ WaitForStreams:
 				remoteProxy.resizeStream = stream
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			default:
-				log.Warningf("Ignoring unexpected stream type: %q", streamType)
+				slog.WarnContext(stopCtx, "Ignoring unexpected stream type", "stream_type", streamType)
 			}
 		case <-replyChan:
 			receivedStreams++

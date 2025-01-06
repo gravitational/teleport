@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { ButtonBorder, Box, Flex, Text, Button } from 'design';
+
+import { Box, Button, ButtonBorder, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+
+import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import {
   FileTransferRequest,
   isOwnRequest,
 } from 'teleport/Console/DocumentSsh/useFileTransfer';
-import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { UserContext } from 'teleport/services/user';
 
 type FileTransferRequestsProps = {

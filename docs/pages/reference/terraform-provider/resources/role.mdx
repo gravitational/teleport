@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_role Terraform resource
+sidebar_label: role
 description: This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
 ---
 
@@ -26,9 +27,17 @@ resource "teleport_role" "example" {
 
   spec = {
     options = {
-      forward_agent           = false
-      max_session_ttl         = "7m"
-      port_forwarding         = false
+      forward_agent   = false
+      max_session_ttl = "7m"
+      ssh_port_forwarding = {
+        remote = {
+          enabled = false
+        }
+
+        local = {
+          enabled = false
+        }
+      }
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
       permit_x11_forwarding   = false
@@ -119,6 +128,7 @@ Optional:
 - `db_users` (List of String) DatabaseUsers is a list of databases users this role is allowed to connect as.
 - `desktop_groups` (List of String) DesktopGroups is a list of groups for created desktop users to be added to
 - `gcp_service_accounts` (List of String) GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
+- `github_permissions` (Attributes List) GitHubPermissions defines GitHub integration related permissions. (see [below for nested schema](#nested-schema-for-specallowgithub_permissions))
 - `group_labels` (Map of List of String) GroupLabels is a map of labels used as part of the RBAC system.
 - `group_labels_expression` (String) GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.
 - `host_groups` (List of String) HostGroups is a list of groups for created users to be added to
@@ -141,6 +151,8 @@ Optional:
 - `windows_desktop_labels` (Map of List of String) WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
+- `workload_identity_labels` (Map of List of String) WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.
+- `workload_identity_labels_expression` (String) WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.
 
 ### Nested Schema for `spec.allow.account_assignments`
 
@@ -156,6 +168,13 @@ Optional:
 
 - `match` (Map of List of String) Match is a list of object labels that must be matched for the permission to be granted.
 - `permissions` (List of String) Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+
+
+### Nested Schema for `spec.allow.github_permissions`
+
+Optional:
+
+- `orgs` (List of String)
 
 
 ### Nested Schema for `spec.allow.impersonate`
@@ -195,6 +214,7 @@ Optional:
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specallowrequestclaims_to_roles))
 - `kubernetes_resources` (Attributes List) kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources. (see [below for nested schema](#nested-schema-for-specallowrequestkubernetes_resources))
 - `max_duration` (String) MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.
+- `reason` (Attributes) Reason defines settings for the reason for the access provided by the user. (see [below for nested schema](#nested-schema-for-specallowrequestreason))
 - `roles` (List of String) Roles is the name of roles which will match the request rule.
 - `search_as_roles` (List of String) SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.
 - `suggested_reviewers` (List of String) SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.
@@ -214,6 +234,13 @@ Optional:
 Optional:
 
 - `kind` (String) kind specifies the Kubernetes Resource type.
+
+
+### Nested Schema for `spec.allow.request.reason`
+
+Optional:
+
+- `mode` (String) Mode can be either "required" or "optional". Empty string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.
 
 
 ### Nested Schema for `spec.allow.request.thresholds`
@@ -299,6 +326,7 @@ Optional:
 - `db_users` (List of String) DatabaseUsers is a list of databases users this role is allowed to connect as.
 - `desktop_groups` (List of String) DesktopGroups is a list of groups for created desktop users to be added to
 - `gcp_service_accounts` (List of String) GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
+- `github_permissions` (Attributes List) GitHubPermissions defines GitHub integration related permissions. (see [below for nested schema](#nested-schema-for-specdenygithub_permissions))
 - `group_labels` (Map of List of String) GroupLabels is a map of labels used as part of the RBAC system.
 - `group_labels_expression` (String) GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.
 - `host_groups` (List of String) HostGroups is a list of groups for created users to be added to
@@ -321,6 +349,8 @@ Optional:
 - `windows_desktop_labels` (Map of List of String) WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
+- `workload_identity_labels` (Map of List of String) WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.
+- `workload_identity_labels_expression` (String) WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.
 
 ### Nested Schema for `spec.deny.account_assignments`
 
@@ -336,6 +366,13 @@ Optional:
 
 - `match` (Map of List of String) Match is a list of object labels that must be matched for the permission to be granted.
 - `permissions` (List of String) Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+
+
+### Nested Schema for `spec.deny.github_permissions`
+
+Optional:
+
+- `orgs` (List of String)
 
 
 ### Nested Schema for `spec.deny.impersonate`
@@ -375,6 +412,7 @@ Optional:
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specdenyrequestclaims_to_roles))
 - `kubernetes_resources` (Attributes List) kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources. (see [below for nested schema](#nested-schema-for-specdenyrequestkubernetes_resources))
 - `max_duration` (String) MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.
+- `reason` (Attributes) Reason defines settings for the reason for the access provided by the user. (see [below for nested schema](#nested-schema-for-specdenyrequestreason))
 - `roles` (List of String) Roles is the name of roles which will match the request rule.
 - `search_as_roles` (List of String) SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.
 - `suggested_reviewers` (List of String) SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.
@@ -394,6 +432,13 @@ Optional:
 Optional:
 
 - `kind` (String) kind specifies the Kubernetes Resource type.
+
+
+### Nested Schema for `spec.deny.request.reason`
+
+Optional:
+
+- `mode` (String) Mode can be either "required" or "optional". Empty string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.
 
 
 ### Nested Schema for `spec.deny.request.thresholds`
@@ -486,12 +531,13 @@ Optional:
 - `mfa_verification_interval` (String) MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.
 - `permit_x11_forwarding` (Boolean) PermitX11Forwarding authorizes use of X11 forwarding.
 - `pin_source_ip` (Boolean) PinSourceIP forces the same client IP for certificate generation and usage
-- `port_forwarding` (Boolean) PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer
+- `port_forwarding` (Boolean) Deprecated: Use SSHPortForwarding instead
 - `record_session` (Attributes) RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false. (see [below for nested schema](#nested-schema-for-specoptionsrecord_session))
 - `request_access` (String) RequestAccess defines the request strategy (optional|note|always) where optional is the default.
 - `request_prompt` (String) RequestPrompt is an optional message which tells users what they aught to request.
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean) SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.
+- `ssh_port_forwarding` (Attributes) SSHPortForwarding configures what types of SSH port forwarding are allowed by a role. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwarding))
 
 ### Nested Schema for `spec.options.cert_extensions`
 
@@ -524,4 +570,25 @@ Optional:
 - `default` (String) Default indicates the default value for the services.
 - `desktop` (Boolean) Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.
 - `ssh` (String) SSH indicates the session mode used on SSH sessions.
+
+
+### Nested Schema for `spec.options.ssh_port_forwarding`
+
+Optional:
+
+- `local` (Attributes) Allow local port forwarding. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwardinglocal))
+- `remote` (Attributes) Allow remote port forwarding. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwardingremote))
+
+### Nested Schema for `spec.options.ssh_port_forwarding.local`
+
+Optional:
+
+- `enabled` (Boolean)
+
+
+### Nested Schema for `spec.options.ssh_port_forwarding.remote`
+
+Optional:
+
+- `enabled` (Boolean)
 

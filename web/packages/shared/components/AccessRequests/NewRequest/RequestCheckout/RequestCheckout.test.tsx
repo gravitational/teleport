@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent, fireEvent } from 'design/utils/testing';
-
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 import { RequestState } from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
-
 import {
   RequestCheckoutWithSlider as RequestCheckoutComp,
   RequestCheckoutWithSliderProps,
@@ -175,5 +173,5 @@ const props: RequestCheckoutWithSliderProps = {
   startTime: null,
   onStartTimeChange: () => null,
   fetchKubeNamespaces: () => null,
-  bulkToggleKubeResources: () => null,
+  updateNamespacesForKubeCluster: () => null,
 };

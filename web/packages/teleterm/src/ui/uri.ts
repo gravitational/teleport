@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { matchPath, generatePath } from 'react-router';
-
-import type { RouteProps } from 'react-router';
+import { generatePath, matchPath, type RouteProps } from 'react-router';
 
 /*
  * Resource URIs
@@ -129,6 +127,12 @@ export const routing = {
   ensureClusterUri(uri: ClusterOrResourceUri) {
     const params = routing.parseClusterUri(uri).params;
     return routing.getClusterUri(params);
+  },
+
+  ensureKubeUri(uri: KubeResourceNamespaceUri) {
+    const { kubeId, rootClusterId, leafClusterId } =
+      routing.parseKubeResourceNamespaceUri(uri).params;
+    return routing.getKubeUri({ kubeId, rootClusterId, leafClusterId });
   },
 
   parseKubeUri(uri: string) {
@@ -296,6 +300,14 @@ export const routing = {
     const resourceRootClusterUri = routing.ensureRootClusterUri(resourceUri);
 
     return resourceRootClusterUri === rootClusterUri;
+  },
+
+  belongsToKube(
+    kubeClusterUri: KubeUri,
+    namespaceUri: KubeResourceNamespaceUri
+  ) {
+    const kubeUri = routing.ensureKubeUri(namespaceUri);
+    return kubeUri === kubeClusterUri;
   },
 };
 

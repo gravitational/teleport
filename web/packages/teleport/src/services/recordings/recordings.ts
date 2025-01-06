@@ -19,8 +19,8 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { RecordingsQuery, RecordingsResponse } from './types';
 import { makeRecording } from './makeRecording';
+import { RecordingsQuery, RecordingsResponse } from './types';
 
 export default class RecordingsService {
   maxFetchLimit = 5000;
@@ -44,5 +44,12 @@ export default class RecordingsService {
 
       return { recordings: events.map(makeRecording), startKey: json.startKey };
     });
+  }
+
+  fetchRecordingDuration(
+    clusterId: string,
+    sessionId: string
+  ): Promise<{ durationMs: number }> {
+    return api.get(cfg.getSessionDurationUrl(clusterId, sessionId));
   }
 }

@@ -79,10 +79,7 @@ func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, app
 }
 
 // ReissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
-	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
-		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
-	}
+func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, routeToApp proto.RouteToApp) (tls.Certificate, error) {
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
@@ -90,16 +87,6 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	routeToApp := proto.RouteToApp{
-		Name:              app.GetName(),
-		PublicAddr:        app.GetPublicAddr(),
-		ClusterName:       c.clusterClient.SiteName,
-		AWSRoleARN:        "",
-		AzureIdentity:     "",
-		GCPServiceAccount: "",
-		URI:               app.GetURI(),
 	}
 
 	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
@@ -113,7 +100,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(app.GetName())
+	appCert, err := keyRing.AppTLSCert(routeToApp.Name)
 	return appCert, trace.Wrap(err)
 }
 

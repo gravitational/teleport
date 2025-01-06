@@ -43,30 +43,30 @@ func (c *urlChecker) checkAWS(describeCheck, basicEndpointCheck checkDatabaseFun
 		// describes. Log a warning and permform a basic endpoint validation
 		// instead.
 		if trace.IsAccessDenied(err) {
-			c.logAWSAccessDeniedError(database, err)
+			c.logAWSAccessDeniedError(ctx, database, err)
 
 			if err := basicEndpointCheck(ctx, database); err != nil {
 				return trace.Wrap(err)
 			}
-			c.log.Debugf("AWS database %q URL validated by basic endpoint check.", database.GetName())
+			c.logger.DebugContext(ctx, "AWS database URL validated by basic endpoint check", "database", database.GetName())
 			return nil
 		}
 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.log.Debugf("AWS database %q URL validated by describe check.", database.GetName())
+		c.logger.DebugContext(ctx, "AWS database URL validated by describe check", "database", database.GetName())
 		return nil
 	}
 }
 
-func (c *urlChecker) logAWSAccessDeniedError(database types.Database, accessDeniedError error) {
+func (c *urlChecker) logAWSAccessDeniedError(ctx context.Context, database types.Database, accessDeniedError error) {
 	c.warnAWSOnce.Do(func() {
 		// TODO(greedy52) add links to doc.
-		c.log.Warn("No permissions to describe AWS resource metadata that is needed for validating databases created by Discovery Service. Basic AWS endpoint validation will be performed instead. For best security, please provide the Database Service with the proper IAM permissions. Enable --debug mode to see details on which databases require more IAM permissions. See Database Access documentation for more details.")
+		c.logger.WarnContext(ctx, "No permissions to describe AWS resource metadata that is needed for validating databases created by Discovery Service. Basic AWS endpoint validation will be performed instead. For best security, please provide the Database Service with the proper IAM permissions. Enable --debug mode to see details on which databases require more IAM permissions. See Database Access documentation for more details.")
 	})
 
-	c.log.Debugf("No permissions to describe database %q for URL validation.", database.GetName())
+	c.logger.DebugContext(ctx, "No permissions to describe database for URL validation", "database", database.GetName())
 }
 
 func (c *urlChecker) checkRDS(ctx context.Context, database types.Database) error {
@@ -103,8 +103,10 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 	}
 	databases, err := common.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
 	if err != nil {
-		c.log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
-			aws.StringValue(rdsCluster.DBClusterIdentifier), err)
+		c.logger.WarnContext(ctx, "Could not convert RDS cluster to database resources",
+			"cluster", aws.StringValue(rdsCluster.DBClusterIdentifier),
+			"error", err,
+		)
 
 		// common.NewDatabasesFromRDSCluster maybe partially successful so
 		// continue if at least one database is returned.
@@ -290,8 +292,10 @@ func (c *urlChecker) checkDocumentDB(ctx context.Context, database types.Databas
 	}
 	databases, err := common.NewDatabasesFromDocumentDBCluster(cluster)
 	if err != nil {
-		c.log.Warnf("Could not convert DocumentDB cluster %q to database resources: %v.",
-			aws.StringValue(cluster.DBClusterIdentifier), err)
+		c.logger.WarnContext(ctx, "Could not convert DocumentDB cluster to database resources",
+			"cluster", aws.StringValue(cluster.DBClusterIdentifier),
+			"error", err,
+		)
 
 		// common.NewDatabasesFromDocumentDBCluster maybe partially successful
 		// so continue if at least one database is returned.

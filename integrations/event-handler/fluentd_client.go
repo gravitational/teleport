@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/net/http2"
 
 	tlib "github.com/gravitational/teleport/integrations/lib"
 )
@@ -41,6 +42,7 @@ type FluentdClient struct {
 	// client HTTP client to send requests
 	client *http.Client
 	log    *slog.Logger
+	sem    chan struct{}
 }
 
 // NewFluentdClient creates new FluentdClient
@@ -56,22 +58,34 @@ func NewFluentdClient(c *FluentdConfig, log *slog.Logger) (*FluentdClient, error
 		return nil, trace.BadParameter("both fluentd_cert and fluentd_key should be specified")
 	}
 
+	if c.FluentdMaxConnections <= 0 {
+		return nil, trace.BadParameter("fluentd_max_connections should be greater than 0")
+	}
+
 	ca, err := getCertPool(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:      ca,
-				Certificates: certs,
-			},
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs:      ca,
+			Certificates: certs,
 		},
-		Timeout: httpTimeout,
+		MaxIdleConnsPerHost: c.FluentdMaxConnections,
+		IdleConnTimeout:     httpTimeout,
 	}
 
-	return &FluentdClient{client: client, log: log}, nil
+	if err := http2.ConfigureTransport(transport); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   httpTimeout,
+	}
+
+	return &FluentdClient{client: client, log: log, sem: make(chan struct{}, c.FluentdMaxConnections)}, nil
 }
 
 // getCertPool reads CA certificate and returns CA cert pool if passed
@@ -92,6 +106,11 @@ func getCertPool(c *FluentdConfig) (*x509.CertPool, error) {
 
 // Send sends event to fluentd
 func (f *FluentdClient) Send(ctx context.Context, url string, b []byte) error {
+	f.sem <- struct{}{}
+	defer func() {
+		<-f.sem
+	}()
+
 	f.log.DebugContext(ctx, "Sending event to Fluentd", "payload", string(b))
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))

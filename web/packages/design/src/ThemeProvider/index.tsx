@@ -16,17 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode } from 'react';
+import isPropValid from '@emotion/is-prop-valid';
+import { ReactNode } from 'react';
 import {
-  WebTarget,
-  StyleSheetManager,
   ThemeProvider as StyledThemeProvider,
+  StyleSheetManager,
+  WebTarget,
 } from 'styled-components';
 
-import isPropValid from '@emotion/is-prop-valid';
-
-import { GlobalStyle } from 'design/ThemeProvider/globals';
 import { Theme } from 'design/theme';
+import { GlobalStyle } from 'design/ThemeProvider/globals';
 
 /**
  * This function has been taken from the [styled-components library

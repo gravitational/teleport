@@ -50,6 +50,7 @@ export const resourceIconSpecs = {
   'apollo.io': { dark: i.apolloIoDark, light: i.apolloIoLight },
   apple: { dark: i.appleDark, light: i.appleLight },
   application: forAllThemes(i.application),
+  argocd: forAllThemes(i.argocd),
   asana: forAllThemes(i.asana),
   assemble: { dark: i.assembleDark, light: i.assembleLight },
   atlassian: forAllThemes(i.atlassian),
@@ -59,6 +60,7 @@ export const resourceIconSpecs = {
   auth0: { dark: i.auth0Dark, light: i.auth0Light },
   avalara: forAllThemes(i.avalara),
   aws: { dark: i.awsDark, light: i.awsLight },
+  awsaccount: forAllThemes(i.awsAccount),
   azure: forAllThemes(i.azure),
 
   bill: forAllThemes(i.bill),
@@ -194,6 +196,7 @@ export const resourceIconSpecs = {
 
   oasisopen: forAllThemes(i.oasisopen),
   okta: { dark: i.oktaDark, light: i.oktaLight },
+  oktaAlt: forAllThemes(i.oktaAlt),
   '101domain': forAllThemes(i.onehundredonedomain),
   onelogin: { dark: i.oneloginDark, light: i.oneloginLight },
   '1password': { dark: i.onepasswordDark, light: i.onepasswordLight },

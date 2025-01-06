@@ -17,41 +17,38 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import styled, { useTheme } from 'styled-components';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import * as Icon from 'design/Icon';
 import {
   Notification,
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
-
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
 
-import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-
 import cfg from 'teleport/config';
-
-import { DeviceUsage } from 'teleport/services/auth';
-
+import { DeviceUsage } from 'teleport/services/mfa';
 import { PasswordState } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
+import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
 } from './ManageDevices/useManageDevices';
-import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
-import { PasswordBox } from './PasswordBox';
 import {
   AddAuthDeviceWizard,
   DeleteAuthDeviceWizard,
 } from './ManageDevices/wizards';
+import { PasswordBox } from './PasswordBox';
 import { StatePill } from './StatePill';
 
 export interface EnterpriseComponentProps {
@@ -62,9 +59,13 @@ export interface EnterpriseComponentProps {
 
 export interface AccountPageProps {
   enterpriseComponent?: React.ComponentType<EnterpriseComponentProps>;
+  userTrustedDevicesComponent?: React.ComponentType;
 }
 
-export function AccountPage({ enterpriseComponent }: AccountPageProps) {
+export function AccountPage({
+  enterpriseComponent,
+  userTrustedDevicesComponent,
+}: AccountPageProps) {
   const ctx = useTeleport();
   const storeUser = useStore(ctx.storeUser);
   const isSso = storeUser.isSso();
@@ -85,6 +86,7 @@ export function AccountPage({ enterpriseComponent }: AccountPageProps) {
       passwordState={storeUser.getPasswordState()}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
+      userTrustedDevicesComponent={userTrustedDevicesComponent}
       onPasswordChange={onPasswordChange}
     />
   );
@@ -100,14 +102,12 @@ export interface AccountProps extends ManageDevicesState, AccountPageProps {
 
 export function Account({
   devices,
-  token,
   onAddDevice,
   onRemoveDevice,
   onDeviceAdded,
   onDeviceRemoved,
   deviceToRemove,
   fetchDevicesAttempt,
-  createRestrictedTokenAttempt,
   addDeviceWizardVisible,
   hideRemoveDevice,
   closeAddDeviceWizard,
@@ -116,16 +116,14 @@ export function Account({
   canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
   newDeviceUsage,
+  userTrustedDevicesComponent: TrustedDeviceListComponent,
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: AccountProps) {
   const passkeys = devices.filter(d => d.usage === 'passwordless');
   const mfaDevices = devices.filter(d => d.usage === 'mfa');
-  const disableAddDevice =
-    createRestrictedTokenAttempt.status === 'processing' ||
-    fetchDevicesAttempt.status !== 'success';
-  const disableAddPasskey = disableAddDevice || !canAddPasskeys;
-  const disableAddMfa = disableAddDevice || !canAddMfa;
+  const disableAddPasskey = !canAddPasskeys;
+  const disableAddMfa = !canAddMfa;
 
   let mfaPillState = undefined;
   if (fetchDevicesAttempt.status !== 'processing') {
@@ -134,7 +132,6 @@ export function Account({
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
-  const [prevTokenStatus, setPrevTokenStatus] = useState<Attempt['status']>('');
 
   function addNotification(severity: NotificationSeverity, content: string) {
     setNotifications(n => [
@@ -156,13 +153,6 @@ export function Account({
     setPrevFetchStatus(fetchDevicesAttempt.status);
     if (fetchDevicesAttempt.status === 'failed') {
       addNotification('error', fetchDevicesAttempt.statusText);
-    }
-  }
-
-  if (prevTokenStatus !== createRestrictedTokenAttempt.status) {
-    setPrevTokenStatus(createRestrictedTokenAttempt.status);
-    if (createRestrictedTokenAttempt.status === 'failed') {
-      addNotification('error', createRestrictedTokenAttempt.statusText);
     }
   }
 
@@ -191,7 +181,7 @@ export function Account({
 
   return (
     <Relative>
-      <FeatureBox>
+      <FeatureBox maxWidth={1440} margin="auto">
         <FeatureHeader>
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
@@ -214,9 +204,6 @@ export function Account({
           </Box>
           {!isSso && (
             <PasswordBox
-              changeDisabled={
-                createRestrictedTokenAttempt.status === 'processing'
-              }
               devices={devices}
               passwordState={passwordState}
               onPasswordChange={onPasswordChange}
@@ -264,6 +251,7 @@ export function Account({
           {EnterpriseComponent && (
             <EnterpriseComponent addNotification={addNotification} />
           )}
+          {TrustedDeviceListComponent && <TrustedDeviceListComponent />}
         </Flex>
       </FeatureBox>
 
@@ -271,8 +259,6 @@ export function Account({
         <AddAuthDeviceWizard
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
-          privilegeToken={token}
-          devices={devices}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
         />
@@ -280,8 +266,6 @@ export function Account({
 
       {deviceToRemove && (
         <DeleteAuthDeviceWizard
-          auth2faType={cfg.getAuth2faType()}
-          devices={devices}
           deviceToDelete={deviceToRemove}
           onClose={hideRemoveDevice}
           onSuccess={onDeleteDeviceSuccess}

@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ModalsService } from 'teleterm/ui/services/modals';
 import {
+  AppUri,
+  ClusterUri,
+  DatabaseUri,
+  KubeResourceNamespaceUri,
+  KubeUri,
   ResourceUri,
   routing,
-  ClusterUri,
   ServerUri,
-  DatabaseUri,
-  KubeUri,
-  AppUri,
-  KubeResourceNamespaceUri,
 } from 'teleterm/ui/uri';
-import { ModalsService } from 'teleterm/ui/services/modals';
 
 export class AccessRequestsService {
   constructor(
@@ -99,7 +99,10 @@ export class AccessRequestsService {
     });
   }
 
-  async addOrRemoveKubeNamespaces(namespaceUris: KubeResourceNamespaceUri[]) {
+  updateNamespacesForKubeCluster(
+    namespaceUris: KubeResourceNamespaceUri[],
+    kubeClusterUri: string
+  ) {
     this.setState(draftState => {
       if (draftState.pending.kind !== 'resource') {
         throw new Error('Cannot add a kube namespace to a role access request');
@@ -107,26 +110,21 @@ export class AccessRequestsService {
 
       const { resources } = draftState.pending;
 
-      namespaceUris.forEach(resourceUri => {
-        const requestedResource = resources.get(
-          routing.getKubeUri(
-            routing.parseKubeResourceNamespaceUri(resourceUri).params
-          )
-        );
-        if (!requestedResource || requestedResource.kind !== 'kube') {
-          throw new Error('Cannot add a kube namespace to a non-kube resource');
-        }
-        const kubeResource = requestedResource.resource;
-
-        if (!kubeResource.namespaces) {
-          kubeResource.namespaces = new Set();
-        }
-        if (kubeResource.namespaces.has(resourceUri)) {
-          kubeResource.namespaces.delete(resourceUri);
-        } else {
-          kubeResource.namespaces.add(resourceUri);
+      // Validate each namespace uri's.
+      namespaceUris.forEach(namespaceUri => {
+        if (!routing.belongsToKube(kubeClusterUri, namespaceUri)) {
+          throw new Error(
+            'Only namespace belonging to the same requested kube cluster can be updated'
+          );
         }
       });
+
+      const kubeRequestedResource = resources.get(kubeClusterUri);
+      // This will always be true, since we validated each namespace
+      // URIs before this. Check is required to access namespace field
+      if (kubeRequestedResource.kind === 'kube') {
+        kubeRequestedResource.resource.namespaces = new Set(namespaceUris);
+      }
     });
   }
 
@@ -312,7 +310,8 @@ type SharedResourceAccessRequestKind =
   | 'db'
   | 'node'
   | 'kube_cluster'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'aws_ic_account_assignment';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -432,6 +431,18 @@ export function toResourceRequest({
             appId: resourceId,
           }),
           samlApp: true,
+        },
+        kind: 'app',
+      };
+    case 'aws_ic_account_assignment':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: false,
         },
         kind: 'app',
       };

@@ -22,19 +22,18 @@
 package metadata
 
 import (
-	"runtime"
-
-	log "github.com/sirupsen/logrus"
+	"context"
+	"log/slog"
 )
 
 // fetchOSVersion returns "" if not on linux and not on darwin.
 func (c *fetchConfig) fetchOSVersion() string {
-	log.Warningf("fetchOSVersion is not implemented for %s", runtime.GOOS)
+	slog.WarnContext(context.Background(), "fetchOSVersion is not implemented")
 	return ""
 }
 
 // fetchGlibcVersion returns "" if not on linux and not on darwin.
 func (c *fetchConfig) fetchGlibcVersion() string {
-	log.Warningf("fetchGlibcVersion is not implemented for %s", runtime.GOOS)
+	slog.WarnContext(context.Background(), "fetchGlibcVersion is not implemented")
 	return ""
 }

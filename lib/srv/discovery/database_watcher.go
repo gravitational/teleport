@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const databaseEventPrefix = "db/"
@@ -64,15 +65,28 @@ func (s *Server) startDatabaseWatchers() error {
 		return trace.Wrap(err)
 	}
 
-	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		FetchersFn:     s.getAllDatabaseFetchers,
-		Log:            s.LegacyLogger.WithField("kind", types.KindDatabase),
-		DiscoveryGroup: s.DiscoveryGroup,
-		Interval:       s.PollInterval,
-		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
-		Origin:         types.OriginCloud,
-		Clock:          s.clock,
-	})
+	watcher, err := common.NewWatcher(s.ctx,
+		common.WatcherConfig{
+			FetchersFn:     s.getAllDatabaseFetchers,
+			Logger:         s.Log.With("kind", types.KindDatabase),
+			DiscoveryGroup: s.DiscoveryGroup,
+			Interval:       s.PollInterval,
+			TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
+			Origin:         types.OriginCloud,
+			Clock:          s.clock,
+			PreFetchHookFn: func() {
+				discoveryConfigs := slices.FilterMapUnique(
+					s.getAllDatabaseFetchers(),
+					func(f common.Fetcher) (s string, include bool) {
+						return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
+					},
+				)
+				s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
+				s.awsRDSResourcesStatus.reset()
+			},
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -80,6 +94,9 @@ func (s *Server) startDatabaseWatchers() error {
 
 	go func() {
 		for {
+			discoveryConfigsChanged := map[string]struct{}{}
+			resourcesFoundByGroup := make(map[awsResourceGroup]int)
+
 			select {
 			case newResources := <-watcher.ResourcesC():
 				dbs := make([]types.Database, 0, len(newResources))
@@ -89,20 +106,45 @@ func (s *Server) startDatabaseWatchers() error {
 						continue
 					}
 
+					resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
+					resourcesFoundByGroup[resourceGroup] += 1
+					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
+
 					dbs = append(dbs, db)
 				}
 				mu.Lock()
 				newDatabases = dbs
 				mu.Unlock()
 
+				for group, count := range resourcesFoundByGroup {
+					s.awsRDSResourcesStatus.incrementFound(group, count)
+				}
+
 				if err := reconciler.Reconcile(s.ctx); err != nil {
 					s.Log.WarnContext(s.ctx, "Unable to reconcile database resources", "error", err)
-				} else if s.onDatabaseReconcile != nil {
+
+					// When reconcile fails, it is assumed that everything failed.
+					for group, count := range resourcesFoundByGroup {
+						s.awsRDSResourcesStatus.incrementFailed(group, count)
+					}
+
+					break
+				}
+
+				for group, count := range resourcesFoundByGroup {
+					s.awsRDSResourcesStatus.incrementEnrolled(group, count)
+				}
+
+				if s.onDatabaseReconcile != nil {
 					s.onDatabaseReconcile()
 				}
 
 			case <-s.ctx.Done():
 				return
+			}
+
+			for dc := range discoveryConfigsChanged {
+				s.updateDiscoveryConfigStatus(dc)
 			}
 		}
 	}()

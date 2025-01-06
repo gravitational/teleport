@@ -18,12 +18,13 @@
 
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
-import { SortType } from 'design/DataTable/types';
 
+import { SortType } from 'design/DataTable/types';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
-import history from 'teleport/services/history';
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
+import history from 'teleport/services/history';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 
@@ -38,8 +39,11 @@ export interface UrlFilteringState {
   search: string;
 }
 
+type URLResourceFilter = Omit<ResourceFilter, 'includedResourceMode'>;
+
 export function useUrlFiltering(
-  initialParams: Partial<ResourceFilter>
+  initialParams: URLResourceFilter,
+  includedResourceMode?: IncludedResourceMode
 ): UrlFilteringState {
   const { search, pathname } = useLocation();
 
@@ -66,21 +70,22 @@ export function useUrlFiltering(
     return {
       ...initialParamsState,
       ...urlParams,
+      includedResourceMode,
       pinnedOnly:
         urlParams.pinnedOnly !== undefined
           ? urlParams.pinnedOnly
           : initialParamsState.pinnedOnly,
     };
-  }, [search]);
+  }, [search, includedResourceMode]);
 
-  function setParams(newParams: ResourceFilter) {
+  function setParams(newParams: URLResourceFilter) {
     replaceHistory(
       encodeUrlQueryParams({
         pathname,
         searchString: newParams.search || newParams.query,
         sort: newParams.sort,
         kinds: newParams.kinds,
-        isAdvancedSearch: !!params.query,
+        isAdvancedSearch: !!newParams.query,
         pinnedOnly: newParams.pinnedOnly,
       })
     );

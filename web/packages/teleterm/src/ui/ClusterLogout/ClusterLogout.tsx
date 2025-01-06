@@ -16,34 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonIcon, ButtonWarning, H2 } from 'design';
+import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import * as Alerts from 'design/Alert';
-import { ButtonIcon, ButtonWarning, H2 } from 'design';
-
 import { Cross } from 'design/Icon';
-
 import { P } from 'design/Text/Text';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useClusterLogout } from './useClusterLogout';
 
-interface ClusterLogoutProps {
-  clusterTitle: string;
-  clusterUri: RootClusterUri;
-  onClose(): void;
-}
-
 export function ClusterLogout({
   clusterUri,
   onClose,
   clusterTitle,
-}: ClusterLogoutProps) {
+  hidden,
+}: {
+  clusterTitle: string;
+  clusterUri: RootClusterUri;
+  hidden?: boolean;
+  onClose(): void;
+}) {
   const { removeCluster, status, statusText } = useClusterLogout({
     clusterUri,
   });
@@ -57,7 +54,8 @@ export function ClusterLogout({
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!hidden}
+      keepInDOMAfterClose
       onClose={onClose}
       dialogCss={() => ({
         maxWidth: '400px',

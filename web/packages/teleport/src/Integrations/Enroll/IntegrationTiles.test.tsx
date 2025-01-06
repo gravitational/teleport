@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
@@ -31,7 +31,7 @@ test('render', async () => {
     </MemoryRouter>
   );
 
-  expect(screen.getByText(/amazon web services/i)).toBeInTheDocument();
+  expect(screen.getByText(/AWS OIDC Identity Provider/i)).toBeInTheDocument();
   expect(screen.queryByText(/no permission/i)).not.toBeInTheDocument();
   expect(screen.getAllByTestId('res-icon-aws')).toHaveLength(2);
   expect(screen.getAllByRole('link')).toHaveLength(2);

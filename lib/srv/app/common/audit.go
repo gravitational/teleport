@@ -119,6 +119,7 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),
 			AppName:       app.GetName(),
+			AppTargetPort: uint32(identity.RouteToApp.TargetPort),
 		},
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
@@ -146,6 +147,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),
 			AppName:       app.GetName(),
+			AppTargetPort: uint32(identity.RouteToApp.TargetPort),
 		},
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
@@ -170,6 +172,7 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),
 			AppName:       app.GetName(),
+			// Session chunks are not created for TCP apps, so there's no need to pass TargetPort here.
 		},
 		SessionChunkID: chunkID,
 	}

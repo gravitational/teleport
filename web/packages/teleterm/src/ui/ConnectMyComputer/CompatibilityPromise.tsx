@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Text, ButtonPrimary, Alert, Flex } from 'design';
+import { Alert, ButtonPrimary, Flex, Text } from 'design';
 import Link from 'design/Link';
 
+import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 const CONNECT_MY_COMPUTER_RELEASE_VERSION = '14.1.0';
 const CONNECT_MY_COMPUTER_RELEASE_MAJOR_VERSION = 14;

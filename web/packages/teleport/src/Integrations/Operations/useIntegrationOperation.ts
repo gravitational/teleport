@@ -18,11 +18,17 @@
 
 import { useState } from 'react';
 
-import { integrationService } from 'teleport/services/integrations';
-
-import type { Integration, Plugin } from 'teleport/services/integrations';
+import {
+  IntegrationKind,
+  integrationService,
+  type Integration,
+  type Plugin,
+} from 'teleport/services/integrations';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 export function useIntegrationOperation() {
+  const { clusterId } = useStickyClusterId();
+
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
@@ -35,7 +41,25 @@ export function useIntegrationOperation() {
     return integrationService.deleteIntegration(operation.item.name);
   }
 
-  function edit(req: EditableIntegrationFields) {
+  async function edit(
+    integration: Integration,
+    req: EditableIntegrationFields
+  ) {
+    // Health check with the new roleArn to validate that
+    // connection still works.
+    if (integration.kind === IntegrationKind.AwsOidc) {
+      try {
+        await integrationService.pingAwsOidcIntegration(
+          {
+            integrationName: integration.name,
+            clusterId,
+          },
+          { roleArn: req.roleArn }
+        );
+      } catch (err) {
+        throw new Error(`Health check failed: ${err}`);
+      }
+    }
     return integrationService.updateIntegration(operation.item.name, {
       awsoidc: {
         roleArn: req.roleArn,

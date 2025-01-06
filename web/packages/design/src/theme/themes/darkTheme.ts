@@ -29,7 +29,6 @@ import {
 } from 'design/theme/palette';
 
 import { lighten } from '../utils/colorManipulator';
-
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
@@ -203,6 +202,7 @@ const colors: ThemeColors = {
 
   tooltip: {
     background: 'rgba(255, 255, 255, 0.8)',
+    inverseBackground: 'rgba(0, 0, 0, 0.5)',
   },
 
   progressBarColor: '#00BFA5',
@@ -266,6 +266,8 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.tertiary.picton,
     brightMagenta: dataVisualisationColors.tertiary.purple,
     brightCyan: dataVisualisationColors.tertiary.cyan,
+    searchMatch: '#FFD98C',
+    activeSearchMatch: '#FFAB00',
   },
 
   accessGraph: {

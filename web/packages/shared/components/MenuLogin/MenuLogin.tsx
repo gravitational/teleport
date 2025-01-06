@@ -22,21 +22,20 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
-import Menu, { MenuItem } from 'design/Menu';
-import { space, SpaceProps } from 'design/system';
+import styled from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { ChevronDown } from 'design/Icon';
-
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
+import Menu, { MenuItem } from 'design/Menu';
+import { space, SpaceProps } from 'design/system';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
-  MenuLoginProps,
   LoginItem,
-  MenuLoginHandle,
   MenuInputType,
+  MenuLoginHandle,
+  MenuLoginProps,
 } from './types';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
@@ -141,6 +140,9 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           open={isOpen}
           onClose={onClose}
           getContentAnchorEl={null}
+          // The list of logins is updated asynchronously, so Popover inside Menu needs to account
+          // for LoginItemList changing in size.
+          updatePositionOnChildResize
         >
           <LoginItemList
             getLoginItemsAttempt={getLoginItemsAttempt}
@@ -210,6 +212,8 @@ function getLoginItemListContent(
     case 'processing':
       return (
         <Indicator
+          // Without this margin, <Indicator> would cause a scroll bar to pop up and hide repeatedly.
+          m={1}
           css={`
             align-self: center;
           `}
