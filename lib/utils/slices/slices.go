@@ -26,7 +26,7 @@ func FilterMapUnique[T any, S comparable](ts []T, fn func(T) (s S, include bool)
 	seen := make(map[S]struct{}, len(ts))
 	for _, t := range ts {
 		if s, include := fn(t); include {
-			if _, ok := seen[s]; !ok {
+			if _, found := seen[s]; !found {
 				seen[s] = struct{}{}
 				ss = append(ss, s)
 			}
