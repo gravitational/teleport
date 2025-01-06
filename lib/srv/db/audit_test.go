@@ -61,7 +61,7 @@ func TestAuditPostgres(t *testing.T) {
 
 	// Connect should trigger successful session start event.
 	userAgent := "psql"
-	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres", common.WithParams(map[string]string{"application_name": userAgent}))
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres", common.WithUserAgent(userAgent))
 	require.NoError(t, err)
 	startEvt, ok := requireEvent(t, testCtx, libevents.DatabaseSessionStartCode).(*events.DatabaseSessionStart)
 	require.True(t, ok)

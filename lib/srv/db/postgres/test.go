@@ -55,11 +55,11 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 	pgconnConfig.User = config.RouteToDatabase.Username
 	pgconnConfig.Database = config.RouteToDatabase.Database
 	pgconnConfig.TLSConfig, err = common.MakeTestClientTLSConfig(config)
-	for name, value := range config.Params {
-		pgconnConfig.RuntimeParams[name] = value
-	}
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if config.UserAgent != "" {
+		pgconnConfig.RuntimeParams["application_name"] = config.UserAgent
 	}
 	pgConn, err := pgconn.ConnectConfig(ctx, pgconnConfig)
 	if err != nil {
