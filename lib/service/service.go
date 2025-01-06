@@ -149,6 +149,7 @@ import (
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/expiry"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -631,9 +632,6 @@ type TeleportProcess struct {
 	// during in-process reloads.
 	id string
 
-	// log is a process-local logrus.Entry.
-	// Deprecated: use logger instead.
-	log logrus.FieldLogger
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
@@ -1031,13 +1029,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if len(cfg.FileDescriptors) == 0 {
-		cfg.FileDescriptors, err = importFileDescriptors(cfg.Log)
+		cfg.FileDescriptors, err = importFileDescriptors(cfg.Logger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	supervisor := NewSupervisor(processID, cfg.Log)
+	supervisor := NewSupervisor(processID, cfg.Logger)
 	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1183,7 +1181,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		storage:                storage,
 		rotationCache:          rotationCache,
 		id:                     processID,
-		log:                    cfg.Log,
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
@@ -2475,6 +2472,25 @@ func (process *TeleportProcess) initAuthService() error {
 	})
 	process.RegisterFunc("auth.server.system-clock-monitor", func() error {
 		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
+	})
+
+	expiry, err := expiry.New(&expiry.Config{
+		Log: logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
+		),
+		Emitter:     authServer,
+		AccessPoint: authServer.Services,
+		Clock:       process.Clock,
+		HostID:      cfg.HostUUID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.expiry", func() error {
+		if err := expiry.Run(process.GracefulExitContext()); err != nil {
+			logger.ErrorContext(process.GracefulExitContext(), "expiry starting", "error", err)
+		}
+		return trace.Wrap(err)
 	})
 
 	// execute this when process is asked to exit:
@@ -4443,7 +4459,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				PollingPeriod:         process.Config.PollingPeriod,
 				FIPS:                  cfg.FIPS,
 				Emitter:               streamEmitter,
-				Log:                   process.log,
 				Logger:                process.logger,
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
@@ -4482,7 +4497,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !process.Config.Proxy.DisableReverseTunnel {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
-			Log:              process.log.WithField(teleport.ComponentKey, "router"),
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
@@ -4725,7 +4739,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				},
 			},
 			Handler: webHandler,
-			Log:     process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Log:     process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5020,9 +5034,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
-	rcWatchLog := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
-	})
+	rcWatchLog := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelAgent, process.id))
 
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
@@ -5034,7 +5046,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
-		Log:                 rcWatchLog,
+		Logger:              rcWatchLog,
 		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 		PROXYSigner:         proxySigner,
 	})
@@ -5043,7 +5055,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	process.RegisterCriticalFunc("proxy.reversetunnel.watcher", func() error {
-		rcWatchLog.Infof("Starting reverse tunnel agent pool.")
+		rcWatchLog.InfoContext(process.ExitContext(), "Starting reverse tunnel agent pool")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -5123,7 +5135,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:              accessPoint,
 			GetRotation:              process.GetRotation,
 			OnHeartbeat:              process.OnHeartbeat(component),
-			Log:                      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Log:                      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
@@ -5521,7 +5533,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 		return nil
 	})
 
-	log := process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
+	log := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
 
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
@@ -5530,7 +5542,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
+			ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelError),
 		},
 		Handler: minimalWebHandler,
 		Log:     log,
@@ -6752,7 +6764,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	kubeServer, err := kubegrpc.New(kubegrpc.Config{
 		AccessPoint:           cfg.accessPoint,
 		Authz:                 authorizer,
-		Log:                   process.log,
+		Log:                   process.logger,
 		Emitter:               cfg.emitter,
 		KubeProxyAddr:         cfg.kubeProxyAddr.String(),
 		ClusterName:           clusterName,

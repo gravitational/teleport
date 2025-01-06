@@ -19,23 +19,20 @@
 import { useMemo, useRef } from 'react';
 
 import {
-  Flex,
-  Text,
-  ButtonSecondary,
-  Link,
-  Box,
   Alert,
-  Indicator,
+  Box,
+  ButtonSecondary,
+  Flex,
   H1,
+  Indicator,
+  Link,
+  Text,
 } from 'design';
-
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
-
-import { TextSelectCopy } from 'shared/components/TextSelectCopy';
-
-import { Gateway } from 'teleterm/services/tshd/types';
 
 import { PortFieldInput } from '../components/FieldInputs';
 
@@ -46,6 +43,7 @@ export function AppGateway(props: {
   changePortAttempt: Attempt<void>;
   disconnect(): void;
 }) {
+  const { gateway } = props;
   const formRef = useRef<HTMLFormElement>();
 
   const { changePort } = props;
@@ -57,26 +55,31 @@ export function AppGateway(props: {
     }, 1000);
   }, [changePort]);
 
-  const link = `${props.gateway.protocol.toLowerCase()}://${props.gateway.localAddress}:${props.gateway.localPort}`;
+  let address = `${gateway.localAddress}:${gateway.localPort}`;
+  if (gateway.protocol === 'HTTP') {
+    address = `http://${address}`;
+  }
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="3" flexWrap="wrap" gap={2}>
         <H1>App Connection</H1>
-        {props.disconnectAttempt.status === 'error' && (
-          <Alert details={props.disconnectAttempt.statusText}>
-            Could not close the connection
-          </Alert>
-        )}
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
       </Flex>
+
+      {props.disconnectAttempt.status === 'error' && (
+        <Alert details={props.disconnectAttempt.statusText}>
+          Could not close the connection
+        </Alert>
+      )}
+
       <Flex as="form" ref={formRef} gap={2}>
         <Validation>
           <PortFieldInput
             label="Port"
-            defaultValue={props.gateway.localPort}
+            defaultValue={gateway.localPort}
             onChange={e => handleChangePort(e.target.value)}
             mb={2}
           />
@@ -91,13 +94,16 @@ export function AppGateway(props: {
           />
         )}
       </Flex>
+
       <Text>Access the app at:</Text>
-      <TextSelectCopy my={1} text={link} bash={false} />
+      <TextSelectCopy my={1} text={address} bash={false} />
+
       {props.changePortAttempt.status === 'error' && (
         <Alert details={props.changePortAttempt.statusText}>
           Could not change the port number
         </Alert>
       )}
+
       <Text>
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}

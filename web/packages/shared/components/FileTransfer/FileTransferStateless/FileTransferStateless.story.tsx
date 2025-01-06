@@ -17,7 +17,6 @@
  */
 
 import { FileTransferContainer } from '../FileTransferContainer';
-
 import {
   FileTransferStateless,
   FileTransferStatelessProps,

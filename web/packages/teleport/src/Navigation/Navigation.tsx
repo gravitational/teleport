@@ -16,22 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type * as history from 'history';
+import { matchPath, useHistory, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
-import { matchPath, useLocation, useHistory } from 'react-router';
-import { Box, Text, Flex } from 'design';
 
+import { Box, Flex, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
 import {
   NAVIGATION_CATEGORIES,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
-import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
-
-import type * as history from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
 
 const NavigationContainer = styled.div`

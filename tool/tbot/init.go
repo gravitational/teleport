@@ -451,7 +451,7 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 			}
 		}
 		if target == nil {
-			return trace.NotFound("Could not find specified destination %q", init.InitDir)
+			return trace.NotFound("Initial directory %q must match a destination directory from the configuration file or --destination-dir parameter", init.InitDir)
 		}
 	}
 

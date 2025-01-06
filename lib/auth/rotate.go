@@ -165,9 +165,14 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	rotation := rotated.GetRotation()
 	switch rotation.State {
 	case types.RotationStateInProgress:
-		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated rotation state, set current phase to: %q.", rotation.Phase)
+		a.logger.InfoContext(ctx, "Updated rotation state",
+			"current_phase", rotation.Phase,
+			"ca_type", req.Type,
+		)
 	case types.RotationStateStandby:
-		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated and completed rotation.")
+		a.logger.InfoContext(ctx, "Updated and completed rotation",
+			"ca_type", req.Type,
+		)
 	}
 
 	return nil

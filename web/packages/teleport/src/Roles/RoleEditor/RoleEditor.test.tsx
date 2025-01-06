@@ -16,22 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
 import { within } from '@testing-library/react';
 import { UserEvent } from '@testing-library/user-event';
 
-import { Role } from 'teleport/services/resources';
+import { render, screen, userEvent } from 'design/utils/testing';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { Role } from 'teleport/services/resources';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import {
   YamlStringifyRequest,
   YamlSupportedResourceKind,
 } from 'teleport/services/yaml/types';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { RoleEditor, RoleEditorProps } from './RoleEditor';
-import { defaultOptions, withDefaults } from './withDefaults';
+import { defaultOptions, withDefaults } from './StandardEditor/withDefaults';
 
 // The Ace editor is very difficult to deal with in tests, especially that for
 // handling its state, we are using input event, which is asynchronous. Thus,

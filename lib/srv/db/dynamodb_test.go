@@ -25,9 +25,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	awsdynamodb "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
 func registerTestDynamoDBEngine() {
@@ -50,7 +50,9 @@ func newTestDynamoDBEngine(ec common.EngineConfig) common.Engine {
 		RoundTrippers: make(map[string]http.RoundTripper),
 		// inject mock AWS credentials.
 		CredentialsGetter: awsutils.NewStaticCredentialsGetter(
-			credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION"),
+			migration.NewCredentialsAdapter(
+				credentials.NewStaticCredentialsProvider("AKIDl", "SECRET", "SESSION"),
+			),
 		),
 	}
 }
@@ -127,14 +129,14 @@ func TestAccessDynamoDB(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute a dynamodb query.
-			out, err := clt.ListTables(&awsdynamodb.ListTablesInput{})
+			out, err := clt.ListTables(ctx, &awsdynamodb.ListTablesInput{})
 			if test.wantErrMsg != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, test.wantErrMsg)
 				return
 			}
 			require.NoError(t, err)
-			require.ElementsMatch(t, mockTables, aws.StringValueSlice(out.TableNames))
+			require.ElementsMatch(t, mockTables, out.TableNames)
 		})
 	}
 }
@@ -159,7 +161,7 @@ func TestAuditDynamoDB(t *testing.T) {
 		require.NoError(t, err)
 
 		// Execute a dynamodb query.
-		_, err = clt.ListTables(&awsdynamodb.ListTablesInput{})
+		_, err = clt.ListTables(ctx, &awsdynamodb.ListTablesInput{})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "access to db denied")
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
@@ -176,21 +178,21 @@ func TestAuditDynamoDB(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("session starts and emits a request event", func(t *testing.T) {
-		_, err := clt.ListTables(&awsdynamodb.ListTablesInput{})
+		_, err := clt.ListTables(ctx, &awsdynamodb.ListTablesInput{})
 		require.NoError(t, err)
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 		requireEvent(t, testCtx, libevents.DynamoDBRequestCode)
 	})
 
 	t.Run("session ends when client closes the connection", func(t *testing.T) {
-		clt.Config.HTTPClient.CloseIdleConnections()
+		clt.HTTPClient.CloseIdleConnections()
 		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 	})
 
 	t.Run("session ends when local proxy closes the connection", func(t *testing.T) {
 		// closing local proxy and canceling the context used to start it should trigger session end event.
 		// without this cancel, the session will not end until the smaller of client_idle_timeout or the testCtx closes.
-		_, err := clt.ListTables(&awsdynamodb.ListTablesInput{})
+		_, err := clt.ListTables(ctx, &awsdynamodb.ListTablesInput{})
 		require.NoError(t, err)
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 		requireEvent(t, testCtx, libevents.DynamoDBRequestCode)

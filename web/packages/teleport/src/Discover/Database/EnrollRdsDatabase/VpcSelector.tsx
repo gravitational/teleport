@@ -17,9 +17,10 @@
  */
 
 import { components } from 'react-select';
-import { Box, Flex, LabelInput, Link, ButtonIcon } from 'design';
-import Select from 'shared/components/Select';
+
+import { Box, ButtonIcon, Flex, LabelInput, Link } from 'design';
 import { NewTab } from 'design/Icon';
+import Select from 'shared/components/Select';
 
 import { Regions, Vpc } from 'teleport/services/integrations';
 

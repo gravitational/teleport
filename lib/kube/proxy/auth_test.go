@@ -140,7 +140,6 @@ func TestGetKubeCreds(t *testing.T) {
 	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
 	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
 
-	logger := utils.NewLoggerForTests()
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
 	dir := t.TempDir()
@@ -351,7 +350,7 @@ current-context: foo
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
 				},
-				log: logger,
+				log: utils.NewSlogLoggerForTests(),
 			}
 			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)

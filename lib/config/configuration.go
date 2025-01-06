@@ -1754,6 +1754,12 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {
+			subscriptionID := azureMatcher.SubscriptionID
+			tMatcher.Azure = append(tMatcher.Azure, &types.AccessGraphAzureSync{
+				SubscriptionID: subscriptionID,
+			})
+		}
 		if fc.Discovery.AccessGraph.PollInterval > 0 {
 			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
 		}
@@ -2745,6 +2751,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
 		cfg.Proxy.QUICProxyPeering = true
+	}
+
+	if rawPeriod := os.Getenv("TELEPORT_UNSTABLE_AGENT_ROLLOUT_SYNC_PERIOD"); rawPeriod != "" {
+		period, err := time.ParseDuration(rawPeriod)
+		if err != nil {
+			return trace.Wrap(err, "invalid agent rollout period %q", rawPeriod)
+		}
+		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
 	return nil

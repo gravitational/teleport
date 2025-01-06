@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { createRef, cloneElement, ComponentProps } from 'react';
-import styled, { StyleFunction } from 'styled-components';
+import React, { cloneElement, ComponentProps, createRef } from 'react';
 import { createPortal } from 'react-dom';
+import styled, { StyleFunction } from 'styled-components';
 
 export type ModalProps = {
   /**

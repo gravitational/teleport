@@ -21,9 +21,9 @@ package rollout
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -35,32 +35,26 @@ const (
 )
 
 type timeBasedStrategy struct {
-	log   *slog.Logger
-	clock clockwork.Clock
+	log *slog.Logger
 }
 
 func (h *timeBasedStrategy) name() string {
 	return update.AgentsStrategyTimeBased
 }
 
-func newTimeBasedStrategy(log *slog.Logger, clock clockwork.Clock) (rolloutStrategy, error) {
+func newTimeBasedStrategy(log *slog.Logger) (rolloutStrategy, error) {
 	if log == nil {
 		return nil, trace.BadParameter("missing log")
 	}
-	if clock == nil {
-		return nil, trace.BadParameter("missing clock")
-	}
 	return &timeBasedStrategy{
-		log:   log.With("strategy", update.AgentsStrategyTimeBased),
-		clock: clock,
+		log: log.With("strategy", update.AgentsStrategyTimeBased),
 	}, nil
 }
 
-func (h *timeBasedStrategy) progressRollout(ctx context.Context, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
-	now := h.clock.Now()
+func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	// We always process every group regardless of the order.
 	var errs []error
-	for _, group := range groups {
+	for _, group := range status.Groups {
 		switch group.State {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
@@ -76,10 +70,22 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, groups []*autou
 				errs = append(errs, err)
 				continue
 			}
-			if shouldBeActive {
-				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonInWindow, now)
-			} else {
+
+			// Check if the rollout got created after the theoretical group start time
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime())
+			if err != nil {
+				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				errs = append(errs, err)
+				continue
+			}
+
+			switch {
+			case !shouldBeActive:
 				setGroupState(group, group.State, updateReasonOutsideWindow, now)
+			case rolloutChangedDuringWindow:
+				setGroupState(group, group.State, updateReasonRolloutChanged, now)
+			default:
+				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonInWindow, now)
 			}
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
 			// We don't touch any group that was manually rolled back.
