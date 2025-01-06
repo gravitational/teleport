@@ -297,6 +297,26 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	dcForEC2StatusWithoutMatchName := uuid.NewString()
+	dcForEC2StatusWithoutMatch, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcForEC2StatusWithoutMatchName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
 	discoveryConfigForUserTaskEKSTestName := uuid.NewString()
 	discoveryConfigForUserTaskEKSTest, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{Name: discoveryConfigForUserTaskEKSTestName},
@@ -584,6 +604,30 @@ func TestDiscoveryServer(t *testing.T) {
 				},
 			},
 			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "no nodes found using DiscoveryConfig and Integration, but DiscoveryConfig Status is still updated",
+			presentInstances: []types.Server{},
+			ssm:              &mockSSMClient{},
+			emitter:          &mockEmitter{},
+			staticMatchers:   Matchers{},
+			discoveryConfig:  dcForEC2StatusWithoutMatch,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 0,
+				LastSyncTime:        fakeClock.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					"my-integration": {
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+							Found:    0,
+							Enrolled: 0,
+							Failed:   0,
+						},
+					},
+				},
+			},
+			wantInstalledInstances: []string{},
 		},
 		{
 			name:             "one node found but SSM Run fails and DiscoverEC2 User Task is created",
