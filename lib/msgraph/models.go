@@ -34,9 +34,8 @@ type Membership struct {
 }
 
 type DirectoryObject struct {
-	ID          *string      `json:"id,omitempty"`
-	DisplayName *string      `json:"displayName,omitempty"`
-	MemberOf    []Membership `json:"memberOf,omitempty"`
+	ID          *string `json:"id,omitempty"`
+	DisplayName *string `json:"displayName,omitempty"`
 }
 
 type Group struct {
