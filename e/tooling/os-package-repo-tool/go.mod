@@ -10,7 +10,7 @@ require (
 	github.com/seqsense/s3sync v1.10.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/mod v0.22.0
-	golang.org/x/sync v0.9.0
+	golang.org/x/sync v0.10.0
 )
 
 require (
