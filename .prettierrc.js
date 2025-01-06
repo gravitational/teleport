@@ -18,7 +18,7 @@ module.exports = {
   arrowParens: 'avoid',
   printWidth: 80,
   bracketSpacing: true,
-  plugins: [require('@ianvs/prettier-plugin-sort-imports')],
+  plugins: ['@ianvs/prettier-plugin-sort-imports'],
   importOrder: [
     '<BUILTIN_MODULES>',
     '',

@@ -476,7 +476,10 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.enrollIntegrations;
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.enrollIntegrations;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -619,7 +622,10 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.deviceTrust;
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.deviceTrust;
+    }
+    return true;
   }
 
   navigationItem = {

@@ -356,6 +356,7 @@ func x509Template(
 	notBefore time.Time,
 	notAfter time.Time,
 	spiffeID spiffeid.ID,
+	dnsSANs []string,
 ) *x509.Certificate {
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
@@ -383,7 +384,8 @@ func x509Template(
 		// - The corresponding SPIFFE ID is set as a URI type in the Subject Alternative Name extension
 		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
 		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
-		URIs: []*url.URL{spiffeID.URL()},
+		URIs:     []*url.URL{spiffeID.URL()},
+		DNSNames: dnsSANs,
 	}
 }
 
@@ -484,7 +486,13 @@ func (s *IssuanceService) issueX509SVID(
 
 	certBytes, err := x509.CreateCertificate(
 		rand.Reader,
-		x509Template(certSerial, notBefore, notAfter, spiffeID),
+		x509Template(
+			certSerial,
+			notBefore,
+			notAfter,
+			spiffeID,
+			wid.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
+		),
 		ca.Cert,
 		pubKey,
 		ca.Signer,
@@ -496,6 +504,7 @@ func (s *IssuanceService) issueX509SVID(
 	evt := baseEvent(ctx, wid, spiffeID)
 	evt.SVIDType = "x509"
 	evt.SerialNumber = serialString
+	evt.DNSSANs = wid.GetSpec().GetSpiffe().GetX509().GetDnsSans()
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.WarnContext(
 			ctx,

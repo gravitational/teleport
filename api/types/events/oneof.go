@@ -136,6 +136,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessRequestCreate{
 			AccessRequestCreate: e,
 		}
+	case *AccessRequestExpire:
+		out.Event = &OneOf_AccessRequestExpire{
+			AccessRequestExpire: e,
+		}
 	case *AccessRequestResourceSearch:
 		out.Event = &OneOf_AccessRequestResourceSearch{
 			AccessRequestResourceSearch: e,
