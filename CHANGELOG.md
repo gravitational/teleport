@@ -2,6 +2,7 @@
 
 ## 17.1.4 (1/6/25)
 
+* Fixed a Postgres database-access auto-user provisioning syntax error that caused a misleading debug level error log in most cases, unless the database admin is not a superuser and the database was upgraded from Postgres v15 or lower to Postgres v16 or higher, in which case the role "teleport-auto-user" must be granted to the database admin with the ADMIN option manually. [#50782](https://github.com/gravitational/teleport/pull/50782)
 * Fixes a bug where S3 bucket details fail to fetch due to incorrect bucket region. [#50763](https://github.com/gravitational/teleport/pull/50763)
 * Present connection errors to the Web UI terminal during database sessions. [#50700](https://github.com/gravitational/teleport/pull/50700)
 
