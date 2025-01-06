@@ -431,11 +431,11 @@ func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, 
 	// WITH ADMIN OPTION.
 	// See: https://www.postgresql.org/docs/16/release-16.html
 	adminUser := sessionCtx.Database.GetAdminUser().Name
-	stmt := fmt.Sprintf("grant role %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
+	stmt := fmt.Sprintf("grant %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
 	_, err = conn.Exec(ctx, stmt)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot be granted back") && !strings.Contains(err.Error(), "already") {
-			e.Log.Debugf("Failed to grant required role %q to the Teleport database admin %q, user auto-provisioning may not work until the database admin is granted the role by a superuser",
+			e.Log.WithError(err).Debugf("Failed to grant required role %q to the Teleport database admin %q, user auto-provisioning may not work until the database admin is granted the role by a superuser",
 				teleportAutoUserRole,
 				adminUser,
 			)
