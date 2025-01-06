@@ -18,4 +18,6 @@
 
 import ConnectorList from './ConnectorList';
 
+export { CtaConnectors } from './CTAConnectors';
+
 export default ConnectorList;

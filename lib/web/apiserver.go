@@ -969,6 +969,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
 	h.POST("/webapi/github", h.WithAuth(h.createGithubConnectorHandle))
+	// The extra "connector" in the path is to avoid a wildcard conflict with the github handlers used
+	// during the login flow ("github/login/web" and "github/callback").
+	h.GET("/webapi/github/connector/:name", h.WithAuth(h.getGithubConnectorHandle))
 	h.PUT("/webapi/github/:name", h.WithAuth(h.updateGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
