@@ -22,12 +22,12 @@ import (
 	"slices"
 	"strings"
 
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/coreos/go-semver/semver"
 
 	"github.com/gravitational/teleport/lib/services"
@@ -244,7 +244,7 @@ func IsDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 }
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
-func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
+func IsRedshiftClusterAvailable(cluster *redshifttypes.Cluster) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-mgmt-cluster-status
 	//

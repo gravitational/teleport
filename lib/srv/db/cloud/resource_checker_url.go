@@ -27,17 +27,25 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
 // urlChecker validates the database has the correct URL.
 type urlChecker struct {
+	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
+	awsConfigProvider awsconfig.Provider
+	// redshiftClientProviderFn is an internal-only [redshiftClient] provider
+	// func that is only set in tests.
+	redshiftClientProviderFn redshiftClientProviderFunc
+
 	clients     cloud.Clients
 	logger      *slog.Logger
 	warnOnError bool
@@ -52,6 +60,10 @@ type urlChecker struct {
 
 func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
+		awsConfigProvider: cfg.AWSConfigProvider,
+		redshiftClientProviderFn: func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
+			return redshift.NewFromConfig(cfg, optFns...)
+		},
 		clients:     cfg.Clients,
 		logger:      cfg.Logger,
 		warnOnError: getWarnOnError(),
@@ -121,8 +133,13 @@ func requireDatabaseIsEndpoint(ctx context.Context, database types.Database, isE
 	return trace.Wrap(convIsEndpoint(isEndpoint)(ctx, database))
 }
 
-func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int64) error {
-	wantURL := fmt.Sprintf("%v:%v", aws.StringValue(wantURLHost), aws.Int64Value(wantURLPort))
+// TODO(gavin): remove the generic type parameter after all callers are migrated from AWS SDK v1 (uses *int64) to SDK v2 (uses *int32).
+func requireDatabaseAddressPort[T ~int32 | ~int64](database types.Database, wantURLHost *string, wantURLPort *T) error {
+	var port int
+	if wantURLPort != nil {
+		port = int(*wantURLPort)
+	}
+	wantURL := fmt.Sprintf("%v:%v", aws.ToString(wantURLHost), port)
 	if database.GetURI() != wantURL {
 		return trace.BadParameter("expect database URL %q but got %q for database %q", wantURL, database.GetURI(), database.GetName())
 	}
