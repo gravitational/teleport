@@ -42,6 +42,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -425,7 +426,7 @@ func (h *Handler) fromPath(p string) session.ID {
 func (h *Handler) ensureBucket(ctx context.Context) error {
 	// Use a short timeout for the HeadBucket call in case it takes too long, in
 	// #50747 this call would hang.
-	shortCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	shortCtx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
 	defer cancel()
 	_, err := h.client.HeadBucket(shortCtx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
