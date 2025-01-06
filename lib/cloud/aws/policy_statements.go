@@ -410,6 +410,9 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
 			"s3:GetBucketTagging",
+			"s3:GetBucketPolicyStatus",
+			"s3:GetBucketAcl",
+
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",
