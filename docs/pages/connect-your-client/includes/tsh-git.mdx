@@ -1,9 +1,9 @@
 Use `tsh git ls` to view a list of GitHub organizations you have access to:
 ```code
 $ tsh git ls
-Type   Organization  Username    URL
------- ------------- ----------- --------------------------------
-GitHub my-github-org my-username https://github.com/my-github-org
+Type   Organization  Username URL
+------ ------------- -------- --------------------------------
+GitHub my-github-org my-user  https://github.com/my-github-org
 ```
 
 Teleport requires your GitHub identity to impersonate you. If you haven't
@@ -12,7 +12,7 @@ provided it yet, run the following command:
 $ tsh git login --github-org my-github-org
   If browser window does not open automatically, open it by clicking on the link:
    http://127.0.0.1:55555/some-id
-  Your GitHub username is my-username.
+  Your GitHub username is my-user.
 ```
 
 This command opens a browser, prompting you to authenticate with GitHub via the
