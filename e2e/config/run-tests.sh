@@ -23,6 +23,8 @@ set -e
 cp /etc/teleport/certs/rootCA.pem /usr/local/share/ca-certificates/teleport.crt
 update-ca-certificates
 
+git config --global url."https://github".insteadOf ssh://git@github
+git config --global url."https://github.com/".insteadOf git@github.com:s
 yarn install
 
 # Wait for the Teleport to be up and initialized.

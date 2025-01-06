@@ -70,9 +70,11 @@ jobs:
       - name: Install docs site dependencies
         working-directory: docs
         if: ${{ steps.yarn-cache.outputs.cache-hit != 'true' }}
-        # Prevent occasional `yarn install` executions that run indefinitely
         timeout-minutes: 10
-        run: yarn install
+        run: |
+          git config --global url."https://github".insteadOf ssh://git@github
+          git config --global url."https://github.com/".insteadOf git@github.com:
+          yarn install
 
       - name: Prepare docs site configuration
         working-directory: docs
