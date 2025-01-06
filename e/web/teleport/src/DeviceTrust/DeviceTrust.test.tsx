@@ -6,10 +6,11 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { makeDevices } from 'e-teleport/services/devices/makeDevices';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
+import { fakeItems } from 'teleport/DeviceTrust/EmptyList';
+import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 import api from 'teleport/services/api';
 
 import { DeviceTrust } from './DeviceTrust';
-import { fakeItems } from './EmptyList/EmptyList';
 
 describe('DeviceTrust', () => {
   beforeEach(() => {
@@ -40,6 +41,23 @@ describe('DeviceTrust', () => {
     });
 
     expect(screen.getByTestId('devices-cta')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/you do not have permissions/i)
+    ).not.toBeInTheDocument();
+  });
+
+  test('renders permission error', async () => {
+    const ctx = createTeleportContextE();
+    ctx.storeUser.setState({ acl: { ...allAccessAcl, deviceTrust: noAccess } });
+    jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+
+    render(<Component ctx={ctx} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('devices-empty-state')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/you do not have permission/i)).toBeInTheDocument();
   });
 
   test('renders device list when devices are present', async () => {
@@ -50,11 +68,9 @@ describe('DeviceTrust', () => {
     render(<Component />);
 
     await waitFor(() => {
-      expect(
-        screen.queryByTestId('devices-empty-state')
-      ).not.toBeInTheDocument();
+      expect(screen.getByTestId('devices-list')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('devices-list')).toBeInTheDocument();
+    expect(screen.queryByTestId('devices-empty-state')).not.toBeInTheDocument();
   });
 
   test('renders device list when devices are present and a CTA', async () => {
@@ -67,13 +83,11 @@ describe('DeviceTrust', () => {
     render(<Component ctx={ctx} />);
 
     await waitFor(() => {
-      expect(
-        screen.queryByTestId('devices-empty-state')
-      ).not.toBeInTheDocument();
+      expect(screen.getByTestId('devices-list')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('devices-list')).toBeInTheDocument();
     expect(screen.getByTestId('devices-cta')).toBeInTheDocument();
+    expect(screen.queryByTestId('devices-empty-state')).not.toBeInTheDocument();
   });
 });
 

@@ -11,8 +11,21 @@ const maxFetchLimit = 5000;
 
 export const useDevices = () => {
   const ctx = useTeleportE();
+  const requiredPermissions = [
+    { value: ctx.storeUser.getDeviceTrustAccess().read, label: 'device.read' },
+    {
+      value: ctx.storeUser.getDeviceTrustAccess().list,
+      label: 'device.list',
+    },
+  ];
+  const missingPermissions = requiredPermissions
+    .filter(perm => !perm.value)
+    .map(perm => perm.label);
+  const canList = missingPermissions.length === 0;
 
-  const { attempt, setAttempt } = useAttempt('processing');
+  const { attempt, setAttempt } = useAttempt(
+    canList ? 'processing' : 'success'
+  );
 
   // tableDataAndState holds device details and table state for DeviceList.tsx
   const [tableDataAndState, setTableDataAndState] = useState<tableState>({
@@ -44,13 +57,16 @@ export const useDevices = () => {
   }
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (canList) {
+      fetchData();
+    }
+  }, [canList]);
 
   return {
     ...tableDataAndState,
     attempt,
     fetchData,
+    missingPermissions,
     showTrustedDevicesCTA: ctx.entitlements.DeviceTrust.limit > 0,
   };
 };

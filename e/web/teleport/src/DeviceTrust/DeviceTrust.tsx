@@ -7,10 +7,10 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import { EmptyList } from 'teleport/DeviceTrust/EmptyList';
 import { CtaEvent } from 'teleport/services/userEvent';
 
 import { DeviceList } from './DeviceList';
-import { EmptyList } from './EmptyList';
 import { useDevices } from './useDevices';
 
 export const deviceTrustDocUrl =
@@ -18,11 +18,20 @@ export const deviceTrustDocUrl =
 
 export const DeviceTrust = () => {
   const props = useDevices();
-  let { attempt, items, fetchData, fetchStatus, showTrustedDevicesCTA } = props;
+  let {
+    attempt,
+    items,
+    fetchData,
+    fetchStatus,
+    showTrustedDevicesCTA,
+    missingPermissions,
+  } = props;
+  const canList = missingPermissions.length === 0;
   const isEmpty = items?.length === 0;
+
   return (
     <FeatureBox>
-      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
+      {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -30,9 +39,20 @@ export const DeviceTrust = () => {
       )}
       {attempt.status === 'success' && (
         <>
+          {!canList && (
+            <Alert kind="info" mt={4}>
+              <Flex gap={2}>
+                You do not have permission to access Trusted Devices. Missing
+                role permissions:{' '}
+                {missingPermissions.map(perm => (
+                  <code key={perm}>{perm}</code>
+                ))}
+              </Flex>
+            </Alert>
+          )}
           {isEmpty && (
             <Flex alignItems="start">
-              <EmptyList showTrustedDevicesCTA={showTrustedDevicesCTA} />
+              <EmptyList isEnterprise={true} />
             </Flex>
           )}
           {!isEmpty && (
@@ -78,16 +98,16 @@ export const DeviceTrust = () => {
                   </P>
                 </Box>
               </Flex>
-              {showTrustedDevicesCTA && <CallToAction />}
             </>
           )}
+          {showTrustedDevicesCTA && <CallToAction />}
         </>
       )}
     </FeatureBox>
   );
 };
 
-export const CallToAction = () => {
+const CallToAction = () => {
   return (
     <Flex
       data-testid="devices-cta"
