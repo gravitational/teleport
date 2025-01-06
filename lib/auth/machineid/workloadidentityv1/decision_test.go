@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func Test_decided(t *testing.T) {
+func Test_decide(t *testing.T) {
 	standardAttrs := &workloadidentityv1pb.Attrs{
 		User: &workloadidentityv1pb.UserAttrs{
 			Name: "jeff",
