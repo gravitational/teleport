@@ -391,7 +391,10 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.enrollIntegrationsOrPlugins;
+    if (cfg.oss.hideInaccessibleFeatures) {
+      return flags.enrollIntegrationsOrPlugins;
+    }
+    return true;
   }
 }
 

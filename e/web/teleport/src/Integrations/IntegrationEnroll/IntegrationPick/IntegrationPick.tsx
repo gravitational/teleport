@@ -60,6 +60,17 @@ export function IntegrationPick() {
   const ctx = useTeleport();
   const hasPluginAccess = ctx.storeUser.getPluginsAccess().create;
   const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;
+  const canCreate = [
+    {
+      value: ctx.storeUser.getPluginsAccess().create,
+      label: 'plugin.create',
+    },
+    {
+      value: ctx.storeUser.getIntegrationsAccess().create,
+      label: 'integration.create',
+    },
+  ].some(perm => perm.value);
+
   const hasExternalAuditStorageAccess =
     ctx.storeUser.getExternalAuditStorageAccess().create;
 
@@ -174,6 +185,15 @@ export function IntegrationPick() {
       <FeatureHeader>
         <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
       </FeatureHeader>
+      {!canCreate && (
+        <Alert kind="info" mt={4}>
+          <Flex gap={2}>
+            You do not have permission to create Integrations. You must have at
+            least one of these role permissions: <code>plugin.create</code>{' '}
+            <code>integration.create</code>
+          </Flex>
+        </Alert>
+      )}
       {content}
     </>
   );
