@@ -3150,6 +3150,12 @@ message DatabaseSessionStart {
   // connection. This can be useful for backend process cancellation or
   // termination and it is not a sensitive or secret value.
   uint32 PostgresPID = 8 [(gogoproto.jsontag) = "postgres_pid,omitempty"];
+  // Client is the common client event metadata.
+  ClientMetadata Client = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // DatabaseSessionQuery is emitted when a user executes a database query.

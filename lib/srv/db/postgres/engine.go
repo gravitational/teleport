@@ -213,6 +213,9 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 				sessionCtx.DatabaseName = value
 			case "user":
 				sessionCtx.DatabaseUser = value
+			// https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-CONNECT-APPLICATION-NAME
+			case "application_name":
+				sessionCtx.UserAgent = value
 			default:
 				sessionCtx.StartupParameters[key] = value
 			}
