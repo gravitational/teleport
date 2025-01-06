@@ -29,6 +29,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -212,7 +213,54 @@ func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	return getGithubConnectors(r.Context(), clt)
+	connectors, err := getGithubConnectors(r.Context(), clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	defaultConnectorName := authPref.GetConnectorName()
+	defaultConnectorType := authPref.GetType()
+	if len(connectors) == 0 || defaultConnectorType == constants.Local {
+		// If there are no connectors or the default is already local, default to 'local' as the default connector.
+		defaultConnectorType = constants.Local
+		defaultConnectorName = ""
+	} else {
+		// Ensure that the default connector in the auth preference exists in the list.
+		found := false
+		for _, c := range connectors {
+			if c.Name == defaultConnectorName && c.Kind == defaultConnectorType {
+				found = true
+				break
+			}
+		}
+		// If the default connector set in the auth preference doesn't exist, use the last connector in the list as the default.
+		if !found {
+			defaultConnectorName = connectors[len(connectors)-1].Name
+			defaultConnectorType = connectors[len(connectors)-1].Kind
+		}
+	}
+
+	// Update the auth preference to reflect any changes.
+	if defaultConnectorName != authPref.GetConnectorName() || defaultConnectorType != authPref.GetType() {
+		authPref.SetConnectorName(defaultConnectorName)
+		authPref.SetType(defaultConnectorType)
+
+		_, err = clt.UpsertAuthPreference(r.Context(), authPref)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to set fallback auth preference")
+		}
+	}
+
+	return &ui.ListAuthConnectorsResponse{
+		DefaultConnectorName: defaultConnectorName,
+		DefaultConnectorType: defaultConnectorType,
+		Connectors:           connectors,
+	}, nil
 }
 
 func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {

@@ -429,6 +429,8 @@ const cfg = {
     msTeamsAppZipPath:
       '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
 
+    defaultConnectorPath: '/v1/webapi/defaultconnector',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',

@@ -975,6 +975,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/github/:name", h.WithAuth(h.updateGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
+	// Sets the default connector in the auth preference.
+	h.PUT("/webapi/defaultconnector", h.WithAuth(h.setDefaultConnectorHandle))
+
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.PUT("/webapi/trustedcluster/:name", h.WithAuth(h.upsertTrustedClusterHandle))
@@ -1795,6 +1798,19 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 		if authType == constants.Local {
 			localConnectorName = cap.GetConnectorName()
+		} else {
+			// Move the default connector to the top of the list so that it shows up first in the UI
+			defaultConnectorName := cap.GetConnectorName()
+			for i, provider := range authProviders {
+				if provider.Name == defaultConnectorName && provider.Type == authType {
+					// Remove it from its current position
+					defaultProvider := authProviders[i]
+					authProviders = append(authProviders[:i], authProviders[i+1:]...)
+					// Insert it at the beginning
+					authProviders = append([]webclient.WebConfigAuthProvider{defaultProvider}, authProviders...)
+					break
+				}
+			}
 		}
 
 		authSettings = webclient.WebConfigAuthSettings{
@@ -3665,6 +3681,32 @@ func (h *Handler) siteNodeConnect(
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) setDefaultConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req ui.SetDefaultAuthConnectorRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	authPref.SetConnectorName(req.Name)
+	authPref.SetType(req.Type)
+
+	_, err = clt.UpsertAuthPreference(r.Context(), authPref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
 }
 
 type podConnectParams struct {

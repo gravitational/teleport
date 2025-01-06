@@ -20,7 +20,13 @@ import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { ResourcesResponse, UnifiedResource } from '../agents';
-import { makeResource, makeResourceList, RoleResource } from './';
+import {
+  DefaultAuthConnector,
+  makeResource,
+  makeResourceList,
+  Resource,
+  RoleResource,
+} from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
 
 class ResourceService {
@@ -48,10 +54,21 @@ class ResourceService {
       });
   }
 
-  fetchGithubConnectors() {
-    return api
-      .get(cfg.getGithubConnectorsUrl())
-      .then(res => makeResourceList<'github'>(res));
+  fetchGithubConnectors(): Promise<{
+    defaultConnector: DefaultAuthConnector;
+    connectors: Resource<'github'>[];
+  }> {
+    return api.get(cfg.getGithubConnectorsUrl()).then(res => ({
+      defaultConnector: {
+        name: res.defaultConnectorName,
+        type: res.defaultConnectorType,
+      },
+      connectors: makeResourceList<'github'>(res.connectors),
+    }));
+  }
+
+  setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {
+    return api.put(cfg.api.defaultConnectorPath, req);
   }
 
   async fetchRoles(params?: UrlListRolesParams): Promise<{
