@@ -487,7 +487,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			)
 			services = append(services, svc)
 		case *config.WorkloadIdentityOutput:
-			svc := &WorkloadIdentityOutputService{
+			svc := &WorkloadIdentityX509OutputService{
 				botAuthClient:  b.botIdentitySvc.GetClient(),
 				botCfg:         b.cfg,
 				cfg:            svcCfg,

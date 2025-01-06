@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/spiffe"
 )
 
-// WorkloadIdentityOutputService
-type WorkloadIdentityOutputService struct {
+// WorkloadIdentityX509OutputService
+type WorkloadIdentityX509OutputService struct {
 	botAuthClient  *authclient.Client
 	botCfg         *config.BotConfig
 	cfg            *config.WorkloadIdentityOutput
@@ -36,12 +36,12 @@ type WorkloadIdentityOutputService struct {
 	trustBundleCache *spiffe.TrustBundleCache
 }
 
-func (s *WorkloadIdentityOutputService) String() string {
-	return fmt.Sprintf("spiffe-svid-output (%s)", s.cfg.Destination.String())
+func (s *WorkloadIdentityX509OutputService) String() string {
+	return fmt.Sprintf("workload-identity-x509-output (%s)", s.cfg.Destination.String())
 }
 
-func (s *WorkloadIdentityOutputService) OneShot(ctx context.Context) error {
-	res, privateKey, jwtSVIDs, err := s.requestSVID(ctx)
+func (s *WorkloadIdentityX509OutputService) OneShot(ctx context.Context) error {
+	res, privateKey, err := s.requestSVID(ctx)
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
 	}
@@ -57,10 +57,10 @@ func (s *WorkloadIdentityOutputService) OneShot(ctx context.Context) error {
 		return trace.Wrap(err, "fetching trust bundle set")
 
 	}
-	return s.render(ctx, bundleSet, res, privateKey, jwtSVIDs)
+	return s.render(ctx, bundleSet, res, privateKey)
 }
 
-func (s *WorkloadIdentityOutputService) Run(ctx context.Context) error {
+func (s *WorkloadIdentityX509OutputService) Run(ctx context.Context) error {
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
@@ -69,7 +69,6 @@ func (s *WorkloadIdentityOutputService) Run(ctx context.Context) error {
 	jitter := retryutils.DefaultJitter
 	var x509Cred *workloadidentityv1pb.Credential
 	var privateKey crypto.Signer
-	var jwtCred *workloadidentityv1pb.Credential
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
@@ -104,28 +103,26 @@ func (s *WorkloadIdentityOutputService) Run(ctx context.Context) error {
 				// If the local trust domain CA has changed, we need to reissue
 				// the SVID.
 				x509Cred = nil
-				jwtCred = nil
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
 		case <-time.After(s.botCfg.RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
-			jwtCred = nil
 			privateKey = nil
 		case <-firstRun:
 		}
 
 		if x509Cred == nil || privateKey == nil {
 			var err error
-			x509Cred, privateKey, jwtCred, err = s.requestSVID(ctx)
+			x509Cred, privateKey, err = s.requestSVID(ctx)
 			if err != nil {
 				s.log.ErrorContext(ctx, "Failed to request SVID", "error", err)
 				failures++
 				continue
 			}
 		}
-		if err := s.render(ctx, bundleSet, x509Cred, privateKey, jwtCred); err != nil {
+		if err := s.render(ctx, bundleSet, x509Cred, privateKey); err != nil {
 			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
 			failures++
 			continue
@@ -134,23 +131,22 @@ func (s *WorkloadIdentityOutputService) Run(ctx context.Context) error {
 	}
 }
 
-func (s *WorkloadIdentityOutputService) requestSVID(
+func (s *WorkloadIdentityX509OutputService) requestSVID(
 	ctx context.Context,
 ) (
 	*workloadidentityv1pb.Credential,
 	crypto.Signer,
-	*workloadidentityv1pb.Credential,
 	error,
 ) {
 	ctx, span := tracer.Start(
 		ctx,
-		"WorkloadIdentityOutputService/requestSVID",
+		"WorkloadIdentityX509OutputService/requestSVID",
 	)
 	defer span.End()
 
 	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "fetching roles")
+		return nil, nil, trace.Wrap(err, "fetching roles")
 	}
 
 	id, err := generateIdentity(
@@ -162,14 +158,14 @@ func (s *WorkloadIdentityOutputService) requestSVID(
 		nil,
 	)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "generating identity")
+		return nil, nil, trace.Wrap(err, "generating identity")
 	}
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
 	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer impersonatedClient.Close()
 
@@ -181,56 +177,32 @@ func (s *WorkloadIdentityOutputService) requestSVID(
 		nil,
 	)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
+		return nil, nil, trace.Wrap(err, "generating X509 SVID")
 	}
 	var x509Credential *workloadidentityv1pb.Credential
 	switch len(x509Credentials) {
 	case 0:
-		return nil, nil, nil, trace.BadParameter("no X509 SVIDs returned")
+		return nil, nil, trace.BadParameter("no X509 SVIDs returned")
 	case 1:
 		x509Credential = x509Credentials[0]
 	default:
 		// We could eventually implement some kind of hint selection mechanism
 		// to pick the "right" one.
-		return nil, nil, nil, trace.BadParameter("multiple X509 SVIDs received")
+		return nil, nil, trace.BadParameter("multiple X509 SVIDs received")
 	}
 
-	jwtSvid, err := issueJWTWorkloadIdentity(
-		ctx,
-		impersonatedClient,
-		s.cfg.WorkloadIdentity,
-		s.cfg.JWTAudiences,
-		s.botCfg.CertificateTTL,
-		nil,
-	)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
-	}
-	var jwtCred *workloadidentityv1pb.Credential
-	switch len(jwtSvid) {
-	case 0:
-		// No JWT SVIDs were requested, so we don't need to do anything.
-	case 1:
-		jwtCred = jwtSvid[0]
-	default:
-		// We could eventually implement some kind of hint selection mechanism
-		// to pick the "right" one.
-		return nil, nil, nil, trace.BadParameter("multiple JWT SVIDs received")
-	}
-
-	return x509Credential, privateKey, jwtCred, nil
+	return x509Credential, privateKey, nil
 }
 
-func (s *WorkloadIdentityOutputService) render(
+func (s *WorkloadIdentityX509OutputService) render(
 	ctx context.Context,
 	bundleSet *spiffe.BundleSet,
 	x509Cred *workloadidentityv1pb.Credential,
 	privateKey crypto.Signer,
-	jwtCred *workloadidentityv1pb.Credential,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"WorkloadIdentityOutputService/render",
+		"WorkloadIdentityX509OutputService/render",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Rendering output")
@@ -288,12 +260,6 @@ func (s *WorkloadIdentityOutputService) render(
 		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes,
 	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
-	}
-
-	if jwtCred != nil {
-		if err := s.cfg.Destination.Write(ctx, "jwt", []byte(jwtCred.GetJwtSvid().GetJwt())); err != nil {
-			return trace.Wrap(err, "writing JWT SVID")
-		}
 	}
 
 	return nil
