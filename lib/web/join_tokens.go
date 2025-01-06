@@ -629,7 +629,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 
 		suggestedLabels := token.GetSuggestedLabels()
-		appServerResourceLabels, err = scripts.MarshalLabelsYAML(suggestedLabels, 6)
+		appServerResourceLabels, err = scripts.MarshalLabelsYAML(suggestedLabels, 4)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
