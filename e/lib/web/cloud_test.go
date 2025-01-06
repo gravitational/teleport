@@ -43,6 +43,16 @@ func TestPlugin_getBillingSummaryInformationHandle(t *testing.T) {
 		ProductName:        "",
 		UsageUpdatedAt:     0,
 		UsageQuota:         nil,
+		UsageSummary: &cloudapi.UsageSummary{
+			UsageHistory: []*cloudapi.UsageHistoryItem{
+				{
+					Mau:                 10,
+					Tpr:                 10,
+					CycleStartFormatted: "Jan 02, 2024",
+					CycleEndFormatted:   "Feb 01, 2024",
+				},
+			},
+		},
 	}
 
 	client := &testClient{

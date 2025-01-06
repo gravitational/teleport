@@ -50,6 +50,7 @@ describe('cloudService', () => {
           cycleCount: 6,
           perMau: 7,
         },
+        usageHistory: [],
       },
     };
     jest.spyOn(api, 'get').mockResolvedValue(expected);

@@ -933,6 +933,59 @@ export interface UsageSummary {
      * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageMetricPerCycle tpr = 13;
      */
     tpr?: UsageMetricPerCycle;
+    /**
+     * usage_history contains the monthly MAU and TPR usage for up to the past 12 months.
+     * If the subscription is newer than 12 months, only the existing cycles are returned.
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.UsageHistoryItem usage_history = 14;
+     */
+    usageHistory: UsageHistoryItem[];
+}
+/**
+ * UsageHistoryItem is a customer's cycle usage, including
+ * usage metrics (TPR and MAU) and the cycle's start and end dates
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UsageHistoryItem
+ */
+export interface UsageHistoryItem {
+    /**
+     * mau represents the monthly active users metric
+     *
+     * @generated from protobuf field: int64 mau = 1;
+     */
+    mau: number;
+    /**
+     * tpr represents the Teleport Protected Resources metric
+     *
+     * @generated from protobuf field: int64 tpr = 2;
+     */
+    tpr: number;
+    /**
+     * cycle_start is the date in which the cycle started in unix timestamp
+     *
+     * @generated from protobuf field: int64 cycle_start = 3;
+     */
+    cycleStart: number;
+    /**
+     * cycle_start_formatted is the formatted date in which the cycle started; this is the opinionated and consistent way
+     * to display this field in the UI. Format: Jan 02, 2026
+     *
+     * @generated from protobuf field: string cycle_start_formatted = 4;
+     */
+    cycleStartFormatted: string;
+    /**
+     * cycle_end is the last day of the cycle in unix timestamp
+     *
+     * @generated from protobuf field: int64 cycle_end = 5;
+     */
+    cycleEnd: number;
+    /**
+     * cycle_end_formatted is the formatted last day of the cycle; this is the opinionated and consistent way
+     * to display this field in the UI. Format: Jan 02, 2026
+     *
+     * @generated from protobuf field: string cycle_end_formatted = 6;
+     */
+    cycleEndFormatted: string;
 }
 /**
  * UsageMetricPerCycle contains a metrics details
@@ -1308,6 +1361,138 @@ export interface GetUpdatedLicenseResponse {
     pem: string;
 }
 /**
+ * GetContactsResponse is the response of GetContacts
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetContactsResponse
+ */
+export interface GetContactsResponse {
+    /**
+     * contacts is the list of contacts
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Contact contacts = 1;
+     */
+    contacts: Contact[];
+}
+/**
+ * CreateContactRequest is the request of CreateContact
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.CreateContactRequest
+ */
+export interface CreateContactRequest {
+    /**
+     * email is the contact email
+     *
+     * @generated from protobuf field: string email = 1;
+     */
+    email: string;
+    /**
+     * type is the contact type (Business, Security, etc)
+     *
+     * @generated from protobuf field: int32 contact_type = 2;
+     */
+    contactType: number;
+}
+/**
+ * CreateContactResponse is the response of CreateContact
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.CreateContactResponse
+ */
+export interface CreateContactResponse {
+    /**
+     * contact is the contact being created
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.Contact contact = 1;
+     */
+    contact?: Contact;
+}
+/**
+ * RemoveContactRequest is the request of RemoveContact
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.RemoveContactRequest
+ */
+export interface RemoveContactRequest {
+    /**
+     * verify_token is the verify token of the contact being removed
+     *
+     * @generated from protobuf field: string verify_token = 1 [json_name = "verify_token"];
+     */
+    verifyToken: string;
+    /**
+     * contact_type is the type of contact being removed
+     *
+     * @generated from protobuf field: int32 contact_type = 2 [json_name = "contact_type"];
+     */
+    contactType: number;
+}
+/**
+ * RemoveContactResponse is the response of RemoveContact
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.RemoveContactResponse
+ */
+export interface RemoveContactResponse {
+    /**
+     * contact is the contact being removed
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.Contact contact = 1;
+     */
+    contact?: Contact;
+}
+/**
+ * Contact is an account contact
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.Contact
+ */
+export interface Contact {
+    /**
+     * name is the contact's name
+     *
+     * @generated from protobuf field: string name = 1;
+     */
+    name: string;
+    /**
+     * account_id is the ID of the account
+     *
+     * @generated from protobuf field: string account_id = 2 [json_name = "accountID"];
+     */
+    accountId: string;
+    /**
+     * verify_token is an UUID used during the email verification process
+     *
+     * @generated from protobuf field: string verify_token = 3;
+     */
+    verifyToken: string;
+    /**
+     * email is the contact email
+     *
+     * @generated from protobuf field: string email = 4;
+     */
+    email: string;
+    /**
+     * type is the contact type (Business, Security, etc)
+     *
+     * @generated from protobuf field: int32 contact_type = 5;
+     */
+    contactType: number;
+    /**
+     * verified is wether the contact is verified or not
+     *
+     * @generated from protobuf field: bool verified = 6;
+     */
+    verified: boolean;
+    /**
+     * verify_expires_at is the timestamp in which the verification token expires
+     *
+     * @generated from protobuf field: int64 verify_expires_at = 7;
+     */
+    verifyExpiresAt: number;
+    /**
+     * state is the state of a contact
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ContactState state = 8 [json_name = "contactState"];
+     */
+    state: ContactState;
+}
+/**
  * @generated from protobuf message gravitational.cloud.tenants.v1.EmptyResponse
  */
 export interface EmptyResponse {
@@ -1405,6 +1590,29 @@ export enum SupportType {
      * @generated from protobuf enum value: SUPPORT_TYPE_PREMIUM = 2;
      */
     PREMIUM = 2
+}
+/**
+ * ContactState represents the possible states of a contact
+ *
+ * @generated from protobuf enum gravitational.cloud.tenants.v1.ContactState
+ */
+export enum ContactState {
+    /**
+     * @generated from protobuf enum value: CONTACT_STATE_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: CONTACT_STATE_ACTIVE = 1;
+     */
+    ACTIVE = 1,
+    /**
+     * @generated from protobuf enum value: CONTACT_STATE_PENDING = 2;
+     */
+    PENDING = 2,
+    /**
+     * @generated from protobuf enum value: CONTACT_STATE_EXPIRED = 3;
+     */
+    EXPIRED = 3
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StripeBillingAddressRequest$Type extends MessageType<StripeBillingAddressRequest> {
@@ -3192,7 +3400,8 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
             { no: 10, name: "has_cloud_anonymization_key", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 11, name: "usage_based", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 12, name: "mau", kind: "message", T: () => UsageMetricPerCycle },
-            { no: 13, name: "tpr", kind: "message", T: () => UsageMetricPerCycle }
+            { no: 13, name: "tpr", kind: "message", T: () => UsageMetricPerCycle },
+            { no: 14, name: "usage_history", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => UsageHistoryItem }
         ]);
     }
     create(value?: PartialMessage<UsageSummary>): UsageSummary {
@@ -3208,6 +3417,7 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
         message.cloud = false;
         message.hasCloudAnonymizationKey = false;
         message.usageBased = false;
+        message.usageHistory = [];
         if (value !== undefined)
             reflectionMergePartial<UsageSummary>(this, message, value);
         return message;
@@ -3255,6 +3465,9 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
                     break;
                 case /* gravitational.cloud.tenants.v1.UsageMetricPerCycle tpr */ 13:
                     message.tpr = UsageMetricPerCycle.internalBinaryRead(reader, reader.uint32(), options, message.tpr);
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.UsageHistoryItem usage_history */ 14:
+                    message.usageHistory.push(UsageHistoryItem.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3307,6 +3520,9 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
         /* gravitational.cloud.tenants.v1.UsageMetricPerCycle tpr = 13; */
         if (message.tpr)
             UsageMetricPerCycle.internalBinaryWrite(message.tpr, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
+        /* repeated gravitational.cloud.tenants.v1.UsageHistoryItem usage_history = 14; */
+        for (let i = 0; i < message.usageHistory.length; i++)
+            UsageHistoryItem.internalBinaryWrite(message.usageHistory[i], writer.tag(14, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3317,6 +3533,93 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
  * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UsageSummary
  */
 export const UsageSummary = new UsageSummary$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UsageHistoryItem", [
+            { no: 1, name: "mau", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 2, name: "tpr", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 3, name: "cycle_start", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 4, name: "cycle_start_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "cycle_end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 6, name: "cycle_end_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UsageHistoryItem>): UsageHistoryItem {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.mau = 0;
+        message.tpr = 0;
+        message.cycleStart = 0;
+        message.cycleStartFormatted = "";
+        message.cycleEnd = 0;
+        message.cycleEndFormatted = "";
+        if (value !== undefined)
+            reflectionMergePartial<UsageHistoryItem>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UsageHistoryItem): UsageHistoryItem {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int64 mau */ 1:
+                    message.mau = reader.int64().toNumber();
+                    break;
+                case /* int64 tpr */ 2:
+                    message.tpr = reader.int64().toNumber();
+                    break;
+                case /* int64 cycle_start */ 3:
+                    message.cycleStart = reader.int64().toNumber();
+                    break;
+                case /* string cycle_start_formatted */ 4:
+                    message.cycleStartFormatted = reader.string();
+                    break;
+                case /* int64 cycle_end */ 5:
+                    message.cycleEnd = reader.int64().toNumber();
+                    break;
+                case /* string cycle_end_formatted */ 6:
+                    message.cycleEndFormatted = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UsageHistoryItem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int64 mau = 1; */
+        if (message.mau !== 0)
+            writer.tag(1, WireType.Varint).int64(message.mau);
+        /* int64 tpr = 2; */
+        if (message.tpr !== 0)
+            writer.tag(2, WireType.Varint).int64(message.tpr);
+        /* int64 cycle_start = 3; */
+        if (message.cycleStart !== 0)
+            writer.tag(3, WireType.Varint).int64(message.cycleStart);
+        /* string cycle_start_formatted = 4; */
+        if (message.cycleStartFormatted !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.cycleStartFormatted);
+        /* int64 cycle_end = 5; */
+        if (message.cycleEnd !== 0)
+            writer.tag(5, WireType.Varint).int64(message.cycleEnd);
+        /* string cycle_end_formatted = 6; */
+        if (message.cycleEndFormatted !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.cycleEndFormatted);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UsageHistoryItem
+ */
+export const UsageHistoryItem = new UsageHistoryItem$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UsageMetricPerCycle$Type extends MessageType<UsageMetricPerCycle> {
     constructor() {
@@ -4139,6 +4442,358 @@ class GetUpdatedLicenseResponse$Type extends MessageType<GetUpdatedLicenseRespon
  */
 export const GetUpdatedLicenseResponse = new GetUpdatedLicenseResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class GetContactsResponse$Type extends MessageType<GetContactsResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetContactsResponse", [
+            { no: 1, name: "contacts", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Contact }
+        ]);
+    }
+    create(value?: PartialMessage<GetContactsResponse>): GetContactsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.contacts = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetContactsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetContactsResponse): GetContactsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.Contact contacts */ 1:
+                    message.contacts.push(Contact.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetContactsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.Contact contacts = 1; */
+        for (let i = 0; i < message.contacts.length; i++)
+            Contact.internalBinaryWrite(message.contacts[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetContactsResponse
+ */
+export const GetContactsResponse = new GetContactsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateContactRequest$Type extends MessageType<CreateContactRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.CreateContactRequest", [
+            { no: 1, name: "email", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "contact_type", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CreateContactRequest>): CreateContactRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.email = "";
+        message.contactType = 0;
+        if (value !== undefined)
+            reflectionMergePartial<CreateContactRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateContactRequest): CreateContactRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string email */ 1:
+                    message.email = reader.string();
+                    break;
+                case /* int32 contact_type */ 2:
+                    message.contactType = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateContactRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string email = 1; */
+        if (message.email !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.email);
+        /* int32 contact_type = 2; */
+        if (message.contactType !== 0)
+            writer.tag(2, WireType.Varint).int32(message.contactType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CreateContactRequest
+ */
+export const CreateContactRequest = new CreateContactRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CreateContactResponse$Type extends MessageType<CreateContactResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.CreateContactResponse", [
+            { no: 1, name: "contact", kind: "message", T: () => Contact }
+        ]);
+    }
+    create(value?: PartialMessage<CreateContactResponse>): CreateContactResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<CreateContactResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreateContactResponse): CreateContactResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.Contact contact */ 1:
+                    message.contact = Contact.internalBinaryRead(reader, reader.uint32(), options, message.contact);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreateContactResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.Contact contact = 1; */
+        if (message.contact)
+            Contact.internalBinaryWrite(message.contact, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CreateContactResponse
+ */
+export const CreateContactResponse = new CreateContactResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RemoveContactRequest$Type extends MessageType<RemoveContactRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.RemoveContactRequest", [
+            { no: 1, name: "verify_token", kind: "scalar", jsonName: "verify_token", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "contact_type", kind: "scalar", jsonName: "contact_type", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RemoveContactRequest>): RemoveContactRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.verifyToken = "";
+        message.contactType = 0;
+        if (value !== undefined)
+            reflectionMergePartial<RemoveContactRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RemoveContactRequest): RemoveContactRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string verify_token = 1 [json_name = "verify_token"];*/ 1:
+                    message.verifyToken = reader.string();
+                    break;
+                case /* int32 contact_type = 2 [json_name = "contact_type"];*/ 2:
+                    message.contactType = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RemoveContactRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string verify_token = 1 [json_name = "verify_token"]; */
+        if (message.verifyToken !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.verifyToken);
+        /* int32 contact_type = 2 [json_name = "contact_type"]; */
+        if (message.contactType !== 0)
+            writer.tag(2, WireType.Varint).int32(message.contactType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.RemoveContactRequest
+ */
+export const RemoveContactRequest = new RemoveContactRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RemoveContactResponse$Type extends MessageType<RemoveContactResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.RemoveContactResponse", [
+            { no: 1, name: "contact", kind: "message", T: () => Contact }
+        ]);
+    }
+    create(value?: PartialMessage<RemoveContactResponse>): RemoveContactResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RemoveContactResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RemoveContactResponse): RemoveContactResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.Contact contact */ 1:
+                    message.contact = Contact.internalBinaryRead(reader, reader.uint32(), options, message.contact);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RemoveContactResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.Contact contact = 1; */
+        if (message.contact)
+            Contact.internalBinaryWrite(message.contact, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.RemoveContactResponse
+ */
+export const RemoveContactResponse = new RemoveContactResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class Contact$Type extends MessageType<Contact> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.Contact", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "account_id", kind: "scalar", jsonName: "accountID", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "verify_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "email", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "contact_type", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 6, name: "verified", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 7, name: "verify_expires_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 8, name: "state", kind: "enum", jsonName: "contactState", T: () => ["gravitational.cloud.tenants.v1.ContactState", ContactState, "CONTACT_STATE_"] }
+        ]);
+    }
+    create(value?: PartialMessage<Contact>): Contact {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.accountId = "";
+        message.verifyToken = "";
+        message.email = "";
+        message.contactType = 0;
+        message.verified = false;
+        message.verifyExpiresAt = 0;
+        message.state = 0;
+        if (value !== undefined)
+            reflectionMergePartial<Contact>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Contact): Contact {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string account_id = 2 [json_name = "accountID"];*/ 2:
+                    message.accountId = reader.string();
+                    break;
+                case /* string verify_token */ 3:
+                    message.verifyToken = reader.string();
+                    break;
+                case /* string email */ 4:
+                    message.email = reader.string();
+                    break;
+                case /* int32 contact_type */ 5:
+                    message.contactType = reader.int32();
+                    break;
+                case /* bool verified */ 6:
+                    message.verified = reader.bool();
+                    break;
+                case /* int64 verify_expires_at */ 7:
+                    message.verifyExpiresAt = reader.int64().toNumber();
+                    break;
+                case /* gravitational.cloud.tenants.v1.ContactState state = 8 [json_name = "contactState"];*/ 8:
+                    message.state = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Contact, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string account_id = 2 [json_name = "accountID"]; */
+        if (message.accountId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.accountId);
+        /* string verify_token = 3; */
+        if (message.verifyToken !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.verifyToken);
+        /* string email = 4; */
+        if (message.email !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.email);
+        /* int32 contact_type = 5; */
+        if (message.contactType !== 0)
+            writer.tag(5, WireType.Varint).int32(message.contactType);
+        /* bool verified = 6; */
+        if (message.verified !== false)
+            writer.tag(6, WireType.Varint).bool(message.verified);
+        /* int64 verify_expires_at = 7; */
+        if (message.verifyExpiresAt !== 0)
+            writer.tag(7, WireType.Varint).int64(message.verifyExpiresAt);
+        /* gravitational.cloud.tenants.v1.ContactState state = 8 [json_name = "contactState"]; */
+        if (message.state !== 0)
+            writer.tag(8, WireType.Varint).int32(message.state);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.Contact
+ */
+export const Contact = new Contact$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class EmptyResponse$Type extends MessageType<EmptyResponse> {
     constructor() {
         super("gravitational.cloud.tenants.v1.EmptyResponse", []);
@@ -4206,6 +4861,9 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "SendTeleportInvite", options: {}, I: SendTeleportInviteRequest, O: EmptyResponse },
     { name: "ClusterAlertInfo", options: {}, I: EmptyRequest, O: ClusterAlertInfoResponse },
     { name: "GetUpdatedLicense", options: {}, I: GetUpdatedLicenseRequest, O: GetUpdatedLicenseResponse },
+    { name: "GetContacts", options: {}, I: EmptyRequest, O: GetContactsResponse },
+    { name: "CreateContact", options: {}, I: CreateContactRequest, O: CreateContactResponse },
+    { name: "RemoveContact", options: {}, I: RemoveContactRequest, O: RemoveContactResponse },
     { name: "CreateSetupIntent", options: {}, I: EmptyRequest, O: CreateSetupIntentResponse },
     { name: "AddCard", options: {}, I: AddCardRequest, O: EmptyResponse },
     { name: "RemoveCard", options: {}, I: RemoveCardRequest, O: EmptyResponse },

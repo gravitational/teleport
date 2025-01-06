@@ -28,6 +28,7 @@ export const makeUsageSummary = (
         free: 0,
         perMau: 0,
       },
+      usageHistory: [],
     },
     overrides
   );
