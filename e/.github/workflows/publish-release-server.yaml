@@ -73,7 +73,7 @@ jobs:
       - name: Install Teleport
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1
         with:
-          version: 15.3.4
+          version: 16.4.12
 
       - name: Fetch release service application credentials
         id: relsrv-auth
