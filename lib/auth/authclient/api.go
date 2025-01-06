@@ -1244,6 +1244,10 @@ type Cache interface {
 	// GetProvisioningState gets a specific provisioning state
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 
+	// ListIdentityCenterAccountsWithFilter returns a paginated list of all
+	// Identity Center Accounts in the cache that match the supplied predicate
+	ListIdentityCenterAccountsWithFilter(context.Context, int, *pagination.PageRequestToken, func(services.IdentityCenterAccount) bool) ([]services.IdentityCenterAccount, pagination.NextPageToken, error)
+
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
 	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
 
