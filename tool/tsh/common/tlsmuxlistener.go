@@ -18,6 +18,7 @@ package common
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"net"
 
@@ -70,7 +71,7 @@ func (m *tlsMuxListener) Accept() (net.Conn, error) {
 
 	switch buf[0] {
 	case tlsFirstByte:
-		log.Debugf("Read 0x%x as first byte, assuming TLS connection.", buf[0])
+		logger.DebugContext(context.Background(), "Read first byte, assuming TLS connection")
 		return tls.Server(bufConn, m.tlsConfig), nil
 	default:
 		return bufConn, nil

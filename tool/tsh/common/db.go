@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -90,7 +91,7 @@ func onListDatabases(cf *CLIConf) error {
 
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
-		log.Debugf("Failed to fetch user roles: %v.", err)
+		logger.DebugContext(cf.Context, "Failed to fetch user roles", "error", err)
 	}
 
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
@@ -170,10 +171,10 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				oteltrace.WithAttributes(attribute.String("cluster", cluster.name)))
 			defer span.End()
 
-			logger := log.WithField("cluster", cluster.name)
+			logger := logger.With("cluster", cluster.name)
 			databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, cluster.auth, &cluster.req)
 			if err != nil {
-				logger.Errorf("Failed to get databases: %v.", err)
+				logger.ErrorContext(ctx, "Failed to get databases", "error", err)
 
 				mu.Lock()
 				errors = append(errors, trace.ConnectionProblem(err, "failed to list databases for cluster %s: %v", cluster.name, err))
@@ -183,7 +184,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 
 			accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, cluster.profile.AccessInfo(), cluster.name, cluster.auth)
 			if err != nil {
-				log.Debugf("Failed to fetch user roles: %v.", err)
+				logger.DebugContext(ctx, "Failed to fetch user roles", "error", err)
 			}
 
 			localDBListings := make(databaseListings, 0, len(databases))
@@ -296,7 +297,10 @@ func protocolSupportsInteractiveMode(dbProtocol string) bool {
 }
 
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo) error {
-	log.Debugf("Fetching database access certificate for %s on cluster %v.", dbInfo.RouteToDatabase, tc.SiteName)
+	logger.DebugContext(cf.Context, "Fetching database access certificate",
+		"database", dbInfo.RouteToDatabase,
+		"cluster", tc.SiteName,
+	)
 
 	profile, err := tc.ProfileStatus()
 	if err != nil {
@@ -307,7 +311,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	// Identity files themselves act as the database credentials (if any), so
 	// don't bother fetching new certs.
 	if profile.IsVirtual {
-		log.Info("Note: already logged in due to an identity file (`-i ...`); will only update database config files.")
+		logger.InfoContext(cf.Context, "Note: already logged in due to an identity file (`-i ...`); will only update database config files")
 	} else {
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
 			keyRing, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
@@ -378,7 +382,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	}
 
 	if profile.IsVirtual {
-		log.Info("Note: an identity file is in use (`-i ...`); will only update database config files.")
+		logger.InfoContext(cf.Context, "Note: an identity file is in use (`-i ...`); will only update database config files.")
 	}
 
 	for _, db := range databases {
@@ -611,9 +615,9 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		return nil, nil
 	}
 	if requires.tunnel {
-		log.Debugf("Starting local proxy tunnel because: %v", strings.Join(requires.tunnelReasons, ", "))
+		logger.DebugContext(ctx, "Starting local proxy tunnel", "reasons", requires.tunnelReasons)
 	} else {
-		log.Debugf("Starting local proxy because: %v", strings.Join(requires.localProxyReasons, ", "))
+		logger.DebugContext(ctx, "Starting local proxy", "reasons", requires.localProxyReasons)
 	}
 
 	listener, err := createLocalProxyListener("localhost:0", dbInfo.RouteToDatabase, profile)
@@ -640,7 +644,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	go func() {
 		defer listener.Close()
 		if err := lp.Start(ctx); err != nil {
-			log.WithError(err).Errorf("Failed to start local proxy")
+			logger.ErrorContext(cf.Context, "Failed to start local proxy", "error", err)
 		}
 	}()
 
@@ -802,7 +806,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Debug(cmd.String())
+	logger.DebugContext(ctx, "executing command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
@@ -1001,7 +1005,7 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Debugf("Defaulting to the allowed database user %q\n", dbUser)
+		logger.DebugContext(cf.Context, "Defaulting to the allowed database user", "database_user", dbUser)
 		d.Username = dbUser
 	}
 	if needDBName {
@@ -1009,7 +1013,7 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Debugf("Defaulting to the allowed database name %q\n", dbName)
+		logger.DebugContext(cf.Context, "Defaulting to the allowed database name", "database_name", dbName)
 		d.Database = dbName
 	}
 	return nil
@@ -1062,7 +1066,7 @@ func chooseOneDatabase(cf *CLIConf, databases types.Databases) (types.Database, 
 	// that database over any others.
 	for _, db := range databases {
 		if db.GetName() == selectors.name {
-			log.Debugf("Selected database %q by exact name match", db.GetName())
+			logger.DebugContext(cf.Context, "Selected database by exact name match", "database", db.GetName())
 			return db, nil
 		}
 	}
@@ -1072,11 +1076,11 @@ func chooseOneDatabase(cf *CLIConf, databases types.Databases) (types.Database, 
 		for _, db := range dbs {
 			names = append(names, db.GetName())
 		}
-		log.Debugf("Choosing amongst databases (%v) by discovered name", names)
+		logger.DebugContext(cf.Context, "Choosing amongst databases by discovered name", "databases", names)
 		databases = dbs
 	}
 	if len(databases) == 1 {
-		log.Debugf("Selected database %q", databases[0].GetName())
+		logger.DebugContext(cf.Context, "Selected database", "database", databases[0].GetName())
 		return databases[0], nil
 	}
 
@@ -1124,7 +1128,7 @@ func getDatabaseServers(ctx context.Context, tc *client.TeleportClient, name str
 
 		var err error
 		predicate := makePredicateConjunction(matchName, tc.PredicateExpression)
-		log.Debugf("Listing databases with predicate (%v) and labels %v", predicate, tc.Labels)
+		logger.DebugContext(ctx, "Listing databases with predicate and labels", "predicate", predicate, "labels", tc.Labels)
 
 		databases, err = tc.ListDatabaseServersWithFilters(ctx, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
@@ -1152,7 +1156,7 @@ func getDatabaseByNameOrDiscoveredName(cf *CLIConf, tc *client.TeleportClient, a
 		for _, db := range activeDBs {
 			names = append(names, db.GetName())
 		}
-		log.Debugf("Choosing a database amongst active databases (%v)", names)
+		logger.DebugContext(cf.Context, "Choosing a database amongst active databases", "databases", names)
 		// preferentially choose from active databases if any of them match.
 		return chooseOneDatabase(cf, activeDBs)
 	}
@@ -1187,7 +1191,7 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
 		predicate := makePredicateConjunction(predicate, tc.PredicateExpression)
-		log.Debugf("Listing databases with predicate (%v) and labels %v", predicate, tc.Labels)
+		logger.DebugContext(ctx, "Listing databases with predicate and labels", "predicate", predicate, "labels", tc.Labels)
 		databases, err = tc.ListDatabases(ctx, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			ResourceType:        types.KindDatabaseServer,
@@ -1421,16 +1425,25 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 	}
 
 	if cf.DatabaseUser != "" && cf.DatabaseUser != identity.RouteToDatabase.Username {
-		log.Debugf("Will reissue database certificate for user %s (was %s)", cf.DatabaseUser, identity.RouteToDatabase.Username)
+		logger.DebugContext(cf.Context, "Will reissue database certificate for user",
+			"current_user", cf.DatabaseUser,
+			"previous_user", identity.RouteToDatabase.Username,
+		)
 		return true, nil
 	}
 	if cf.DatabaseName != "" && cf.DatabaseName != identity.RouteToDatabase.Database {
-		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
+		logger.DebugContext(cf.Context, "Will reissue database certificate for database name",
+			"current_database", cf.DatabaseName,
+			"previous_database", identity.RouteToDatabase.Database,
+		)
 		return true, nil
 	}
 
 	if !apiutils.ContainSameUniqueElements(dbRoles, identity.RouteToDatabase.Roles) {
-		log.Debugf("Will reissue database certificate for database roles %v (was %v)", dbRoles, identity.RouteToDatabase.Roles)
+		logger.DebugContext(cf.Context, "Will reissue database certificate for database roles",
+			"current_roles", dbRoles,
+			"previous_roles", identity.RouteToDatabase.Roles,
+		)
 		return true, nil
 	}
 	return false, nil
@@ -1502,14 +1515,14 @@ func maybePickActiveDatabase(cf *CLIConf, activeRoutes []tlsca.RouteToDatabase) 
 			case 0:
 				return nil, trace.NotFound(formatDBNotLoggedIn(cf.SiteName, selectors))
 			case 1:
-				log.Debugf("Auto-selecting the only active database %q", activeRoutes[0].ServiceName)
+				logger.DebugContext(cf.Context, "Auto-selecting the only active database", "database", activeRoutes[0].ServiceName)
 				return &activeRoutes[0], nil
 			default:
 				return nil, trace.BadParameter(formatChooseActiveDB(activeRoutes))
 			}
 		}
 		if route, ok := findActiveDatabase(selectors.name, activeRoutes); ok {
-			log.Debugf("Selected active database %q by name", route.ServiceName)
+			logger.DebugContext(cf.Context, "Selected active database by name", "database", route.ServiceName)
 			return &route, nil
 		}
 	}
@@ -1733,8 +1746,10 @@ func getDBConnectLocalProxyRequirement(ctx context.Context, tc *client.TeleportC
 	// Call API and check if a user needs to use MFA to connect to the database.
 	mfaRequired, err := isMFADatabaseAccessRequired(ctx, tc, route)
 	if err != nil {
-		log.WithError(err).Debugf("error getting MFA requirement for database %v",
-			route.ServiceName)
+		logger.DebugContext(ctx, "error getting MFA requirement for database",
+			"database", route.ServiceName,
+			"error", err,
+		)
 	} else if mfaRequired {
 		// When MFA is required, we should require a local proxy tunnel,
 		// because the local proxy tunnel can hold database MFA certs in-memory

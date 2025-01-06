@@ -240,7 +240,7 @@ func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
 		writer.CloseWithError(io.EOF)
 
 		if scanErr := group.Wait(); scanErr != nil {
-			log.WithError(scanErr).Warn("unable to scan stderr payload")
+			logger.WarnContext(cf.Context, "unable to scan stderr payload", "error", scanErr)
 		}
 
 		if err == nil {
