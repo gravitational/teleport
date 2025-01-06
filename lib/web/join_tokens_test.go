@@ -769,8 +769,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 				require.Contains(t, script, `APP_NAME='app-name'`)
 				require.Contains(t, script, `APP_URI='app-uri'`)
 				require.Contains(t, script, `public_addr`)
-				require.Contains(t, script, `    labels:`)
-				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, fmt.Sprintf("    labels:\n      %s: %s", types.InternalResourceIDLabel, internalResourceID))
 			},
 		},
 	} {
