@@ -6,6 +6,7 @@ spec:
   # Login settings
   client_id: <LOGIN-CLIENT-NAME>
   client_secret: <LOGIN-CLIENT-SECRET>
+  # issuer_url and redirect_url are shared by both login and MFA, meaning the same OIDC provider must be used.
   issuer_url: https://idp.example.com/
   redirect_url: https://mytenant.teleport.sh:443/v1/webapi/oidc/callback
   # ...

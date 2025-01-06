@@ -418,29 +418,42 @@ SSO provider as an alternative to registering MFA devices directly with the Tele
 This allows Teleport users to use MFA devices and custom flows configured in the SSO provider
 to carry out privileged actions in Teleport, such as:
 
-- MFA device management (e.g. register or delete a webauthn device in Teleport)
 - [Per-session MFA](../guides/per-session-mfa.mdx)
 - [Moderated sessions](../guides/moderated-sessions.mdx)
 - [Admin actions](../guides/mfa-for-admin-actions.mdx)
 
-Administrators may want to consider enabling this feature for the following benefits:
+Administrators may want to consider enabling this feature in order to:
 
-- All authentication (login and MFA) goes through the IDP, reducing administrative overhead
+- Make all authentication (login and MFA) go through the IDP, reducing administrative overhead
 - Make custom MFA flows, such as prompting for 2 distinct devices for a single MFA check
 - Integrate with non-webauthn devices supported directly by your IDP
 
-<Admonition type="warning">
+<Admonition type="note">
   SSO MFA is an enterprise feature. Only OIDC and SAML auth connectors are supported.
 </Admonition>
 
 ### Configure the IDP App / Client
 
-There is no standardized MFA flow unlike there is with SAML/OIDC login, so
-each IDP may offer zero, one, or more ways to offer MFA checks.
+There is no standardized MFA flow unlike there is with SAML/OIDC 
+login, so each IDP may offer zero, one, or more ways to offer MFA checks. 
 
-Teleport does not make any assumptions as to how the MFA app is configured.
-If desired, you could even use your basic login flow with username, password,
-and MFA device.
+Generally, these offerings will fall under one of the following cases:
+
+1. Use a separate IDP app for MFA:
+
+You can create a separate IDP app with a custom MFA flow. For example, with
+Auth0 (OIDC), you can create a separate app with a custom [Auth0 Action](https://auth0.com/docs/customize/actions)
+which prompts for MFA for an active OIDC session.
+
+2. Use the same IDP app for MFA:
+
+Some IDPs provide a way to fork to different flows using the same IDP app.
+For example, with Okta (OIDC), you can provide `acr_values: ["phr"]` to 
+[enforce phishing resistant authentication](https://developer.okta.com/docs/guides/step-up-authentication/main/#predefined-parameter-values).
+
+For a simpler approach, you could use the same IDP app for both login and MFA
+with no adjustments. For Teleport MFA checks, the user will be required to
+relogin through the IDP with username, password, and MFA if required.
 
 <Admonition type="warning">
   While the customizability of SSO MFA presents multiple secure options previously
@@ -452,7 +465,7 @@ and MFA device.
 
 ### Updating your authentication connector to enable MFA checks
 
-Take the authentication connector file `connector.yaml` created in the previous step
+Take the authentication connector file `connector.yaml` created in [Configuring SSO for login](#configuring-sso-for-login)
 and add MFA settings.
 
 <Tabs>
