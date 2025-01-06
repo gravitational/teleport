@@ -73,7 +73,7 @@ jobs:
         # Prevent occasional `yarn install` executions that run indefinitely
         timeout-minutes: 10
         run: |
-          # Dummy test triggers
+          rm -rf .git
           yarn install
 
       - name: Prepare docs site configuration
