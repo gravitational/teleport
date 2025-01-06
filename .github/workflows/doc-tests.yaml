@@ -72,7 +72,9 @@ jobs:
         if: ${{ steps.yarn-cache.outputs.cache-hit != 'true' }}
         # Prevent occasional `yarn install` executions that run indefinitely
         timeout-minutes: 10
-        run: yarn install
+        run: |
+          # Dummy test triggers
+          yarn install
 
       - name: Prepare docs site configuration
         working-directory: docs
