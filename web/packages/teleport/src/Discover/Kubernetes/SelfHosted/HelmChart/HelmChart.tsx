@@ -119,6 +119,7 @@ export default function Container(props: AgentStepProps) {
               setClusterName={setClusterName}
               labels={labels}
               onChangeLabels={setLabels}
+              processing={true}
             />
             <ActionButtons
               onProceed={() => null}
@@ -197,7 +198,7 @@ export function HelmChart(
       <Heading />
       <StepOne />
       <StepTwo
-        disabled={true}
+        showHelmChart={true}
         onEdit={() => props.onEdit()}
         generateScript={reloadJoinToken}
         namespace={props.namespace}
@@ -268,10 +269,11 @@ const StepTwo = ({
   setClusterName,
   error,
   generateScript,
-  disabled,
+  showHelmChart,
   onEdit,
   labels,
   onChangeLabels,
+  processing,
 }: {
   error?: Error;
   generateScript?(): void;
@@ -279,11 +281,14 @@ const StepTwo = ({
   setNamespace(n: string): void;
   clusterName: string;
   setClusterName(c: string): void;
-  disabled?: boolean;
+  showHelmChart?: boolean;
+  processing?: boolean;
   onEdit: () => void;
   labels: ResourceLabel[];
   onChangeLabels(l: ResourceLabel[]): void;
 }) => {
+  const disabled = showHelmChart || processing;
+
   function handleSubmit(
     inputFieldValidator: Validator,
     labelsValidator: Validator
@@ -343,11 +348,11 @@ const StepTwo = ({
                       labels={labels}
                       setLabels={onChangeLabels}
                       isLabelOptional={true}
-                      disableBtns={disabled}
+                      disableBtns={showHelmChart}
                       noDuplicateKey={true}
                     />
                   </Box>
-                  {disabled ? (
+                  {showHelmChart ? (
                     <ButtonSecondary
                       width="200px"
                       type="submit"
@@ -362,8 +367,9 @@ const StepTwo = ({
                       onClick={() =>
                         handleSubmit(inputFieldValidator, labelsValidator)
                       }
+                      disabled={processing}
                     >
-                      Next
+                      Generate command
                     </ButtonSecondary>
                   )}
                 </>

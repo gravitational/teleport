@@ -130,6 +130,9 @@ export function StepOne({
   processing?: boolean;
   onPrev(): void;
 }) {
+  const nextLabelTxt = labels.length
+    ? 'Finish adding labels'
+    : 'Skip adding labels';
   return (
     <>
       <StyledBox mb={5}>
@@ -168,7 +171,7 @@ export function StepOne({
                   onClick={() => onShowScript(validator)}
                   disabled={processing}
                 >
-                  {showScript && !error ? 'Edit Labels' : 'Next'}
+                  {showScript && !error ? 'Edit Labels' : nextLabelTxt}
                 </ButtonSecondary>
               </Box>
             </>
