@@ -20,43 +20,12 @@ package workloadattest
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/shirou/gopsutil/v4/process"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
-
-// UnixAttestation holds the Unix process information retrieved from the
-// workload attestation process.
-type UnixAttestation struct {
-	// Attested is true if the PID was successfully attested to a Unix
-	// process. This indicates the validity of the rest of the fields.
-	Attested bool
-	// PID is the process ID of the attested process.
-	PID int
-	// UID is the primary user ID of the attested process.
-	UID int
-	// GID is the primary group ID of the attested process.
-	GID int
-}
-
-// LogValue implements slog.LogValue to provide a nicely formatted set of
-// log keys for a given attestation.
-func (a UnixAttestation) LogValue() slog.Value {
-	values := []slog.Attr{
-		slog.Bool("attested", a.Attested),
-	}
-	if a.Attested {
-		values = append(values,
-			slog.Int("uid", a.UID),
-			slog.Int("pid", a.PID),
-			slog.Int("gid", a.GID),
-		)
-	}
-	return slog.GroupValue(values...)
-}
 
 // UnixAttestor attests a process id to a Unix process.
 type UnixAttestor struct {

@@ -27,31 +27,6 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
-// Attestation holds the results of the attestation process carried out on a
-// PID by the attestor.
-//
-// The zero value of this type indicates that no attestation was performed or
-// was successful.
-type Attestation struct {
-	Unix       UnixAttestation
-	Kubernetes KubernetesAttestation
-}
-
-// LogValue implements slog.LogValue to provide a nicely formatted set of
-// log keys for a given attestation.
-func (a Attestation) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.Attr{
-			Key:   "unix",
-			Value: a.Unix.LogValue(),
-		},
-		slog.Attr{
-			Key:   "kubernetes",
-			Value: a.Kubernetes.LogValue(),
-		},
-	)
-}
-
 type attestor[T any] interface {
 	Attest(ctx context.Context, pid int) (T, error)
 }
