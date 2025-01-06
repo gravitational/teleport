@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -75,29 +74,6 @@ func onAWS(cf *CLIConf) error {
 
 	cmd := exec.Command(commandToRun, args...)
 	return awsApp.RunCommand(cmd)
-}
-
-func removeAWSCommandFlags(args []string) (ret []string) {
-	for i := 0; i < len(args); i++ {
-		switch {
-		case isAWSFlag(args, i):
-			// Skip next arg, if next arg is not a flag but a flag value.
-			if !isAWSFlag(args, i+1) {
-				i++
-			}
-			continue
-		default:
-			ret = append(ret, args[i])
-		}
-	}
-	return
-}
-
-func isAWSFlag(args []string, i int) bool {
-	if i >= len(args) {
-		return false
-	}
-	return strings.HasPrefix(args[i], "--")
 }
 
 // awsApp is an AWS app that can start local proxies to serve AWS APIs.
