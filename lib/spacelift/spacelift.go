@@ -19,9 +19,6 @@
 package spacelift
 
 import (
-	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
-
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
