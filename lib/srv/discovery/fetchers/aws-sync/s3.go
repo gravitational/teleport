@@ -71,28 +71,13 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 		}
 	}
 
-	region := awsutil.GetKnownRegions()[0]
-	if len(a.Regions) > 0 {
-		region = a.Regions[0]
-	}
-
-	s3Client, err := a.CloudClients.GetAWSS3Client(
-		ctx,
-		region,
-		a.getAWSOptions()...,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rsp, err := s3Client.ListBucketsWithContext(
-		ctx,
-		&s3.ListBucketsInput{},
-	)
+	buckets, getBucketRegion, err := a.listS3Buckets(ctx)
 	if err != nil {
 		return existing.S3Buckets, trace.Wrap(err)
 	}
 
-	for _, bucket := range rsp.Buckets {
+	// Iterate over the buckets and fetch their inline and attached policies.
+	for _, bucket := range buckets {
 		bucket := bucket
 		eG.Go(func() error {
 			var failedReqs failedRequests
@@ -101,54 +86,24 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 				return b.Name == aws.ToString(bucket.Name) && b.AccountId == a.AccountID
 			},
 			)
-			policy, err := s3Client.GetBucketPolicyWithContext(ctx, &s3.GetBucketPolicyInput{
-				Bucket: bucket.Name,
-			})
+			bucketRegion, err := getBucketRegion(bucket.Name)
 			if err != nil {
 				errs = append(errs,
-					trace.Wrap(err, "failed to fetch bucket %q inline policy", aws.ToString(bucket.Name)),
+					trace.Wrap(err),
 				)
 				failedReqs.policyFailed = true
-			}
-
-			policyStatus, err := s3Client.GetBucketPolicyStatusWithContext(ctx, &s3.GetBucketPolicyStatusInput{
-				Bucket: bucket.Name,
-			})
-			if err != nil {
-				errs = append(errs,
-					trace.Wrap(err, "failed to fetch bucket %q policy status", aws.ToString(bucket.Name)),
-				)
 				failedReqs.failedPolicyStatus = true
-			}
-
-			acls, err := s3Client.GetBucketAclWithContext(ctx, &s3.GetBucketAclInput{
-				Bucket: bucket.Name,
-			})
-			if err != nil {
-				errs = append(errs,
-					trace.Wrap(err, "failed to fetch bucket %q acls policies", aws.ToString(bucket.Name)),
-				)
 				failedReqs.failedAcls = true
-			}
-
-			tagsOutput, err := s3Client.GetBucketTaggingWithContext(ctx, &s3.GetBucketTaggingInput{
-				Bucket: bucket.Name,
-			})
-			var awsErr awserr.Error
-			const noSuchTagSet = "NoSuchTagSet" // error code when there are no tags or the bucket does not support them
-			if errors.As(err, &awsErr) && awsErr.Code() == noSuchTagSet {
-				// If there are no tags, set the error to nil.
-				err = nil
-			}
-			if err != nil {
-				errs = append(errs,
-					trace.Wrap(err, "failed to fetch bucket %q tags", aws.ToString(bucket.Name)),
-				)
 				failedReqs.failedTags = true
+				newBucket := awsS3Bucket(aws.ToString(bucket.Name), nil, nil, nil, nil, a.AccountID)
+				collect(mergeS3Protos(existingBucket, newBucket, failedReqs), trace.NewAggregate(errs...))
+				return nil
 			}
 
-			newBucket := awsS3Bucket(aws.ToString(bucket.Name), policy, policyStatus, acls, tagsOutput, a.AccountID)
-			collect(mergeS3Protos(existingBucket, newBucket, failedReqs), trace.NewAggregate(errs...))
+			details, failedReqs, errsL := a.getS3BucketDetails(ctx, bucket, bucketRegion)
+
+			newBucket := awsS3Bucket(aws.ToString(bucket.Name), details.policy, details.policyStatus, details.acls, details.tags, a.AccountID)
+			collect(mergeS3Protos(existingBucket, newBucket, failedReqs), trace.NewAggregate(append(errs, errsL...)...))
 			return nil
 		})
 	}
@@ -212,6 +167,7 @@ type failedRequests struct {
 	failedPolicyStatus bool
 	failedAcls         bool
 	failedTags         bool
+	headFailed         bool
 }
 
 func mergeS3Protos(existing, new *accessgraphv1alpha.AWSS3BucketV1, failedReqs failedRequests) *accessgraphv1alpha.AWSS3BucketV1 {
@@ -236,4 +192,125 @@ func mergeS3Protos(existing, new *accessgraphv1alpha.AWSS3BucketV1, failedReqs f
 	}
 
 	return clone
+}
+
+type s3Details struct {
+	policy       *s3.GetBucketPolicyOutput
+	policyStatus *s3.GetBucketPolicyStatusOutput
+	acls         *s3.GetBucketAclOutput
+	tags         *s3.GetBucketTaggingOutput
+}
+
+func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, bucketRegion string) (s3Details, failedRequests, []error) {
+	var failedReqs failedRequests
+	var errs []error
+	var details s3Details
+
+	s3Client, err := a.CloudClients.GetAWSS3Client(
+		ctx,
+		bucketRegion,
+		a.getAWSOptions()...,
+	)
+	if err != nil {
+		errs = append(errs,
+			trace.Wrap(err, "failed to create s3 client for bucket %q", aws.ToString(bucket.Name)),
+		)
+		return s3Details{},
+			failedRequests{
+				headFailed:         true,
+				policyFailed:       true,
+				failedPolicyStatus: true,
+				failedAcls:         true,
+				failedTags:         true,
+			}, errs
+	}
+
+	details.policy, err = s3Client.GetBucketPolicyWithContext(ctx, &s3.GetBucketPolicyInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil && !isS3BucketPolicyNotFound(err) {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q inline policy", aws.ToString(bucket.Name)),
+		)
+		failedReqs.policyFailed = true
+	}
+
+	details.policyStatus, err = s3Client.GetBucketPolicyStatusWithContext(ctx, &s3.GetBucketPolicyStatusInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil && !isS3BucketPolicyNotFound(err) {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q policy status", aws.ToString(bucket.Name)),
+		)
+		failedReqs.failedPolicyStatus = true
+	}
+
+	details.acls, err = s3Client.GetBucketAclWithContext(ctx, &s3.GetBucketAclInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q acls policies", aws.ToString(bucket.Name)),
+		)
+		failedReqs.failedAcls = true
+	}
+
+	details.tags, err = s3Client.GetBucketTaggingWithContext(ctx, &s3.GetBucketTaggingInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil && !isS3BucketNoTagSet(err) {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q tags", aws.ToString(bucket.Name)),
+		)
+		failedReqs.failedTags = true
+	}
+
+	return details, failedReqs, errs
+}
+
+func isS3BucketPolicyNotFound(err error) bool {
+	var awsErr awserr.Error
+	return errors.As(err, &awsErr) && awsErr.Code() == "NoSuchBucketPolicy"
+}
+
+func isS3BucketNoTagSet(err error) bool {
+	var awsErr awserr.Error
+	return errors.As(err, &awsErr) && awsErr.Code() == "NoSuchTagSet"
+}
+
+func (a *awsFetcher) listS3Buckets(ctx context.Context) ([]*s3.Bucket, func(*string) (string, error), error) {
+	region := awsutil.GetKnownRegions()[0]
+	if len(a.Regions) > 0 {
+		region = a.Regions[0]
+	}
+
+	// use any region to list buckets
+	s3Client, err := a.CloudClients.GetAWSS3Client(
+		ctx,
+		region,
+		a.getAWSOptions()...,
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	rsp, err := s3Client.ListBucketsWithContext(ctx, &s3.ListBucketsInput{})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return rsp.Buckets,
+		func(bucket *string) (string, error) {
+			rsp, err := s3Client.GetBucketLocationWithContext(
+				ctx,
+				&s3.GetBucketLocationInput{
+					Bucket: bucket,
+				},
+			)
+			if err != nil {
+				return "", trace.Wrap(err, "failed to fetch bucket %q region", aws.ToString(bucket))
+			}
+			if rsp.LocationConstraint == nil {
+				return "us-east-1", nil
+			}
+			return aws.ToString(rsp.LocationConstraint), nil
+		}, nil
 }
