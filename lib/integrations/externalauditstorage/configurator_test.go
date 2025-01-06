@@ -231,17 +231,12 @@ func TestCredentialsCache(t *testing.T) {
 	})
 
 	provider := c.CredentialsProvider()
-	providerV1 := c.CredentialsProviderSDKV1()
 
 	checkRetrieveCredentials := func(t require.TestingT, expectErr error) {
-		_, err = providerV1.RetrieveWithContext(ctx)
-		assert.ErrorIs(t, err, expectErr)
 		_, err := provider.Retrieve(ctx)
 		assert.ErrorIs(t, err, expectErr)
 	}
 	checkRetrieveCredentialsWithExpiry := func(t require.TestingT, expectExpiry time.Time) {
-		_, err = providerV1.RetrieveWithContext(ctx)
-		assert.NoError(t, err)
 		creds, err := provider.Retrieve(ctx)
 		assert.NoError(t, err)
 		if err == nil {
