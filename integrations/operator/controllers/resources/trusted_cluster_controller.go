@@ -47,13 +47,13 @@ func (r trustedClusterClient) Get(ctx context.Context, name string) (types.Trust
 
 // Create creates a Teleport trusted_cluster.
 func (r trustedClusterClient) Create(ctx context.Context, trustedCluster types.TrustedCluster) error {
-	_, err := r.teleportClient.CreateTrustedClusterV2(ctx, trustedCluster)
+	_, err := r.teleportClient.CreateTrustedCluster(ctx, trustedCluster)
 	return trace.Wrap(err)
 }
 
 // Update updates a Teleport trusted_cluster.
 func (r trustedClusterClient) Update(ctx context.Context, trustedCluster types.TrustedCluster) error {
-	_, err := r.teleportClient.UpdateTrustedClusterV2(ctx, trustedCluster)
+	_, err := r.teleportClient.UpdateTrustedCluster(ctx, trustedCluster)
 	return trace.Wrap(err)
 }
 
