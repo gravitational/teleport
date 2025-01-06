@@ -1547,6 +1547,33 @@ message AccessRequestCreate {
   ];
 }
 
+// AccessRequestExpire is emitted when access request has expired.
+message AccessRequestExpire {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // RequestID is access request ID
+  string RequestID = 3 [(gogoproto.jsontag) = "id"];
+
+  // ResourceExpiry is the time at which the access request resource will expire.
+  google.protobuf.Timestamp ResourceExpiry = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "expiry,omitempty"
+  ];
+}
+
 // ResourceID is a unique identifier for a teleport resource. This is duplicated
 // from api/types/types.proto to decouple the api and events types and because
 // neither file currently imports the other.
@@ -3123,6 +3150,12 @@ message DatabaseSessionStart {
   // connection. This can be useful for backend process cancellation or
   // termination and it is not a sensitive or secret value.
   uint32 PostgresPID = 8 [(gogoproto.jsontag) = "postgres_pid,omitempty"];
+  // Client is the common client event metadata.
+  ClientMetadata Client = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // DatabaseSessionQuery is emitted when a user executes a database query.
@@ -4707,6 +4740,9 @@ message OneOf {
     events.WorkloadIdentityCreate WorkloadIdentityCreate = 194;
     events.WorkloadIdentityUpdate WorkloadIdentityUpdate = 195;
     events.WorkloadIdentityDelete WorkloadIdentityDelete = 196;
+    events.GitCommand GitCommand = 197;
+    events.UserLoginAccessListInvalid UserLoginAccessListInvalid = 198;
+    events.AccessRequestExpire AccessRequestExpire = 199;
   }
 }
 
@@ -6731,6 +6767,12 @@ message SPIFFESVIDIssued {
   // Audiences is the list of audiences in the issued SVID.
   // Only present if the SVID is a JWT.
   repeated string Audiences = 11 [(gogoproto.jsontag) = "audiences,omitempty"];
+  // The WorkloadIdentity resource that was used to issue the SVID, this will
+  // be empty if the legacy RPCs were used.
+  string WorkloadIdentity = 12 [(gogoproto.jsontag) = "workload_identity,omitempty"];
+  // The revision of the WorkloadIdentity resource that was used to issue the
+  // SVID. This will be empty if the legacy RPCs were used.
+  string WorkloadIdentityRevision = 13 [(gogoproto.jsontag) = "workload_identity_revision,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.
@@ -7795,6 +7837,108 @@ message WorkloadIdentityDelete {
 
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GitCommand is emitted when a user performs a Git fetch or push command.
+message GitCommand {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CommandMetadata is a common command metadata
+  CommandMetadata Command = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Service is the type of the git request like git-upload-pack or
+  // git-receive-pack.
+  string service = 8 [(gogoproto.jsontag) = "service"];
+  // Path is the Git repo path, usually <org>/<repo>.
+  string path = 9 [(gogoproto.jsontag) = "path"];
+
+  // Actions defines details for a Git push.
+  repeated GitCommandAction actions = 10 [(gogoproto.jsontag) = "actions,omitempty"];
+}
+
+// GitCommandAction defines details for a Git push.
+message GitCommandAction {
+  // Action type like create or update.
+  string Action = 1 [(gogoproto.jsontag) = "action,omitempty"];
+  // Reference name like ref/main/my_branch.
+  string Reference = 2 [(gogoproto.jsontag) = "reference,omitempty"];
+  // Old is the old hash.
+  string Old = 3 [(gogoproto.jsontag) = "old,omitempty"];
+  // New is the new hash.
+  string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
+}
+
+// AccessListInvalidMetadata contains metadata about invalid access lists.
+message AccessListInvalidMetadata {
+  // AccessListName is the name of the invalid access list.
+  string AccessListName = 1 [(gogoproto.jsontag) = "access_list_name, omitempty"];
+  // User is the username of the access list member who attempted to log in.
+  string User = 2 [(gogoproto.jsontag) = "user,omitempty"];
+  // MissingRoles are the names of the non-existent roles being referenced by the access list, causing it to be invalid.
+  repeated string MissingRoles = 3 [(gogoproto.jsontag) = "missing_roles,omitempty"];
+}
+
+// UserLoginAccessListInvalid is emitted when a user who is a member of an invalid
+// access list logs in. It is used to indicate that the access list could not be
+// applied to the user's session.
+message UserLoginAccessListInvalid {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListInvalidMetadata is the metadata for this access list invalid event.
+  AccessListInvalidMetadata AccessListInvalidMetadata = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains fields to indicate whether attempt was successful or not.
+  Status Status = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
