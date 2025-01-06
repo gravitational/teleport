@@ -4396,7 +4396,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			// halfway through a shutdown, and double closing a listener is fine.
 			listeners.Close()
 			if payload == nil {
-				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
+				logger.InfoContext(process.ExitContext(), "Shutting down immediately")
 				if tsrv != nil {
 					warnOnErr(process.ExitContext(), tsrv.Close(), logger)
 				}
@@ -4444,7 +4444,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					clientTLSConfigGenerator.Close()
 				}
 			} else {
-				logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
+				logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
 				ctx := payloadContext(payload)
 				if tsrv != nil {
 					warnOnErr(ctx, tsrv.DrainConnections(ctx), logger)
@@ -4498,9 +4498,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
 					if err := conn.Client.DeleteProxy(ctx, process.Config.HostUUID); err != nil {
 						if !trace.IsNotFound(err) {
-							logger.WarnContext(ctx, "Failed to delete heartbeat.", "error", err)
+							logger.WarnContext(ctx, "Failed to delete heartbeat", "error", err)
 						} else {
-							logger.DebugContext(ctx, "Failed to delete heartbeat.", "error", err)
+							logger.DebugContext(ctx, "Failed to delete heartbeat", "error", err)
 						}
 					}
 				}
@@ -4515,7 +4515,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
 			warnOnErr(process.ExitContext(), conn.Close(), logger)
-			logger.InfoContext(process.ExitContext(), "Exited.")
+			logger.InfoContext(process.ExitContext(), "Exited")
 		})
 	}()
 
