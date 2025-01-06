@@ -599,7 +599,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		samlErr := trace.AccessDenied("received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
+		samlErr := trace.AccessDenied("received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/docs/admin-guides/access-controls/sso/>, failed to retrieve SAML assertion info from response: %v.", err)
 		return nil, loginIP, trace.WithUserMessage(samlErr, "Failed to retrieve assertion info. This may indicate IdP configuration error.")
 	}
 
