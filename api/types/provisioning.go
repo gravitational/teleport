@@ -77,6 +77,8 @@ const (
 	// JoinMethodBitbucket indicates that the node will join using the Bitbucket
 	// join method. See lib/bitbucket for more.
 	JoinMethodBitbucket JoinMethod = "bitbucket"
+
+	JoinMethodOracle JoinMethod = "oracle"
 )
 
 var JoinMethods = []JoinMethod{

@@ -55,6 +55,8 @@ type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterU
 // error.
 type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodChallengeResponse, error)
 
+type RegisterOracleChallengeResponseFunc func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error)
+
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
@@ -200,6 +202,32 @@ func (c *JoinServiceClient) RegisterUsingTPMMethod(
 	}
 
 	return certs, nil
+}
+
+func (c *JoinServiceClient) RegisterUsingOracleMethod(ctx context.Context, challengeResponse RegisterOracleChallengeResponseFunc) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	oracleJoinClient, err := c.grpcClient.RegisterUsingOracleMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	challenge, err := oracleJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req, err := challengeResponse(challenge.Challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := oracleJoinClient.Send(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certsResp, err := oracleJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certsResp.Certs, nil
 }
 
 // RegisterUsingToken registers the caller using a token and returns signed

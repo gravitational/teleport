@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/oracle/oci-go-sdk/v65/common/auth"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ssh"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -381,6 +383,8 @@ func registerThroughProxy(
 			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodTPM:
 			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, hostKeys, params)
+		case types.JoinMethodOracle:
+			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
@@ -648,6 +652,7 @@ type joinServiceClient interface {
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
 	) (*proto.Certs, error)
+	RegisterUsingOracleMethod(ctx context.Context, challengeResponse client.RegisterOracleChallengeResponseFunc) (*proto.Certs, error)
 }
 
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
@@ -798,6 +803,27 @@ func registerUsingTPMMethod(
 			}, nil
 		},
 	)
+	return certs, trace.Wrap(err)
+}
+
+func registerUsingOracleMethod(
+	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
+) (*proto.Certs, error) {
+	certs, err := client.RegisterUsingOracleMethod(ctx, func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error) {
+		provider, err := auth.InstancePrincipalConfigurationProvider()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(provider, challenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &proto.RegisterUsingOracleMethodRequest{
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
+			Headers:                   utils.GetHeaderMap(outerHeaders),
+			InnerHeaders:              utils.GetHeaderMap(innerHeaders),
+		}, nil
+	})
 	return certs, trace.Wrap(err)
 }
 
