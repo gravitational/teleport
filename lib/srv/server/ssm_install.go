@@ -174,6 +174,10 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		validInstances = instancesState.valid
 	}
 
+	if len(validInstances) == 0 {
+		return nil
+	}
+
 	validInstanceIDs := instanceIDsFrom(validInstances)
 	output, err := req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
