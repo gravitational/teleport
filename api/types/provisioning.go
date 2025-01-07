@@ -77,7 +77,8 @@ const (
 	// JoinMethodBitbucket indicates that the node will join using the Bitbucket
 	// join method. See lib/bitbucket for more.
 	JoinMethodBitbucket JoinMethod = "bitbucket"
-
+	// JoinMethodOracle indicates that the node will join using the Oracle join
+	// method.
 	JoinMethodOracle JoinMethod = "oracle"
 )
 

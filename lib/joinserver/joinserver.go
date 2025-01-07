@@ -185,7 +185,10 @@ func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest)
 	if ident.BotInstanceID != "" {
 		// Trust the instance ID from the incoming identity: bots will
 		// attempt to provide it on renewal, assuming it's still valid.
-		slog.InfoContext(ctx, "bot is rejoining", "bot_name", ident.BotName, "bot_instance_id", ident.BotInstanceID)
+		slog.InfoContext(ctx, "bot is rejoining",
+			"bot_name", ident.BotName,
+			"bot_instance_id", ident.BotInstanceID,
+		)
 		req.BotInstanceID = ident.BotInstanceID
 	} else {
 		// Clear any other value from the request: the value must come from a
@@ -316,7 +319,9 @@ func (s *JoinServiceGRPCServer) registerUsingOracleMethod(srv proto.JoinService_
 	ctx := srv.Context()
 	certs, err := s.joinServiceClient.RegisterUsingOracleMethod(ctx, func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error) {
 		err := srv.Send(&proto.RegisterUsingOracleMethodResponse{
-			Challenge: challenge,
+			Response: &proto.RegisterUsingOracleMethodResponse_Challenge{
+				Challenge: challenge,
+			},
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -337,7 +342,9 @@ func (s *JoinServiceGRPCServer) registerUsingOracleMethod(srv proto.JoinService_
 	}
 
 	return trace.Wrap(srv.Send(&proto.RegisterUsingOracleMethodResponse{
-		Certs: certs,
+		Response: &proto.RegisterUsingOracleMethodResponse_Certs{
+			Certs: certs,
+		},
 	}))
 }
 

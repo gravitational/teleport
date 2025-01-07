@@ -174,7 +174,9 @@ func TestJoinServiceClient_RegisterUsingOracleMethod(t *testing.T) {
 	mockService := &mockJoinServiceServer{
 		registerUsingOracleMethod: func(srv proto.JoinService_RegisterUsingOracleMethodServer) error {
 			err := srv.Send(&proto.RegisterUsingOracleMethodResponse{
-				Challenge: mockChallenge,
+				Response: &proto.RegisterUsingOracleMethodResponse_Challenge{
+					Challenge: mockChallenge,
+				},
 			})
 			if !assert.NoError(t, err) {
 				return err
@@ -186,7 +188,9 @@ func TestJoinServiceClient_RegisterUsingOracleMethod(t *testing.T) {
 			assert.Empty(t, cmp.Diff(mockRequest, req))
 
 			err = srv.Send(&proto.RegisterUsingOracleMethodResponse{
-				Certs: mockCerts,
+				Response: &proto.RegisterUsingOracleMethodResponse_Certs{
+					Certs: mockCerts,
+				},
 			})
 			if !assert.NoError(t, err) {
 				return err

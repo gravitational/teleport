@@ -55,6 +55,9 @@ type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterU
 // error.
 type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodChallengeResponse, error)
 
+// RegisterOracleChallengeResposneFunc is a function type meant to be passed to
+// RegisterUsingOracleMethod: It must return a
+// *proto.RegisterUsingOracleMethodRequest for a given challenge, or an error.
 type RegisterOracleChallengeResponseFunc func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error)
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
@@ -204,6 +207,10 @@ func (c *JoinServiceClient) RegisterUsingTPMMethod(
 	return certs, nil
 }
 
+// RegisterUsingOracleMethod registers the caller using the Oracle join method and
+// returns signed certs to join the cluster. The caller must provide a
+// ChallengeResponseFunc which returns a *proto.RegisterUsingOracleMethodRequest
+// for a given challenge, or an error.
 func (c *JoinServiceClient) RegisterUsingOracleMethod(ctx context.Context, challengeResponse RegisterOracleChallengeResponseFunc) (*proto.Certs, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -212,9 +219,13 @@ func (c *JoinServiceClient) RegisterUsingOracleMethod(ctx context.Context, chall
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	challenge, err := oracleJoinClient.Recv()
+	challengeResp, err := oracleJoinClient.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	challenge, ok := challengeResp.Response.(*proto.RegisterUsingOracleMethodResponse_Challenge)
+	if !ok {
+		return nil, trace.BadParameter("expected challenge response type %T, got %T", challenge, challengeResp.Response)
 	}
 	req, err := challengeResponse(challenge.Challenge)
 	if err != nil {
@@ -227,7 +238,11 @@ func (c *JoinServiceClient) RegisterUsingOracleMethod(ctx context.Context, chall
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certsResp.Certs, nil
+	certs, ok := challengeResp.Response.(*proto.RegisterUsingOracleMethodResponse_Certs)
+	if !ok {
+		return nil, trace.BadParameter("expected certificate response type %T, got %T", certs, certsResp.Response)
+	}
+	return certs.Certs, nil
 }
 
 // RegisterUsingToken registers the caller using a token and returns signed

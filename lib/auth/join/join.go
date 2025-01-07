@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -806,6 +807,14 @@ func registerUsingTPMMethod(
 	return certs, trace.Wrap(err)
 }
 
+func mapFromHeader(header http.Header) map[string]string {
+	out := make(map[string]string, len(header))
+	for k := range header {
+		out[k] = header.Get(k)
+	}
+	return out
+}
+
 func registerUsingOracleMethod(
 	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
@@ -820,8 +829,8 @@ func registerUsingOracleMethod(
 		}
 		return &proto.RegisterUsingOracleMethodRequest{
 			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
-			Headers:                   utils.GetHeaderMap(outerHeaders),
-			InnerHeaders:              utils.GetHeaderMap(innerHeaders),
+			Headers:                   mapFromHeader(outerHeaders),
+			InnerHeaders:              mapFromHeader(innerHeaders),
 		}, nil
 	})
 	return certs, trace.Wrap(err)
