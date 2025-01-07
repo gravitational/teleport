@@ -121,27 +121,46 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 
 // TargetVersion creates or updates AutoUpdateVersion resource with client tools target version.
 func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client *authclient.Client) error {
+	var err error
 	switch {
 	case c.clear:
-		if err := c.clearTargetVersion(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
+		err = c.clearTargetVersion(ctx, client)
 	case c.toolsTargetVersion != "":
-		if err := c.setTargetVersion(ctx, client); err != nil {
-			return trace.Wrap(err)
+		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
+		// The same approach applies to updates if the resource has been deleted during the process.
+		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
+		err = c.setTargetVersion(ctx, client)
+		if trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
+			err = c.setTargetVersion(ctx, client)
 		}
+
 	}
-	return nil
+	return trace.Wrap(err)
 }
 
 // Enable enables client tools auto updates in cluster.
 func (c *AutoUpdateCommand) Enable(ctx context.Context, client *authclient.Client) error {
-	return c.setMode(ctx, client, true)
+	// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
+	// The same approach applies to updates if the resource has been deleted during the process.
+	// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
+	err := c.setMode(ctx, client, true)
+	if trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
+		err = c.setMode(ctx, client, true)
+	}
+
+	return err
 }
 
 // Disable disables client tools auto updates in cluster.
 func (c *AutoUpdateCommand) Disable(ctx context.Context, client *authclient.Client) error {
-	return c.setMode(ctx, client, false)
+	// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
+	// The same approach applies to updates if the resource has been deleted during the process.
+	// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
+	err := c.setMode(ctx, client, false)
+	if trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
+		err = c.setMode(ctx, client, false)
+	}
+	return err
 }
 
 // Status makes request to auth service to fetch client tools auto update version and mode.
