@@ -1,0 +1,6 @@
+type: workload-identity-x509
+workload_identity:
+  name: my-workload-identity
+destination:
+  type: memory
+include_federated_trust_bundles: true
