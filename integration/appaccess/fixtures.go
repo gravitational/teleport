@@ -65,7 +65,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
@@ -323,7 +323,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		NodeName:    helpers.Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		Logger:      log,
 	}
 	if opts.RootClusterListeners != nil {
 		rootCfg.Listeners = opts.RootClusterListeners(t, &rootCfg.Fds)
@@ -338,7 +338,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		NodeName:    helpers.Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		Logger:      log,
 	}
 	if opts.LeafClusterListeners != nil {
 		leafCfg.Listeners = opts.LeafClusterListeners(t, &leafCfg.Fds)
@@ -347,7 +347,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.Console = nil
-	rcConf.Log = log
+	rcConf.Logger = log
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -365,7 +365,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 	lcConf := servicecfg.MakeDefaultConfig()
 	lcConf.Console = nil
-	lcConf.Log = log
+	lcConf.Logger = log
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")

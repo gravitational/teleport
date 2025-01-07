@@ -115,7 +115,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	rCfg.Listeners = options.rootClusterListeners(t, &rCfg.Fds)
 	rc := helpers.NewInstance(t, rCfg)
@@ -127,7 +127,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
@@ -196,7 +196,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 	nodeConfig := func() *servicecfg.Config {
 		tconf := servicecfg.MakeDefaultConfig()
 		tconf.Console = nil
-		tconf.Log = utils.NewLoggerForTests()
+		tconf.Logger = utils.NewSlogLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
 		tconf.SetAuthServerAddress(utils.NetAddr{
