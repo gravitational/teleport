@@ -67,20 +67,21 @@ Before you get started, you’ll need:
 
    ![Edit client scope](../../../../img/sso/keycloak/client_scope.png)
 
-
-1. On the Mappers tab, Click Configure a new mapper.
-
-1. Click **Configure a new mapper**.
+1. On the Mappers tab, Click **Configure a new mapper**.
    
    ![Configure mapper](../../../../img/sso/keycloak/client_scope.png)
 
-1. Select **Groups list** from the list of attribute mappings and **Save**
+1. Select **Groups list** from the list of attribute mappings
 
    ![Edit client scope](../../../../img/sso/keycloak/groups_list.png)
 
-1. Fill out the values as shown in the image below and save 
+1. Fill out the values as shown in the image below and save
 
-1. Repeat steps 1 - 5 to add the **User Attribute** mapper
+   ![Group mapper](../../../../img/sso/keycloak/group_mapping.png)
+
+1. Repeat steps 1 - 6 to add the **User Attribute** mapper
+
+   ![Edit client scope](../../../../img/sso/keycloak/attribute_mapping.png)
 
 1. Fill out the values as shown in the image below and save 
 
@@ -95,7 +96,7 @@ Now, create a SAML connector resource using `tctl`.
 ```code
 $ tctl sso configure saml --name keycloak \
 --entity-descriptor https://<root>/realms/{realm-name}/protocol/saml/descriptor \
---attributes-to-roles groups,<>,access > keycloak-connector.yaml
+--attributes-to-roles groups,devops,dev > keycloak-connector.yaml
 ```
 
 In the example above:
@@ -103,7 +104,7 @@ In the example above:
 - `--entity-descriptor` specifies the app federation metadata URL
 
 - Each `--attributes-to-roles` specifies the name of the schema definition for groups,
-  groups, and the Teleport role that members of the group
+  groups, the name of a Keycloak group and the Teleport role that members of the group
   will be assigned.
 
 The file `keycloak-connector.yaml` should now resemble the following:
@@ -113,12 +114,12 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh:443/v1/webapi/saml/acs/keycloak
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   attributes_to_roles:
   - name: groups
     roles:
-    - access
-    value: tam
+    - dev
+    value: /devops
   audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: ""
@@ -319,7 +320,7 @@ Update the connector by saving and closing the file in your editor.
 
 - Import the converted cert.pkcs12 certificate
 
-![Import certificate](../../../../img/sso/keycloak/import_signature.png)
+![Import Signature](../../../../img/sso/keycloak/Import_signature.png)
 
 **Note:** The name parameter specified in the command when converting
 the cert format and the same password defined during the conversion process 
@@ -338,17 +339,20 @@ Keycloak auth connector - Signature Validation Incompatibility
 
 When "Client signature required" is enabled with the appropriate signing keys, 
 it results in an invalid requester error as shown in the image below.
+
 ![Import certificate](../../../../img/sso/keycloak/invalid_requester.png)
 
-Keycloak logs: 
+**Keycloak server logs:** 
+
 `error=invalid_signature` and `request validation failed: org.keycloak.common.VerificationException: SigAlg was null` error.
+
 This occurs when Keycloak receives a SAML request that does not meet its signature validation expectations
 which causes Keycloak to fail when attempting to verify the SAML signature.
 
 To resolve the issue:
-- Verify that the public certificate used by Keycloak for signing SAML responses 
-is correctly configured and valid.
-- Ensure that the certificate is up-to-date and the private key is properly paired with it. 
-  Refer to the **Client Certificate Signature validation** section for more information. 
+- Refer to the **Client Certificate Signature validation** section 
+  to review the certificate configuration. Ensure the certificate is up-to-date 
+  and the private key is properly paired with it. 
+
 - Once the above has been verified, temporarily add the `spec.provider: ping` parameter 
-to the Keycloak auth connector to match Keycloak’s expectations.
+  to the Keycloak auth connector to match Keycloak’s expectations.
