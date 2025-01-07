@@ -1,0 +1,335 @@
+---
+title: Teleport Authentication with Keycloak
+description: How to configure Teleport access with Keycloak
+---
+
+This guide will cover how to configure Keycloak to issue
+credentials to specific groups of users with a SAML Authentication Connector.
+When used in combination with role-based access control (RBAC), it allows Teleport
+administrators to define policies like:
+
+- Only members of the "DBA" group can connect to PostgreSQL databases.
+- Developers must never SSH into production servers.
+
+The following steps configure an example SAML authentication connector matching
+Keycloak groups. You can choose to configure other options.
+
+## Prerequisites
+
+Before you get started, you’ll need:
+
+
+- An administrative account for the Admin Console to manage realms 
+  and perform administrative tasks in the keycloak admin console
+- To be in a realm other than the master realm.
+- To register one or more users in the realm directory.
+- To create at least two groups in realm directory and assign one or more
+  users to each group.
+- A Teleport role with access to maintaining `saml` resources. This is available
+  in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Configure Keycloak
+
+### Create a SAML Client
+1. Select the Realm you want to use for your SAML integration, Click **Clients** in the menu.
+
+1. Click **Create client** to go to the Create client page. 
+
+   ![Create client](../../../../img/sso/keycloak/create_client.png)
+
+1. Set Client type to **SAML** and Set a Client ID to the URL for your Teleport Proxy URL
+
+   ```code
+   https://<Var name="mytenant.teleport.sh"
+   ```
+   ![Create client](../../../../img/sso/keycloak/saml.png)
+
+1. Set the Valid Redirect URIs field  to the URL for your Teleport Proxy Service host and Save
+
+   ```code
+   https://<Var name="mytenant.teleport.sh" />/v1/webapi/saml/acs/ad
+   ```
+   ![Redirect URI](../../../../img/sso/keycloak/redirect.png)
+
+   Click **Save** before proceeding to the next step.
+
+### Configure SAML Assertion Mappings
+
+1. Navigate to **Clients** in left sidebar
+
+1. Select your Teleport SAML client, Navigate to the **Client Scope** tab
+
+1. On the Client Scopes Tabs , click on the Teleport client scope
+
+   ![Edit client scope](../../../../img/sso/keycloak/client_scope.png)
+
+
+1. On the Mappers tab, Click Configure a new mapper.
+
+1. Click **Configure a new mapper**.
+   
+   ![Configure mapper](../../../../img/sso/keycloak/client_scope.png)
+
+1. Select **Groups list** from the list of attribute mappings and “Save”
+
+   ![Edit client scope](../../../../img/sso/keycloak/groups_list.png)
+
+1. Fill out the values as shown in the image below and save 
+
+1. Repeat steps 1 - 5 to add the **User Attribute** mapper
+
+1. Fill out the values as shown in the image below and save 
+
+   ![Edit client scope](../../../../img/sso/keycloak/attribute_mappings.png)
+
+Note: This enables using the username inside Teleport roles as the <nobr>`{{external.username}}`</nobr> property.
+
+## Step 2/3. Create a SAML connector
+
+Now, create a SAML connector resource using `tctl`.
+
+```code
+$ tctl sso configure saml --name keycloak \
+--entity-descriptor https://<root>/realms/{realm-name}/protocol/saml/descriptor \
+--attributes-to-roles groups,DBA,access > keycloak-connector.yaml
+```
+
+In the example above:
+
+- `--entity-descriptor` specifies the app federation metadata URL
+
+- Each `--attributes-to-roles` specifies the name of the schema definition for groups,
+  groups, and the Teleport role that members of the group
+  will be assigned.
+
+The file `keycloak-connector.yaml` should now resemble the following:
+
+```yaml
+kind: saml
+metadata:
+  name: keycloak
+spec:
+  acs: https://mytenant.teleport.sh:443/v1/webapi/saml/acs/keycloak
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - access
+    value: tam
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  cert: ""
+  display: ""
+  entity_descriptor: ""
+  entity_descriptor_url: https://<root>/realms/{realm-name}/protocol/saml/descriptor
+  issuer: ""
+  service_provider_issuer: https://mytenant.teleport.sh:443/v1/webapi/saml/acs/keycloak
+  sso: ""
+version: v2
+```
+
+With the connector in place on the cluster, you can test it with `tctl`:
+
+```code
+$ cat keycloak-connector.yaml | tctl sso test
+```
+
+Your browser should open and log you in to the Teleport cluster using your
+Azure AD credentials. If there are any problems, the CLI output will help you
+debug the connector configuration.
+
+
+To create the connector using the `tctl` tool, run the following command:
+
+```code
+$ tctl create -f keycloak-connector.yaml
+```
+
+## Step 3/3. Create a new Teleport role
+
+Create a Teleport role resource that will use external username data from the
+Keycloak connector to determine which Linux logins to allow on a host.
+
+Create a file called `dev.yaml` with the following content:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  options:
+    max_session_ttl: 24h
+  allow:
+    # only allow login as either ubuntu or the 'windowsaccountname' claim
+    logins: [ '{{external.username}}', ubuntu ]
+    node_labels:
+      access: relaxed
+```
+
+Users with the `dev` role are only allowed to log in to nodes with the `access:
+relaxed` Teleport label. They can log in as either `ubuntu` or a username that
+is passed in from the keycloak connector using the `username`
+attribute.
+
+The login
+<nobr>`{{external.username}}`</nobr>
+configures Teleport to look at the `username`
+attribute and use that field as an allowed login for each user.
+
+Create the role:
+
+```code
+$ tctl create dev.yaml
+```
+
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
+
+## Client Certificate Signature validation (Optional)
+
+If you wish to have Keycloak require client signature validation from Teleport,
+you must configure the signing keys by generating or importing keys, 
+and the client will sign their saml requests and responses. The signature will be validated.
+
+
+### Create Private Keys for Signing
+
+Start by generating a public/private key and a certificate. You will set up
+the public certificate with Keycloak and the private key with Teleport.
+
+```code
+$ openssl genrsa -out priv.pem 2048
+$ openssl req -new -x509 -key priv.pem -out cert.pem
+```
+
+
+Convert the just generated certificate (in PEM format) to the PKCS#12 format 
+
+```code
+openssl pkcs12 -in cert.pem -name teleport -export -out cert.pkcs12
+```
+**Note:** when the command to convert the cert is executed,  
+note down the defined export password as it will be used when
+importing the cert to Keycloak 
+
+```code
+$ tctl edit saml
+```
+
+You will notice that Teleport has generated a `signing_key_pair`. This key pair
+is used to sign responses.
+
+```yaml
+kind: saml
+metadata:
+  name: keycloak
+spec:
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  cert: ""
+  display: Keycloak
+  entity_descriptor:
+  entity_descriptor_url: https://<root>/realms/{realm-name}/protocol/saml/descriptor
+  issuer: https://<root>/realms/{realm-name}
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://<root>/realms/{realm-name}/protocol/saml
+version: v2
+```
+
+Add `assertion_key_pair` using the data from `cert.pkcs12`.
+
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  Make sure to have the same indentation for all lines of the certificate and key, otherwise
+  Teleport will not parse the YAML file.
+</Admonition>
+
+After your edits, the file will look like this:
+
+```yaml
+kind: saml
+metadata:
+  name: keycloak
+spec:
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  cert: ""
+  display: Keycloak
+  entity_descriptor:
+  entity_descriptor_url: https://<root>/realms/{realm-name}/protocol/saml/descriptor
+  issuer: https://<root>/realms/{realm-name}
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  assertion_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://<root>/realms/{realm-name}/protocol/saml
+version: v2
+```
+
+Update the connector by saving and closing the file in your editor.
+
+### Activate client signature validation
+
+- Navigate to **Clients** in left sidebar 
+
+- Select your Teleport SAML client
+
+- Navigate to the **Keys** tab, and enable "Client Signature Required"
+
+![Enable client signature](../../../../img/sso/keycloak/client_signature.png)
+
+- Import the converted cert.pkcs12 certificate
+
+![Import certificate](../../../../img/sso/keycloak/import_signature.png)
+
+**Note:** The name parameter specified in the command when converting
+the cert format and the same password defined during the conversion process 
+should be used during upload for key alias and store password respectively. 
+
+- Click **Confirm** to activate it.
+
+
+If the SSO login with this connector is successful, the client signature vaidation works.
+
