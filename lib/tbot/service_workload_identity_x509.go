@@ -344,7 +344,7 @@ func issueX509WorkloadIdentity(
 		}
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentities(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
-				LabelSelectors: nil,
+				LabelSelectors: labelSelectors,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
 						PublicKey: pubBytes,
