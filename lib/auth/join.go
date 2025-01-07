@@ -403,7 +403,7 @@ func (a *Server) generateCertsBot(
 	var err error
 	joinEvent.Attributes, err = rawJoinAttrsToStruct(rawJoinClaims)
 	if err != nil {
-		logger.WarnContext(
+		a.logger.WarnContext(
 			ctx,
 			"Unable to encode join attributes for join audit event",
 			"error", err,
