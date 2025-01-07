@@ -3,16 +3,16 @@ module github.com/gravitational/teleport
 go 1.23.4
 
 require (
-	cloud.google.com/go/cloudsqlconn v1.13.1
-	cloud.google.com/go/compute v1.28.3
-	cloud.google.com/go/compute/metadata v0.5.2
-	cloud.google.com/go/container v1.41.0
-	cloud.google.com/go/firestore v1.17.0
-	cloud.google.com/go/iam v1.2.2
-	cloud.google.com/go/kms v1.20.1
-	cloud.google.com/go/resourcemanager v1.10.2
-	cloud.google.com/go/spanner v1.72.0
-	cloud.google.com/go/storage v1.47.0
+	cloud.google.com/go/cloudsqlconn v1.13.2
+	cloud.google.com/go/compute v1.31.1
+	cloud.google.com/go/compute/metadata v0.6.0
+	cloud.google.com/go/container v1.42.1
+	cloud.google.com/go/firestore v1.18.0
+	cloud.google.com/go/iam v1.3.1
+	cloud.google.com/go/kms v1.20.4
+	cloud.google.com/go/resourcemanager v1.10.3
+	cloud.google.com/go/spanner v1.73.0
+	cloud.google.com/go/storage v1.49.0
 	connectrpc.com/connect v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.16.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
@@ -152,7 +152,7 @@ require (
 	github.com/mailgun/mailgun-go/v4 v4.20.4
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/mdlayher/netlink v1.7.2
-	github.com/microsoft/go-mssqldb v1.7.2 // replaced
+	github.com/microsoft/go-mssqldb v1.8.0 // replaced
 	github.com/miekg/pkcs11 v1.1.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.5.0
@@ -211,7 +211,7 @@ require (
 	golang.org/x/text v0.21.0
 	golang.org/x/time v0.8.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	google.golang.org/api v0.207.0
+	google.golang.org/api v0.214.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250102185135-69823020774d
 	google.golang.org/grpc v1.69.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
@@ -242,9 +242,9 @@ require (
 
 require (
 	cel.dev/expr v0.16.2 // indirect
-	cloud.google.com/go v0.116.0 // indirect
-	cloud.google.com/go/auth v0.10.2 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.5 // indirect
+	cloud.google.com/go v0.117.0 // indirect
+	cloud.google.com/go/auth v0.13.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
 	cloud.google.com/go/longrunning v0.6.2 // indirect
 	cloud.google.com/go/monitoring v1.21.2 // indirect
 	cloud.google.com/go/pubsub v1.45.1 // indirect
@@ -257,7 +257,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.2 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.1 // indirect
 	github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c // indirect
@@ -541,7 +541,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
-	google.golang.org/genproto v0.0.0-20241113202542-65e8d215514f // indirect
+	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250102185135-69823020774d // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
