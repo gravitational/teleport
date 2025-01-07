@@ -66,7 +66,7 @@ func newAuthenticateClientRequest(time time.Time, challenge string, headers http
 		},
 	}
 	if len(headers) == 0 {
-		req.Details.RequestHeaders = make(http.Header)
+		req.Details.RequestHeaders = http.Header{}
 	}
 	return req
 }
