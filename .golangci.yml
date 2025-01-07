@@ -61,6 +61,7 @@ issues:
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
+  uniq-by-line: false
 
 linters:
   disable-all: true
@@ -269,9 +270,6 @@ linters-settings:
     forbid:
       - p: '^rsa\.GenerateKey$'
         msg: 'generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type'
-
-output:
-  uniq-by-line: false
 
 run:
   go: '1.23'
