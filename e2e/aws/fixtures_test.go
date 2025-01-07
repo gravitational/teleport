@@ -190,7 +190,7 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 		NodeName:    host,
 		Priv:        priv,
 		Pub:         pub,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 }
 
