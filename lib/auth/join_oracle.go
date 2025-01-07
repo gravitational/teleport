@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2024 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -18,13 +18,228 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/oracle/oci-go-sdk/v65/common"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-func (a *Server) RegisterUsingOracleMethod(ctx context.Context, challengeResponse client.RegisterOracleChallengeResponseFunc) (*proto.Certs, error) {
-	return nil, trace.NotImplemented("")
+func generateOracleChallenge() (string, error) {
+	challenge, err := generateChallenge(base64.StdEncoding, 32)
+	return challenge, trace.Wrap(err)
+}
+
+func checkHeaders(headers http.Header, challenge string, clock clockwork.Clock) error {
+	// Check that required headers are signed.
+	authHeader := oracle.GetAuthorizationHeaderValues(headers)
+	rawSignedHeaders, ok := authHeader["headers"]
+	if !ok {
+		return trace.BadParameter("missing list of signed headers")
+	}
+	signedHeaders := strings.Split(rawSignedHeaders, " ")
+	if !slices.Contains(signedHeaders, oracle.DateHeader) {
+		return trace.BadParameter("header %s is not signed", oracle.DateHeader)
+	}
+	if !slices.Contains(signedHeaders, oracle.ChallengeHeader) {
+		return trace.BadParameter("header %s is not signed", oracle.ChallengeHeader)
+	}
+
+	// Check X-Date.
+	now := clock.Now().UTC()
+	rawHeaderDate := headers.Get(oracle.DateHeader)
+	if rawHeaderDate == "" {
+		return trace.BadParameter("missing header X-Date")
+	}
+	headerDate, err := time.Parse(http.TimeFormat, rawHeaderDate)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var timeDelta time.Duration
+	if headerDate.After(now) {
+		timeDelta = headerDate.Sub(now)
+	} else {
+		timeDelta = now.Sub(headerDate)
+	}
+	if timeDelta > 5*time.Minute {
+		return trace.BadParameter("header time is more than 5 minutes from now")
+	}
+
+	// Check challenge.
+	if headers.Get(oracle.ChallengeHeader) != challenge {
+		return trace.BadParameter("challenge does not match")
+	}
+
+	return nil
+}
+
+func fetchOraclePrincipalClaims(ctx context.Context, client *http.Client, req *http.Request) (oracle.Claims, error) {
+	// Block redirects.
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	authResp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return oracle.Claims{}, trace.Wrap(err)
+	}
+	defer authResp.Body.Close()
+	var resp oracle.AuthenticateClientResponse
+	unmarshalErr := common.UnmarshalResponse(authResp, &resp)
+	if authResp.StatusCode >= 300 || resp.ErrorMessage != "" {
+		msg := resp.ErrorMessage
+		if msg == "" {
+			msg = authResp.Status
+		}
+		return oracle.Claims{}, trace.AccessDenied("%v", msg)
+	}
+	if unmarshalErr != nil {
+		return oracle.Claims{}, trace.Wrap(unmarshalErr)
+	}
+	return resp.Principal.GetClaims(), nil
+}
+
+func checkOracleAllowRules(claims oracle.Claims, token string, allowRules []*types.ProvisionTokenSpecV2Oracle_Rule) error {
+	for _, rule := range allowRules {
+		if rule.Tenancy != claims.TenancyID {
+			continue
+		}
+		if len(rule.ParentCompartments) != 0 && !slices.Contains(rule.ParentCompartments, claims.CompartmentID) {
+			continue
+		}
+		if len(rule.Regions) != 0 && !slices.ContainsFunc(rule.Regions, func(region string) bool {
+			return string(common.StringToRegion(region)) == claims.Region()
+		}) {
+			continue
+		}
+		return nil
+	}
+	return trace.AccessDenied("instance %v did not match any allow rules in token %v", claims.InstanceID, token)
+}
+
+func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest) error {
+	tokenName := req.RegisterUsingTokenRequest.Token
+	provisionToken, err := a.GetToken(ctx, tokenName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if provisionToken.GetJoinMethod() != types.JoinMethodOracle {
+		return trace.AccessDenied("this token does not support the Oracle join method")
+	}
+
+	outerHeaders := utils.FormatHeaderFromMap(req.Headers)
+	innerHeaders := utils.FormatHeaderFromMap(req.InnerHeaders)
+	if err := checkHeaders(outerHeaders, challenge, a.GetClock()); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkHeaders(innerHeaders, challenge, a.GetClock()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check region.
+	host := outerHeaders.Get("host")
+	hostParts := strings.Split(host, ".")
+	if len(hostParts) != 4 {
+		return trace.BadParameter("unexpected host: %v", host)
+	}
+	region := string(common.StringToRegion(hostParts[1]))
+	if region == "" {
+		return trace.BadParameter("invalid region: %v", region)
+	}
+
+	authReq, err := oracle.CreateRequestFromHeaders(region, innerHeaders, outerHeaders)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	client, err := defaults.HTTPClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	claims, err := fetchOraclePrincipalClaims(ctx, client, authReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	token, ok := provisionToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("oracle join method only supports ProvisionTokenV2")
+	}
+	if err := checkOracleAllowRules(claims, provisionToken.GetName(), token.Spec.Oracle.Allow); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a *Server) RegisterUsingOracleMethod(
+	ctx context.Context,
+	challengeResponse client.RegisterOracleChallengeResponseFunc,
+) (certs *proto.Certs, err error) {
+	certs, err = a.registerUsingOracleMethod(ctx, challengeResponse, "")
+	return certs, trace.Wrap(err)
+}
+
+func (a *Server) registerUsingOracleMethod(
+	ctx context.Context,
+	challengeResponse client.RegisterOracleChallengeResponseFunc,
+	endpoint string,
+) (certs *proto.Certs, err error) {
+	var provisionToken types.ProvisionToken
+	var joinRequest *types.RegisterUsingTokenRequest
+	defer func() {
+		// Emit a log message and audit event on join failure.
+		if err != nil {
+			a.handleJoinFailure(
+				ctx, err, provisionToken, nil, joinRequest,
+			)
+		}
+	}()
+
+	challenge, err := generateOracleChallenge()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req, err := challengeResponse(challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	joinRequest = req.RegisterUsingTokenRequest
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkOracleRequest(ctx, challenge, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
+		certs, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req.RegisterUsingTokenRequest,
+			nil,
+		)
+		return certs, trace.Wrap(err)
+	}
+	certs, err = a.generateCerts(
+		ctx,
+		provisionToken,
+		req.RegisterUsingTokenRequest,
+		nil,
+	)
+	return certs, trace.Wrap(err)
 }

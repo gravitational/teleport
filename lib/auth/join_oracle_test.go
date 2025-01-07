@@ -1,0 +1,400 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package auth
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+func TestCheckHeaders(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+
+	defaultChallenge := "abcd1234"
+	defaultAuthHeader := fmt.Sprintf(`Signature headers="%s %s"`, oracle.DateHeader, oracle.ChallengeHeader)
+
+	t.Run("ok", func(t *testing.T) {
+		headers := utils.FormatHeaderFromMap(map[string]string{
+			"Authorization":        defaultAuthHeader,
+			oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+			oracle.ChallengeHeader: defaultChallenge,
+		})
+		require.NoError(t, checkHeaders(headers, defaultChallenge, clock))
+	})
+
+	tests := []struct {
+		name    string
+		headers map[string]string
+	}{
+		{
+			name: "missing signed headers",
+			headers: map[string]string{
+				"Authorization":        `Signature foo="bar"`,
+				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.ChallengeHeader: defaultChallenge,
+			},
+		},
+		{
+			name: "date not signed",
+			headers: map[string]string{
+				"Authorization":        fmt.Sprintf(`Signature headers="%s"`, oracle.ChallengeHeader),
+				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.ChallengeHeader: defaultChallenge,
+			},
+		},
+		{
+			name: "challenge not signed",
+			headers: map[string]string{
+				"Authorization":        fmt.Sprintf(`Signature headers="%s"`, oracle.DateHeader),
+				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.ChallengeHeader: defaultChallenge,
+			},
+		},
+		{
+			name: "missing date",
+			headers: map[string]string{
+				"Authorization":        defaultAuthHeader,
+				oracle.ChallengeHeader: defaultChallenge,
+			},
+		},
+		{
+			name: "date too early",
+			headers: map[string]string{
+				"Authorization":        defaultAuthHeader,
+				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now().Add(10 * time.Minute)),
+				oracle.ChallengeHeader: defaultChallenge,
+			},
+		},
+		{
+			name: "date too late",
+			headers: map[string]string{
+				"Authorization":        defaultAuthHeader,
+				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now().Add(-10 * time.Minute)),
+				oracle.ChallengeHeader: defaultChallenge,
+			},
+		},
+		{
+			name: "missing challenge",
+			headers: map[string]string{
+				"Authorization":   defaultAuthHeader,
+				oracle.DateHeader: oracle.FormatDateHeader(clock.Now()),
+			},
+		},
+		{
+			name: "challenge does not match",
+			headers: map[string]string{
+				"Authorization":        defaultAuthHeader,
+				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.ChallengeHeader: "differentchallenge",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Error(t, checkHeaders(utils.FormatHeaderFromMap(tc.headers), defaultChallenge, clock))
+		})
+	}
+}
+
+func claimsResponse(claimMap map[string]string) oracle.AuthenticateClientResult {
+	claims := make([]oracle.Claim, 0, len(claimMap))
+	for k, v := range claimMap {
+		claims = append(claims, oracle.Claim{Key: k, Value: v})
+	}
+	return oracle.AuthenticateClientResult{
+		Principal: oracle.Principal{
+			Claims: claims,
+		},
+	}
+}
+
+func TestFetchOraclePrincipalClaims(t *testing.T) {
+	t.Parallel()
+
+	defaultTenancyID := "tenancy-id"
+	defaultCompartmentID := "compartment-id"
+	defaultInstanceID := "instance-id"
+
+	defaultHandle := func(code int, responseBody any) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(code)
+			body, err := json.Marshal(responseBody)
+			assert.NoError(t, err)
+			_, err = w.Write(body)
+			assert.NoError(t, err)
+		})
+	}
+
+	tests := []struct {
+		name           string
+		handler        http.Handler
+		assert         assert.ErrorAssertionFunc
+		expectedClaims oracle.Claims
+	}{
+		{
+			name: "ok",
+			handler: defaultHandle(http.StatusOK, claimsResponse(map[string]string{
+				oracle.TenancyClaim:     defaultTenancyID,
+				oracle.CompartmentClaim: defaultCompartmentID,
+				oracle.InstanceClaim:    defaultInstanceID,
+			})),
+			assert: assert.NoError,
+			expectedClaims: oracle.Claims{
+				TenancyID:     defaultTenancyID,
+				CompartmentID: defaultCompartmentID,
+				InstanceID:    defaultInstanceID,
+			},
+		},
+		{
+			name: "block redirect",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.NotEqual(t, "/dontgohere", r.RequestURI, "redirect was incorrectly performed")
+				http.Redirect(w, r, "/dontgohere", http.StatusFound)
+			}),
+			assert: assert.Error,
+		},
+		{
+			name:    "http error",
+			handler: defaultHandle(http.StatusNotFound, oracle.AuthenticateClientResult{}),
+			assert:  assert.Error,
+		},
+		{
+			name: "api error",
+			handler: defaultHandle(http.StatusOK, oracle.AuthenticateClientResult{
+				ErrorMessage: "it didn't work",
+			}),
+			assert: assert.Error,
+		},
+		{
+			name: "invalid response type",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte("some junk"))
+			}),
+			assert: assert.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(tc.handler)
+			t.Cleanup(srv.Close)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			req, err := http.NewRequest("", srv.URL, nil)
+			require.NoError(t, err)
+			claims, err := fetchOraclePrincipalClaims(ctx, srv.Client(), req)
+			tc.assert(t, err)
+			assert.Equal(t, tc.expectedClaims, claims)
+		})
+	}
+}
+
+func makeOCID(resourceType, region, id string) string {
+	return fmt.Sprintf("ocid1.%s.oc1.%s.%s", resourceType, region, id)
+}
+
+func makeTenancyID(id string) string {
+	return makeOCID("tenancy", "", id)
+}
+
+func makeCompartmentID(id string) string {
+	return makeOCID("compartment", "", id)
+}
+
+func makeInstanceID(region, id string) string {
+	return makeOCID("instance", region, id)
+}
+
+func TestCheckOracleAllowRules(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		claims     oracle.Claims
+		allowRules []*types.ProvisionTokenSpecV2Oracle_Rule
+		assert     require.ErrorAssertionFunc
+	}{
+		{
+			name: "ok",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"us-phoenix-1"},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "ok with compartment wildcard",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy: makeTenancyID("foo"),
+					Regions: []string{"us-phoenix-1"},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "ok with region wildcard",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "ok with region abbreviation in id",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("phx", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"us-phoenix-1"},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "ok with region abbreviation in token",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"phx"},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "wrong tenancy",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("something-else"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"us-phoenix-1"},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "wrong compartment",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("something-else"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"us-phoenix-1"},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "wrong region",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-ashburn-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"us-phoenix-1"},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "block match across rules",
+			claims: oracle.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy: makeTenancyID("foo"),
+					Regions: []string{"us-ashburn-1"},
+				},
+				{
+					Tenancy: makeTenancyID("something-else"),
+				},
+			},
+			assert: require.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.assert(t, checkOracleAllowRules(tc.claims, "mytoken", tc.allowRules))
+		})
+	}
+}
+
+func TestRegisterUsingOracleMethod(t *testing.T) {
+	t.Parallel()
+	// ctx := context.Background()
+	// p, err := newTestPack(ctx, t.TempDir())
+	// require.NoError(t, err)
+}
