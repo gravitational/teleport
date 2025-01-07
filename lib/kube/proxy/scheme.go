@@ -19,11 +19,12 @@
 package proxy
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -113,7 +114,7 @@ type gvkSupportedResources map[gvkSupportedResourcesKey]*schema.GroupVersionKind
 // This schema includes all well-known Kubernetes types and all namespaced
 // custom resources.
 // It also returns a map of resources that we support RBAC restrictions for.
-func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface) (*serializer.CodecFactory, rbacSupportedResources, gvkSupportedResources, error) {
+func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*serializer.CodecFactory, rbacSupportedResources, gvkSupportedResources, error) {
 	kubeScheme := runtime.NewScheme()
 	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
 	supportedResources := maps.Clone(defaultRBACResources)
@@ -135,7 +136,10 @@ func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface
 		// reachable.
 		// In this case, we still want to register the other resources that are
 		// available in the cluster.
-		log.WithError(err).Debugf("Failed to discover some API groups: %v", maps.Keys(discoveryErr.Groups))
+		log.DebugContext(context.Background(), "Failed to discover some API groups",
+			"groups", maps.Keys(discoveryErr.Groups),
+			"error", err,
+		)
 	case err != nil:
 		return nil, nil, nil, trace.Wrap(err)
 	}

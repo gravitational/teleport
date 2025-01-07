@@ -18,11 +18,6 @@
 
 import { NotificationItemContent } from 'shared/components/Notification';
 
-import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
-import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
-import { ClustersService } from 'teleterm/ui/services/clusters';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { ResourceUri, routing } from 'teleterm/ui/uri';
 import {
   cannotProxyVnetConnectionReasonIsCertReissueError,
   cannotProxyVnetConnectionReasonIsInvalidLocalPort,
@@ -33,6 +28,11 @@ import {
   formatPortRange,
   publicAddrWithTargetPort,
 } from 'teleterm/services/tshd/app';
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { ResourceUri, routing } from 'teleterm/ui/uri';
 
 export class TshdNotificationsService {
   constructor(

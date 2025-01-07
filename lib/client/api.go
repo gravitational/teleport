@@ -40,7 +40,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -130,9 +129,7 @@ const (
 
 const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentClient,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentClient)
 
 // ForwardedPort specifies local tunnel to remote
 // destination managed by the client, is equivalent
@@ -659,7 +656,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	for _, o := range opts {
 		o(opt)
 	}
-	log.Debugf("Activating relogin on error=%q (type=%T)", fnErr, trace.Unwrap(fnErr))
+	log.DebugContext(ctx, "Activating relogin on error", "error", fnErr, "error_type", logutils.TypeAttr(trace.Unwrap(fnErr)))
 
 	if keys.IsPrivateKeyPolicyError(fnErr) {
 		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
@@ -680,7 +677,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	key, err := tc.Login(ctx)
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
-			log.WithError(err).Debugf("Relogin is not available in this environment")
+			log.DebugContext(ctx, "Relogin is not available in this environment", "error", err)
 			return trace.Wrap(fnErr)
 		}
 		if trace.IsTrustError(err) {
@@ -705,7 +702,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 
 	// Save profile to record proxy credentials
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
-		log.Warningf("Failed to save profile: %v", err)
+		log.WarnContext(ctx, "Failed to save profile", "error", err)
 		return trace.Wrap(err)
 	}
 
@@ -906,13 +903,16 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 
 	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(profile.DynamicForwardedPorts)
 	if err != nil {
-		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
+		log.WarnContext(context.Background(), "Unable to parse dynamic port forwarding in user profile", "error", err)
 	}
 
 	if required, ok := client.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
 		c.TLSRoutingConnUpgradeRequired = required
 	}
-	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
+	log.InfoContext(context.Background(), "ALPN connection upgrade required",
+		"web_proxy_addr", c.WebProxyAddr,
+		"upgrade_required", c.TLSRoutingConnUpgradeRequired,
+	)
 	return nil
 }
 
@@ -1247,7 +1247,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.Infof("No teleport login given. defaulting to %s", c.Username)
+		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
 	}
 	if c.WebProxyAddr == "" {
 		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
@@ -1257,7 +1257,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.Infof("no host login given. defaulting to %s", c.HostLogin)
+		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
 	}
 
 	c.Namespace = types.ProcessNamespace(c.Namespace)
@@ -1426,7 +1426,10 @@ func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clus
 
 	signers, err = tc.localAgent.signersForCluster(clusterName)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to load/reissue certificates for cluster %q.", clusterName)
+		log.WarnContext(ctx, "Failed to load/reissue certificates for cluster",
+			"error", err,
+			"cluster", clusterName,
+		)
 		return nil, trace.Wrap(err)
 	}
 	return signers, nil
@@ -1505,7 +1508,11 @@ func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUni
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
 	if len(tc.Labels) > 0 || len(tc.SearchKeywords) > 0 || tc.PredicateExpression != "" {
-		log.Debugf("Attempting to resolve matching hosts from labels=%v|search=%v|predicate=%v", tc.Labels, tc.SearchKeywords, tc.PredicateExpression)
+		log.DebugContext(ctx, "Attempting to resolve matching hosts",
+			"labels", tc.Labels,
+			"search", tc.SearchKeywords,
+			"predicate", tc.PredicateExpression,
+		)
 		nodes, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 			Kinds:               []string{types.KindNode},
 			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
@@ -1535,7 +1542,7 @@ func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUni
 		return retval, nil
 	}
 
-	log.Debugf("Using provided host %s", tc.Host)
+	log.DebugContext(ctx, "Using provided host", "host", tc.Host)
 
 	// detect the common error when users use host:port address format
 	_, port, err := net.SplitHostPort(tc.Host)
@@ -1572,7 +1579,7 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 	}
 
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		log.Debugf("Using provided host %s", tc.Host)
+		log.DebugContext(ctx, "Using provided host", "host", tc.Host)
 
 		// detect the common error when users use host:port address format
 		_, port, err := net.SplitHostPort(tc.Host)
@@ -1589,7 +1596,11 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 	}
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
-	log.Debugf("Attempting to resolve matching host from labels=%v|search=%v|predicate=%v", tc.Labels, tc.SearchKeywords, tc.PredicateExpression)
+	log.DebugContext(ctx, "Attempting to resolve matching host",
+		"labels", tc.Labels,
+		"search", tc.SearchKeywords,
+		"predicate", tc.PredicateExpression,
+	)
 	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
 		PredicateExpression: tc.PredicateExpression,
 		SearchKeywords:      tc.SearchKeywords,
@@ -2175,7 +2186,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		go func() {
 			connClosed <- nodeClient.Client.Wait()
 		}()
-		log.Debugf("Connected to node, no remote command execution was requested, blocking indefinitely.")
+		log.DebugContext(ctx, "Connected to node, no remote command execution was requested, blocking indefinitely")
 		select {
 		case <-ctx.Done():
 			// Only return an error if the context was canceled by something other than SIGINT.
@@ -2259,11 +2270,11 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			// We log the error here instead of returning it to be consistent with
 			// the other port forwarding methods, which don't stop the session
 			// if forwarding fails.
-			message := fmt.Sprintf("Failed to bind on remote host to %v: %v.", addr, err)
 			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
-				message = "Node does not support remote port forwarding (-R)."
+				log.ErrorContext(ctx, "Node does not support remote port forwarding (-R)")
+			} else {
+				log.ErrorContext(ctx, "Failed to bind on remote host", "addr", addr, "error", err)
 			}
-			log.Error(message)
 		} else {
 			go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
 		}
@@ -2650,7 +2661,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 		for _, r := range page {
 			srv, ok := r.ResourceWithLabels.(types.Server)
 			if !ok {
-				log.Warnf("expected types.Server but received unexpected type %T", r)
+				log.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
 				continue
 			}
 
@@ -3046,7 +3057,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 
 	proxyPrincipal := tc.Config.HostLogin
 	if len(tc.JumpHosts) > 0 && tc.JumpHosts[0].Username != "" {
-		log.Debugf("Setting proxy login to jump host's parameter user %q", tc.JumpHosts[0].Username)
+		log.DebugContext(context.Background(), "Setting proxy login to jump host's parameter user", "user", tc.JumpHosts[0].Username)
 		proxyPrincipal = tc.JumpHosts[0].Username
 	}
 	return proxyPrincipal
@@ -3178,7 +3189,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
-		log.Debugf("Overriding SSH proxy to JumpHosts's address %q", tc.JumpHosts[0].Addr.String())
+		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
 		proxyAddr = tc.JumpHosts[0].Addr.Addr
 
 		if tc.localAgent != nil {
@@ -3299,7 +3310,9 @@ func (g *proxyClusterGuesser) hostKeyCallback(hostname string, remote net.Addr, 
 	}
 
 	if clusterName == "" {
-		log.Debugf("Target SSH server %q does not have a cluster name embedded in their certificate; will use all available client certificates to authenticate", hostname)
+		log.DebugContext(context.Background(), "Target SSH server does not have a cluster name embedded in their certificate; will use all available client certificates to authenticate",
+			"target_server", hostname,
+		)
 	}
 
 	if g.nextHostKeyCallback != nil {
@@ -3548,7 +3561,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 	}
 
 	if !tc.dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrust.Disabled {
-		log.Debug("Device Trust: skipping device authentication, device trust disabled")
+		log.DebugContext(ctx, "Device Trust: skipping device authentication, device trust disabled")
 		return nil
 	}
 
@@ -3563,20 +3576,20 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 	})
 	switch {
 	case errors.Is(err, devicetrust.ErrDeviceKeyNotFound):
-		log.Debug("Device Trust: Skipping device authentication, device key not found")
+		log.DebugContext(ctx, "Device Trust: Skipping device authentication, device key not found")
 		return nil // err swallowed on purpose
 	case errors.Is(err, devicetrust.ErrPlatformNotSupported):
-		log.Debug("Device Trust: Skipping device authentication, platform not supported")
+		log.DebugContext(ctx, "Device Trust: Skipping device authentication, platform not supported")
 		return nil // err swallowed on purpose
 	case trace.IsNotImplemented(err):
-		log.Debug("Device Trust: Skipping device authentication, not supported by server")
+		log.DebugContext(ctx, "Device Trust: Skipping device authentication, not supported by server")
 		return nil // err swallowed on purpose
 	case err != nil:
-		log.WithError(err).Debug("Device Trust: device authentication failed")
+		log.DebugContext(ctx, "Device Trust: device authentication failed", "error", err)
 		return nil // err swallowed on purpose
 	}
 
-	log.Debug("Device Trust: acquired augmented user certificates")
+	log.DebugContext(ctx, "Device Trust: acquired augmented user certificates")
 	cp := *keyRing
 	cp.Cert = newCerts.SshAuthorizedKey
 	cp.TLSCert = pem.EncodeToMemory(&pem.Block{
@@ -3636,7 +3649,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, params *dtauthntypes.
 	// Is auto-enroll enabled?
 	pingResp, err := tc.Ping(ctx)
 	if err != nil {
-		log.WithError(err).Debug("Device Trust: swallowing Ping error for previous Login error")
+		log.DebugContext(ctx, "Device Trust: swallowing Ping error for previous Login error", "error", err)
 		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
 	}
 	if !tc.dtAutoEnrollIgnorePing && !pingResp.Auth.DeviceTrust.AutoEnroll {
@@ -3650,7 +3663,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, params *dtauthntypes.
 
 	// Auto-enroll and Login again.
 	if _, err := autoEnroll(ctx, params.DevicesClient); err != nil {
-		log.WithError(err).Debug("Device Trust: device auto-enroll failed")
+		log.DebugContext(ctx, "Device Trust: device auto-enroll failed", "error", err)
 		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
 	}
 	newCerts, err = runCeremony(ctx, params)
@@ -3690,7 +3703,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			// registered, we can try to go with passwordless login even though
 			// auth=local was selected.
 			if tc.canDefaultToPasswordless(pr) {
-				log.Debug("Trying passwordless login because credentials were found")
+				log.DebugContext(context.Background(), "Trying passwordless login because credentials were found")
 				return tc.pwdlessLogin, nil
 			}
 
@@ -3732,7 +3745,7 @@ func (tc *TeleportClient) getWebLoginFunc(pr *webclient.PingResponse) (WebLoginF
 			// registered, we can try to go with passwordless login even though
 			// auth=local was selected.
 			if tc.canDefaultToPasswordless(pr) {
-				log.Debug("Trying passwordless login because credentials were found")
+				log.DebugContext(context.Background(), "Trying passwordless login because credentials were found")
 				return tc.pwdlessLoginWeb, nil
 			}
 
@@ -3984,9 +3997,9 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 	defer span.End()
 
 	if tc.PrivateKeyPolicy.IsHardwareKeyPolicy() {
-		log.Debugf("Attempting to login with YubiKey private key.")
+		log.DebugContext(ctx, "Attempting to login with YubiKey private key")
 		if tc.PIVSlot != "" {
-			log.Debugf("Using PIV slot %q specified by client or server settings.", tc.PIVSlot)
+			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
 		priv, err := keys.GetYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PIVSlot, tc.CustomHardwareKeyPrompt)
 		if err != nil {
@@ -3998,7 +4011,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 
 	var sshKey, tlsKey crypto.Signer
 	if tc.GenerateUnifiedKey {
-		log.Debugf("Attempting to login with a new software private key.")
+		log.DebugContext(ctx, "Attempting to login with a new software private key")
 		// Using the UserTLS key algorithm for both keys because SSH generally
 		// supports all TLS keys algorithms (RSA2048, ECDSAP256), but TLS does
 		// not support Ed25519 which may be used for SSH.
@@ -4008,7 +4021,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		}
 		sshKey = tlsKey
 	} else {
-		log.Debugf("Attempting to login with new software private keys.")
+		log.DebugContext(ctx, "Attempting to login with new software private keys")
 		var err error
 		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, tc.GetCurrentSignatureAlgorithmSuite)
 		if err != nil {
@@ -4745,23 +4758,26 @@ func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
 // loopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
 func loopbackPool(proxyAddr string) *x509.CertPool {
+	ctx := context.Background()
+
 	if !apiutils.IsLoopback(proxyAddr) {
-		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
+		log.DebugContext(ctx, "not using loopback pool for remote proxy addr", "proxy_addr", proxyAddr)
 		return nil
 	}
-	log.Debugf("attempting to use loopback pool for local proxy addr: %v", proxyAddr)
+	log.DebugContext(ctx, "attempting to use loopback pool for local proxy addr", "proxy_addr", proxyAddr)
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
-		log.Debugf("could not open system cert pool, using empty cert pool instead: %v", err)
+		log.DebugContext(ctx, "could not open system cert pool, using empty cert pool instead", "error", err)
 		certPool = x509.NewCertPool()
 	}
 
 	certPath := filepath.Join(defaults.DataDir, defaults.SelfSignedCertPath)
-	log.Debugf("reading self-signed certs from: %v", certPath)
+	logger := log.With("cert_path", certPath)
+	logger.DebugContext(ctx, "reading self-signed certs")
 
 	pemByte, err := os.ReadFile(certPath)
 	if err != nil {
-		log.Debugf("could not open any path in: %v", certPath)
+		logger.DebugContext(ctx, "could not open any path in")
 		return nil
 	}
 
@@ -4773,25 +4789,31 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			log.Debugf("could not parse cert in: %v, err: %v", certPath, err)
+			logger.DebugContext(ctx, "could not parse cert", "error", err)
 			return nil
 		}
 		certPool.AddCert(cert)
 	}
-	log.Debugf("using local pool for loopback proxy: %v, err: %v", certPath, err)
+	logger.DebugContext(ctx, "using local pool for loopback proxy", "error", err)
 	return certPool
 }
 
 // connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
 func connectToSSHAgent() agent.ExtendedAgent {
+	ctx := context.Background()
+	logger := log.With(teleport.ComponentKey, "KEYAGENT")
+
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
-		log.Warnf("[KEY AGENT] Unable to connect to SSH agent on socket %q: %v", socketPath, err)
+		logger.WarnContext(ctx, "Unable to connect to SSH agent on socket",
+			"socket_path", socketPath,
+			"error", err,
+		)
 		return nil
 	}
 
-	log.Infof("[KEY AGENT] Connected to the system agent: %q", socketPath)
+	logger.InfoContext(ctx, "Connected to the system agent", "socket_path", socketPath)
 	return agent.NewClient(conn)
 }
 
@@ -5074,6 +5096,37 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 	}
 
 	return result, nil
+}
+
+// PortMapping represents a mapping of LocalPort to TargetPort, e.g., "1337:42".
+type PortMapping struct {
+	LocalPort  int
+	TargetPort int
+}
+
+// ParsePortMapping parses textual form of port mapping (e.g., "1337:42") into a struct. It accepts
+// a single port number as well (e.g., "42"). Both numbers must be between 0 and 65535.
+func ParsePortMapping(rawPorts string) (PortMapping, error) {
+	if rawPorts == "" {
+		return PortMapping{}, nil
+	}
+
+	rawLocalPort, rawTargetPort, colonFound := strings.Cut(rawPorts, ":")
+	localPort, err := strconv.ParseUint(rawLocalPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing local port")
+	}
+
+	if !colonFound {
+		return PortMapping{LocalPort: int(localPort)}, nil
+	}
+
+	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing target port")
+	}
+
+	return PortMapping{LocalPort: int(localPort), TargetPort: int(targetPort)}, nil
 }
 
 // InsecureSkipHostKeyChecking is used when the user passes in

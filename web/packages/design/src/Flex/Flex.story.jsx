@@ -19,7 +19,6 @@
 import styled from 'styled-components';
 
 import Box from '../Box';
-
 import Flex from './Flex';
 
 export default {

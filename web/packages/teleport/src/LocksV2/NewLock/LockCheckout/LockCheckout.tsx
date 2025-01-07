@@ -16,32 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef, useEffect, forwardRef } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
+
 import {
-  Box,
-  Flex,
-  ButtonText,
-  ButtonPrimary,
-  Image,
-  Text,
   Alert,
-  Input,
+  Box,
+  ButtonPrimary,
+  ButtonText,
+  Flex,
   H2,
+  Image,
+  Input,
   Subtitle2,
+  Text,
 } from 'design';
-import { ArrowBack } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
+import { ArrowBack } from 'design/Icon';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { mergeRefs } from 'shared/libs/mergeRefs';
 import { pluralize } from 'shared/utils/text';
 
-import { mergeRefs } from 'shared/libs/mergeRefs';
-
-import cfg from 'teleport/config';
-import { lockService } from 'teleport/services/locks';
-import { TrashButton } from 'teleport/LocksV2/common';
 import shieldCheck from 'teleport/assets/shield-check.png';
+import cfg from 'teleport/config';
+import { TrashButton } from 'teleport/LocksV2/common';
+import { lockService } from 'teleport/services/locks';
 
 import {
   LockResource,
@@ -49,8 +50,6 @@ import {
   LockResourceMap,
   ToggleSelectResourceFn,
 } from '../common';
-
-import type { TransitionStatus } from 'react-transition-group';
 
 type Props = {
   onClose(): void;

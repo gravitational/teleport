@@ -17,4 +17,5 @@
  */
 
 import TestConnection from './TestConnection';
+
 export { TestConnection };

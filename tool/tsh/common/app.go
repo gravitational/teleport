@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // onAppLogin implements "tsh apps login" command.
@@ -78,14 +79,23 @@ func onAppLogin(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
+	if err := validateTargetPort(app, int(cf.TargetPort)); err != nil {
+		return trace.Wrap(err)
+	}
+
 	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	routeToApp := appInfo.RouteToApp
+	if cf.TargetPort != 0 {
+		routeToApp.TargetPort = uint32(cf.TargetPort)
+	}
+
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
-		RouteToApp:     appInfo.RouteToApp,
+		RouteToApp:     routeToApp,
 		AccessRequests: appInfo.profile.ActiveRequests.AccessRequests,
 	}
 
@@ -98,7 +108,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printAppCommand(cf, tc, app, appInfo.RouteToApp); err != nil {
+	if err := printAppCommand(cf, tc, app, routeToApp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -151,7 +161,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		cmd.Stderr = cf.Stderr()
 		cmd.Stdout = output
 
-		log.Debugf("Running automatic az login: %v", cmd.String())
+		logger.DebugContext(cf.Context, "Running automatic az login", "command", logutils.StringerAttr(cmd))
 		err := cf.RunCommand(cmd)
 		if err != nil {
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
@@ -169,8 +179,14 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		})
 
 	case app.IsTCP():
+		appNameWithOptionalTargetPort := app.GetName()
+		if routeToApp.TargetPort != 0 {
+			appNameWithOptionalTargetPort = fmt.Sprintf("%s:%d", app.GetName(), routeToApp.TargetPort)
+		}
+
 		return tcpAppLoginTemplate.Execute(output, map[string]string{
-			"appName": app.GetName(),
+			"appName":                       app.GetName(),
+			"appNameWithOptionalTargetPort": appNameWithOptionalTargetPort,
 		})
 
 	case localProxyRequiredForApp(tc):
@@ -231,7 +247,7 @@ Then connect to the application through this proxy:
 // tcpAppLoginTemplate is the message that gets printed to a user upon successful
 // login into a TCP application.
 var tcpAppLoginTemplate = template.Must(template.New("").Parse(
-	`Logged into TCP app {{.appName}}. Start the local TCP proxy for it:
+	`Logged into TCP app {{.appNameWithOptionalTargetPort}}. Start the local TCP proxy for it:
 
   tsh proxy app {{.appName}}
 
@@ -319,7 +335,9 @@ func onAppLogout(cf *CLIConf) error {
 		// remove generated local files for the provided app.
 		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
 		if err != nil {
-			log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(tc.SiteName, app.Name))
+			logger.WarnContext(cf.Context, "Failed to clean up app session",
+				"error", err,
+				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name))
 		}
 	}
 
@@ -577,7 +595,7 @@ func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Debugf("Azure identity is %q", azureIdentity)
+		logger.DebugContext(cf.Context, "Retrieved azure identity", "azure_identity", azureIdentity)
 		a.AzureIdentity = azureIdentity
 
 	case a.app.IsGCP():
@@ -585,7 +603,7 @@ func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Debugf("GCP service account is %q", gcpServiceAccount)
+		logger.DebugContext(cf.Context, "Retrieved GCP service account", "service_account", gcpServiceAccount)
 		a.GCPServiceAccount = gcpServiceAccount
 	}
 
@@ -606,10 +624,6 @@ type appInfo struct {
 
 	// profile is a cached profile status for the current login session.
 	profile *client.ProfileStatus
-}
-
-func (a *appInfo) appLocalCAPath(cluster string) string {
-	return a.profile.AppLocalCAPath(cluster, a.RouteToApp.Name)
 }
 
 // GetApp returns the cached app or fetches it using the app route and
@@ -649,7 +663,7 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) 
 
 	appServer, ok := res.Resources[0].ResourceWithLabels.(types.AppServer)
 	if !ok {
-		log.Warnf("expected types.AppServer but received unexpected type %T", res.Resources[0].ResourceWithLabels)
+		logger.WarnContext(ctx, "expected types.AppServer but received unexpected type", "resource_type", logutils.TypeAttr(res.Resources[0].ResourceWithLabels))
 		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
 	}
 

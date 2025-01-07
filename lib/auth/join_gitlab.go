@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/gitlab"
@@ -57,10 +56,10 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 		return nil, trace.Wrap(err)
 	}
 
-	log.WithFields(logrus.Fields{
-		"claims": claims,
-		"token":  pt.GetName(),
-	}).Info("GitLab CI run trying to join cluster")
+	a.logger.InfoContext(ctx, "GitLab CI run trying to join cluster",
+		"claims", claims,
+		"token", pt.GetName(),
+	)
 
 	return claims, trace.Wrap(checkGitLabAllowRules(token, claims))
 }

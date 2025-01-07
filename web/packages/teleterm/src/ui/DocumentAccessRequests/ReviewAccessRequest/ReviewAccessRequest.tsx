@@ -18,17 +18,15 @@
 
 import styled from 'styled-components';
 
-import { Text, Flex, Box, Alert, H1 } from 'design';
+import { Alert, Box, Flex, H1, Text } from 'design';
 import { ArrowBack } from 'design/Icon';
-import { makeEmptyAttempt } from 'shared/hooks/useAsync';
-
 import {
   RequestDelete,
   RequestView,
 } from 'shared/components/AccessRequests/ReviewRequests';
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
 import { useAssumeAccess } from '../useAssumeAccess';
-
 import { useReviewAccessRequest } from './useReviewAccessRequest';
 
 export function ReviewAccessRequest(props: {

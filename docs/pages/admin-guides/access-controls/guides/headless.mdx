@@ -53,7 +53,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.com
   connector_name: headless # headless by default
@@ -83,7 +83,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.com
   headless: false # disable Headless WebAuthn

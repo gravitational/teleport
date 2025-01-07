@@ -22,10 +22,10 @@ import isMatch, { MatchCallback } from 'design/utils/match';
 
 import paginateData from './Pager/paginateData';
 import {
-  TableProps,
-  TableColumn,
-  PagerPosition,
   PagedTableProps,
+  PagerPosition,
+  TableColumn,
+  TableProps,
 } from './types';
 
 type TableState<T> = {

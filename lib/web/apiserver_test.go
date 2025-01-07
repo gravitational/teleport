@@ -117,6 +117,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -6100,6 +6101,8 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 func TestParseSSORequestParams(t *testing.T) {
 	t.Parallel()
 
+	token := "someMeaninglessTokenString"
+
 	tests := []struct {
 		name, url string
 		wantErr   bool
@@ -6111,6 +6114,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
 				ConnectorID:       "oidc",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -6119,6 +6123,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
 				ConnectorID:       "github",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -6127,6 +6132,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			expected: &SSORequestParams{
 				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
 				ConnectorID:       "saml",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -6145,6 +6151,11 @@ func TestParseSSORequestParams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
+
+			req.AddCookie(&http.Cookie{
+				Name:  csrf.CookieName,
+				Value: token,
+			})
 
 			params, err := ParseSSORequestParams(req)
 

@@ -19,7 +19,6 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { makeDefaultMfaState, MfaState } from 'teleport/lib/useMfa';
-
 import { getMfaChallengeOptions, SsoChallenge } from 'teleport/services/mfa';
 
 import AuthnDialog from './AuthnDialog';

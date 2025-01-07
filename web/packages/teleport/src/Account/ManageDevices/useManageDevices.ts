@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';

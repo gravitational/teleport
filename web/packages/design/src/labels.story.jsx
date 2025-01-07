@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Flex from './Flex';
 import Label from './Label';
 import LabelState from './LabelState';
-import Flex from './Flex';
 
 export default {
   title: 'Design/Label',

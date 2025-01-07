@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 import {
   DeviceType,
   DeviceUsage,
@@ -25,25 +25,23 @@ import {
   MfaChallengeResponse,
   SsoChallenge,
 } from 'teleport/services/mfa';
-
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
-  parseMfaChallengeJson,
-  parseMfaRegistrationChallengeJson,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
+  parseMfaChallengeJson,
+  parseMfaRegistrationChallengeJson,
 } from '../mfa/makeMfa';
-
-import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
+import makePasswordToken from './makePasswordToken';
 import {
+  ChangePasswordReq,
+  CreateAuthenticateChallengeRequest,
+  CreateNewHardwareDeviceRequest,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
-  ChangePasswordReq,
-  CreateNewHardwareDeviceRequest,
-  CreateAuthenticateChallengeRequest,
 } from './types';
 
 const auth = {
@@ -240,7 +238,7 @@ const auth = {
       .then(res => {
         const request = {
           action: 'accept',
-          webauthnAssertionResponse: res.webauthn_response,
+          webauthnAssertionResponse: res?.webauthn_response,
         };
 
         return api.put(cfg.getHeadlessSsoPath(transactionId), request);
@@ -281,7 +279,9 @@ const auth = {
     challenge: MfaAuthenticateChallenge,
     mfaType?: DeviceType,
     totpCode?: string
-  ): Promise<MfaChallengeResponse> {
+  ): Promise<MfaChallengeResponse | undefined> {
+    if (!challenge) return;
+
     // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
     // to display a component, similar to the one used in useMfa. For now we just default to
     // whichever method we can succeed with first.
@@ -310,7 +310,7 @@ const auth = {
     }
 
     // No viable challenge, return empty response.
-    return null;
+    return;
   },
 
   async getWebAuthnChallengeResponse(
@@ -439,7 +439,7 @@ const auth = {
     return auth
       .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
       .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
-      .then(res => res.webauthn_response);
+      .then(res => res?.webauthn_response);
   },
 
   getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {

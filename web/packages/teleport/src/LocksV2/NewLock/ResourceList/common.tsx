@@ -17,7 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Box, ButtonPrimary, ButtonBorder } from 'design';
+
+import { Box, ButtonBorder, ButtonPrimary } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import {
   CustomSort,

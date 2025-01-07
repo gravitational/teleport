@@ -548,7 +548,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 	if impersonator := ident.Impersonator; impersonator != "" {
 		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
 		if err == nil && impersonatorUser.IsBot() {
-			a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot-impersonated identity", "identtity", ident)
+			a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot-impersonated identity", "identity", ident)
 			return false, nil
 		}
 
@@ -1288,7 +1288,6 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					},
 				},
 			})
-
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())

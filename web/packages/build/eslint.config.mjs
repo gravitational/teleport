@@ -20,7 +20,6 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import importPlugin from 'eslint-plugin-import';
 import jestPlugin from 'eslint-plugin-jest';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
 import jestDomPlugin from 'eslint-plugin-jest-dom';
@@ -32,6 +31,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/*_pb.*',
       '.eslintrc.js',
+      '.prettierrc.js',
       '**/tshd/**/*_pb.js',
       // WASM generated files
       'web/packages/teleport/src/ironrdp/pkg',
@@ -42,9 +42,6 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   reactPlugin.configs.flat.recommended,
   reactPlugin.configs.flat['jsx-runtime'],
-  importPlugin.flatConfigs.errors,
-  importPlugin.flatConfigs.warnings,
-  importPlugin.flatConfigs.typescript,
   {
     settings: {
       react: {
@@ -68,25 +65,6 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,
-      'import/order': [
-        'error',
-        {
-          groups: [
-            'builtin',
-            'external',
-            'internal',
-            'parent',
-            'sibling',
-            'index',
-            'object',
-            'type',
-          ],
-          'newlines-between': 'always-and-inside-groups',
-        },
-      ],
-      // typescript-eslint recommends to turn import/no-unresolved off.
-      // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#eslint-plugin-import
-      'import/no-unresolved': 'off',
       '@typescript-eslint/no-unused-expressions': [
         'error',
         { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },

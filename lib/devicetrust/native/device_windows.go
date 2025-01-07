@@ -30,13 +30,13 @@ import (
 	"time"
 
 	"github.com/google/go-attestation/attest"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/yusufpapurcu/wmi"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/windowsexec"
 )

@@ -461,3 +461,9 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 func (f *ec2InstanceFetcher) GetDiscoveryConfigName() string {
 	return f.DiscoveryConfigName
 }
+
+// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+// Might be empty when the fetcher is using ambient credentials.
+func (f *ec2InstanceFetcher) IntegrationName() string {
+	return f.Integration
+}

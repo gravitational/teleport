@@ -19,12 +19,12 @@ package configure
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -132,9 +132,9 @@ Presets:
 
 Examples:
 
-  > tctl sso configure saml -n myauth -r groups,admin,access,editor,auditor -r groups,developer,access -e entity-desc.xml  
+  > tctl sso configure saml -n myauth -r groups,admin,access,editor,auditor -r groups,developer,access -e entity-desc.xml
 
-  Generate SAML auth connector configuration called 'myauth'. Two mappings from SAML attributes to roles are defined: 
+  Generate SAML auth connector configuration called 'myauth'. Two mappings from SAML attributes to roles are defined:
     - members of 'admin' group will receive 'access', 'editor' and 'auditor' roles.
     - members of 'developer' group will receive 'access' role.
   The IdP metadata will be read from 'entity-desc.xml' file.
@@ -147,7 +147,7 @@ Examples:
 
 
   > tctl sso configure saml -p okta -r groups,developer,access -e entity-desc.xml | tctl sso test
-  
+
   Generate the configuration and immediately test it using "tctl sso test" command.
 
 `, presets))
@@ -197,7 +197,7 @@ func samlRunFunc(
 
 	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
-		cmd.Logger.WithError(err).Warn("unable to get roles list. Skipping attributes-to-roles sanity checks.")
+		cmd.Logger.WarnContext(ctx, "unable to get roles list, skipping attributes-to-roles sanity checks", "error", err)
 	} else {
 		roleMap := map[string]bool{}
 		var roleNames []string
@@ -211,7 +211,7 @@ func samlRunFunc(
 				_, found := roleMap[role]
 				if !found {
 					if flags.ignoreMissingRoles {
-						cmd.Logger.Warnf("attributes-to-roles references non-existing role: %q. Available roles: %v.", role, roleNames)
+						cmd.Logger.WarnContext(ctx, "attributes-to-roles references non-existing role", "role", role, "available_roles", roleNames)
 					} else {
 						return trace.BadParameter("attributes-to-roles references non-existing role: %v. Correct the mapping, or add --ignore-missing-roles to ignore this error. Available roles: %v.", role, roleNames)
 					}
@@ -241,12 +241,12 @@ func samlRunFunc(
 	}
 
 	if spec.AssertionConsumerService == "" {
-		spec.AssertionConsumerService = ResolveCallbackURL(cmd.Logger, clt, "ACS", "https://%v/v1/webapi/saml/acs/"+flags.connectorName)
+		spec.AssertionConsumerService = ResolveCallbackURL(ctx, cmd.Logger, clt, "ACS", "https://%v/v1/webapi/saml/acs/"+flags.connectorName)
 	}
 
 	// figure out the actual meaning of entityDescriptorFlag. Can be: URL, file, plain XML.
 	if flags.entityDescriptorFlag != "" {
-		if err = processEntityDescriptorFlag(spec, flags.entityDescriptorFlag, cmd.Logger); err != nil {
+		if err = processEntityDescriptorFlag(ctx, spec, flags.entityDescriptorFlag, cmd.Logger); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -278,20 +278,20 @@ func keyPairFromFlags(flags types.AsymmetricKeyPair) *types.AsymmetricKeyPair {
 	return &flags
 }
 
-func processEntityDescriptorFlag(spec *types.SAMLConnectorSpecV2, entityDescriptorFlag string, log *logrus.Entry) error {
+func processEntityDescriptorFlag(ctx context.Context, spec *types.SAMLConnectorSpecV2, entityDescriptorFlag string, log *slog.Logger) error {
 	var err error
 
 	// case: URL
 	var parsedURL *url.URL
 	if parsedURL, err = url.Parse(entityDescriptorFlag); err == nil && parsedURL.Scheme != "" {
 		spec.EntityDescriptorURL = entityDescriptorFlag
-		log.Infof("Entity descriptor looks like URL, entity_descriptor_url set to %q.", spec.EntityDescriptorURL)
+		log.InfoContext(ctx, "Using entity descriptor URL", "entity_descriptor_url", spec.EntityDescriptorURL)
 		return nil
 	}
 	if parsedURL.Scheme == "" {
-		log.Infof("Cannot parse entity descriptor as URL, missing scheme: %q.", entityDescriptorFlag)
+		log.InfoContext(ctx, "entity descriptor URL missing scheme", "entity_descriptor", entityDescriptorFlag)
 	} else {
-		log.WithError(err).Infof("Cannot parse entity descriptor as URL: %q.", entityDescriptorFlag)
+		log.InfoContext(ctx, "invalid entity descriptor URL", "entity_descriptor", entityDescriptorFlag, "error", err)
 	}
 
 	// case: file
@@ -301,18 +301,18 @@ func processEntityDescriptorFlag(spec *types.SAMLConnectorSpecV2, entityDescript
 			return trace.WrapWithMessage(err, "Validating entity descriptor from file %q failed. Check that XML is valid or download the file directly.", entityDescriptorFlag)
 		}
 		spec.EntityDescriptor = string(bytes)
-		log.Infof("Entity descriptor read from file %q.", entityDescriptorFlag)
+		log.InfoContext(ctx, "Entity descriptor read from file", "file", entityDescriptorFlag)
 		return nil
 	}
-	log.WithError(err).Infof("Cannot read entity descriptor from file: %q.", entityDescriptorFlag)
+	log.InfoContext(ctx, "Cannot read entity descriptor from file", "file", entityDescriptorFlag, "error", err)
 
 	// case: verbatim XML
 	if err = validateEntityDescriptor([]byte(entityDescriptorFlag), spec.Cert); err == nil {
 		spec.EntityDescriptor = entityDescriptorFlag
-		log.Infof("Entity descriptor is valid XML, EntityDescriptor set to flag value.")
+		log.InfoContext(ctx, "Entity descriptor is valid XML, EntityDescriptor set to flag value")
 		return nil
 	}
-	log.WithError(trace.Unwrap(err)).Infof("Cannot parse entity descriptor as verbatim XML: %q.", entityDescriptorFlag)
+	log.InfoContext(ctx, "Cannot parse entity descriptor as verbatim XML", "entity_descriptor", entityDescriptorFlag, "error", err)
 
 	return trace.Errorf("failed to process -e/--entity-descriptor flag. Valid values: XML file, URL, verbatim XML")
 }

@@ -2542,18 +2542,15 @@ func TestSSHCommands(t *testing.T) {
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}

@@ -21,10 +21,10 @@ import { useState } from 'react';
 import {
   IntegrationKind,
   integrationService,
+  type Integration,
+  type Plugin,
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import type { Integration, Plugin } from 'teleport/services/integrations';
 
 export function useIntegrationOperation() {
   const { clusterId } = useStickyClusterId();

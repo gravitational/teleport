@@ -18,6 +18,8 @@
 
 import Logger, { NullService } from 'teleterm/logger';
 
+import { ClustersService } from '../clusters';
+import { StatePersistenceService } from '../statePersistence';
 import {
   Document,
   DocumentGateway,
@@ -26,11 +28,7 @@ import {
   DocumentTshNodeWithServerId,
   WorkspacesService,
 } from '../workspacesService';
-import { ClustersService } from '../clusters';
-import { StatePersistenceService } from '../statePersistence';
-
 import { getEmptyPendingAccessRequest } from '../workspacesService/accessRequestsService';
-
 import { ConnectionTrackerService } from './connectionTrackerService';
 import { TrackedConnection, TrackedGatewayConnection } from './types';
 

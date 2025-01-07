@@ -2286,12 +2286,56 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+//
+// Deprecated: Use [Client.UpsertTrustedClusterV2] instead.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertTrustedClusterV2 creates or updates a Trusted Cluster.
+func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.UpsertTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpsertTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// CreateTrustedCluster creates a Trusted Cluster.
+func (c *Client) CreateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.CreateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().CreateTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateTrustedCluster updates a Trusted Cluster.
+func (c *Client) UpdateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.UpdateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpdateTrustedCluster(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5095,6 +5139,52 @@ func (c *Client) UpsertUserNotificationState(ctx context.Context, req *notificat
 func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, req *notificationsv1pb.UpsertUserLastSeenNotificationRequest) (*notificationsv1pb.UserLastSeenNotification, error) {
 	rsp, err := c.NotificationServiceClient().UpsertUserLastSeenNotification(ctx, req)
 	return rsp, trace.Wrap(err)
+}
+
+// GetWorkloadIdentity returns a workload identity by name.
+func (c *Client) GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteWorkloadIdentity deletes a workload identity by name. It will throw an
+// error if the workload identity does not exist.
+func (c *Client) DeleteWorkloadIdentity(ctx context.Context, name string) error {
+	_, err := c.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+		Name: name,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// CreateWorkloadIdentity creates a new workload identity, it will not overwrite
+// an existing workload identity with the same name.
+func (c *Client) CreateWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+		WorkloadIdentity: r,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertWorkloadIdentity creates or updates a workload identity.
+func (c *Client) UpsertWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+		WorkloadIdentity: r,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
 
 // ResourceUsageClient returns an unadorned Resource Usage service client,
