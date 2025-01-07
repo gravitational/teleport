@@ -238,7 +238,7 @@ func (c *JoinServiceClient) RegisterUsingOracleMethod(ctx context.Context, chall
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, ok := challengeResp.Response.(*proto.RegisterUsingOracleMethodResponse_Certs)
+	certs, ok := certsResp.Response.(*proto.RegisterUsingOracleMethodResponse_Certs)
 	if !ok {
 		return nil, trace.BadParameter("expected certificate response type %T, got %T", certs, certsResp.Response)
 	}

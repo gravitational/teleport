@@ -39,5 +39,8 @@ func (r *RegisterUsingOracleMethodRequest) CheckAndSetDefaults() error {
 	if len(r.Headers) == 0 {
 		return trace.BadParameter("missing parameter Headers")
 	}
+	if len(r.InnerHeaders) == 0 {
+		return trace.BadParameter("missing parameter InnerHeaders")
+	}
 	return trace.Wrap(r.RegisterUsingTokenRequest.CheckAndSetDefaults())
 }
