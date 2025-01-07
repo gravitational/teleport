@@ -36,7 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestIdPIAMConfigReqDefaults(t *testing.T) {
