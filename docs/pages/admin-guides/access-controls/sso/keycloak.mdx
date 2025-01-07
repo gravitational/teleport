@@ -73,21 +73,21 @@ Before you get started, you’ll need:
 
 1. Select **Groups list** from the list of attribute mappings
 
-   ![Edit client scope](../../../../img/sso/keycloak/groups_list.png)
+   ![Groups list](../../../../img/sso/keycloak/groups_list.png)
 
-1. Fill out the values as shown in the image below and save
+1. Fill out the values as shown in the image below and **Save**
 
    ![Group mapper](../../../../img/sso/keycloak/group_mapping.png)
 
 1. Repeat steps 1 - 6 to add the **User Attribute** mapper
 
+   ![Username atrribute mapper](../../../../img/sso/keycloak/attribute_mapping.png)
+
+1. Fill out the values as shown in the image below and **Save**
+
    ![Edit client scope](../../../../img/sso/keycloak/attribute_mapping.png)
 
-1. Fill out the values as shown in the image below and save 
-
-   ![Edit client scope](../../../../img/sso/keycloak/attribute_mappings.png)
-
-Note: This enables using the username inside Teleport roles as the <nobr>`{{external.username}}`</nobr> property.
+   This enables using the username inside Teleport roles as the <nobr>`{{external.username}}`</nobr> property.
 
 ## Step 2/3. Create a SAML connector
 
@@ -126,7 +126,7 @@ spec:
   entity_descriptor: ""
   entity_descriptor_url: https://<root>/realms/{realm-name}/protocol/saml/descriptor
   issuer: ""
-  service_provider_issuer: https://mytenant.teleport.sh:443/v1/webapi/saml/acs/keycloak
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   sso: ""
 version: v2
 ```
@@ -209,7 +209,7 @@ $ openssl req -new -x509 -key priv.pem -out cert.pem
 openssl pkcs12 -in cert.pem -name teleport -export -out cert.pkcs12
 ```
 **Note:** when the command to convert the cert is executed,  
-note down the defined export password as it will be used when
+take note the defined **export password** and the **-name** as it will be used when
 importing the cert to Keycloak 
 
 ```code
@@ -322,9 +322,8 @@ Update the connector by saving and closing the file in your editor.
 
 ![Import Signature](../../../../img/sso/keycloak/Import_signature.png)
 
-**Note:** The name parameter specified in the command when converting
-the cert format and the same password defined during the conversion process 
-should be used during upload for key alias and store password respectively. 
+Be sure to enter the correct **name** and **password**
+defined when converting the certificate as the **Key Alias** and **Store Password**
 
 - Click **Confirm** to activate it.
 
@@ -343,7 +342,6 @@ it results in an invalid requester error as shown in the image below.
 ![Import certificate](../../../../img/sso/keycloak/invalid_requester.png)
 
 **Keycloak server logs:** 
-
 `error=invalid_signature` and `request validation failed: org.keycloak.common.VerificationException: SigAlg was null` error.
 
 This occurs when Keycloak receives a SAML request that does not meet its signature validation expectations
