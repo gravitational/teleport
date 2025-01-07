@@ -508,12 +508,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEKSIAMArguments.AutoConfirm)
 
 	integrationConfAccessGraphCmd := integrationConfigureCmd.Command("access-graph", "Manages Access Graph configuration.")
-	integrationConfAccessGraphAWSSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required IAM permissions for syncing data into Access Graph service.")
+	integrationConfAccessGraphAWSSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required AWS IAM permissions for syncing AWS resources into Access Graph service.")
 	integrationConfAccessGraphAWSSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
 	integrationConfAccessGraphAWSSyncCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AccountID)
 	integrationConfAccessGraphAWSSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
 
-	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Creates/updates permissions for syncing data into Access Graph service.")
+	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
 	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
 	integrationConfAccessGraphAzureSyncCmd.Flag("role-name", "The name of the Azure Role to create and assign to the managed identity").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.RoleName)
 	integrationConfAccessGraphAzureSyncCmd.Flag("subscription-id", "The subscription ID in which to discovery resources.").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.SubscriptionID)

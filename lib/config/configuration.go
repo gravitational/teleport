@@ -250,6 +250,8 @@ type CommandLineFlags struct {
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
 
+	// IntegrationConfAccessGarphAzureSyncArguments contains the arguments of
+	// `teleport integration configure access-graph azure` command
 	IntegrationConfAccessGraphAzureSyncArguments IntegrationConfAccessGraphAzureSync
 
 	// IntegrationConfAzureOIDCArguments contains the arguments of

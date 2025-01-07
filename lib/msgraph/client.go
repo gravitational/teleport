@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -336,6 +336,8 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 	return out.Value, nil
 }
 
+// GetServicePrincipal returns the service principal for the given principal ID.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
 func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
 	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
 	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
