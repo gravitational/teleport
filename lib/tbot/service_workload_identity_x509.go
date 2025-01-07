@@ -310,24 +310,57 @@ func issueX509WorkloadIdentity(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// When using the "name" based selector, we either get a single WIC back,
-	// or an error. We don't need to worry about selecting the right one.
-	res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
-		&workloadidentityv1pb.IssueWorkloadIdentityRequest{
-			Name: workloadIdentity.Name,
-			Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
-				X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-					PublicKey: pubBytes,
+	switch {
+	case workloadIdentity.Name != "":
+		// When using the "name" based selector, we either get a single WIC back,
+		// or an error. We don't need to worry about selecting the right one.
+		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
+			&workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: workloadIdentity.Name,
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: pubBytes,
+					},
 				},
+				RequestedTtl:  durationpb.New(ttl),
+				WorkloadAttrs: attest,
 			},
-			RequestedTtl:  durationpb.New(ttl),
-			WorkloadAttrs: attest,
-		},
-	)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return []*workloadidentityv1pb.Credential{res.Credential}, privateKey, nil
+	case len(workloadIdentity.Labels) > 0:
+		labelSelectors := make([]*workloadidentityv1pb.LabelSelector, 0, len(workloadIdentity.Labels))
+		for k, v := range workloadIdentity.Labels {
+			values := make([]string, 0, len(v))
+			for _, value := range v {
+				values = append(values, value)
+			}
+			labelSelectors = append(labelSelectors, &workloadidentityv1pb.LabelSelector{
+				Key:    k,
+				Values: values,
+			})
+		}
+		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentities(ctx,
+			&workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+				LabelSelectors: nil,
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: pubBytes,
+					},
+				},
+				RequestedTtl:  durationpb.New(ttl),
+				WorkloadAttrs: attest,
+			},
+		)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return res.Credentials, privateKey, nil
+	default:
+		return nil, nil, trace.BadParameter("no valid selector configured")
 	}
-	// TODO: Log intimate details of the issued credential
 
-	return []*workloadidentityv1pb.Credential{res.Credential}, privateKey, nil
+	// TODO: Log intimate details of the issued credential
 }
