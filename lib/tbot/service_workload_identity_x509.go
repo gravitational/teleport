@@ -368,13 +368,9 @@ func issueX509WorkloadIdentity(
 	case len(workloadIdentity.Labels) > 0:
 		labelSelectors := make([]*workloadidentityv1pb.LabelSelector, 0, len(workloadIdentity.Labels))
 		for k, v := range workloadIdentity.Labels {
-			values := make([]string, 0, len(v))
-			for _, value := range v {
-				values = append(values, value)
-			}
 			labelSelectors = append(labelSelectors, &workloadidentityv1pb.LabelSelector{
 				Key:    k,
-				Values: values,
+				Values: v,
 			})
 		}
 		log.DebugContext(
