@@ -190,3 +190,12 @@ func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 
 	return member, trace.Wrap(err)
 }
+
+func decodeDirectoryObject(msg json.RawMessage) (*DirectoryObject, error) {
+	var d *DirectoryObject
+	err := json.Unmarshal(msg, &d)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return d, nil
+}
