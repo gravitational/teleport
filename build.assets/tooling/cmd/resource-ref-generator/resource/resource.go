@@ -459,6 +459,12 @@ func getRawTypes(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 			return rawType{}, err
 		}
 
+		// The struct field name is lowercased, so the field is not
+		// exported. Ignore it.
+		if f.name != "" && f.name[0] >= 'a' && f.name[0] <= 122 {
+			continue
+		}
+
 		jsonName := getJSONTag(f.tags)
 		// This field is ignored, so skip it.
 		// See: https://pkg.go.dev/encoding/json#Marshal
