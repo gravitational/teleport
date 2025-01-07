@@ -109,6 +109,29 @@ func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal 
 	return iterateSimple(c, ctx, "servicePrincipals", f)
 }
 
+func (c *Client) IterateUserMembership(ctx context.Context, userID string, f func(obj *DirectoryObject) bool) error {
+	var err error
+	itErr := c.iterate(ctx, path.Join("users", userID, "memberOf"), func(msg json.RawMessage) bool {
+		var page []json.RawMessage
+		if err = json.Unmarshal(msg, &page); err != nil {
+			return false
+		}
+		for _, entry := range page {
+			var d *DirectoryObject
+			err := json.Unmarshal(entry, &d)
+			if err != nil {
+				return false
+			}
+			f(d)
+		}
+		return true
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(itErr)
+}
+
 // IterateGroupMembers lists all members for the given Entra ID group using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
