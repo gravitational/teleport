@@ -273,6 +273,10 @@ func checkIAMAllowRules(identity *awsIdentity, token string, allowRules []*types
 
 // checkIAMRequest checks if the given request satisfies the token rules and
 // included the required challenge.
+//
+// If the joining entity presents a valid IAM identity, this will be returned,
+// even if the identity does not match the token's allow rules. This is to
+// support inclusion in audit logs.
 func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest, cfg *iamRegisterConfig) (*awsIdentity, error) {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
