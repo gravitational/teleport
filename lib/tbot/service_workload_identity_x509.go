@@ -193,6 +193,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 
 	x509Credentials, privateKey, err := issueX509WorkloadIdentity(
 		ctx,
+		s.log,
 		impersonatedClient,
 		s.cfg.WorkloadIdentity,
 		s.botCfg.CertificateTTL,
@@ -284,11 +285,35 @@ func (s *WorkloadIdentityX509Service) render(
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
 
+	s.log.InfoContext(
+		ctx,
+		"Successfully wrote X509 workload identity credential to destination",
+		"workload_identity", workloadIdentityLogValue(x509Cred),
+		"destination", s.cfg.Destination.String(),
+	)
 	return nil
+}
+
+func workloadIdentityLogValue(credential *workloadidentityv1pb.Credential) slog.Value {
+	return slog.GroupValue(
+		slog.String("name", credential.GetWorkloadIdentityName()),
+		slog.String("revision", credential.GetWorkloadIdentityRevision()),
+		slog.String("spiffe_id", credential.GetSpiffeId()),
+		slog.String("serial_number", credential.GetX509Svid().GetSerialNumber()),
+	)
+}
+
+func workloadIdentitiesLogValue(credentials []*workloadidentityv1pb.Credential) []slog.Value {
+	values := make([]slog.Value, 0, len(credentials))
+	for _, credential := range credentials {
+		values = append(values, workloadIdentityLogValue(credential))
+	}
+	return values
 }
 
 func issueX509WorkloadIdentity(
 	ctx context.Context,
+	log *slog.Logger,
 	clt *authclient.Client,
 	workloadIdentity config.WorkloadIdentitySelector,
 	ttl time.Duration,
@@ -312,6 +337,11 @@ func issueX509WorkloadIdentity(
 
 	switch {
 	case workloadIdentity.Name != "":
+		log.DebugContext(
+			ctx,
+			"Requesting issuance of X509 workload identity credential using name of WorkloadIdentity resource",
+			"name", workloadIdentity.Name,
+		)
 		// When using the "name" based selector, we either get a single WIC back,
 		// or an error. We don't need to worry about selecting the right one.
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
@@ -329,6 +359,11 @@ func issueX509WorkloadIdentity(
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		log.DebugContext(
+			ctx,
+			"Received X509 workload identity credential",
+			"credential", workloadIdentityLogValue(res.Credential),
+		)
 		return []*workloadidentityv1pb.Credential{res.Credential}, privateKey, nil
 	case len(workloadIdentity.Labels) > 0:
 		labelSelectors := make([]*workloadidentityv1pb.LabelSelector, 0, len(workloadIdentity.Labels))
@@ -342,6 +377,11 @@ func issueX509WorkloadIdentity(
 				Values: values,
 			})
 		}
+		log.DebugContext(
+			ctx,
+			"Requesting issuance of X509 workload identity credentials using labels",
+			"labels", labelSelectors,
+		)
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentities(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
 				LabelSelectors: labelSelectors,
@@ -357,10 +397,13 @@ func issueX509WorkloadIdentity(
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		log.DebugContext(
+			ctx,
+			"Received X509 SVIDs",
+			"credentials", workloadIdentitiesLogValue(res.Credentials),
+		)
 		return res.Credentials, privateKey, nil
 	default:
 		return nil, nil, trace.BadParameter("no valid selector configured")
 	}
-
-	// TODO: Log intimate details of the issued credential
 }
