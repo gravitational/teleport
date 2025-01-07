@@ -22,12 +22,15 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
 type AWSConfigProvider struct {
-	STSClient *STSClient
+	STSClient             *STSClient
+	OIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
 
 func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns ...awsconfig.OptionsFn) (aws.Config, error) {
@@ -35,8 +38,32 @@ func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns
 	if stsClt == nil {
 		stsClt = &STSClient{}
 	}
-	optFns = append(optFns, awsconfig.WithAssumeRoleClientProviderFunc(
-		newAssumeRoleClientProviderFunc(stsClt),
-	))
+	optFns = append(optFns,
+		awsconfig.WithOIDCIntegrationClient(f.OIDCIntegrationClient),
+		awsconfig.WithSTSClientProvider(
+			newAssumeRoleClientProviderFunc(stsClt),
+		),
+	)
 	return awsconfig.GetConfig(ctx, region, optFns...)
+}
+
+type FakeOIDCIntegrationClient struct {
+	Unauth bool
+
+	Integration types.Integration
+	Token       string
+}
+
+func (f *FakeOIDCIntegrationClient) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	if f.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+	return f.Integration, nil
+}
+
+func (f *FakeOIDCIntegrationClient) GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error) {
+	if f.Unauth {
+		return "", trace.AccessDenied("unauthorized")
+	}
+	return f.Token, nil
 }
