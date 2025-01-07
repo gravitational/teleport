@@ -21,6 +21,7 @@ package azuresync
 import (
 	"context"
 	"fmt" //nolint:golint // used in a dependent PR
+	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
@@ -59,8 +60,8 @@ func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDe
 				continue
 			}
 			pbPerm := accessgraphv1alpha.AzureRBACPermission{
-				Actions:    ptrsToList(perm.Actions),
-				NotActions: ptrsToList(perm.NotActions),
+				Actions:    slices.FromPointers(perm.Actions),
+				NotActions: slices.FromPointers(perm.NotActions),
 			}
 			pbPerms = append(pbPerms, &pbPerm)
 		}
@@ -74,14 +75,4 @@ func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDe
 		pbRoleDefs = append(pbRoleDefs, pbRoleDef)
 	}
 	return pbRoleDefs, trace.NewAggregate(fetchErrs...)
-}
-
-func ptrsToList(ptrs []*string) []string { //nolint:unused // used in a dependent PR
-	strList := make([]string, 0, len(ptrs))
-	for _, ptr := range ptrs {
-		if ptr != nil {
-			strList = append(strList, *ptr)
-		}
-	}
-	return strList
 }
