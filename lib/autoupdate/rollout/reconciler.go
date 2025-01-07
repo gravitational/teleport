@@ -341,7 +341,7 @@ func (r *reconciler) progressRollout(ctx context.Context, spec *autoupdate.AutoU
 			return strategy.progressRollout(ctx, spec, status, now)
 		}
 	}
-	return trace.NotImplemented("rollout strategy %q not implemented", spec)
+	return trace.NotImplemented("rollout strategy %q not implemented", spec.GetStrategy())
 }
 
 // makeGroupStatus creates the autoupdate_agent_rollout.status.groups based on the autoupdate_config.
