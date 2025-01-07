@@ -929,8 +929,12 @@ github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.27.8 h1:RVUTZLB5uUxW3
 github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.27.8/go.mod h1:prpliV/qV8yEJeRqfwkLYsZTKGoN9OBCf6H9Z/tF0Oo=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.36.6 h1:zg+3FGHA0PBs0KM25qE/rOf2o5zsjNa1g/Qq83+SDI0=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.36.6/go.mod h1:ZSq54Z9SIsOTf1Efwgw1msilSs4XVEfVQiP9nYVnKpM=
+github.com/aws/aws-sdk-go-v2/service/ecr v1.37.0 h1:rqKJYFTIFCFBaOTxbAk9enxesUTWmLbYXErh9Xa3FSQ=
+github.com/aws/aws-sdk-go-v2/service/ecr v1.37.0/go.mod h1:NqKnlZvLl4Tp2UH/GEc/nhbjmPQhwOXmLp2eldiszLM=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.6 h1:9DXEMWmABYPz/NXSFmp9Y14yI5FQ5jmPPvllS9hXXfY=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.6/go.mod h1:qoPi18scDl8uM9o+tHi77043RLv2WIIFvVHcF1RT8Yk=
+github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.28.1 h1:JNvYD16cxbdI5Zrq+e0J80OrMKYvQ2sVeD+W9sq5Gt8=
+github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.28.1/go.mod h1:aHMIyHh+6N2w3CY24J9JoV5ADnGuMZ7dnOJTzO0Txik=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.52.1 h1:85SGI/Db9I8PT2rvDLIRGxXdSzuyC4ZKDJwfzuv7WqQ=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.52.1/go.mod h1:Ghi1OWUv4+VMEULWiHsKH2gNA3KAcMoLWsvU0eRXvIA=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.53.2 h1:o/FdG76sTAoC8h20j6bSBE6MPJYOZhNIh0nJ8Q8druY=
@@ -1034,6 +1038,8 @@ github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.2 h1:QRzksLadP0+ddubqgdV
 github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.2/go.mod h1:ZQD5d3TZpTct86y+1Q8pvnhp/BB1UTRUZXEyLyV7eC8=
 github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241128053516-b9e7404a33c3 h1:Z0GhCczQLlS/GRRS/suhoVxqU4Oz4CftHRd+Kdj22Uo=
 github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241128053516-b9e7404a33c3/go.mod h1:7GP/HkcmpkFy6JyDSTKfdN6PNWCpMgsVMpwTkQwvVc4=
+github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241227172826-c97b94eac159 h1:nInKoiKhglzD87LZ66eiTCHBen1QrE0AWuCmFVSPfgQ=
+github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241227172826-c97b94eac159/go.mod h1:oO3inhSTqfeTU7JwquRhOEiV8E8hYcAM+lnE4kEv6xA=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/beevik/etree v1.1.0/go.mod h1:r8Aw8JqVegEf0w2fDnATrX9VpkMcyFeM0FhwO62wh+A=
