@@ -445,7 +445,6 @@ func makeTestLabels(extraStaticLabels map[string]string) map[string]string {
 func TestRoundTripProtoResource153(t *testing.T) {
 	// Test setup: generate fixture.
 	initial, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: nil,
 		Agents: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
 			Mode:                      autoupdate.AgentsUpdateModeEnabled,
 			Strategy:                  autoupdate.AgentsStrategyTimeBased,
