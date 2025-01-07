@@ -395,7 +395,7 @@ func issueX509WorkloadIdentity(
 		}
 		log.DebugContext(
 			ctx,
-			"Received X509 SVIDs",
+			"Received X509 workload identity credentials",
 			"credentials", workloadIdentitiesLogValue(res.Credentials),
 		)
 		return res.Credentials, privateKey, nil
