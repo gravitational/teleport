@@ -39,6 +39,8 @@ test('render command only after form submit', async () => {
       attempt={{ status: 'success' }}
       onClose={() => {}}
       onCreate={() => Promise.resolve(true)}
+      labels={[]}
+      setLabels={() => null}
     />
   );
 
