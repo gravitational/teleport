@@ -28,8 +28,8 @@ import (
 const WorkloadIdentityX509OutputType = "workload-identity-x509"
 
 var (
-	_ ServiceConfig = &WorkloadIdentityX509Output{}
-	_ Initable      = &WorkloadIdentityX509Output{}
+	_ ServiceConfig = &WorkloadIdentityX509Service{}
+	_ Initable      = &WorkloadIdentityX509Service{}
 )
 
 // WorkloadIdentitySelector allows the user to select which WorkloadIdentity
@@ -60,9 +60,9 @@ func (s *WorkloadIdentitySelector) CheckAndSetDefaults() error {
 	return nil
 }
 
-// WorkloadIdentityX509Output is the configuration for the WorkloadIdentityX509Output
+// WorkloadIdentityX509Service is the configuration for the WorkloadIdentityX509Service
 // Emulates the output of https://github.com/spiffe/spiffe-helper
-type WorkloadIdentityX509Output struct {
+type WorkloadIdentityX509Service struct {
 	// WorkloadIdentity is the selector for the WorkloadIdentity resource that
 	// will be used to issue WICs.
 	WorkloadIdentity WorkloadIdentitySelector `yaml:"workload_identity"`
@@ -74,17 +74,17 @@ type WorkloadIdentityX509Output struct {
 }
 
 // Init initializes the destination.
-func (o *WorkloadIdentityX509Output) Init(ctx context.Context) error {
+func (o *WorkloadIdentityX509Service) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityX509Output) GetDestination() bot.Destination {
+func (o *WorkloadIdentityX509Service) GetDestination() bot.Destination {
 	return o.Destination
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *WorkloadIdentityX509Output) CheckAndSetDefaults() error {
+func (o *WorkloadIdentityX509Service) CheckAndSetDefaults() error {
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,8 +94,8 @@ func (o *WorkloadIdentityX509Output) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Describe returns the file descriptions for the WorkloadIdentityX509Output.
-func (o *WorkloadIdentityX509Output) Describe() []FileDescription {
+// Describe returns the file descriptions for the WorkloadIdentityX509Service.
+func (o *WorkloadIdentityX509Service) Describe() []FileDescription {
 	fds := []FileDescription{
 		{
 			Name: SVIDPEMPath,
@@ -110,24 +110,24 @@ func (o *WorkloadIdentityX509Output) Describe() []FileDescription {
 	return fds
 }
 
-func (o *WorkloadIdentityX509Output) Type() string {
+func (o *WorkloadIdentityX509Service) Type() string {
 	return WorkloadIdentityX509OutputType
 }
 
-// MarshalYAML marshals the WorkloadIdentityX509Output into YAML.
-func (o *WorkloadIdentityX509Output) MarshalYAML() (interface{}, error) {
-	type raw WorkloadIdentityX509Output
+// MarshalYAML marshals the WorkloadIdentityX509Service into YAML.
+func (o *WorkloadIdentityX509Service) MarshalYAML() (interface{}, error) {
+	type raw WorkloadIdentityX509Service
 	return withTypeHeader((*raw)(o), WorkloadIdentityX509OutputType)
 }
 
-// UnmarshalYAML unmarshals the WorkloadIdentityX509Output from YAML.
-func (o *WorkloadIdentityX509Output) UnmarshalYAML(node *yaml.Node) error {
+// UnmarshalYAML unmarshals the WorkloadIdentityX509Service from YAML.
+func (o *WorkloadIdentityX509Service) UnmarshalYAML(node *yaml.Node) error {
 	dest, err := extractOutputDestination(node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw WorkloadIdentityX509Output
+	type raw WorkloadIdentityX509Service
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
