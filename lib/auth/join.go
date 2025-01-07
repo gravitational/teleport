@@ -430,7 +430,7 @@ func (a *Server) generateCertsBot(
 		JoinAttrs: attrs,
 	}
 
-	// TODO(noah): In v18, we can drop writing to the deprecated Metadata field.
+	// TODO(noah): In v19, we can drop writing to the deprecated Metadata field.
 	auth.Metadata, err = rawJoinAttrsToGoogleStruct(rawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
