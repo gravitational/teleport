@@ -23,32 +23,9 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
-
-// Attestation holds the results of the attestation process carried out on a
-// PID by the attestor.
-//
-// The zero value of this type indicates that no attestation was performed or
-// was successful.
-type Attestation struct {
-	Unix       UnixAttestation
-	Kubernetes KubernetesAttestation
-}
-
-// LogValue implements slog.LogValue to provide a nicely formatted set of
-// log keys for a given attestation.
-func (a Attestation) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.Attr{
-			Key:   "unix",
-			Value: a.Unix.LogValue(),
-		},
-		slog.Attr{
-			Key:   "kubernetes",
-			Value: a.Kubernetes.LogValue(),
-		},
-	)
-}
 
 type attestor[T any] interface {
 	Attest(ctx context.Context, pid int) (T, error)
@@ -58,8 +35,8 @@ type attestor[T any] interface {
 // key information about the process.
 type Attestor struct {
 	log        *slog.Logger
-	kubernetes attestor[KubernetesAttestation]
-	unix       attestor[UnixAttestation]
+	kubernetes attestor[*workloadidentityv1pb.WorkloadAttrsKubernetes]
+	unix       attestor[*workloadidentityv1pb.WorkloadAttrsUnix]
 }
 
 // Config is the configuration for Attestor
@@ -83,30 +60,27 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	return att, nil
 }
 
-func (a *Attestor) Attest(ctx context.Context, pid int) (Attestation, error) {
+func (a *Attestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrs, error) {
 	a.log.DebugContext(ctx, "Starting workload attestation", "pid", pid)
 	defer a.log.DebugContext(ctx, "Finished workload attestation", "pid", pid)
 
-	var (
-		att Attestation
-		err error
-	)
-
+	var err error
+	attrs := &workloadidentityv1pb.WorkloadAttrs{}
 	// We always perform the unix attestation first
-	att.Unix, err = a.unix.Attest(ctx, pid)
+	attrs.Unix, err = a.unix.Attest(ctx, pid)
 	if err != nil {
-		return att, err
+		return attrs, err
 	}
 
 	// Then we can perform the optionally configured attestations
 	// For these, failure is soft. If it fails, we log, but still return the
 	// successfully attested data.
 	if a.kubernetes != nil {
-		att.Kubernetes, err = a.kubernetes.Attest(ctx, pid)
+		attrs.Kubernetes, err = a.kubernetes.Attest(ctx, pid)
 		if err != nil {
 			a.log.WarnContext(ctx, "Failed to perform Kubernetes workload attestation", "error", err)
 		}
 	}
 
-	return att, nil
+	return attrs, nil
 }
