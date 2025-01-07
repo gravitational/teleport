@@ -4,13 +4,8 @@ description: Provides a reference of fields within the App resource, which you c
 sidebar_title: App
 ---
 
-
 **Kind**: application
-
-
-
 **Version**: v3
-
 
 Represents an app resource.
 
@@ -25,8 +20,6 @@ version: "string"
 metadata: # [...]
 spec: # [...]
 ```
-
-
 |Field Name|Description|Type|
 |---|---|---|
 |version|The resource version.|string|
@@ -34,9 +27,6 @@ spec: # [...]
 |spec|The app resource spec.|[App Spec](#app-spec)|
 |metadata|The app resource metadata.|[Metadata](#metadata)|
 |kind|The app resource kind. Always "app".|string|
- 
-
-
 
 ## App AWS
 
@@ -50,12 +40,9 @@ Example:
 external_id: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |external_id|The AWS External ID used when assuming roles in this app.|string|
- 
-
 
 ## App Spec
 
@@ -82,7 +69,6 @@ UserGroups:
   - "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |uri|The web app endpoint.|string|
@@ -93,8 +79,6 @@ UserGroups:
 |cloud|Identifies the cloud instance the app represents.|string|
 |aws|Contains additional options for AWS applications.|[App AWS](#app-aws)|
 |UserGroups|A list of user group IDs that this app is associated with.|[]string|
- 
-
 
 ## Command Label
 
@@ -113,14 +97,11 @@ command:
 result: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |result|Captures standard output|string|
 |period|A time between command runs||
 |command|A command to run|[]string|
- 
-
 
 ## Header
 
@@ -135,13 +116,10 @@ name: "string"
 value: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |value|The http header value.|string|
 |name|The http header name.|string|
- 
-
 
 ## Metadata
 
@@ -163,7 +141,6 @@ id: 1
 revision: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
@@ -172,8 +149,6 @@ revision: "string"
 |id|A record ID. Deprecated: Use revision instead.|number|
 |expires|A global expiry time header can be set on any resource in the system.||
 |description|Object description|string|
- 
-
 
 ## Rewrite
 
@@ -195,12 +170,9 @@ headers:
 jwt_claims: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |redirect|Defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|[]string|
 |jwt_claims|Configures whether roles/traits are included in the JWT token.|string|
 |headers|A list of headers to inject when passing the request over to the application.|[][Header](#header)|
- 
-
 
