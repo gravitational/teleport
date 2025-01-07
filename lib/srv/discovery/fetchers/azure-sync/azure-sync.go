@@ -163,6 +163,11 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 				errsCh <- err
 				return err
 			}
+			err = expandMemberships(ctx, a.graphClient, principals)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
 			result.Principals = principals
 			return nil
 		})
