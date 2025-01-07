@@ -173,11 +173,13 @@ message RegisterUsingOracleMethodRequest {
 // RegisterUsingOracleMethodResponse is a stream response and will contain either
 // a Challenge or signed Certs to join the cluster.
 message RegisterUsingOracleMethodResponse {
-  // Challenge is a crypto-random string that should be included in the signed
-  // headers.
-  string challenge = 1;
-  // Certs is the returned signed certs.
-  Certs certs = 2;
+  oneof response {
+    // Challenge is a crypto-random string that should be included in the signed
+    // headers.
+    string challenge = 1;
+    // Certs is the returned signed certs.
+    Certs certs = 2;
+  }
 }
 
 // JoinService provides methods which allow Teleport nodes, proxies, and other

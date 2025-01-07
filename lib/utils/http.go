@@ -112,22 +112,6 @@ func GetAnyHeader(header http.Header, keys ...string) string {
 	return ""
 }
 
-func GetHeaderMap(header http.Header) map[string]string {
-	out := make(map[string]string, len(header))
-	for k := range header {
-		out[k] = header.Get(k)
-	}
-	return out
-}
-
-func FormatHeaderFromMap(m map[string]string) http.Header {
-	header := make(http.Header, len(m))
-	for k, v := range m {
-		header.Set(k, v)
-	}
-	return header
-}
-
 // GetSingleHeader will return the header value for the key if there is exactly one value present.  If the header is
 // missing or specified multiple times, an error will be returned.
 func GetSingleHeader(headers http.Header, key string) (string, error) {

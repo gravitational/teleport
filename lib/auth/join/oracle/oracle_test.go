@@ -46,14 +46,14 @@ func TestCreateSignedRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedHeaders := map[string]string{
-		"Accept":               "*/*",
-		"Authorization":        "",
-		"Content-Length":       "",
-		"Content-Type":         "application/json",
-		"User-Agent":           teleportUserAgent,
-		"X-Content-Sha256":     "",
-		"X-Date":               "",
-		"X-Teleport-Challenge": "challenge",
+		"Accept":           "*/*",
+		"Authorization":    "",
+		"Content-Length":   "",
+		"Content-Type":     "application/json",
+		"User-Agent":       teleportUserAgent,
+		"X-Content-Sha256": "",
+		dateHeader:         "",
+		challengeHeader:    "challenge",
 	}
 	expectedAuthHeader := map[string]string{
 		"version":   "1",
@@ -71,7 +71,7 @@ func TestCreateSignedRequest(t *testing.T) {
 				assert.Equal(t, v, header.Get(k))
 			}
 		}
-		authValues := GetAuthorizationHeaderValues(header)
+		authValues := getAuthorizationHeaderValues(header)
 		for k, v := range expectedAuthHeader {
 			if v == "" {
 				assert.NotEmpty(t, authValues[k], "missing auth header value: %s", k)
