@@ -264,6 +264,14 @@ func TestBotConfig_YAML(t *testing.T) {
 						Roles:   []string{"access"},
 						AppName: "my-app",
 					},
+					&WorkloadIdentityX509Output{
+						Destination: &DestinationDirectory{
+							Path: "/an/output/path",
+						},
+						WorkloadIdentity: WorkloadIdentitySelector{
+							Name: "my-workload-identity",
+						},
+					},
 				},
 			},
 		},
