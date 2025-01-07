@@ -208,9 +208,8 @@ $ openssl req -new -x509 -key priv.pem -out cert.pem
 ```code
 openssl pkcs12 -in cert.pem -name teleport -export -out cert.pkcs12
 ```
-**Note:** when the command to convert the cert is executed,  
-take note the defined **export password** and the **-name** as it will be used when
-importing the cert to Keycloak 
+Take note of the **name** and the defined **export password** 
+as it will be used when importing the cert to Keycloak.
 
 ```code
 $ tctl edit saml
@@ -323,7 +322,7 @@ Update the connector by saving and closing the file in your editor.
 ![Import Signature](../../../../img/sso/keycloak/Import_signature.png)
 
 Be sure to enter the correct **name** and **password**
-defined when converting the certificate as the **Key Alias** and **Store Password**
+defined when converting the certificate as the **Key Alias** and **Store Password.**
 
 - Click **Confirm** to activate it.
 
