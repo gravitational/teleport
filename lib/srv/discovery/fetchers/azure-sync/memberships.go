@@ -10,7 +10,10 @@ import (
 
 const parallelism = 10
 
-func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal) error {
+func expandMemberships(
+	ctx context.Context,
+	cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal,
+) ([]*accessgraphv1alpha.AzurePrincipal, error) {
 	var eg errgroup.Group
 	eg.SetLimit(parallelism)
 	for _, principal := range principals {
@@ -25,5 +28,5 @@ func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*a
 			return nil
 		})
 	}
-	return eg.Wait()
+	return principals, eg.Wait()
 }
