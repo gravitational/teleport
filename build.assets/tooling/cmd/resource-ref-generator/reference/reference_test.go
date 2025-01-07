@@ -36,43 +36,39 @@ import (
 )
 
 func TestShouldProcess(t *testing.T) {
-	src := `package testpkg
-type MyStruct struct{
-  Metadata       types.Metadata
-  AlsoMetadata   Metadata
-  Name           otherpkg.TypeName
-}
-`
-	// Parse the fixture as an AST node so we can use it in shouldProcess.
-	fset := token.NewFileSet()
-	d, err := parser.ParseFile(fset,
-		"myfile.go",
-		src,
-		parser.ParseComments,
-	)
-	if err != nil {
-		t.Fatalf("test fixture contains invalid Go source: %v\n", err)
-	}
-
-	if len(d.Decls) != 1 {
-		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
-
-	}
-
-	l, ok := d.Decls[0].(*ast.GenDecl)
-	if !ok {
-		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
-
-	}
-
 	cases := []struct {
 		description       string
+		src               string
 		requiredFields    []TypeInfo
 		excludedResources []TypeInfo
 		expected          bool
 	}{
 		{
 			description: "one required type from a separate package",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
+			requiredFields: []TypeInfo{
+				{
+					Package: "types",
+					Name:    "Metadata",
+				},
+			},
+			expected: true,
+		},
+		{
+			description: "one required type with pointer field",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       *types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
 			requiredFields: []TypeInfo{
 				{
 					Package: "types",
@@ -83,6 +79,13 @@ type MyStruct struct{
 		},
 		{
 			description: "two required types from separate packages",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
 			requiredFields: []TypeInfo{
 				{
 					Package: "types",
@@ -97,6 +100,13 @@ type MyStruct struct{
 		},
 		{
 			description: "field from another package is not present",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
 			requiredFields: []TypeInfo{
 				{
 					Package: "types",
@@ -107,6 +117,13 @@ type MyStruct struct{
 		},
 		{
 			description: "field from the same package",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
 			requiredFields: []TypeInfo{
 				{
 					Package: "testpkg",
@@ -117,6 +134,13 @@ type MyStruct struct{
 		},
 		{
 			description: "one required type with long path from a separate package",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
 			requiredFields: []TypeInfo{
 				{
 					Package: "long/package/path/types",
@@ -127,6 +151,13 @@ type MyStruct struct{
 		},
 		{
 			description: "one required type with long path from the current  package",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
 			requiredFields: []TypeInfo{
 				{
 					Package: "long/package/path/testpkg",
@@ -137,6 +168,13 @@ type MyStruct struct{
 		},
 		{
 			description: "excluded type",
+			src: `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`,
 			requiredFields: []TypeInfo{
 				{
 					Package: "testpkg",
@@ -154,6 +192,28 @@ type MyStruct struct{
 	}
 
 	for _, c := range cases {
+		// Parse the fixture as an AST node so we can use it in shouldProcess.
+		fset := token.NewFileSet()
+		d, err := parser.ParseFile(fset,
+			"myfile.go",
+			c.src,
+			parser.ParseComments,
+		)
+		if err != nil {
+			t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+		}
+
+		if len(d.Decls) != 1 {
+			t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
+
+		}
+
+		l, ok := d.Decls[0].(*ast.GenDecl)
+		if !ok {
+			t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
+
+		}
+
 		t.Run(c.description, func(t *testing.T) {
 			assert.Equal(t, c.expected, shouldProcess(resource.DeclarationInfo{
 				FilePath:    "myfile.go",
@@ -166,8 +226,8 @@ type MyStruct struct{
 
 // This test reads the golden files at the destination directory and compares
 // the generated resource reference docs with them. To regenerate the golden
-// files, delete the destination directory (reference/testdata) and run the test
-// again.
+// files, delete the destination directory (reference/testdata/dest) and run the
+// test again.
 func TestGenerate(t *testing.T) {
 	// Define paths based on relative paths from this Go source file to
 	// guarantee consistent results regardless of where a user runs "go test".
@@ -186,6 +246,10 @@ func TestGenerate(t *testing.T) {
 			{
 				Name:    "Metadata",
 				Package: "typestest",
+			},
+			{
+				Name:    "Metadata",
+				Package: "v1",
 			},
 		},
 		SourcePath: path.Join(
