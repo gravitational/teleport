@@ -1431,6 +1431,53 @@ type AddressInfo struct {
 				},
 			},
 		},
+		{
+			description: "scalar fields with two unexported fields",
+			declInfo: PackageInfo{
+				DeclName:    "Metadata",
+				PackageName: "mypkg",
+			},
+			source: `
+package mypkg
+
+// Metadata describes information about a dynamic resource. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Description is the resource's description.
+    Description string BACKTICKprotobuf:"bytes,3,opt,name=Description,proto3" json:"description,omitempty"BACKTICK
+    state protoimpl.MessageState BACKTICKprotogen:"open.v1"BACKTICK
+    unknownFields protoimpl.UnknownFields
+    sizeCache     protoimpl.SizeCache
+}
+`,
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Metadata",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Metadata",
+					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+					SourcePath:  "/src/myfile.go",
+					YAMLExample: `name: "string"
+description: "string"
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "description",
+							Description: "The resource's description.",
+							Type:        "string",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
