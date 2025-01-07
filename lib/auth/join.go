@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -402,7 +403,11 @@ func (a *Server) generateCertsBot(
 	var err error
 	joinEvent.Attributes, err = rawJoinAttrsToStruct(rawJoinClaims)
 	if err != nil {
-		log.WithError(err).Warn("Unable to encode join attributes for audit event.")
+		logger.WarnContext(
+			ctx,
+			"Unable to encode join attributes for join audit event",
+			"error", err,
+		)
 	}
 
 	// Prepare join attributes for encoding into the X509 cert and for inclusion
