@@ -93,6 +93,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-elasticsearch/v8 v8.17.0
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8
+	github.com/envoyproxy/go-control-plane/envoy v1.32.3
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.8.0
@@ -238,8 +239,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
-
-require github.com/envoyproxy/go-control-plane/envoy v1.32.3
 
 require (
 	cel.dev/expr v0.19.1 // indirect
