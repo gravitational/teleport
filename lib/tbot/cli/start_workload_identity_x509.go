@@ -23,6 +23,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -34,6 +35,12 @@ type WorkloadIdentityX509Command struct {
 	*genericMutatorHandler
 
 	IncludeFederatedTrustBundles bool
+	// WorkloadIdentityName is the name of the workload identity to use.
+	// --workload-identity-name foo
+	WorkloadIdentityName string
+	// WorkloadIdentityLabels is the labels of the workload identity to use.
+	// --workload-identity-labels x=y,z=a
+	WorkloadIdentityLabels string
 }
 
 // NewWorkloadIdentityX509Command initializes the command and flags for the
@@ -47,7 +54,18 @@ func NewWorkloadIdentityX509Command(parentCmd *kingpin.CmdClause, action Mutator
 	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("include-federated-trust-bundles", "If set, include federated trust bundles in the output").BoolVar(&c.IncludeFederatedTrustBundles)
+	cmd.Flag(
+		"include-federated-trust-bundles",
+		"If set, include federated trust bundles in the output",
+	).BoolVar(&c.IncludeFederatedTrustBundles)
+	cmd.Flag(
+		"workload-identity-name",
+		"The name of the workload identity to issue",
+	).StringVar(&c.WorkloadIdentityName)
+	cmd.Flag(
+		"workload-identity-labels",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
+	).StringVar(&c.WorkloadIdentityLabels)
 
 	return c
 }
@@ -62,11 +80,30 @@ func (c *WorkloadIdentityX509Command) ApplyConfig(cfg *config.BotConfig, l *slog
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.WorkloadIdentityX509Service{
-		Destination: dest,
-
+	svc := &config.WorkloadIdentityX509Service{
+		Destination:                  dest,
 		IncludeFederatedTrustBundles: c.IncludeFederatedTrustBundles,
-	})
+	}
+
+	switch {
+	case c.WorkloadIdentityName != "" && c.WorkloadIdentityLabels != "":
+		return trace.BadParameter("workload-identity-name and workload-identity-labels flags are mutually exclusive")
+	case c.WorkloadIdentityName != "":
+		svc.WorkloadIdentity.Name = c.WorkloadIdentityName
+	case c.WorkloadIdentityLabels != "":
+		labels, err := client.ParseLabelSpec(c.WorkloadIdentityLabels)
+		if err != nil {
+			return trace.Wrap(err, "parsing --workload-identity-labels")
+		}
+		svc.WorkloadIdentity.Labels = map[string][]string{}
+		for k, v := range labels {
+			svc.WorkloadIdentity.Labels[k] = []string{v}
+		}
+	default:
+		return trace.BadParameter("workload-identity-name or workload-identity-labels must be specified")
+	}
+
+	cfg.Services = append(cfg.Services, svc)
 
 	return nil
 }
