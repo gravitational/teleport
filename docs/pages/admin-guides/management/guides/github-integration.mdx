@@ -1,5 +1,5 @@
 ---
-title: GitHub Integration
+title: Git Access with GitHub
 description:  How to use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.
 ---
 
@@ -10,7 +10,7 @@ In this guide, you will:
 - Create a GitHub OAuth application.
 - Configure SSH certificate authorities for your GitHub organizations.
 - Create Teleport resources for the GitHub integration.
-- Run Git commands through Teleport
+- Run Git commands through Teleport.
 
 ## How it works
 
@@ -33,11 +33,11 @@ opening a browser window for the user to log in with their GitHub credentials.
 ![GitHub SSH certificate authorities](../../../../img/management/how-it-works-github-proxy.svg)
 
 Note that Teleport proxies Git commands through SSH but the users should
-continue to access github.com website regularly through their browsers.
+continue to access GitHub through their browsers.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs-enterprise.mdx version="17.2"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx version="17.2"!)
 - Access to GitHub Enterprise and permissions to modify GitHub's SSH certificate
   authorities and configure OAuth applications.
 - (!docs/pages/includes/tctl.mdx!)
@@ -85,13 +85,13 @@ Replace `my-github-org` with the organization name, and replace
 previous step.
 
 To create the resource with `tctl`, run:
-```bash
-tctl create -f github_integration.yaml
+```code
+$ tctl create -f github_integration.yaml
 ```
 
 Once the integration resource is created, export the CA to be used for GitHub:
-```bash
-tctl auth export --type github --integration github-<Var name="my-github-org"/>
+```code
+$ tctl auth export --type github --integration github-<Var name="my-github-org"/>
 ```
 
 Now go to the "Authentication Security" page of your GitHub organization. Click
@@ -116,8 +116,8 @@ spec:
 ```
 
 To create the resource with `tctl`, run:
-```bash
-tctl create -f git_server.yaml
+```code
+$ tctl create -f git_server.yaml
 ```
 
 The user role must have `github_permissions` configured to allow access to your
@@ -126,7 +126,7 @@ GitHub organization. For example:
 # role_with_github_permissions.yaml
 kind: role
 metadata:
-  name: github-<Var name="my-github-org"/>
+  name: github-access
 spec:
   allow:
     github_permissions:
@@ -135,9 +135,7 @@ spec:
 version: v7
 ```
 
-You can either create a new role as shown above or add `github_permissions` to an
-existing role. Ensure the role is assigned to the appropriate Teleport users who
-will access Git repositories through Teleport.
+(!docs/pages/includes/add-role-to-user.mdx role="github-access"!)
 
 ## Step 4/4. Connect
 
