@@ -35,9 +35,9 @@ Before you get started, you’ll need:
 ## Step 1/3. Configure Keycloak
 
 ### Create a SAML Client
-1. Select the Realm you want to use for your SAML integration, Click **Clients** in the menu.
+1. Select the Realm to be used for your SAML integration, Click **Clients** in the menu.
 
-1. Click **Create client** to go to the Create client page. 
+1. Click **Create client** 
 
    ![Create client](../../../../img/sso/keycloak/create_client.png)
 
@@ -46,12 +46,12 @@ Before you get started, you’ll need:
    ```code
    https://<Var name="mytenant.teleport.sh"
    ```
-   ![Create client](../../../../img/sso/keycloak/saml.png)
+   ![SAML](../../../../img/sso/keycloak/saml.png)
 
-1. Set the Valid Redirect URIs field  to the URL for your Teleport Proxy Service host and Save
+1. Set the **Valid Redirect URIs** field  to the URL for your Teleport Proxy Service host and Save
 
    ```code
-   https://<Var name="mytenant.teleport.sh" />/v1/webapi/saml/acs/ad
+   https://<Var name="mytenant.teleport.sh" />/v1/webapi/saml/acs/keycloak
    ```
    ![Redirect URI](../../../../img/sso/keycloak/redirect.png)
 
@@ -74,7 +74,7 @@ Before you get started, you’ll need:
    
    ![Configure mapper](../../../../img/sso/keycloak/client_scope.png)
 
-1. Select **Groups list** from the list of attribute mappings and “Save”
+1. Select **Groups list** from the list of attribute mappings and **Save**
 
    ![Edit client scope](../../../../img/sso/keycloak/groups_list.png)
 
@@ -95,7 +95,7 @@ Now, create a SAML connector resource using `tctl`.
 ```code
 $ tctl sso configure saml --name keycloak \
 --entity-descriptor https://<root>/realms/{realm-name}/protocol/saml/descriptor \
---attributes-to-roles groups,DBA,access > keycloak-connector.yaml
+--attributes-to-roles groups,<>,access > keycloak-connector.yaml
 ```
 
 In the example above:
@@ -137,9 +137,8 @@ $ cat keycloak-connector.yaml | tctl sso test
 ```
 
 Your browser should open and log you in to the Teleport cluster using your
-Azure AD credentials. If there are any problems, the CLI output will help you
+Keycloak user credentials. If there are any problems, the CLI output will help you
 debug the connector configuration.
-
 
 To create the connector using the `tctl` tool, run the following command:
 
@@ -196,16 +195,14 @@ and the client will sign their saml requests and responses. The signature will b
 
 ### Create Private Keys for Signing
 
-Start by generating a public/private key and a certificate. You will set up
-the public certificate with Keycloak and the private key with Teleport.
+- Start by generating a private key and certificate. 
 
 ```code
 $ openssl genrsa -out priv.pem 2048
 $ openssl req -new -x509 -key priv.pem -out cert.pem
 ```
 
-
-Convert the just generated certificate (in PEM format) to the PKCS#12 format 
+- Convert the just generated certificate (in PEM format) to the PKCS#12 format 
 
 ```code
 openssl pkcs12 -in cert.pem -name teleport -export -out cert.pkcs12
@@ -333,3 +330,25 @@ should be used during upload for key alias and store password respectively.
 
 If the SSO login with this connector is successful, the client signature vaidation works.
 
+## Troubleshooting
+
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+Keycloak auth connector - Signature Validation Incompatibility
+
+When "Client signature required" is enabled with the appropriate signing keys, 
+it results in an invalid requester error as shown in the image below.
+![Import certificate](../../../../img/sso/keycloak/invalid_requester.png)
+
+Keycloak logs: 
+`error=invalid_signature` and `request validation failed: org.keycloak.common.VerificationException: SigAlg was null` error.
+This occurs when Keycloak receives a SAML request that does not meet its signature validation expectations
+which causes Keycloak to fail when attempting to verify the SAML signature.
+
+To resolve the issue:
+- Verify that the public certificate used by Keycloak for signing SAML responses 
+is correctly configured and valid.
+- Ensure that the certificate is up-to-date and the private key is properly paired with it. 
+  Refer to the **Client Certificate Signature validation** section for more information. 
+- Once the above has been verified, temporarily add the `spec.provider: ping` parameter 
+to the Keycloak auth connector to match Keycloak’s expectations.
