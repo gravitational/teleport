@@ -466,7 +466,6 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	collection := &autoUpdateConfigCollection{config: initial}
 	buf := &bytes.Buffer{}
 	require.NoError(t, writeYAML(collection, buf))
-	t.Log(buf.String())
 
 	// Test execution: load the YAML manifest back.
 	decoder := kyaml.NewYAMLOrJSONDecoder(buf, defaults.LookaheadBufSize)
