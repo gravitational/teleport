@@ -3,6 +3,8 @@ required_field_types:
     name: "ResourceHeader"
   - package: "types"
     name: "Metadata"
+  - package: "v1"
+    name: "Metadata"
 source: "../../../../api"
 destination: "../../../../docs/pages/reference/tctl-resources"
 excluded_resource_types:

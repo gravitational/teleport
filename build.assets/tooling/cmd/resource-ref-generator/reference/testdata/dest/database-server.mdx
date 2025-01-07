@@ -4,10 +4,6 @@ description: Provides a reference of fields within the Database Server resource,
 sidebar_title: Database Server
 ---
 
-
-
-
-
 Represents a database access server.
 
 {/*Automatically generated from: testdata/src/typestest.pb.go*/}
@@ -21,8 +17,6 @@ version: "string"
 metadata: # [...]
 spec: # [...]
 ```
-
-
 |Field Name|Description|Type|
 |---|---|---|
 |version|The resource version.|string|
@@ -30,9 +24,6 @@ spec: # [...]
 |spec|The database server spec.|[Database Server Spec](#database-server-spec)|
 |metadata|The database server metadata.|[Metadata](#metadata)|
 |kind|The database server resource kind.|string|
- 
-
-
 
 ## AD
 
@@ -51,7 +42,6 @@ ldap_cert: "string"
 kdc_host_name: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |spn|The service principal name for the database.|string|
@@ -60,8 +50,6 @@ kdc_host_name: "string"
 |keytab_file|The path to the Kerberos keytab file.|string|
 |kdc_host_name|The host name for a KDC for x509 Authentication.|string|
 |domain|The Active Directory domain the database resides in.|string|
- 
-
 
 ## AWS
 
@@ -87,7 +75,6 @@ opensearch: # [...]
 iam_policy_status: # [...]
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |secret_store|Contains secret store configurations.|[Secret Store](#secret-store)|
@@ -103,8 +90,6 @@ iam_policy_status: # [...]
 |elasticache|Contains AWS ElastiCache Redis specific metadata.|[Elasti Cache](#elasti-cache)|
 |assume_role_arn|An optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|string|
 |account_id|The AWS account ID this database belongs to.|string|
- 
-
 
 ## Azure
 
@@ -121,15 +106,12 @@ redis: # [...]
 is_flexi_server: true
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |resource_id|The Azure fully qualified ID for the resource.|string|
 |redis|Contains Azure Cache for Redis specific database metadata.|[Azure Redis](#azure-redis)|
 |name|The Azure database server name.|string|
 |is_flexi_server|True if the database is an Azure Flexible server.|Boolean|
- 
-
 
 ## Azure Redis
 
@@ -143,12 +125,9 @@ Example:
 clustering_policy: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |clustering_policy|The clustering policy for Redis Enterprise.|string|
- 
-
 
 ## Command Label
 
@@ -167,14 +146,11 @@ command:
 result: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |result|Captures standard output|string|
 |period|A time between command runs||
 |command|A command to run|[]string|
- 
-
 
 ## Database Admin User
 
@@ -188,12 +164,9 @@ Example:
 name: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |name|The username of the privileged database user.|string|
- 
-
 
 ## Database Server Spec
 
@@ -215,7 +188,6 @@ proxy_ids:
   - "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |version|The Teleport version that the server is running.|string|
@@ -224,8 +196,6 @@ proxy_ids:
 |hostname|The database server hostname.|string|
 |host_id|The ID of the host the database server is running on.|string|
 |database|The database proxied by this database server.|[Database](#database)|
- 
-
 
 ## Database Spec
 
@@ -254,7 +224,6 @@ mongo_atlas: # [...]
 oracle: # [...]
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |uri|The database connection endpoint.|string|
@@ -270,8 +239,6 @@ oracle: # [...]
 |aws|Contains AWS specific settings for RDS/Aurora/Redshift databases.|[AWS](#aws)|
 |admin_user|The database admin user for automatic user provisioning.|[Database Admin User](#database-admin-user)|
 |ad|The Active Directory configuration for the database.|[AD](#ad)|
- 
-
 
 ## Database Status
 
@@ -292,7 +259,6 @@ managed_users:
 azure: # [...]
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |mysql|An additional section with MySQL runtime database information.|[My SQLOptions](#my-sqloptions)|
@@ -300,8 +266,6 @@ azure: # [...]
 |ca_cert|The auto-downloaded cloud database CA certificate.|string|
 |azure|The auto-discovered Azure cloud database metadata.|[Azure](#azure)|
 |aws|The auto-discovered AWS cloud database metadata.|[AWS](#aws)|
- 
-
 
 ## Database TLS
 
@@ -317,22 +281,17 @@ ca_cert: "string"
 server_name: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |server_name|Allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.|string|
 |mode|A TLS connection mode. See DatabaseTLSMode for details.|[Database TLSMode](#database-tlsmode)|
 |ca_cert|An optional user provided CA certificate used for verifying database TLS connection.|string|
- 
-
 
 ## Database TLSMode
 
 Represents the level of TLS verification performed by DB agent when connecting to a database.
 
 {/*Automatically generated from: testdata/src/typestest.pb.go*/}
-
-
 
 ## Database
 
@@ -351,7 +310,6 @@ spec: # [...]
 status: # [...]
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |version|The resource version.|string|
@@ -360,8 +318,6 @@ status: # [...]
 |spec|The database spec.|[Database Spec](#database-spec)|
 |metadata|The database metadata.|[Metadata](#metadata)|
 |kind|The database resource kind.|string|
- 
-
 
 ## Elasti Cache
 
@@ -381,15 +337,12 @@ transit_encryption_enabled: true
 endpoint_type: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |user_group_ids|A list of user group IDs.|[]string|
 |transit_encryption_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
 |replication_group_id|The Redis replication group ID.|string|
 |endpoint_type|The type of the endpoint.|string|
- 
-
 
 ## GCPCloud SQL
 
@@ -404,21 +357,16 @@ project_id: "string"
 instance_id: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |project_id|The GCP project ID the Cloud SQL instance resides in.|string|
 |instance_id|The Cloud SQL instance ID.|string|
- 
-
 
 ## IAMPolicy Status
 
 Represents states that describe if an AWS database has its IAM policy properly configured or not. This enum is set in a Sync.Map during an IAM task that checks for the validity of IAM policy, and the database gets updated with the value from this map during a heartbeat.
 
 {/*Automatically generated from: testdata/src/typestest.pb.go*/}
-
-
 
 ## Memory DB
 
@@ -435,15 +383,12 @@ tls_enabled: true
 endpoint_type: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |tls_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
 |endpoint_type|The type of the endpoint.|string|
 |cluster_name|The name of the MemoryDB cluster.|string|
 |acl_name|The name of the ACL associated with the cluster.|string|
- 
-
 
 ## Metadata
 
@@ -465,7 +410,6 @@ id: 1
 revision: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
@@ -474,8 +418,6 @@ revision: "string"
 |id|A record ID. Deprecated: Use revision instead.|number|
 |expires|A global expiry time header can be set on any resource in the system.||
 |description|Object description|string|
- 
-
 
 ## Mongo Atlas
 
@@ -489,12 +431,9 @@ Example:
 name: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |name|The Atlas database instance name.|string|
- 
-
 
 ## My SQLOptions
 
@@ -508,12 +447,9 @@ Example:
 server_version: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |server_version|The server version reported by DB proxy if the runtime information is not available.|string|
- 
-
 
 ## Open Search
 
@@ -529,14 +465,11 @@ domain_id: "string"
 endpoint_type: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |endpoint_type|The type of the endpoint.|string|
 |domain_name|The name of the domain.|string|
 |domain_id|The ID of the domain.|string|
- 
-
 
 ## Oracle Options
 
@@ -550,12 +483,9 @@ Example:
 audit_user: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |audit_user|The Oracle database user privilege to access internal Oracle audit trail.|string|
- 
-
 
 ## RDS
 
@@ -577,7 +507,6 @@ subnets:
 vpc_id: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |vpc_id|The VPC where the RDS is running.|string|
@@ -586,8 +515,6 @@ vpc_id: "string"
 |instance_id|The RDS instance identifier.|string|
 |iam_auth|Indicates whether database IAM authentication is enabled.|Boolean|
 |cluster_id|The RDS cluster (Aurora) identifier.|string|
- 
-
 
 ## RDSProxy
 
@@ -603,14 +530,11 @@ custom_endpoint_name: "string"
 resource_id: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |resource_id|The RDS instance resource identifier (prx-xxx).|string|
 |name|The identifier of an RDS Proxy.|string|
 |custom_endpoint_name|The identifier of an RDS Proxy custom endpoint.|string|
- 
-
 
 ## Redshift
 
@@ -624,12 +548,9 @@ Example:
 cluster_id: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |cluster_id|The Redshift cluster identifier.|string|
- 
-
 
 ## Redshift Serverless
 
@@ -645,14 +566,11 @@ endpoint_name: "string"
 workgroup_id: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |workgroup_name|The workgroup name.|string|
 |workgroup_id|The workgroup ID.|string|
 |endpoint_name|The VPC endpoint name.|string|
- 
-
 
 ## Rotation
 
@@ -673,7 +591,6 @@ last_rotated: # See description
 schedule: # [...]
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |state|Could be one of "init" or "in_progress".|string|
@@ -684,8 +601,6 @@ schedule: # [...]
 |last_rotated|Specifies the last time of the completed rotation.||
 |grace_period|A period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.||
 |current_id|The ID of the rotation operation to differentiate between rotation attempts.|string|
- 
-
 
 ## Rotation Schedule
 
@@ -701,14 +616,11 @@ update_servers: # See description
 standby: # See description
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |update_servers|Specifies time to switch to the "Update servers" phase.||
 |update_clients|Specifies time to switch to the "Update clients" phase||
 |standby|Specifies time to switch to the "Standby" phase.||
- 
-
 
 ## Secret Store
 
@@ -723,11 +635,8 @@ key_prefix: "string"
 kms_key_id: "string"
 ```
 
-
 |Field Name|Description|Type|
 |---|---|---|
 |kms_key_id|Specifies the AWS KMS key for encryption.|string|
 |key_prefix|Specifies the secret key prefix.|string|
- 
-
 

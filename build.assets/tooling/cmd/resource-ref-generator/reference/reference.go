@@ -51,14 +51,14 @@ title: {{ .Resource.SectionName }} Reference
 description: Provides a reference of fields within the {{ .Resource.SectionName }} resource, which you can manage with tctl.
 sidebar_title: {{ .Resource.SectionName }}
 ---
+{{- if ne .Resource.Kind "" }}
 
-{{ if ne .Resource.Kind "" }}
 **Kind**: {{ .Resource.Kind }}
-{{ end }}
+{{- end }}
 
-{{ if ne .Resource.Version "" }}
+{{- if ne .Resource.Version "" }}
 **Version**: {{ .Resource.Version }}
-{{ end }}
+{{- end }}
 
 {{ .Resource.Description }}
 
@@ -70,15 +70,15 @@ Example:
 {{ .Resource.YAMLExample -}}
 &&&
 
-{{ if gt (len .Resource.Fields) 0 }}
+{{- if gt (len .Resource.Fields) 0 }}
 |Field Name|Description|Type|
 |---|---|---|
 {{ range .Resource.Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
-{{ end }}
+{{- end }}
 
-{{ range .Fields }}
+{{- range .Fields }}
 ## {{ .SectionName }}
 
 {{ .Description }}
@@ -91,14 +91,14 @@ Example:
 {{ .YAMLExample -}}
 &&&
 {{ end }}
-{{ if gt (len .Fields) 0 }}
+{{- if gt (len .Fields) 0 }}
 |Field Name|Description|Type|
 |---|---|---|
 {{ range .Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
-{{ end }}
-{{ end }}
+{{- end }}
+{{- end }}
 `, "&", "`")
 
 // TypeInfo represents the name and package name of an exported Go type. It
@@ -148,6 +148,33 @@ func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
 		return errors.New("must provide a source path")
 	default:
 		return nil
+	}
+}
+
+// getPackageInfoFromExpr extracts a package name and declaration name from an
+// arbitrary expression. If the expression is not an expected kind,
+// getPackageInfoFromExpr returns an empty PackageInfo.
+func getPackageInfoFromExpr(expr ast.Expr) resource.PackageInfo {
+	var gopkg, fldname string
+	switch t := expr.(type) {
+	case *ast.StarExpr:
+		return getPackageInfoFromExpr(t.X)
+	case *ast.SelectorExpr:
+		// If the type of the field is an *ast.SelectorExpr,
+		// it's of the form <package>.<type name>.
+		g, ok := t.X.(*ast.Ident)
+		if ok {
+			gopkg = g.Name
+		}
+		fldname = t.Sel.Name
+
+	// There's no package, so only assign a name.
+	case *ast.Ident:
+		fldname = t.Name
+	}
+	return resource.PackageInfo{
+		DeclName:    fldname,
+		PackageName: gopkg,
 	}
 }
 
@@ -217,24 +244,13 @@ func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources 
 		// assign a package name depending on the expression used to
 		// declare the field type.
 		gopkg := d.PackageName
-		var fldname string
-		switch t := fld.Type.(type) {
-		case *ast.SelectorExpr:
-			// If the type of the field is an *ast.SelectorExpr,
-			// it's of the form <package>.<type name>.
-			g, ok := t.X.(*ast.Ident)
-			if ok {
-				gopkg = g.Name
-			}
-			fldname = t.Sel.Name
-
-		// There's no package, so only assign a name.
-		case *ast.Ident:
-			fldname = t.Name
+		pi := getPackageInfoFromExpr(fld.Type)
+		if pi.PackageName != "" {
+			gopkg = pi.PackageName
 		}
 
 		for _, ti := range finalTypes {
-			if gopkg == ti.Package && fldname == ti.Name {
+			if gopkg == ti.Package && pi.DeclName == ti.Name {
 				m = true
 				break
 			}
