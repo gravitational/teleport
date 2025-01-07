@@ -69,7 +69,7 @@ Before you get started, you’ll need:
 
 1. On the Mappers tab, Click **Configure a new mapper**.
    
-   ![Configure mapper](../../../../img/sso/keycloak/client_scope.png)
+   ![Configure mapper](../../../../img/sso/keycloak/configure_mapper.png)
 
 1. Select **Groups list** from the list of attribute mappings
 
@@ -329,7 +329,7 @@ should be used during upload for key alias and store password respectively.
 - Click **Confirm** to activate it.
 
 
-If the SSO login with this connector is successful, the client signature vaidation works.
+If the SSO login with this connector is successful, the client signature validation works.
 
 ## Troubleshooting
 
@@ -355,4 +355,4 @@ To resolve the issue:
   and the private key is properly paired with it. 
 
 - Once the above has been verified, temporarily add the `spec.provider: ping` parameter 
-  to the Keycloak auth connector to match Keycloak’s expectations.
+  to the Keycloak auth connector to match Keycloak strict signature requirements.
