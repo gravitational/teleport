@@ -244,7 +244,17 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 func onIntegrationConfAccessGraphAzureSync(ctx context.Context, params config.IntegrationConfAccessGraphAzureSync) error {
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-	return trace.Wrap(azureoidc.ConfigureAccessGraphSyncAzure(ctx, params))
+	confReq := azureoidc.AccessGraphAzureConfigureRequest{
+		ManagedIdentity: params.ManagedIdentity,
+		RoleName:        params.RoleName,
+		SubscriptionID:  params.SubscriptionID,
+		AutoConfirm:     params.AutoConfirm,
+	}
+	clt, err := azureoidc.NewAzureConfigClient(params.SubscriptionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(azureoidc.ConfigureAccessGraphSyncAzure(ctx, clt, confReq))
 }
 
 func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.IntegrationConfAzureOIDC) error {
