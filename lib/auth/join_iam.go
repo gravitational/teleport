@@ -304,6 +304,9 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 
 	// check that the node identity matches an allow rule for this token
 	if err := checkIAMAllowRules(identity, provisionToken.GetName(), provisionToken.GetAllowRules()); err != nil {
+		// We return the identity since it's "validated" but does not match the
+		// rules. This allows us to include it in a failed join audit event
+		// as additional context to help the user understand why the join failed.
 		return identity, trace.Wrap(err, "checking allow rules")
 	}
 
