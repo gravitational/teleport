@@ -17,16 +17,14 @@
  */
 
 import { ReactNode } from 'react';
-
 import { useTheme } from 'styled-components';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
 import Flex from '../Flex';
 import Text from '../Text';
-
-import { TeleportGearIcon } from './TeleportGearIcon';
 import { SVGIconProps } from './common';
+import { TeleportGearIcon } from './TeleportGearIcon';
 
 export default {
   title: 'Design/Icon',

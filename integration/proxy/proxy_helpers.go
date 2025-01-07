@@ -184,7 +184,8 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 	}
 
 	if options.trustedCluster != nil {
-		helpers.TryCreateTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster)
+		const skipNameValidation = false
+		helpers.TryUpsertTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster, skipNameValidation)
 		helpers.WaitForTunnelConnections(t, suite.root.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
 	}
 

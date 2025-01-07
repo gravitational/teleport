@@ -109,7 +109,7 @@ func validateSTSIdentityRequest(req *http.Request, challenge string, cfg *iamReg
 		// invalid sts:GetCallerIdentity request, it's either going to be caused
 		// by a node in a unknown region or an attacker.
 		if err != nil {
-			log.WithError(err).Warn("Detected an invalid sts:GetCallerIdentity used by a client attempting to use the IAM join method.")
+			logger.WarnContext(req.Context(), "Detected an invalid sts:GetCallerIdentity used by a client attempting to use the IAM join method", "error", err)
 		}
 	}()
 
@@ -344,9 +344,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
-			a.handleJoinFailure(
-				err, provisionToken, nil, joinRequest,
-			)
+			a.handleJoinFailure(ctx, err, provisionToken, nil, joinRequest)
 		}
 	}()
 

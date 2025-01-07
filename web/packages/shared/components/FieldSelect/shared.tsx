@@ -16,23 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useId } from 'react';
 import { GroupBase, OnChangeValue, OptionsOrGroups } from 'react-select';
 
 import Box, { BoxProps } from 'design/Box';
-
-import React, { useId } from 'react';
-import LabelInput from 'design/LabelInput';
-
 import Flex from 'design/Flex';
-
+import LabelInput from 'design/LabelInput';
 import { IconTooltip } from 'design/Tooltip';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';
-import { useRule } from '../Validation';
 import {
   AsyncProps as AsyncSelectProps,
   Props as SelectProps,
 } from '../Select';
+import { useRule } from '../Validation';
 
 export const defaultRule = () => () => ({ valid: true });
 

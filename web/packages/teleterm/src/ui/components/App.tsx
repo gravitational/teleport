@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import styled from 'styled-components';
+
 import { Failed } from 'design/CardError';
 
 import { StaticThemeProvider } from 'teleterm/ui/ThemeProvider';

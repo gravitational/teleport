@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, fireEvent, screen } from 'design/utils/testing';
-import Validation, { Validator } from 'shared/components/Validation';
 import { act } from '@testing-library/react';
+
+import { fireEvent, render, screen } from 'design/utils/testing';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { Label, LabelsInput, LabelsRule, nonEmptyLabels } from './LabelsInput';
 import {
-  Default,
-  Custom,
-  Disabled,
   AtLeastOneRequired,
+  Custom,
+  Default,
+  Disabled,
 } from './LabelsInput.story';
 
 test('defaults, with empty labels', async () => {

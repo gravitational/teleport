@@ -21,12 +21,11 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -37,7 +36,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -50,7 +48,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -547,16 +544,18 @@ type TOTPRegisterChallenge struct {
 
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentClient,
-	})
-	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
+	log := slog.With(teleport.ComponentKey, teleport.ComponentClient)
+	log.DebugContext(context.Background(), "Initializing proxy HTTPS client",
+		"proxy_addr", proxyAddr,
+		"insecure", insecure,
+		"extra_headers", extraHeaders,
+	)
 
 	// validate proxy address
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
-			log.Error(err)
+			log.ErrorContext(context.Background(), "invalid proxy address", "error", err)
 		}
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
@@ -911,12 +910,6 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 		return nil, nil, trace.Wrap(err)
 	}
 
-	token := make([]byte, 32)
-	if _, err := rand.Read(token); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	csrfToken := hex.EncodeToString(token)
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -932,15 +925,7 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 			return nil, err
 		}
 
-		cookie := &http.Cookie{
-			Name:  csrf.CookieName,
-			Value: csrfToken,
-		}
-
-		req.AddCookie(cookie)
-
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(csrf.HeaderName, csrfToken)
 		return clt.HTTPClient().Do(req)
 	}))
 	if err != nil {

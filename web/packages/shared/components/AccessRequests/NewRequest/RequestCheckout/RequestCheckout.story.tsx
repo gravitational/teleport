@@ -17,15 +17,13 @@
  */
 
 import { useState } from 'react';
-import { MemoryRouter, Link } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
-
 import { Option } from 'shared/components/Select';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
-
 import {
   RequestCheckoutWithSlider,
   RequestCheckoutWithSliderProps,

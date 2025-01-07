@@ -17,9 +17,10 @@
  */
 
 import { Component } from 'react';
-import { debounce } from 'shared/utils/highbar';
 import styled from 'styled-components';
-import { height, space, color } from 'design/system';
+
+import { color, height, space } from 'design/system';
+import { debounce } from 'shared/utils/highbar';
 
 class InputSearch extends Component {
   constructor(props) {

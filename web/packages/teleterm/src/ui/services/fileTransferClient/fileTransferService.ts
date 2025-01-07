@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
 
-import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import { FileTransferRequest } from 'teleterm/services/tshd/types';
 import { TshdClient } from 'teleterm/services/tshd';
-import { UsageService } from 'teleterm/ui/services/usage';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { FileTransferRequest } from 'teleterm/services/tshd/types';
+import { UsageService } from 'teleterm/ui/services/usage';
 
 export class FileTransferService {
   constructor(
