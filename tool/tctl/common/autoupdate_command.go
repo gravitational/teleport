@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -39,11 +39,10 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
-// getResponse is structure for formatting the client tools auto update response.
-type getResponse struct {
-	Mode          string `json:"mode"`
-	TargetVersion string `json:"target_version"`
-}
+const (
+	// maxRetries is the default number of RPC call retries to prevent parallel create/update errors.
+	maxRetries = 3
+)
 
 // AutoUpdateCommand implements the `tctl autoupdate` command for managing
 // autoupdate process for tools and agents.
@@ -97,9 +96,9 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 	case cmd == c.targetCmd.FullCommand():
 		commandFunc = c.TargetVersion
 	case cmd == c.enableCmd.FullCommand():
-		commandFunc = c.Enable
+		commandFunc = c.SetModeCommand(true)
 	case cmd == c.disableCmd.FullCommand():
-		commandFunc = c.Disable
+		commandFunc = c.SetModeCommand(false)
 	case c.proxy == "" && cmd == c.statusCmd.FullCommand():
 		commandFunc = c.Status
 	case c.proxy != "" && cmd == c.statusCmd.FullCommand():
@@ -129,38 +128,42 @@ func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client *authclien
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-		err = c.setTargetVersion(ctx, client)
-		if trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
+		for i := 0; i < maxRetries; i++ {
 			err = c.setTargetVersion(ctx, client)
+			if err == nil {
+				break
+			}
+			if !trace.IsNotFound(err) && !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
 		}
-
 	}
 	return trace.Wrap(err)
 }
 
-// Enable enables client tools auto updates in cluster.
-func (c *AutoUpdateCommand) Enable(ctx context.Context, client *authclient.Client) error {
-	// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
-	// The same approach applies to updates if the resource has been deleted during the process.
-	// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-	err := c.setMode(ctx, client, true)
-	if trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
-		err = c.setMode(ctx, client, true)
+// SetModeCommand returns a command to enable or disable client tools auto-updates in the cluster.
+func (c *AutoUpdateCommand) SetModeCommand(enabled bool) func(ctx context.Context, client *authclient.Client) error {
+	return func(ctx context.Context, client *authclient.Client) error {
+		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
+		// The same approach applies to updates if the resource has been deleted during the process.
+		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
+		for i := 0; i < maxRetries; i++ {
+			err := c.setMode(ctx, client, enabled)
+			if err == nil {
+				break
+			}
+			if !trace.IsNotFound(err) && !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
 	}
-
-	return err
 }
 
-// Disable disables client tools auto updates in cluster.
-func (c *AutoUpdateCommand) Disable(ctx context.Context, client *authclient.Client) error {
-	// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
-	// The same approach applies to updates if the resource has been deleted during the process.
-	// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-	err := c.setMode(ctx, client, false)
-	if trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
-		err = c.setMode(ctx, client, false)
-	}
-	return err
+// getResponse is structure for formatting the client tools auto update response.
+type getResponse struct {
+	Mode          string `json:"mode"`
+	TargetVersion string `json:"target_version"`
 }
 
 // Status makes request to auth service to fetch client tools auto update version and mode.
@@ -229,7 +232,7 @@ func (c *AutoUpdateCommand) setMode(ctx context.Context, client *authclient.Clie
 	if _, err := setMode(ctx, config); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprint(c.stdout, "client tools auto update mode has been changed\n")
+	fmt.Fprintln(c.stdout, "client tools auto update mode has been changed")
 
 	return nil
 }
@@ -256,7 +259,7 @@ func (c *AutoUpdateCommand) setTargetVersion(ctx context.Context, client *authcl
 		if _, err := setTargetVersion(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprint(c.stdout, "client tools auto update target version has been set\n")
+		fmt.Fprintln(c.stdout, "client tools auto update target version has been set")
 	}
 	return nil
 }
@@ -273,7 +276,7 @@ func (c *AutoUpdateCommand) clearTargetVersion(ctx context.Context, client *auth
 		if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprint(c.stdout, "client tools auto update target version has been cleared\n")
+		fmt.Fprintln(c.stdout, "client tools auto update target version has been cleared")
 	}
 	return nil
 }
