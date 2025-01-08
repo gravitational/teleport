@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 // Fairly ugly hardcoded certs to use in the generation so that the tests are
