@@ -25,7 +25,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -668,29 +667,24 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	parts, err := uploader.GetParts(uploadID)
 	require.NoError(t, err)
 
-	var outEvents []apievents.AuditEvent
+	// combine all uploaded parts to create the session recording content
+	var sessionRecordingContent bytes.Buffer
 	for _, part := range parts {
-		reader := sessionrecording.NewReader(bytes.NewReader(part))
-
-		out, err := reader.ReadAll(ctx)
-		require.NoError(t, err, "part crash %#v", part)
-
-		require.NoError(t, reader.Close(), "error closing session recording reader")
-
-		outEvents = append(outEvents, out...)
+		bytesWritten, err := sessionRecordingContent.Write(part)
+		require.NoError(t, err, "error writing part bytes to session recording content")
+		require.Equal(t, len(part), bytesWritten, "not all bytes were written to session recording content")
 	}
 
-	// sort audit events by index
-	slices.SortFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) int {
-		if a.GetIndex() < b.GetIndex() {
-			return -1
-		}
+	// Note: it is possible for duplicate event indices to be encountered in cases where the upload process
+	// encounters an error such as the connection being termianted, since the upload process will retry uploading
+	// those events for a successful upload. This is not an issue because session recording reader knows to drop
+	// events found with an event index already read.
+	reader := sessionrecording.NewReader(&sessionRecordingContent)
 
-		return 1
-	})
+	outEvents, err := reader.ReadAll(ctx)
+	require.NoError(t, err, "error reading all session recording content")
 
-	// remove any audit events with duplicate indexes
-	return slices.CompactFunc(outEvents, func(a apievents.AuditEvent, b apievents.AuditEvent) bool {
-		return a.GetIndex() == b.GetIndex()
-	})
+	require.NoError(t, reader.Close(), "error closing session recording reader")
+
+	return outEvents
 }
