@@ -40,7 +40,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
-	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -63,23 +62,18 @@ type bundleSetGetter interface {
 	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
 }
 
+type svidFetcher func(ctx context.Context, localBundle *spiffebundle.Bundle) ([]*workloadpb.X509SVID, error)
+
 // spiffeSDSHandler implements an Envoy SDS API.
 //
 // This effectively replaces the Workload API for Envoy, but functions in a
 // very similar way.
 type spiffeSDSHandler struct {
 	log              *slog.Logger
-	cfg              *config.SPIFFEWorkloadAPIService
 	botCfg           *config.BotConfig
 	trustBundleCache bundleSetGetter
 
-	clientAuthenticator func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
-	svidFetcher         func(
-		ctx context.Context,
-		log *slog.Logger,
-		localBundle *spiffebundle.Bundle,
-		svidRequests []config.SVIDRequest,
-	) ([]*workloadpb.X509SVID, error)
+	clientAuthenticator func(ctx context.Context) (*slog.Logger, svidFetcher, error)
 }
 
 // FetchSecrets implements
@@ -97,7 +91,7 @@ func (s *spiffeSDSHandler) FetchSecrets(
 		return nil, trace.Wrap(err)
 	}
 
-	log, creds, err := s.clientAuthenticator(ctx)
+	log, fetchSVIDs, err := s.clientAuthenticator(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "authenticating client")
 	}
@@ -114,11 +108,7 @@ func (s *spiffeSDSHandler) FetchSecrets(
 		return nil, trace.Wrap(err, "getting trust bundle set")
 	}
 
-	// Filter SVIDs down to those accessible to this workload
-	svids, err := s.svidFetcher(
-		ctx,
-		log,
-		bundleSet.Local, filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds))
+	svids, err := fetchSVIDs(ctx, bundleSet.Local)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching X509 SVIDs")
 	}
@@ -174,7 +164,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
 ) error {
 	ctx := srv.Context()
-	log, creds, err := s.clientAuthenticator(ctx)
+	log, fetchSVIDs, err := s.clientAuthenticator(ctx)
 	if err != nil {
 		return trace.Wrap(err, "authenticating client")
 	}
@@ -215,9 +205,6 @@ func (s *spiffeSDSHandler) StreamSecrets(
 	// response is sent.
 	renewalTimer.Stop()
 	defer renewalTimer.Stop()
-
-	// Filter SVIDs down to those accessible to this workload
-	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
 
 	// Track the last response and last request to allow us to handle ACK/NACK
 	// and versioning.
@@ -311,7 +298,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 
 		// Fetch the SVIDs if necessary
 		if svids == nil {
-			svids, err = s.svidFetcher(ctx, log, bundleSet.Local, availableSVIDs)
+			svids, err = fetchSVIDs(ctx, bundleSet.Local)
 			if err != nil {
 				return trace.Wrap(err, "fetching X509 SVIDs")
 			}
