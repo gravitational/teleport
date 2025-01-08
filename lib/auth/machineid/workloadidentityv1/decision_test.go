@@ -96,6 +96,23 @@ func Test_getFieldStringValue(t *testing.T) {
 			requireErr: require.NoError,
 		},
 		{
+			// This test ensures that the proto name (e.g service_account) is
+			// used instead of the Go name (e.g serviceAccount).
+			name: "underscored",
+			in: &workloadidentityv1pb.Attrs{
+				Join: &workloadidentityv1pb.JoinAttrs{
+					Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
+						ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+							Namespace: "default",
+						},
+					},
+				},
+			},
+			attr:       "join.kubernetes.service_account.namespace",
+			want:       "default",
+			requireErr: require.NoError,
+		},
+		{
 			name: "bool",
 			in: &workloadidentityv1pb.Attrs{
 				User: &workloadidentityv1pb.UserAttrs{

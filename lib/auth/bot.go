@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -308,7 +309,7 @@ func (a *Server) updateBotInstance(
 	if templateAuthRecord != nil {
 		authRecord.JoinToken = templateAuthRecord.JoinToken
 		authRecord.JoinMethod = templateAuthRecord.JoinMethod
-		authRecord.Metadata = templateAuthRecord.Metadata
+		authRecord.JoinAttrs = templateAuthRecord.JoinAttrs
 	}
 
 	// An empty bot instance most likely means a bot is rejoining after an
@@ -484,6 +485,7 @@ func (a *Server) generateInitialBotCerts(
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	existingInstanceID string, currentIdentityGeneration int32,
+	joinAttrs *workloadidentityv1pb.JoinAttrs,
 ) (*proto.Certs, string, error) {
 	var err error
 
@@ -523,15 +525,16 @@ func (a *Server) generateInitialBotCerts(
 
 	// Generate certificate
 	certReq := certRequest{
-		user:          userState,
-		ttl:           expires.Sub(a.GetClock().Now()),
-		publicKey:     pubKey,
-		checker:       checker,
-		traits:        accessInfo.Traits,
-		renewable:     renewable,
-		includeHostCA: true,
-		loginIP:       loginIP,
-		botName:       botName,
+		user:           userState,
+		ttl:            expires.Sub(a.GetClock().Now()),
+		publicKey:      pubKey,
+		checker:        checker,
+		traits:         accessInfo.Traits,
+		renewable:      renewable,
+		includeHostCA:  true,
+		loginIP:        loginIP,
+		botName:        botName,
+		joinAttributes: joinAttrs,
 	}
 
 	if existingInstanceID == "" {
