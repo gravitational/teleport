@@ -65,17 +65,17 @@ func NewAzureConfigClient(subId string) (AccessGraphAzureConfigureClient, error)
 	}
 	roleDefCli, err := armauthorization.NewRoleDefinitionsClient(cred, nil)
 	if err != nil {
-		return nil, trace.BadParameter("failed to create role definitions client: %w", err)
+		return nil, trace.BadParameter("failed to create role definitions client: %v", err)
 	}
 	roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subId, cred, nil)
 	if err != nil {
-		return nil, trace.BadParameter("failed to create role assignments client: %w", err)
+		return nil, trace.BadParameter("failed to create role assignments client: %v", err)
 	}
 	graphCli, err := msgraph.NewClient(msgraph.Config{
 		TokenProvider: cred,
 	})
 	if err != nil {
-		return nil, trace.BadParameter("failed to create msgraph client: %w", err)
+		return nil, trace.BadParameter("failed to create msgraph client: %v", err)
 	}
 	return &azureConfigClient{
 		roleDefCli:    roleDefCli,
@@ -112,7 +112,7 @@ func (c *azureConfigClient) CreateRoleAssignment(ctx context.Context, scope stri
 func (c *azureConfigClient) GetServicePrincipalByAppId(ctx context.Context, appId string) (*msgraph.ServicePrincipal, error) {
 	graphPrincipal, err := c.graphCli.GetServicePrincipalByAppId(ctx, appId)
 	if err != nil {
-		return nil, trace.BadParameter("failed to get the graph API service principal: %w", err)
+		return nil, trace.BadParameter("failed to get the graph API service principal: %v", err)
 	}
 	return graphPrincipal, nil
 }
@@ -144,13 +144,8 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, clt AccessGraph
 	scope := "/subscriptions/" + subId
 	runnerFn := func(ctx context.Context) error {
 		// Create the role
-		newUuid, err := uuid.NewRandom()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		roleDefId := newUuid.String()
 		roleDefinition := armauthorization.RoleDefinition{
-			Name: &roleDefId,
+			Name: &roleName,
 			Properties: &armauthorization.RoleDefinitionProperties{
 				RoleName: &roleName,
 				RoleType: &customRole,
@@ -169,14 +164,10 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, clt AccessGraph
 		}
 		roleId, err := clt.CreateRoleDefinition(ctx, scope, roleDefinition)
 		if err != nil {
-			return trace.BadParameter("failed to create custom role: %w", err)
+			return trace.BadParameter("failed to create custom role: %v", err)
 		}
 
 		// Assign the new role to the managed identity
-		newUuid, err = uuid.NewRandom()
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		roleAssignParams := armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
 				PrincipalID:      &managedId,
@@ -185,13 +176,13 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, clt AccessGraph
 		}
 		if err = clt.CreateRoleAssignment(ctx, scope, roleAssignParams); err != nil {
 			return trace.BadParameter(
-				"failed to assign role %s to principal %s: %w", roleName, managedId, err)
+				"failed to assign role %s to principal %s: %v", roleName, managedId, err)
 		}
 
 		// Assign the Graph API permissions to the managed identity
 		graphPrincipal, err := clt.GetServicePrincipalByAppId(ctx, graphAppId)
 		if err != nil {
-			return trace.BadParameter("failed to get the graph API service principal: %w", err)
+			return trace.BadParameter("failed to get the graph API service principal: %v", err)
 		}
 		for _, appRole := range graphPrincipal.AppRoles {
 			if _, ok := requiredGraphRoleNames[*appRole.Value]; ok {
@@ -201,7 +192,7 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, clt AccessGraph
 					ResourceID:  graphPrincipal.ID,
 				}
 				if err = clt.GrantAppRoleToServicePrincipal(ctx, roleAssignment); err != nil {
-					return trace.BadParameter("failed to assign graph API role to %s: %w", managedId, err)
+					return trace.BadParameter("failed to assign graph API role to %s: %v", managedId, err)
 				}
 			}
 		}
