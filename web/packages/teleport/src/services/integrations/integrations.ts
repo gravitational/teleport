@@ -23,7 +23,6 @@ import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth from '../auth/auth';
 import makeNode from '../nodes/makeNode';
-
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
@@ -272,15 +271,14 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<string> {
-    const response = await auth.getAdminActionMfaResponse(true);
-    return api
-      .post(
-        cfg.getAwsDeployTeleportServiceUrl(integrationName),
-        req,
-        null,
-        response
-      )
-      .then(resp => resp.serviceDashboardUrl);
+    const mfaResp = await auth.getAdminActionMfaResponse(true);
+    const resp = await api.post(
+      cfg.getAwsDeployTeleportServiceUrl(integrationName),
+      req,
+      null,
+      mfaResp
+    );
+    return resp.serviceDashboardUrl;
   },
 
   async createAwsAppAccess(integrationName): Promise<App> {
@@ -294,14 +292,13 @@ export const integrationService = {
     req: AwsOidcDeployDatabaseServicesRequest
   ): Promise<string> {
     const mfaResponse = await auth.getAdminActionMfaResponse(true);
-    return api
-      .post(
-        cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
-        req,
-        null,
-        mfaResponse
-      )
-      .then(resp => resp.clusterDashboardUrl);
+    const resp = await api.post(
+      cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
+      req,
+      null,
+      mfaResponse
+    );
+    return resp.clusterDashboardUrl;
   },
 
   async enrollEksClusters(

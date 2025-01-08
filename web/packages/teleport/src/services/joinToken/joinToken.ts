@@ -33,21 +33,20 @@ class JoinTokenService {
     signal: AbortSignal = null
   ): Promise<JoinToken> {
     const mfaResponse = await auth.getAdminActionMfaResponse();
-    return api
-      .post(
-        cfg.getJoinTokenUrl(),
-        {
-          roles: req.roles,
-          join_method: req.method || 'token',
-          allow: makeAllowField(req.rules || []),
-          suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
-            req.suggestedAgentMatcherLabels
-          ),
-        },
-        signal,
-        mfaResponse
-      )
-      .then(makeJoinToken);
+    const resp = await api.post(
+      cfg.getJoinTokenUrl(),
+      {
+        roles: req.roles,
+        join_method: req.method || 'token',
+        allow: makeAllowField(req.rules || []),
+        suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
+          req.suggestedAgentMatcherLabels
+        ),
+      },
+      signal,
+      mfaResponse
+    );
+    return makeJoinToken(resp);
   }
 
   async upsertJoinTokenYAML(
@@ -55,26 +54,24 @@ class JoinTokenService {
     tokenName: string
   ): Promise<JoinToken> {
     const mfaResponse = await auth.getAdminActionMfaResponse();
-    return api
-      .putWithHeaders(
-        cfg.getJoinTokenYamlUrl(),
-        {
-          content: req.content,
-        },
-        {
-          [TeleportTokenNameHeader]: tokenName,
-          'Content-Type': 'application/json',
-        },
-        mfaResponse
-      )
-      .then(makeJoinToken);
+    const resp = await api.putWithHeaders(
+      cfg.getJoinTokenYamlUrl(),
+      {
+        content: req.content,
+      },
+      {
+        [TeleportTokenNameHeader]: tokenName,
+        'Content-Type': 'application/json',
+      },
+      mfaResponse
+    );
+    return makeJoinToken(resp);
   }
 
   async createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
     const mfaResponse = await auth.getAdminActionMfaResponse();
-    return api
-      .post(cfg.getJoinTokensUrl(), req, mfaResponse)
-      .then(makeJoinToken);
+    const resp = api.post(cfg.getJoinTokensUrl(), req, mfaResponse);
+    return makeJoinToken(resp);
   }
 
   async fetchJoinTokens(

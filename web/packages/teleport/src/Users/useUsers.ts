@@ -89,12 +89,17 @@ export default function useUsers({
 
   async function onCreate(u: User) {
     const mfaResponse = await auth.getAdminActionMfaResponse(true);
-    return ctx.userService
-      .createUser(u, ExcludeUserField.Traits, mfaResponse)
-      .then(result => setUsers([result, ...users]))
-      .then(() =>
-        ctx.userService.createResetPasswordToken(u.name, 'invite', mfaResponse)
-      );
+    const result = await ctx.userService.createUser(
+      u,
+      ExcludeUserField.Traits,
+      mfaResponse
+    );
+    setUsers([result, ...users]);
+    return ctx.userService.createResetPasswordToken(
+      u.name,
+      'invite',
+      mfaResponse
+    );
   }
 
   function onInviteCollaboratorsClose() {
