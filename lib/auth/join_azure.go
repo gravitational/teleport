@@ -405,20 +405,18 @@ func (a *Server) checkAzureRequest(
 	if provisionToken.GetJoinMethod() != types.JoinMethodAzure {
 		return nil, trace.AccessDenied("this token does not support the Azure join method")
 	}
+	token, ok := provisionToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
+	}
 
 	subID, vmID, err := parseAndVerifyAttestedData(ctx, req.AttestedData, challenge, cfg.certificateAuthorities)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	attrs, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart, a.logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	token, ok := provisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
 	}
 	if err := checkAzureAllowRules(vmID, attrs, token); err != nil {
 		return attrs, trace.Wrap(err)
@@ -481,7 +479,7 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = a.checkAzureRequest(ctx, challenge, req, cfg)
+	joinAttrs, err := a.checkAzureRequest(ctx, challenge, req, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -492,6 +490,9 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 			provisionToken,
 			req.RegisterUsingTokenRequest,
 			nil,
+			&workloadidentityv1pb.JoinAttrs{
+				Azure: joinAttrs,
+			},
 		)
 		return certs, trace.Wrap(err)
 	}

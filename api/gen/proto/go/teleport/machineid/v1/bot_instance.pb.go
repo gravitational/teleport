@@ -324,11 +324,14 @@ type BotInstanceStatusAuthentication struct {
 	// Server.
 	AuthenticatedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=authenticated_at,json=authenticatedAt,proto3" json:"authenticated_at,omitempty"`
 	// The join method used for this join or renewal.
+	// Deprecated: prefer using join_attrs.meta.join_method
 	JoinMethod string `protobuf:"bytes,2,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	// The join token used for this join or renewal. This is only populated for
 	// delegated join methods as the value for `token` join methods is sensitive.
+	// Deprecated: prefer using join_attrs.meta.join_token_name
 	JoinToken string `protobuf:"bytes,3,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	// The metadata sourced from the join method.
+	// Deprecated: prefer using join_attrs.
 	Metadata *structpb.Struct `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// On each renewal, this generation is incremented. For delegated join
 	// methods, this counter is not checked during renewal. For the `token` join
