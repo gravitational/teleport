@@ -438,6 +438,18 @@ func makeTestLabels(extraStaticLabels map[string]string) map[string]string {
 	return labels
 }
 
+// autoUpdateConfigBrokenCollection is an intentionally broken version of the
+// autoUpdateConfigCollection that is not marshalling resources properly because
+// it's doing json marshaling instead of protojson marshaling.
+type autoUpdateConfigBrokenCollection struct {
+	autoUpdateConfigCollection
+}
+
+func (c *autoUpdateConfigBrokenCollection) resources() []types.Resource {
+	// We use Resource153ToLegacy instead of ProtoResource153ToLegacy.
+	return []types.Resource{types.Resource153ToLegacy(c.config)}
+}
+
 // This test makes sure we marshal and unmarshal proto-based Resource153 properly.
 // We had a bug where types.Resource153 implemented by protobuf structs were not
 // marshaled properly (they should be marshaled using protojson). This test
@@ -475,4 +487,16 @@ func TestRoundTripProtoResource153(t *testing.T) {
 
 	// Test validation: check that the loaded content matches what we had before.
 	require.Equal(t, result, initial)
+
+	// Test execution: now dump the resource into a YAML manifest with a
+	// collection using types.Resource153ToLegacy instead of types.ProtoResource153ToLegacy
+	brokenCollection := &autoUpdateConfigBrokenCollection{autoUpdateConfigCollection{initial}}
+	buf = &bytes.Buffer{}
+	require.NoError(t, writeYAML(brokenCollection, buf))
+
+	// Test execution: load the YAML manifest back and see that we can't unmarshal it.
+	decoder = kyaml.NewYAMLOrJSONDecoder(buf, defaults.LookaheadBufSize)
+	require.NoError(t, decoder.Decode(&raw))
+	result, err = services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	require.Error(t, err)
 }

@@ -126,6 +126,10 @@ func (r *legacyToResource153Adapter) GetVersion() string {
 // [Resource] type. Implements [ResourceWithLabels] and CloneResource (where the)
 // wrapped resource supports cloning).
 //
+// Resources153 implemented by proto-generated structs should use ProtoResource153ToLegacy
+// instead as it will ensure the protobuf message is properly marshaled to JSON
+// with protojson.
+//
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
 func Resource153ToLegacy(r Resource153) Resource {
@@ -351,7 +355,14 @@ func (r *resource153ToUnifiedResourceAdapter) CloneResource() ResourceWithLabels
 	return Resource153ToUnifiedResource(clone)
 }
 
-type resource153ToLegacyAdapterV2 struct {
+// ProtoResource153 is a Resource153 implemented by a protobuf-generated struct.
+type ProtoResource153 interface {
+	Resource153
+	proto.Message
+}
+
+type protoResource153ToLegacyAdapter struct {
+	inner ProtoResource153
 	resource153ToLegacyAdapter
 }
 
@@ -359,26 +370,22 @@ type resource153ToLegacyAdapterV2 struct {
 // marshaling the adapter itself).
 // If the resource153 is implemented by a protobuf type, we use
 // protojson.Marshal instead.
-func (r *resource153ToLegacyAdapterV2) MarshalJSON() ([]byte, error) {
-	if protoResource153, ok := r.inner.(proto.Message); ok {
-		return protojson.MarshalOptions{
-			UseProtoNames: true,
-		}.Marshal(protoResource153)
-	}
-	return r.resource153ToLegacyAdapter.MarshalJSON()
+func (r *protoResource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
+	return protojson.MarshalOptions{
+		UseProtoNames: true,
+	}.Marshal(r.inner)
 }
 
-// Resource153ToLegacyV2 transforms an RFD 153 style resource into a legacy
-// [Resource] type. Implements [ResourceWithLabels] and CloneResource (where the)
-// wrapped resource supports cloning).
-//
-// If the Resource153 is implemented by a protobuf struct, the resource is
-// marshaled using protojson.
+// ProtoResource153ToLegacy transforms an RFD 153 style resource implemented by
+// a proto-generated struct into a legacy [Resource] type. Implements
+// [ResourceWithLabels] and CloneResource (where the wrapped resource supports
+// cloning).
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
-func Resource153ToLegacyV2(r Resource153) Resource {
-	return &resource153ToLegacyAdapterV2{
+func ProtoResource153ToLegacy(r ProtoResource153) Resource {
+	return &protoResource153ToLegacyAdapter{
+		r,
 		resource153ToLegacyAdapter{r},
 	}
 }
