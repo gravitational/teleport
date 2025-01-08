@@ -41,6 +41,7 @@ func TestExporterBasics(t *testing.T) {
 	startDate := now.Add(-7 * day)
 
 	for _, randomFlake := range []bool{false, true} {
+		randomFlake := randomFlake
 
 		// empty case verified export of a time range larger than backlog size with no events in it.
 		t.Run(fmt.Sprintf("case=empty,randomFlake=%v", randomFlake), func(t *testing.T) {
