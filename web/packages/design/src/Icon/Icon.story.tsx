@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { CSSTransition } from 'react-transition-group';
+import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
+
+import { Flex } from 'design';
+import { blink } from 'design/keyframes';
 
 import { Broadcast } from './Icons/Broadcast';
 
@@ -28,53 +30,22 @@ export default {
 };
 
 export const WithRef = () => {
-  const [isShown, setIsShown] = useState(true);
-  const nodeRef = useRef(null);
+  const nodeRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setIsShown(value => !value);
-    }, timeoutMs * 3);
-
-    return () => {
-      clearInterval(interval);
-    };
+    nodeRef.current?.scrollIntoView({ block: 'center' });
   }, []);
 
   return (
-    // This can be done with pure CSS, it's implemented like this just to show how Icon interacts
-    // with ref.
-    <CSSTransition
-      nodeRef={nodeRef}
-      in={isShown}
-      timeout={timeoutMs}
-      classNames="node"
-    >
-      <StyledBroadcast ref={nodeRef} />
-    </CSSTransition>
+    <Flex flexDirection="column" height="200vh" justifyContent="center">
+      <div>
+        <StyledBroadcast ref={nodeRef} />
+        <p>On the first render, the view should be scrolled to the icon.</p>
+      </div>
+    </Flex>
   );
 };
 
-const timeoutMs = 200;
-
 const StyledBroadcast = styled(Broadcast)`
-  &.node-enter {
-    opacity: 0;
-  }
-
-  &.node-enter-active,
-  &.node-enter-done {
-    opacity: 1;
-    transition: opacity ${timeoutMs}ms;
-  }
-
-  &.node-exit {
-    opacity: 1;
-  }
-
-  &.node-exit-active,
-  &.node-exit-done {
-    opacity: 0;
-    transition: opacity ${timeoutMs}ms;
-  }
+  animation: ${blink} 1s ease-in-out infinite;
 `;
