@@ -61,7 +61,7 @@ func TestWorkloadIdentityIssue(t *testing.T) {
 	}),
 	)
 
-	homeDir, _ := mustLogin(t, s)
+	homeDir, _ := mustLoginLegacy(t, s)
 	temp := t.TempDir()
 	err = Run(
 		ctx,

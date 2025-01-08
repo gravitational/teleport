@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getPlatform } from 'design/platform';
 import { MemoryRouter } from 'react-router';
 
-import { getConnectDownloadLinks } from '../DownloadConnect/DownloadConnect';
+import { getPlatform } from 'design/platform';
 
+import { getConnectDownloadLinks } from '../DownloadConnect/DownloadConnect';
 import { DeviceTrustConnectPassthrough } from './AuthorizeDeviceWeb';
 
 export default {

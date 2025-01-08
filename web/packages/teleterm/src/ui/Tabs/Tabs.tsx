@@ -17,14 +17,14 @@
  */
 
 import styled from 'styled-components';
-import { typography } from 'design/system';
-import { Box } from 'design';
 
+import { Box } from 'design';
+import { typography } from 'design/system';
 import { TypographyProps } from 'design/system/typography';
 
 import { Document } from 'teleterm/ui/services/workspacesService';
 
-import { TabItem, NewTabItem } from './TabItem';
+import { NewTabItem, TabItem } from './TabItem';
 
 export function Tabs(props: Props) {
   const {

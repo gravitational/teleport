@@ -16,27 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-
 import { waitFor, within } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { render, screen } from 'design/utils/testing';
 
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
   MfaChallengeResponse,
 } from 'teleport/services/mfa';
 
+import { ChangePasswordWizard } from '.';
 import {
   ChangePasswordWizardProps,
   getReauthOptions,
   REAUTH_OPTION_PASSKEY,
   REAUTH_OPTION_WEBAUTHN,
 } from './ChangePasswordWizard';
-
-import { ChangePasswordWizard } from '.';
 
 const dummyChallengeResponse: MfaChallengeResponse = {
   webauthn_response: {

@@ -45,7 +45,7 @@ func TestBotJoinAuth(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()

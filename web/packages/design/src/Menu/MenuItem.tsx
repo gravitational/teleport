@@ -18,16 +18,16 @@
 
 import styled from 'styled-components';
 import {
-  fontSize,
   color,
-  space,
-  FontSizeProps,
-  SpaceProps,
   ColorProps,
+  fontSize,
+  FontSizeProps,
+  space,
+  SpaceProps,
 } from 'styled-system';
 
-import { Theme } from 'design/theme/themes/types';
 import Flex from 'design/Flex';
+import { Theme } from 'design/theme/themes/types';
 
 const defaultValues = {
   fontSize: 1,

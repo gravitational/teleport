@@ -19,13 +19,13 @@
 import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
-import { assertUnreachable } from 'teleterm/ui/utils';
 import { RuntimeSettings } from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 export class DeepLinksService {
   constructor(

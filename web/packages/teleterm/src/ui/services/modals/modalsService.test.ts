@@ -18,7 +18,7 @@
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
-import { ModalsService, DialogClusterConnect } from './modalsService';
+import { DialogClusterConnect, ModalsService } from './modalsService';
 
 const rootCluster = makeRootCluster();
 

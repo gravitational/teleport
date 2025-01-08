@@ -17,39 +17,36 @@
  */
 
 import { useState } from 'react';
-import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { Flex } from 'design';
-
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
-import { routing } from 'teleterm/ui/uri';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import {
+  makeApp,
   makeDatabase,
   makeKube,
-  makeServer,
   makeLabelsList,
   makeRootCluster,
-  makeApp,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { routing } from 'teleterm/ui/uri';
+import type * as uri from 'teleterm/ui/uri';
 
 import { SearchResult, SearchResultApp } from '../searchResult';
 import { makeResourceResult } from '../testHelpers';
-
 import {
+  AdvancedSearchEnabledItem,
+  AppItem,
   ComponentMap,
   NoResultsItem,
   ResourceSearchErrorsItem,
   TypeToSearchItem,
-  AdvancedSearchEnabledItem,
-  AppItem,
 } from './ActionPicker';
-import { SuggestionsError, NoSuggestionsAvailable } from './ParameterPicker';
+import { NoSuggestionsAvailable, SuggestionsError } from './ParameterPicker';
 import { NonInteractiveItem, ResultList } from './ResultList';
-
-import type * as uri from 'teleterm/ui/uri';
 
 export default {
   title: 'Teleterm/Search',

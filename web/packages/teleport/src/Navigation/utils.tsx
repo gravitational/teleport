@@ -21,7 +21,6 @@ import {
   NavigationItemSize,
   SmallIcon,
 } from 'teleport/Navigation/common';
-
 import type { TeleportFeature } from 'teleport/types';
 
 export function getIcon(feature: TeleportFeature, size: NavigationItemSize) {

@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -37,7 +38,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -226,7 +226,7 @@ func cleanupUsersAndGroups(users []string, groups []string) {
 		cmd := exec.Command("groupdel", group)
 		err := cmd.Run()
 		if err != nil {
-			log.Debugf("Error deleting group %s: %s", group, err)
+			slog.DebugContext(context.Background(), "Error deleting group", "group", group, "error", err)
 		}
 	}
 	for _, user := range users {

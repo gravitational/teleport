@@ -24,7 +24,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -265,7 +264,7 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 	for _, cluster := range clusters {
 		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
 		if err != nil {
-			slog.WarnContext(cf.Context, "Failed to generate context name.", "error", err)
+			logger.WarnContext(cf.Context, "Failed to generate context name", "error", err)
 			contextName = kubeconfig.ContextName(cluster.TeleportCluster, cluster.KubeCluster)
 		}
 		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
@@ -495,7 +494,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
 			cert, err := kubeCertFromKeyRing(key, cluster.KubeCluster)
 			if err == nil {
-				log.Debugf("Client cert loaded from keystore for %v.", cluster)
+				logger.DebugContext(ctx, "Client cert loaded from keystore for cluster", "cluster", cluster)
 				certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
 				continue
 			}
@@ -510,7 +509,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 			return nil, trace.Wrap(err)
 		}
 
-		log.Debugf("Client cert issued for %v.", cluster)
+		logger.DebugContext(ctx, "Client cert issued for cluster", "cluster", cluster)
 		certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
 	}
 	return certs, nil

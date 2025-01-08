@@ -18,9 +18,8 @@
 
 import { useState } from 'react';
 
-import Text from '../Text';
 import Flex from '../Flex';
-
+import Text from '../Text';
 import { Toggle } from './Toggle';
 
 export default {

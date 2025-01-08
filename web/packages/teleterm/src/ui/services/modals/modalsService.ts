@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
 import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import { useStore } from 'shared/libs/stores';
 
 import * as types from 'teleterm/services/tshd/types';
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import { RootClusterUri } from 'teleterm/ui/uri';
+import type * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-
-import type * as uri from 'teleterm/ui/uri';
 
 type State = {
   // One regular dialog and multiple important dialogs can be rendered at the same time.

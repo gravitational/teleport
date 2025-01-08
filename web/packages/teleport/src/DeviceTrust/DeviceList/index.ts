@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,33 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
-
-import (
-	"os"
-
-	"github.com/sirupsen/logrus"
-)
-
-type LoggerConfig struct {
-	logLevel logrus.Level
-	logJSON  bool
-}
-
-func NewLoggerConfig(logLevel logrus.Level, logJSON bool) *LoggerConfig {
-	return &LoggerConfig{
-		logLevel: logLevel,
-		logJSON:  logJSON,
-	}
-}
-
-func (lc *LoggerConfig) setupLogger() {
-	if lc.logJSON {
-		logrus.SetFormatter(&logrus.JSONFormatter{})
-	} else {
-		logrus.SetFormatter(&logrus.TextFormatter{})
-	}
-	logrus.SetOutput(os.Stdout)
-	logrus.SetLevel(lc.logLevel)
-	logrus.Debugf("Setup logger with config: %+v", lc)
-}
+export { DeviceList } from './DeviceList';

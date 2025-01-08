@@ -18,7 +18,6 @@
 
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-
 import { SearchPanel } from 'shared/components/Search';
 
 import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';

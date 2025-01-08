@@ -24,8 +24,8 @@ import { ConfigService } from 'teleterm/services/config';
 import { buildPtyOptions } from './ptyHost/buildPtyOptions';
 import { createPtyHostClient } from './ptyHost/ptyHostClient';
 import { createPtyProcess } from './ptyHost/ptyProcess';
-import { PtyServiceClient } from './types';
 import { getWindowsPty } from './ptyHost/windowsPty';
+import { PtyServiceClient } from './types';
 
 export function createPtyService(
   address: string,

@@ -17,6 +17,7 @@
 package workloadidentityv1
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,55 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
+
+func Test_decide(t *testing.T) {
+	standardAttrs := &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
+			Name: "jeff",
+		},
+		Workload: &workloadidentityv1pb.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
+				PodName:   "pod1",
+				Namespace: "default",
+			},
+		},
+	}
+	tests := []struct {
+		name         string
+		wid          *workloadidentityv1pb.WorkloadIdentity
+		attrs        *workloadidentityv1pb.Attrs
+		wantIssue    bool
+		assertReason require.ErrorAssertionFunc
+	}{
+		{
+			name: "invalid dns name",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/valid",
+						X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
+							DnsSans: []string{
+								"//imvalid;;",
+							},
+						},
+					},
+				},
+			},
+			attrs:     standardAttrs,
+			wantIssue: false,
+			assertReason: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "templating spec.spiffe.x509.dns_sans[0] resulted in an invalid DNS name")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := decide(context.Background(), tt.wid, tt.attrs)
+			require.Equal(t, tt.wantIssue, d.shouldIssue)
+			tt.assertReason(t, d.reason)
+		})
+	}
+}
 
 func Test_getFieldStringValue(t *testing.T) {
 	tests := []struct {
@@ -43,6 +93,23 @@ func Test_getFieldStringValue(t *testing.T) {
 			},
 			attr:       "user.name",
 			want:       "jeff",
+			requireErr: require.NoError,
+		},
+		{
+			// This test ensures that the proto name (e.g service_account) is
+			// used instead of the Go name (e.g serviceAccount).
+			name: "underscored",
+			in: &workloadidentityv1pb.Attrs{
+				Join: &workloadidentityv1pb.JoinAttrs{
+					Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
+						ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+							Namespace: "default",
+						},
+					},
+				},
+			},
+			attr:       "join.kubernetes.service_account.namespace",
+			want:       "default",
 			requireErr: require.NoError,
 		},
 		{
