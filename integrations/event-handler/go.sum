@@ -1606,6 +1606,8 @@ github.com/zmap/zcrypto v0.0.0-20231219022726-a1f61fb1661c/go.mod h1:GSDpFDD4TAS
 github.com/zmap/zlint/v3 v3.0.0/go.mod h1:paGwFySdHIBEMJ61YjoqT4h7Ge+fdYG4sUQhnTb1lJ8=
 github.com/zmap/zlint/v3 v3.6.0 h1:vTEaDRtYN0d/1Ax60T+ypvbLQUHwHxbvYRnUMVr35ug=
 github.com/zmap/zlint/v3 v3.6.0/go.mod h1:NVgiIWssgzp0bNl8P4Gz94NHV2ep/4Jyj9V69uTmZyg=
+gitlab.com/gitlab-org/api/client-go v0.119.0 h1:YBZyx9XUTtEDBBYtY36cZWz6JmT7om/8HPSk37IS95g=
+gitlab.com/gitlab-org/api/client-go v0.119.0/go.mod h1:ygHmS3AU3TpvK+AC6DYO1QuAxLlv6yxYK+/Votr/WFQ=
 go.mongodb.org/mongo-driver v1.14.0 h1:P98w8egYRjYe3XDjxhYJagTokP/H6HzlsnojRgZRd80=
 go.mongodb.org/mongo-driver v1.14.0/go.mod h1:Vzb0Mk/pa7e6cWw85R4F/endUC3u0U9jGcNU603k65c=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=

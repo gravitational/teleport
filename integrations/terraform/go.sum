@@ -1932,6 +1932,8 @@ github.com/zmap/zcrypto v0.0.0-20231219022726-a1f61fb1661c/go.mod h1:GSDpFDD4TAS
 github.com/zmap/zlint/v3 v3.0.0/go.mod h1:paGwFySdHIBEMJ61YjoqT4h7Ge+fdYG4sUQhnTb1lJ8=
 github.com/zmap/zlint/v3 v3.6.0 h1:vTEaDRtYN0d/1Ax60T+ypvbLQUHwHxbvYRnUMVr35ug=
 github.com/zmap/zlint/v3 v3.6.0/go.mod h1:NVgiIWssgzp0bNl8P4Gz94NHV2ep/4Jyj9V69uTmZyg=
+gitlab.com/gitlab-org/api/client-go v0.119.0 h1:YBZyx9XUTtEDBBYtY36cZWz6JmT7om/8HPSk37IS95g=
+gitlab.com/gitlab-org/api/client-go v0.119.0/go.mod h1:ygHmS3AU3TpvK+AC6DYO1QuAxLlv6yxYK+/Votr/WFQ=
 go.abhg.dev/goldmark/frontmatter v0.2.0 h1:P8kPG0YkL12+aYk2yU3xHv4tcXzeVnN+gU0tJ5JnxRw=
 go.abhg.dev/goldmark/frontmatter v0.2.0/go.mod h1:XqrEkZuM57djk7zrlRUB02x8I5J0px76YjkOzhB4YlU=
 go.etcd.io/etcd/api/v3 v3.5.17 h1:cQB8eb8bxwuxOilBpMJAEo8fAONyrdXTHUNcMd8yT1w=
