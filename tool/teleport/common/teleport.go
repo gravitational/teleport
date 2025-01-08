@@ -1014,10 +1014,22 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 // user's privileges
 //
 // This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
-func onSCP(scpFlags *scp.Flags) (err error) {
+func onSCP(scpFlags *scp.Flags) error {
 	// when 'teleport scp' is executed, it cannot write logs to stderr (because
 	// they're automatically replayed by the scp client)
-	slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+	var verbosity string
+	if scpFlags.Verbose {
+		verbosity = teleport.DebugLevel
+	}
+	_, _, err := logutils.Initialize(logutils.Config{
+		Output:   teleport.Syslog,
+		Severity: verbosity,
+	})
+	if err != nil {
+		// If something went wrong, discard all logs and continue command execution.
+		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+	}
+
 	if len(scpFlags.Target) == 0 {
 		return trace.BadParameter("teleport scp: missing an argument")
 	}
