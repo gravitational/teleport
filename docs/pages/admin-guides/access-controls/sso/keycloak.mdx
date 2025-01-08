@@ -3,8 +3,8 @@ title: Teleport Authentication with Keycloak
 description: How to configure Teleport access with Keycloak
 ---
 
-This guide will cover how to configure Keycloak to issue
-credentials to specific groups of users with a SAML Authentication Connector.
+This guide explains how to configure Keycloak to issue
+credentials to specific groups of users with a SAML authentication connector.
 When used in combination with role-based access control (RBAC), it allows Teleport
 administrators to define policies like:
 
@@ -19,8 +19,8 @@ Keycloak groups. You can choose to configure other options.
 Before you get started, you’ll need:
 
 
-- An administrative account for the Admin Console to manage realms 
-  and perform administrative tasks in the keycloak admin console
+- An administrative account for the Keycloak Admin Console to manage realms 
+  and perform administrative tasks.
 - To be in a realm other than the master realm.
 - To register one or more users in the realm directory.
 - To create at least two groups in realm directory and assign one or more
@@ -41,10 +41,10 @@ Before you get started, you’ll need:
 
    ![Create client](../../../../img/sso/keycloak/create_client.png)
 
-1. Set Client type to **SAML** and Set a Client ID to the URL for your Teleport Proxy URL
+1. Set Client type to **SAML** and Set a Client ID to the URL for your Teleport Proxy Service URL
 
    ```code
-   https://<Var name="mytenant.teleport.sh"
+   https://<Var name="mytenant.teleport.sh" />
    ```
    ![SAML](../../../../img/sso/keycloak/saml.png)
 
@@ -57,7 +57,7 @@ Before you get started, you’ll need:
 
    Click **Save** before proceeding to the next step.
 
-### Configure SAML Assertion Mappings
+### Configure SAML assertion mappings
 
 1. Navigate to **Clients** in left sidebar
 
@@ -81,7 +81,7 @@ Before you get started, you’ll need:
 
 1. Repeat steps 1 - 6 to add the **User Attribute** mapper
 
-   ![Username atrribute mapper](../../../../img/sso/keycloak/attribute_mapping.png)
+   ![Username attribute mapper](../../../../img/sso/keycloak/attribute_mapping.png)
 
 1. Fill out the values as shown in the image below and **Save**
 
