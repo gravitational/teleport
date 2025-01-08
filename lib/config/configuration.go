@@ -1920,7 +1920,7 @@ func readCACert(database *Database) ([]byte, error) {
 	if database.CACertFile != "" {
 		if database.TLS.CACertFile != "" {
 			// New and old fields are set. Ignore the old field.
-			slog.WarnContext(context.Background(), "Ignoring deprecated ca_cert_file database in configuration; using tls.ca_cert_file", "dababase", database.Name)
+			slog.WarnContext(context.Background(), "Ignoring deprecated ca_cert_file database in configuration; using tls.ca_cert_file", "database", database.Name)
 		} else {
 			// Only old field is set, inform about deprecation.
 			slog.WarnContext(context.Background(), "ca_cert_file is deprecated, please use tls.ca_cert_file instead for databases", "database", database.Name)
