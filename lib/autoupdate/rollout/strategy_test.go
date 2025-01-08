@@ -157,6 +157,28 @@ func Test_inWindow(t *testing.T) {
 			want:     false,
 			wantErr:  require.NoError,
 		},
+		{
+			name: "window start time is included",
+			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				ConfigDays:      everyWeekday,
+				ConfigStartHour: matchingStartHour,
+			},
+			now:      testSunday.Truncate(24 * time.Hour).Add(time.Duration(matchingStartHour) * time.Hour),
+			duration: time.Hour,
+			want:     true,
+			wantErr:  require.NoError,
+		},
+		{
+			name: "window end time is not included",
+			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				ConfigDays:      everyWeekday,
+				ConfigStartHour: matchingStartHour,
+			},
+			now:      testSunday.Truncate(24 * time.Hour).Add(time.Duration(matchingStartHour+1) * time.Hour),
+			duration: time.Hour,
+			want:     false,
+			wantErr:  require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

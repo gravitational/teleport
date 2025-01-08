@@ -52,7 +52,7 @@ func newTimeBasedStrategy(log *slog.Logger) (rolloutStrategy, error) {
 }
 
 func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
-	windowDuration := spec.MaintenanceWindowDuration.AsDuration()
+	windowDuration := spec.GetMaintenanceWindowDuration().AsDuration()
 	// Backward compatibility for resources previously created without duration.
 	if windowDuration == 0 {
 		windowDuration = haltOnErrorWindowDuration
