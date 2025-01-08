@@ -263,7 +263,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if _, err := io.ReadFull(r.gzipReader, messageBytes[:messageSize]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			oneof := apievents.OneOf{}
+			var oneof apievents.OneOf
 			if err := oneof.Unmarshal(messageBytes[:messageSize]); err != nil {
 				return nil, trace.Wrap(err)
 			}
