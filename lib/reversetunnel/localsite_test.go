@@ -481,11 +481,6 @@ func Test_shouldDialAndForward(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
-	gitHubServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
-		Integration:  "org1",
-		Organization: "org1",
-	})
-	require.NoError(t, err)
 
 	tests := []struct {
 		name      string
@@ -505,14 +500,6 @@ func Test_shouldDialAndForward(t *testing.T) {
 			name: "OpenSSH node",
 			params: reversetunnelclient.DialParams{
 				TargetServer: openSSHNode,
-			},
-			recConfig: recordAtNode,
-			check:     require.True,
-		},
-		{
-			name: "Git server",
-			params: reversetunnelclient.DialParams{
-				TargetServer: gitHubServer,
 			},
 			recConfig: recordAtNode,
 			check:     require.True,

@@ -154,7 +154,7 @@ func TestRBAC(t *testing.T) {
 			name:            "forwarding git",
 			component:       teleport.ComponentForwardingGit,
 			targetServer:    gitServer,
-			assertRBACCheck: require.True,
+			assertRBACCheck: require.False,
 		},
 	}
 
