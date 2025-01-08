@@ -61,6 +61,13 @@ services:
     destination:
       type: directory
       path: /an/output/path
+  - type: workload-identity-api
+    listen: tcp://127.0.0.1:123
+    attestors:
+      kubernetes:
+        enabled: false
+    workload_identity:
+      name: my-workload-identity
 debug: true
 auth_server: example.teleport.sh:443
 certificate_ttl: 1m0s
