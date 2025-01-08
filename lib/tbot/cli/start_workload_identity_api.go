@@ -1,0 +1,107 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package cli
+
+import (
+	"fmt"
+	"log/slog"
+
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/tbot/config"
+)
+
+// WorkloadIdentityAPICommand implements `tbot start workload-identity-api` and
+// `tbot configure workload-identity-api`.
+type WorkloadIdentityAPICommand struct {
+	*sharedStartArgs
+	*genericMutatorHandler
+
+	// Listen configures where the workload identity API should listen. This
+	// should be prefixed with a scheme e.g unix:// or tcp://.
+	Listen string
+	// WorkloadIdentityName is the name of the workload identity to use.
+	// --workload-identity-name foo
+	WorkloadIdentityName string
+	// WorkloadIdentityLabels is the labels of the workload identity to use.
+	// --workload-identity-labels x=y,z=a
+	WorkloadIdentityLabels string
+}
+
+// NewWorkloadIdentityAPICommand initializes the command and flags for the
+// `workload-identity-api` service and returns a struct that will contain the
+// parse result.
+func NewWorkloadIdentityAPICommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *WorkloadIdentityAPICommand {
+	// TODO(noah): Unhide this command when feature flag removed
+	cmd := parentCmd.Command(
+		"workload-identity-api",
+		fmt.Sprintf("%s tbot with a workload identity API listener. Compatible with the SPIFFE Workload API and Envoy SDS.", mode),
+	).Hidden()
+
+	c := &WorkloadIdentityAPICommand{}
+	c.sharedStartArgs = newSharedStartArgs(cmd)
+	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
+
+	cmd.Flag(
+		"workload-identity-name",
+		"The name of the workload identity to issue",
+	).StringVar(&c.WorkloadIdentityName)
+	cmd.Flag(
+		"workload-identity-labels",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
+	).StringVar(&c.WorkloadIdentityLabels)
+	cmd.Flag(
+		"listen-addr",
+		"The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.",
+	).Required().StringVar(&c.Listen)
+
+	return c
+}
+
+func (c *WorkloadIdentityAPICommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+	if err := c.sharedStartArgs.ApplyConfig(cfg, l); err != nil {
+		return trace.Wrap(err)
+	}
+
+	svc := &config.WorkloadIdentityAPIService{
+		Listen: c.Listen,
+	}
+
+	switch {
+	case c.WorkloadIdentityName != "" && c.WorkloadIdentityLabels != "":
+		return trace.BadParameter("workload-identity-name and workload-identity-labels flags are mutually exclusive")
+	case c.WorkloadIdentityName != "":
+		svc.WorkloadIdentity.Name = c.WorkloadIdentityName
+	case c.WorkloadIdentityLabels != "":
+		labels, err := client.ParseLabelSpec(c.WorkloadIdentityLabels)
+		if err != nil {
+			return trace.Wrap(err, "parsing --workload-identity-labels")
+		}
+		svc.WorkloadIdentity.Labels = map[string][]string{}
+		for k, v := range labels {
+			svc.WorkloadIdentity.Labels[k] = []string{v}
+		}
+	default:
+		return trace.BadParameter("workload-identity-name or workload-identity-labels must be specified")
+	}
+
+	cfg.Services = append(cfg.Services, svc)
+
+	return nil
+}
