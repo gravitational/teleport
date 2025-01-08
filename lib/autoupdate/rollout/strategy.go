@@ -45,8 +45,8 @@ type rolloutStrategy interface {
 	progressRollout(context.Context, *autoupdate.AutoUpdateAgentRolloutSpec, *autoupdate.AutoUpdateAgentRolloutStatus, time.Time) error
 }
 
-// inWindow checks if the time is in the grou's maintenance window.
-// The maintenance window is a semi-open interval: [windowStart; windowEnd).
+// inWindow checks if the time is in the group's maintenance window.
+// The maintenance window is the semi-open interval: [windowStart, windowEnd).
 func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, duration time.Duration) (bool, error) {
 	dayOK, err := canUpdateToday(group.ConfigDays, now)
 	if err != nil {
