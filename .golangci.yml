@@ -24,15 +24,6 @@ issues:
     - linters: [testifylint]
       text: "suite-thelper: suite helper method must start with"
       path: 'integrations/.+'
-    # Go 1.22 related warnings.
-    # These are OK because our toolchain is 1.22 or newer.
-    - linters: [govet]
-      text: "stdversion: cmp.Or requires go1.22 or later"
-    - linters: [govet]
-      text: "stdversion: rand.New requires go1.22 or later"
-    - linters: [govet]
-      text: "stdversion: rand.NewPCG requires go1.22 or later"
-
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
