@@ -51,7 +51,13 @@ func newTimeBasedStrategy(log *slog.Logger) (rolloutStrategy, error) {
 	}, nil
 }
 
-func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
+func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
+	windowDuration := spec.GetMaintenanceWindowDuration().AsDuration()
+	// Backward compatibility for resources previously created without duration.
+	if windowDuration == 0 {
+		windowDuration = haltOnErrorWindowDuration
+	}
+
 	// We always process every group regardless of the order.
 	var errs []error
 	for _, group := range status.Groups {
@@ -61,7 +67,7 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupd
 			// We start any group unstarted group in window.
 			// Done groups can transition back to active if they enter their maintenance window again.
 			// Some agents might have missed the previous windows and might expected to try again.
-			shouldBeActive, err := inWindow(group, now)
+			shouldBeActive, err := inWindow(group, now, windowDuration)
 			if err != nil {
 				// In time-based rollouts, groups are not dependent.
 				// Failing to transition a group should affect other groups.
@@ -72,7 +78,7 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupd
 			}
 
 			// Check if the rollout got created after the theoretical group start time
-			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime())
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime(), windowDuration)
 			if err != nil {
 				setGroupState(group, group.State, updateReasonReconcilerError, now)
 				errs = append(errs, err)
@@ -93,7 +99,7 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupd
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
 			// The group is currently being updated. We check if the maintenance
 			// is over and if we should transition it to the done state
-			shouldBeActive, err := inWindow(group, now)
+			shouldBeActive, err := inWindow(group, now, windowDuration)
 			if err != nil {
 				// In time-based rollouts, groups are not dependent.
 				// Failing to transition a group should affect other groups.
