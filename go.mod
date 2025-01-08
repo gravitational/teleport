@@ -187,6 +187,7 @@ require (
 	github.com/vulcand/predicate v1.2.0 // replaced
 	github.com/xanzy/go-gitlab v0.115.0
 	github.com/yusufpapurcu/wmi v1.2.4
+	gitlab.com/gitlab-org/api/client-go v0.119.0
 	go.etcd.io/etcd/api/v3 v3.5.17
 	go.etcd.io/etcd/client/v3 v3.5.17
 	go.mongodb.org/mongo-driver v1.14.0

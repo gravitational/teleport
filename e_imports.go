@@ -114,6 +114,7 @@ import (
 	_ "github.com/stretchr/testify/require"
 	_ "github.com/vulcand/predicate/builder"
 	_ "github.com/xanzy/go-gitlab"
+	_ "gitlab.com/gitlab-org/api/client-go"
 	_ "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	_ "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	_ "golang.org/x/crypto/bcrypt"
