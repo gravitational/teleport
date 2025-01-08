@@ -194,14 +194,7 @@ const api = {
       throw new ApiError(parseError(json), response, undefined, json.messages);
     }
 
-    let mfaResponseForRetry;
-    try {
-      mfaResponseForRetry = await api.getAdminActionMfaResponse();
-    } catch {
-      throw new Error(
-        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
-      );
-    }
+    const mfaResponseForRetry = await api.getAdminActionMfaResponse();
 
     return api.fetchJsonWithMfaAuthnRetry(
       url,
@@ -217,21 +210,24 @@ const api = {
     // before this has a chance of being called). This conditional is not expected to
     // be hit, but will catch any major issues that could arise from this solution.
     if (!mfaContext) {
-      setTimeout(() => {
-        if (!mfaContext)
-          throw new Error(
-            'Failed to set up MFA prompt for admin action. This is a bug.'
-          );
-      }, 1000);
+      throw new Error(
+        'Failed to set up MFA prompt for admin action. Please try refreshing the page to try again. If the issue persists, contact support as this is likely a bug.'
+      );
     }
 
-    return mfaContext.getMfaChallengeResponse({
-      scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
-    });
+    try {
+      return mfaContext.getMfaChallengeResponse({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+        allowReuse,
+        isMfaRequiredRequest: {
+          admin_action: {},
+        },
+      });
+    } catch {
+      throw new Error(
+        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
+      );
+    }
   },
 
   /**

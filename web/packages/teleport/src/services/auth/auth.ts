@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import api from 'teleport/services/api';
 import {
   DeviceType,
@@ -25,8 +26,6 @@ import {
   MfaChallengeResponse,
   SsoChallenge,
 } from 'teleport/services/mfa';
-
-import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
@@ -35,7 +34,6 @@ import {
   parseMfaChallengeJson,
   parseMfaRegistrationChallengeJson,
 } from '../mfa/makeMfa';
-
 import { makeChangedUserAuthn } from './make';
 import makePasswordToken from './makePasswordToken';
 import {
@@ -443,21 +441,24 @@ const auth = {
     // before this has a chance of being called). This conditional is not expected to
     // be hit, but will catch any major issues that could arise from this solution.
     if (!mfaContext) {
-      setTimeout(() => {
-        if (!mfaContext)
-          throw new Error(
-            'Failed to set up MFA prompt for admin action. This is a bug.'
-          );
-      }, 1000);
+      throw new Error(
+        'Failed to set up MFA prompt for admin action. Please try refreshing the page to try again. If the issue persists, contact support as this is likely a bug.'
+      );
     }
 
-    return mfaContext.getMfaChallengeResponse({
-      scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
-    });
+    try {
+      return mfaContext.getMfaChallengeResponse({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+        allowReuse,
+        isMfaRequiredRequest: {
+          admin_action: {},
+        },
+      });
+    } catch {
+      throw new Error(
+        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
+      );
+    }
   },
 
   // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
