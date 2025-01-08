@@ -31,11 +31,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -990,7 +990,7 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 
 // NewDatabaseFromRedshiftServerlessWorkgroup creates a database resource from
 // a Redshift Serverless Workgroup.
-func NewDatabaseFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup, tags []*redshiftserverless.Tag) (types.Database, error) {
+func NewDatabaseFromRedshiftServerlessWorkgroup(workgroup *rsstypes.Workgroup, tags []rsstypes.Tag) (types.Database, error) {
 	if workgroup.Endpoint == nil {
 		return nil, trace.BadParameter("missing endpoint")
 	}
@@ -1007,14 +1007,14 @@ func NewDatabaseFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Wo
 		}, metadata.RedshiftServerless.WorkgroupName),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.ToString(workgroup.Endpoint.Address), aws.ToInt64(workgroup.Endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(workgroup.Endpoint.Address), aws.ToInt32(workgroup.Endpoint.Port)),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabaseFromRedshiftServerlessVPCEndpoint creates a database resource from
 // a Redshift Serverless VPC endpoint.
-func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup, tags []*redshiftserverless.Tag) (types.Database, error) {
+func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *rsstypes.EndpointAccess, workgroup *rsstypes.Workgroup, tags []rsstypes.Tag) (types.Database, error) {
 	if workgroup.Endpoint == nil {
 		return nil, trace.BadParameter("missing endpoint")
 	}
@@ -1031,7 +1031,7 @@ func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.E
 		}, metadata.RedshiftServerless.WorkgroupName, metadata.RedshiftServerless.EndpointName),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt64(endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt32(endpoint.Port)),
 			AWS:      *metadata,
 
 			// Use workgroup's default address as the server name.
@@ -1220,7 +1220,7 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 
 // MetadataFromRedshiftServerlessWorkgroup creates AWS metadata for the
 // provided Redshift Serverless Workgroup.
-func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+func MetadataFromRedshiftServerlessWorkgroup(workgroup *rsstypes.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(workgroup.WorkgroupArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1238,7 +1238,7 @@ func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workg
 
 // MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
 // provided Redshift Serverless VPC endpoint.
-func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *rsstypes.EndpointAccess, workgroup *rsstypes.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(endpoint.EndpointArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1472,7 +1472,7 @@ func labelsFromRedshiftCluster(cluster *redshifttypes.Cluster, meta *types.AWS) 
 	return addLabels(labels, libcloudaws.TagsToLabels(cluster.Tags))
 }
 
-func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
+func labelsFromRedshiftServerlessWorkgroup(workgroup *rsstypes.Workgroup, meta *types.AWS, tags []rsstypes.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEndpointType] = services.RedshiftServerlessWorkgroupEndpoint
 	labels[types.DiscoveryLabelNamespace] = aws.ToString(workgroup.NamespaceName)
@@ -1482,7 +1482,7 @@ func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgro
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
 
-func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
+func labelsFromRedshiftServerlessVPCEndpoint(endpoint *rsstypes.EndpointAccess, workgroup *rsstypes.Workgroup, meta *types.AWS, tags []rsstypes.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEndpointType] = services.RedshiftServerlessVPCEndpoint
 	labels[types.DiscoveryLabelWorkgroup] = aws.ToString(endpoint.WorkgroupName)

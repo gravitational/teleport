@@ -37,11 +37,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	rdsauth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/oauth2"
@@ -131,15 +131,25 @@ type redshiftClient interface {
 	GetClusterCredentials(context.Context, *redshift.GetClusterCredentialsInput, ...func(*redshift.Options)) (*redshift.GetClusterCredentialsOutput, error)
 }
 
+// rssClient defines a subset of the AWS Redshift Serverless client API.
+type rssClient interface {
+	GetCredentials(context.Context, *rss.GetCredentialsInput, ...func(*rss.Options)) (*rss.GetCredentialsOutput, error)
+}
+
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
 }
 
 type defaultAWSClients struct{}
 
 func (defaultAWSClients) getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
 	return redshift.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient {
+	return rss.NewFromConfig(cfg, optFns...)
 }
 
 // AuthConfig is the database access authenticator configuration.
@@ -400,18 +410,12 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, database ty
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
 	// Assume the configured AWS role before assuming the role we need to get the
 	// auth token. This allows cross-account AWS access.
-	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
-		cloud.WithChainedAssumeRole(baseSession, roleARN, externalIDForChainedAssumeRole(meta)),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAssumeRole(roleARN, externalIDForChainedAssumeRole(meta)),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
@@ -421,6 +425,7 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, database ty
 Make sure that IAM role %q has a trust relationship with Teleport database agent's IAM identity.
 `, err, roleARN)
 	}
+	clt := a.cfg.awsClients.getRedshiftServerlessClient(awsCfg)
 
 	// Now make the API call to generate the temporary credentials.
 	a.cfg.Logger.DebugContext(ctx, "Generating Redshift Serverless auth token",
@@ -428,7 +433,7 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 		"database_user", databaseUser,
 		"database_name", databaseName,
 	)
-	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
+	resp, err := clt.GetCredentials(ctx, &rss.GetCredentialsInput{
 		WorkgroupName: aws.String(meta.RedshiftServerless.WorkgroupName),
 		DbName:        aws.String(databaseName),
 	})

@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -2450,6 +2451,8 @@ type agentParams struct {
 	CloudClients clients.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
+	// AWSDatabaseFetcherFactory provides AWS database fetchers
+	AWSDatabaseFetcherFactory *db.AWSFetcherFactory
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
@@ -2490,13 +2493,12 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:                &mocks.STSClientV1{},
-			RedshiftServerless: &mocks.RedshiftServerlessMock{},
-			ElastiCache:        p.ElastiCache,
-			MemoryDB:           p.MemoryDB,
-			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:                &mocks.IAMMock{},
-			GCPSQL:             p.GCPSQL,
+			STS:            &mocks.STSClientV1{},
+			ElastiCache:    p.ElastiCache,
+			MemoryDB:       p.MemoryDB,
+			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:            &mocks.IAMMock{},
+			GCPSQL:         p.GCPSQL,
 		}
 	}
 	if p.AWSConfigProvider == nil {
@@ -2603,16 +2605,17 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				Clock:    c.clock,
 			})
 		},
-		CADownloader:             p.CADownloader,
-		OnReconcile:              p.OnReconcile,
-		ConnectionMonitor:        connMonitor,
-		CloudClients:             p.CloudClients,
-		AWSConfigProvider:        p.AWSConfigProvider,
-		AWSMatchers:              p.AWSMatchers,
-		AzureMatchers:            p.AzureMatchers,
-		ShutdownPollPeriod:       100 * time.Millisecond,
-		InventoryHandle:          inventoryHandle,
-		discoveryResourceChecker: p.DiscoveryResourceChecker,
+		CADownloader:              p.CADownloader,
+		OnReconcile:               p.OnReconcile,
+		ConnectionMonitor:         connMonitor,
+		CloudClients:              p.CloudClients,
+		AWSConfigProvider:         p.AWSConfigProvider,
+		AWSDatabaseFetcherFactory: p.AWSDatabaseFetcherFactory,
+		AWSMatchers:               p.AWSMatchers,
+		AzureMatchers:             p.AzureMatchers,
+		ShutdownPollPeriod:        100 * time.Millisecond,
+		InventoryHandle:           inventoryHandle,
+		discoveryResourceChecker:  p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 

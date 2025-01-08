@@ -21,13 +21,13 @@ package db
 import (
 	"testing"
 
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awstesthelpers"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -39,24 +39,27 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 	workgroupDev, workgroupDevDB := makeRedshiftServerlessWorkgroup(t, "wg2", "us-east-1", envDevLabels)
 	endpointProd, endpointProdDB := makeRedshiftServerlessEndpoint(t, workgroupProd, "endpoint1", "us-east-1", envProdLabels)
 	endpointDev, endpointProdDev := makeRedshiftServerlessEndpoint(t, workgroupDev, "endpoint2", "us-east-1", envDevLabels)
-	tagsByARN := map[string][]*redshiftserverless.Tag{
-		aws.StringValue(workgroupProd.WorkgroupArn): libcloudaws.LabelsToTags[redshiftserverless.Tag](envProdLabels),
-		aws.StringValue(workgroupDev.WorkgroupArn):  libcloudaws.LabelsToTags[redshiftserverless.Tag](envDevLabels),
+	tagsByARN := map[string][]rsstypes.Tag{
+		aws.StringValue(workgroupProd.WorkgroupArn): awstesthelpers.LabelsToRedshiftServerlessTags(envProdLabels),
+		aws.StringValue(workgroupDev.WorkgroupArn):  awstesthelpers.LabelsToRedshiftServerlessTags(envDevLabels),
 	}
 
 	workgroupNotAvailable := mocks.RedshiftServerlessWorkgroup("wg-creating", "us-east-1")
-	workgroupNotAvailable.Status = aws.String("creating")
+	workgroupNotAvailable.Status = rsstypes.WorkgroupStatusCreating
 	endpointNotAvailable := mocks.RedshiftServerlessEndpointAccess(workgroupNotAvailable, "endpoint-creating", "us-east-1")
 	endpointNotAvailable.EndpointStatus = aws.String("creating")
 
 	tests := []awsFetcherTest{
 		{
-			name: "fetch all",
-			inputClients: &cloud.TestCloudClients{
-				RedshiftServerless: &mocks.RedshiftServerlessMock{
-					Workgroups: []*redshiftserverless.Workgroup{workgroupProd, workgroupDev},
-					Endpoints:  []*redshiftserverless.EndpointAccess{endpointProd, endpointDev},
-					TagsByARN:  tagsByARN,
+			name:         "fetch all",
+			inputClients: &cloud.TestCloudClients{},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rssClient: &mocks.RedshiftServerlessClient{
+						Workgroups: []rsstypes.Workgroup{*workgroupProd, *workgroupDev},
+						Endpoints:  []rsstypes.EndpointAccess{*endpointProd, *endpointDev},
+						TagsByARN:  tagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
@@ -64,11 +67,13 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 		},
 		{
 			name: "fetch prod",
-			inputClients: &cloud.TestCloudClients{
-				RedshiftServerless: &mocks.RedshiftServerlessMock{
-					Workgroups: []*redshiftserverless.Workgroup{workgroupProd, workgroupDev},
-					Endpoints:  []*redshiftserverless.EndpointAccess{endpointProd, endpointDev},
-					TagsByARN:  tagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rssClient: &mocks.RedshiftServerlessClient{
+						Workgroups: []rsstypes.Workgroup{*workgroupProd, *workgroupDev},
+						Endpoints:  []rsstypes.EndpointAccess{*endpointProd, *endpointDev},
+						TagsByARN:  tagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshiftServerless, "us-east-1", envProdLabels),
@@ -76,11 +81,13 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unavailable",
-			inputClients: &cloud.TestCloudClients{
-				RedshiftServerless: &mocks.RedshiftServerlessMock{
-					Workgroups: []*redshiftserverless.Workgroup{workgroupProd, workgroupNotAvailable},
-					Endpoints:  []*redshiftserverless.EndpointAccess{endpointNotAvailable},
-					TagsByARN:  tagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rssClient: &mocks.RedshiftServerlessClient{
+						Workgroups: []rsstypes.Workgroup{*workgroupProd, *workgroupNotAvailable},
+						Endpoints:  []rsstypes.EndpointAccess{*endpointNotAvailable},
+						TagsByARN:  tagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
@@ -90,18 +97,18 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels map[string]string) (*redshiftserverless.Workgroup, types.Database) {
+func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels map[string]string) (*rsstypes.Workgroup, types.Database) {
 	workgroup := mocks.RedshiftServerlessWorkgroup(name, region)
-	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
+	tags := awstesthelpers.LabelsToRedshiftServerlessTags(labels)
 	database, err := common.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshiftServerless)
 	return workgroup, database
 }
 
-func makeRedshiftServerlessEndpoint(t *testing.T, workgroup *redshiftserverless.Workgroup, name, region string, labels map[string]string) (*redshiftserverless.EndpointAccess, types.Database) {
+func makeRedshiftServerlessEndpoint(t *testing.T, workgroup *rsstypes.Workgroup, name, region string, labels map[string]string) (*rsstypes.EndpointAccess, types.Database) {
 	endpoint := mocks.RedshiftServerlessEndpointAccess(workgroup, name, region)
-	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
+	tags := awstesthelpers.LabelsToRedshiftServerlessTags(labels)
 	database, err := common.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshiftServerless)
