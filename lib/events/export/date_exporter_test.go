@@ -42,6 +42,7 @@ import (
 func TestDateExporterBasics(t *testing.T) {
 	t.Parallel()
 	for _, randomFlake := range []bool{false, true} {
+		randomFlake := randomFlake
 		t.Run(fmt.Sprintf("randomFlake=%v", randomFlake), func(t *testing.T) {
 			t.Parallel()
 			testDateExporterBasics(t, randomFlake)
@@ -197,6 +198,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool) {
 func TestDateExporterResume(t *testing.T) {
 	t.Parallel()
 	for _, randomFlake := range []bool{false, true} {
+		randomFlake := randomFlake
 		t.Run(fmt.Sprintf("randomFlake=%v", randomFlake), func(t *testing.T) {
 			t.Parallel()
 			testDateExporterResume(t, randomFlake)
