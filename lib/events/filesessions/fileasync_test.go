@@ -660,7 +660,6 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 }
 
 // readStream reads and decodes the audit stream from uploadID
-// Additionally, readStream will remove any duplicate audit events (by index) encountered.
 func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *eventstest.MemoryUploader) []apievents.AuditEvent {
 	t.Helper()
 
