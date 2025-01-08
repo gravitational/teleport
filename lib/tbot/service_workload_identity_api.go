@@ -38,7 +38,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
@@ -48,8 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
 
@@ -70,7 +69,7 @@ type WorkloadIdentityAPIService struct {
 	cfg              *config.WorkloadIdentityAPIService
 	log              *slog.Logger
 	resolver         reversetunnelclient.Resolver
-	trustBundleCache *spiffe.TrustBundleCache
+	trustBundleCache *workloadidentity.TrustBundleCache
 
 	// client holds the impersonated client for the service
 	client           *authclient.Client
@@ -404,7 +403,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 	ctx, span := tracer.Start(ctx, "WorkloadIdentityAPIService/fetchX509SVIDs")
 	defer span.End()
 
-	creds, privateKey, err := issueX509WorkloadIdentity(
+	creds, privateKey, err := workloadidentity.IssueX509WorkloadIdentity(
 		ctx,
 		log,
 		s.client,
@@ -422,7 +421,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		return nil, trace.Wrap(err)
 	}
 
-	marshaledBundle := spiffe.MarshalX509Bundle(localBundle.X509Bundle())
+	marshaledBundle := workloadidentity.MarshalX509Bundle(localBundle.X509Bundle())
 
 	// Convert responses from the Teleport API to the SPIFFE Workload API
 	// format.
@@ -485,8 +484,9 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		return nil, trace.BadParameter("audience: must have at least one value")
 	}
 
-	creds, err := issueJWTWorkloadIdentity(
+	creds, err := workloadidentity.IssueJWTWorkloadIdentity(
 		ctx,
+		log,
 		s.client,
 		s.cfg.WorkloadIdentity,
 		req.Audience,
@@ -659,44 +659,4 @@ func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
 // service.
 func (s *WorkloadIdentityAPIService) String() string {
 	return fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen)
-}
-
-func issueJWTWorkloadIdentity(
-	ctx context.Context,
-	clt *authclient.Client,
-	workloadIdentity config.WorkloadIdentitySelector,
-	audiences []string,
-	ttl time.Duration,
-	attest *workloadidentityv1pb.WorkloadAttrs,
-) ([]*workloadidentityv1pb.Credential, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		"issueJWTWorkloadIdentity",
-	)
-	defer span.End()
-
-	if len(audiences) == 0 {
-		return nil, nil
-	}
-
-	// When using the "name" based selector, we either get a single WIC back,
-	// or an error. We don't need to worry about selecting the right one.
-	res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
-		&workloadidentityv1pb.IssueWorkloadIdentityRequest{
-			Name: workloadIdentity.Name,
-			Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
-				JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
-					Audiences: audiences,
-				},
-			},
-			RequestedTtl:  durationpb.New(ttl),
-			WorkloadAttrs: attest,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TODO: Log intimate details of the issued credential
-
-	return []*workloadidentityv1pb.Credential{res.Credential}, nil
 }

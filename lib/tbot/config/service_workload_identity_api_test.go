@@ -19,7 +19,7 @@ package config
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
