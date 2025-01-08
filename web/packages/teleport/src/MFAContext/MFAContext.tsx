@@ -38,14 +38,12 @@ export const MfaContextProvider = ({ children }: PropsWithChildren) => {
     [adminMfa]
   );
 
-  const [mfaCtx, setMfaCtx] = useState<MfaContextValue>();
-
-  if (!mfaCtx) {
+  const [mfaCtx] = useState<MfaContextValue>(() => {
     const mfaCtx = { getMfaChallengeResponse };
-    setMfaCtx(mfaCtx);
     auth.setMfaContext(mfaCtx);
     api.setMfaContext(mfaCtx);
-  }
+    return mfaCtx;
+  });
 
   return (
     <MfaContext.Provider value={mfaCtx}>
