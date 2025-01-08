@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { act, fireEvent, render, screen } from 'design/utils/testing';
+import { act, fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { ComponentWrapper } from 'teleport/Discover/Fixtures/kubernetes';
@@ -179,6 +179,7 @@ describe('test EnrollEksCluster.tsx', () => {
 
     expect(integrationService.enrollEksClusters).not.toHaveBeenCalled();
   });
+
   test('auto enroll disabled, enrolls cluster', async () => {
     jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
@@ -197,7 +198,9 @@ describe('test EnrollEksCluster.tsx', () => {
 
     act(() => screen.getByRole('radio').click());
 
-    act(() => screen.getByText('Enroll EKS Cluster').click());
+    await waitFor(() => {
+      screen.getByText('Enroll EKS Cluster').click();
+    });
 
     expect(discoveryService.createDiscoveryConfig).not.toHaveBeenCalled();
     expect(KubeService.prototype.fetchKubernetes).toHaveBeenCalledTimes(1);
