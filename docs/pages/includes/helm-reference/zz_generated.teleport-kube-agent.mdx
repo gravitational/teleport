@@ -1127,7 +1127,8 @@ For this reason, it is strongly discouraged to set a custom image when using
 automatic updates. Teleport Cloud uses automatic updates by default.
 </Admonition>
 
-Hardened distroless images are used by default.
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 When running an enterprise version, you must use
 [`enterpriseImage`](#enterpriseImage) instead.
@@ -1153,7 +1154,8 @@ Teleport-published image.
   using automatic updates. Teleport Cloud uses automatic updates by default.
 </Admonition>
 
-Hardened distroless images are used by default.
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `true`.
 When running an enterprise version, you must use [`image`](#image) instead.
 
