@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	"github.com/okta/okta-sdk-golang/v2/okta/query"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/mfa"
@@ -22,8 +23,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// SAMLConnectorService defines an interface for querying and creating
-// SAML connectors in the Teleport cluster
+// SAMLConnectorService defines an interface for querying and creating SAML connectors in the
+// Teleport cluster. It is supposed to be the Auth Server.
 type SAMLConnectorService interface {
 	// CreateSAMLConnector creates a SAML connector
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
@@ -284,6 +285,80 @@ func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs)
 	return info, nil
 }
 
+// FetchOktaAppIdFromConnector tries to extract Okta app ID for the Okta SAML app for the given
+// connector. It first tries to get it from annotation but if not available it tries to extract the
+// Okta app name it from SAML connector SSO URL and then query Okta to retrieve tha app ID.
+func FetchOktaAppIdFromConnector(ctx context.Context, oktaClient api.Client, samlConnector types.SAMLConnector) (string, error) {
+	if oktaAppId := samlConnector.GetMetadata().Labels[eteleport.OktaAppIDLabel]; oktaAppId != "" {
+		return oktaAppId, nil
+	}
+
+	if samlConnector.GetSSO() == "" {
+		return "", trace.BadParameter("SAML connector %q has not SSO URL set", samlConnector.GetName())
+	}
+	oktaAppName, err := extractOktaAppNameFromSsoUrl(samlConnector.GetSSO())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	oktaAppId := ""
+	err = oktaClient.IterateApps(
+		ctx,
+		func(a okta.App) error {
+			var ok bool
+			app, ok := a.(*okta.Application)
+			if !ok {
+				return trace.BadParameter("unable to process Okta application of unknown type %T", a)
+			}
+			if oktaAppId != "" {
+				return trace.BadParameter("this is a bug: more than one Okta App [%q, %q] found for App name = %q", app.Id, oktaAppId, oktaAppName)
+			}
+			oktaAppId = app.Id
+			return nil
+		},
+		query.WithQ(oktaAppName),
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if oktaAppId == "" {
+		return "", trace.NotFound("no Okta App for Okta App name = %q found", oktaAppName)
+	}
+	return oktaAppId, trace.Wrap(err)
+}
+
+// extractOktaAppNameFromSsoUrl extracts Okta app name from SAML location URL stored in saml.spec.sso field.
+//
+// Example SSO URL for Okta:
+// https://example.com/app/trial-123456_teleportsamlconnectorapp_1/exkmtd8mclmbcpx01697/sso/saml
+func extractOktaAppNameFromSsoUrl(ssoUrlText string) (string, error) {
+	ssoUrl, err := url.Parse(ssoUrlText)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	ssoUrlPathSegments := strings.Split(strings.Trim(ssoUrl.Path, "/"), "/")
+	if len(ssoUrlPathSegments) != 5 {
+		return "", trace.BadParameter("expected 5 path segments but found (%d) = %v",
+			len(ssoUrlPathSegments), ssoUrlPathSegments)
+	}
+	for _, test := range []struct {
+		index int
+		value string
+	}{
+		{index: 0, value: "app"},
+		{index: 3, value: "sso"},
+		{index: 4, value: "saml"},
+	} {
+		if ssoUrlPathSegments[test.index] != test.value {
+			return "", trace.BadParameter("expected path segment (%d) to be %q", test.index+1, test.value)
+		}
+	}
+
+	return ssoUrlPathSegments[1], nil
+}
+
 func fetchSSOIdPMetadata(ctx context.Context, metadataURL string, rt http.RoundTripper) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, metadataURL, nil)
 	if err != nil {
@@ -309,12 +384,16 @@ func fetchSSOIdPMetadata(ctx context.Context, metadataURL string, rt http.RoundT
 
 // ValidateSAMLConnector examines SAML Auth connector to see if it is configured
 // for use with the Okta integration and extracts the appropriate metadata.
-func ValidateSAMLConnector(ctx context.Context, connector types.SAMLConnector, oktaClient api.Client) (*SAMLConnectorInfo, error) {
+func ValidateSAMLConnector(ctx context.Context, oktaClient api.Client, connector types.SAMLConnector) (*SAMLConnectorInfo, error) {
 	labels := connector.GetMetadata().Labels
 
 	connectorAppID, present := labels[eteleport.OktaAppIDLabel]
 	if !present {
-		return nil, trace.BadParameter("missing Okta App ID")
+		var err error
+		connectorAppID, err = FetchOktaAppIdFromConnector(ctx, oktaClient, connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	connectorOrg := labels[eteleport.OktaOrgURLLabel]

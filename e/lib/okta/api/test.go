@@ -131,7 +131,7 @@ func (t *TestOktaClient) IterateGroups(_ context.Context, fn func(*okta.Group) e
 }
 
 // IterateApps will iterate over the list of all Okta applications.
-func (t *TestOktaClient) IterateApps(_ context.Context, fn func(okta.App) error) error {
+func (t *TestOktaClient) IterateApps(_ context.Context, fn func(okta.App) error, _ ...query.ParamOptions) error {
 	for _, oktaApp := range t.OktaApps {
 		if err := fn(oktaApp); err != nil {
 			if errors.Is(err, ErrStopIteration) {

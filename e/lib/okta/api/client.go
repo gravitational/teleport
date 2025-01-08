@@ -35,7 +35,7 @@ type Client interface {
 	// supplied iterator callback may return ErrStopIteration to signal that it
 	// does not want to continue receiving apps. All other non-nil return values
 	// are considered an error and will be propagated to the caller.
-	IterateApps(context.Context, func(okta.App) error) error
+	IterateApps(context.Context, func(okta.App) error, ...query.ParamOptions) error
 	// GetGroupAssignments will return the list of users assigned to a group.
 	GetGroupAssignments(ctx context.Context, groupID OktaGroupID) ([]OktaUserID, error)
 	// GetAppAssignments will return the list of users assigned to an app.

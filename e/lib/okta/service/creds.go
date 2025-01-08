@@ -61,7 +61,6 @@ type createOktaClientParams struct {
 	credsFromReq            *oktapb.OktaAPICredentials
 	oktaOrganization        string
 	pluginCredentialsLabels map[string]string
-	connectorID             string
 }
 
 func (p *createOktaClientParams) validate() error {

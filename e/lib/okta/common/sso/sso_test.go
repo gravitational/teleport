@@ -8,11 +8,15 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	"github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/e/lib/okta/api/oktaapitest"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,8 +75,7 @@ func (m *mockSamlConnectors) GetSAMLConnector(ctx context.Context, id string, wi
 	return result, args.Error(1)
 }
 
-// makeTestGroup constructs a minimal okta.Group instance for use with the
-// testOktaClient
+// makeTestGroup constructs a minimal okta.Group instance
 func makeTestGroup(id api.OktaGroupID, kind, name string) *okta.Group {
 	return &okta.Group{
 		Id:      string(id),
@@ -81,7 +84,9 @@ func makeTestGroup(id api.OktaGroupID, kind, name string) *okta.Group {
 	}
 }
 
-func TestSSOConectorCreation(t *testing.T) {
+func TestSSOConnectorCreation(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("happy path", func(t *testing.T) {
@@ -295,7 +300,152 @@ func TestSSOConectorCreation(t *testing.T) {
 	})
 }
 
+func Test_ValidateSAMLConnector(t *testing.T) {
+	t.Parallel()
+
+	type connectorSpecDesc struct {
+		sso string
+	}
+	type connectorDesc struct {
+		name   string
+		labels map[string]string
+		spec   connectorSpecDesc
+	}
+
+	testCases := []struct {
+		name            string
+		connectorDesc   connectorDesc
+		oktaClientFuncs oktaapitest.ClientFuncs
+		expectErr       error
+	}{
+		{
+			name: "App ID in the label",
+			connectorDesc: connectorDesc{
+				name: "test-conn",
+				labels: map[string]string{
+					eteleport.OktaAppIDLabel:  "test-okta-app-id",
+					eteleport.OktaOrgURLLabel: "test-okta-org",
+					types.OriginLabel:         types.OriginOkta,
+				},
+			},
+			oktaClientFuncs: oktaapitest.ClientFuncs{
+				OrgURLFunc: func(_ *testing.T) string {
+					return "test-okta-org"
+				},
+				GetApplicationFunc: func(t *testing.T, ctx context.Context, appID api.OktaAppID, appType okta.App) (okta.App, error) {
+					require.Equal(t, oktaapi.OktaAppID("test-okta-app-id"), appID)
+					return &okta.SamlApplication{}, nil
+				},
+			},
+			expectErr: nil,
+		},
+		{
+			name: "fallback to SSO URL if App ID label is missing",
+			connectorDesc: connectorDesc{
+				name: "test-conn",
+				labels: map[string]string{
+					eteleport.OktaOrgURLLabel: "test-okta-org",
+					types.OriginLabel:         types.OriginOkta,
+				},
+				spec: connectorSpecDesc{
+					sso: "https://okta.example.com/app/oktaAppName/any_random_stuff/sso/saml",
+				},
+			},
+			oktaClientFuncs: oktaapitest.ClientFuncs{
+				OrgURLFunc: func(_ *testing.T) string {
+					return "test-okta-org"
+				},
+				IterateAppsFunc: func(t *testing.T, ctx context.Context, fn func(okta.App) error, queryParams ...query.ParamOptions) error {
+					require.Equal(t, "oktaAppName", query.NewQueryParams(queryParams...).Q)
+					err := fn(&okta.Application{Id: "found-okta-app-id"})
+					require.NoError(t, err)
+					return nil
+				},
+				GetApplicationFunc: func(t *testing.T, ctx context.Context, appID api.OktaAppID, appType okta.App) (okta.App, error) {
+					require.Equal(t, oktaapi.OktaAppID("found-okta-app-id"), appID)
+					return &okta.SamlApplication{}, nil
+				},
+			},
+			expectErr: nil,
+		},
+		{
+			name: "fallback to SSO URL if App ID label is missing, but fail if more than one App found",
+			connectorDesc: connectorDesc{
+				name: "test-conn",
+				labels: map[string]string{
+					eteleport.OktaOrgURLLabel: "test-okta-org",
+					types.OriginLabel:         types.OriginOkta,
+				},
+				spec: connectorSpecDesc{
+					sso: "https://oktaDomain.okta.com/app/oktaDomain_oktaAppName/any_random_stuff/sso/saml",
+				},
+			},
+			oktaClientFuncs: oktaapitest.ClientFuncs{
+				OrgURLFunc: func(_ *testing.T) string {
+					return "test-okta-org"
+				},
+				IterateAppsFunc: func(t *testing.T, ctx context.Context, fn func(okta.App) error, queryParams ...query.ParamOptions) error {
+					require.Equal(t, "oktaDomain_oktaAppName", query.NewQueryParams(queryParams...).Q)
+					err := fn(&okta.Application{Id: "found-okta-app-id-111"})
+					require.NoError(t, err)
+					err = fn(&okta.Application{Id: "found-okta-app-id-222"})
+					require.Error(t, err)
+					return err
+				},
+			},
+			expectErr: trace.BadParameter(`this is a bug: more than one Okta App ["found-okta-app-id-222", "found-okta-app-id-111"] found for App name = "oktaDomain_oktaAppName"`),
+		},
+		{
+			name: "missing App ID label and SSO URL to retrieve it from",
+			connectorDesc: connectorDesc{
+				name: "test-conn",
+			},
+			oktaClientFuncs: oktaapitest.ClientFuncs{},
+			expectErr:       trace.BadParameter(`SAML connector "test-conn" has not SSO URL set`),
+		},
+		{
+			name: "missing App ID label and has SSO URL with deleted App on Okta side",
+			connectorDesc: connectorDesc{
+				name: "test-conn",
+				spec: connectorSpecDesc{
+					sso: "https://oktaDomain.okta.com/app/oktaDomain_oktaAppName/any_random_stuff/sso/saml",
+				},
+			},
+			oktaClientFuncs: oktaapitest.ClientFuncs{
+				IterateAppsFunc: func(_ *testing.T, _ context.Context, _ func(okta.App) error, _ ...query.ParamOptions) error {
+					// This is equivalent of not found.
+					return nil
+				},
+			},
+			expectErr: trace.NotFound(`no Okta App for Okta App name = "oktaDomain_oktaAppName" found`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			connector := &types.SAMLConnectorV2{
+				Metadata: types.Metadata{
+					Name:   tc.connectorDesc.name,
+					Labels: tc.connectorDesc.labels,
+				},
+				Spec: types.SAMLConnectorSpecV2{
+					SSO: tc.connectorDesc.spec.sso,
+				},
+			}
+
+			oktaClient := oktaapitest.NewClient(t, tc.oktaClientFuncs)
+
+			_, err := ValidateSAMLConnector(ctx, oktaClient, connector)
+			require.ErrorIs(t, err, tc.expectErr)
+		})
+	}
+}
+
 func TestExtractMetadataUrl(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name          string
 		input         any

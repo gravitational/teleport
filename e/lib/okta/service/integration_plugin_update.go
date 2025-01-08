@@ -2,21 +2,14 @@ package oktaservice
 
 import (
 	"context"
-	"encoding/xml"
-	"fmt"
 	"maps"
-	"regexp"
 
 	"github.com/gravitational/trace"
-	"github.com/okta/okta-sdk-golang/v2/okta"
-	samltypes "github.com/russellhaering/gosaml2/types"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
-	"github.com/gravitational/teleport/e/lib/teleport"
 )
 
 func validatePlugin(plugin types.Plugin) (*types.PluginV1, error) {
@@ -39,25 +32,45 @@ func (s *Service) updateOktaSpec(ctx context.Context, req *oktapb.UpdateIntegrat
 	pluginSpec.SyncSettings.AppFilters = req.GetAccessListSettings().GetAppFilters()
 	pluginSpec.SyncSettings.DefaultOwners = req.GetAccessListSettings().GetDefaultOwner()
 	if pluginSpec.SyncSettings.AppId == "" {
-		s.tryToUpdateOktaAppID(ctx, req, pluginSpec, plugin)
+		s.tryUpdateOktaAppID(ctx, req, pluginSpec, plugin)
 	}
 	plugin.Spec.Settings = &types.PluginSpecV1_Okta{Okta: pluginSpec}
 	return nil
 }
 
-func (s *Service) tryToUpdateOktaAppID(ctx context.Context, req *oktapb.UpdateIntegrationRequest, pluginSpec *types.PluginOktaSettings, plugin types.Plugin) {
+func (s *Service) tryUpdateOktaAppID(ctx context.Context, req *oktapb.UpdateIntegrationRequest, pluginSpec *types.PluginOktaSettings, plugin types.Plugin) {
 	params := &createOktaClientParams{
 		credsFromReq:            req.GetApiCredentials(),
 		oktaOrganization:        pluginSpec.OrgUrl,
 		pluginCredentialsLabels: plugin.GetCredentials().GetStaticCredentialsRef().Labels,
-		connectorID:             pluginSpec.SsoConnectorId,
 	}
-	appID, err := s.tryToFetchOktaAppID(ctx, params)
+
+	appId, err := s.fetchOktaAppIdFromConnector(ctx, params, pluginSpec.SyncSettings.SsoConnectorId)
 	if err != nil {
-		s.logger.DebugContext(ctx, "Failed to fetch Okta App ID", "error", err)
+		s.logger.WarnContext(ctx, "Failed to fetch Okta App ID", "error", err)
 		return
 	}
-	pluginSpec.SyncSettings.AppId = appID
+
+	pluginSpec.SyncSettings.AppId = appId
+}
+
+func (s *Service) fetchOktaAppIdFromConnector(ctx context.Context, createOktaClientParams *createOktaClientParams, connectorId string) (appId string, err error) {
+	oktaClient, err := s.createOktaClient(ctx, createOktaClientParams)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	connector, err := s.authService.GetSAMLConnector(ctx, connectorId, false)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	appId, err = sso.FetchOktaAppIdFromConnector(ctx, oktaClient, connector)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to fetch Okta App ID", "error", err)
+		return
+	}
+	return appId, trace.Wrap(err)
 }
 
 func (s *Service) maybeUpdatePluginCredentials(ctx context.Context, req *oktapb.UpdateIntegrationRequest, staticCredsRef *types.PluginStaticCredentialsRef, pluginV1 *types.PluginV1) error {
@@ -87,22 +100,6 @@ func (s *Service) maybeUpdatePluginCredentials(ctx context.Context, req *oktapb.
 	return nil
 }
 
-func (s *Service) tryToFetchOktaAppID(ctx context.Context, params *createOktaClientParams) (string, error) {
-	oktaClient, err := s.createOktaClient(ctx, params)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	samlConnector, err := s.authService.GetSAMLConnector(ctx, params.connectorID, false)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	connInfo, err := s.maybeFetchMetadataFromApp(ctx, oktaClient, samlConnector)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return connInfo.OktaAppID, nil
-}
-
 func (s *Service) buildBasicConnectorInfo(connector types.SAMLConnector) (*sso.SAMLConnectorInfo, error) {
 	if connector == nil {
 		return nil, trace.BadParameter("connector is nil")
@@ -119,117 +116,6 @@ func (s *Service) buildBasicConnectorInfo(connector types.SAMLConnector) (*sso.S
 		Connector: connector,
 		OktaOrg:   oktaOrg,
 	}, nil
-}
-
-func (s *Service) maybeFetchMetadataFromApp(ctx context.Context, oktaClient api.Client, connector types.SAMLConnector) (*sso.SAMLConnectorInfo, error) {
-	if connector == nil {
-		return nil, trace.BadParameter("connector is nil")
-	}
-	connV2, ok := connector.(*types.SAMLConnectorV2)
-	if !ok {
-		return nil, trace.BadParameter("connector is not of type SAMLConnectorV2")
-	}
-	oktaOrg, err := sso.ExtractOktaOrganizationFromURL(connV2.Spec.SSO)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if connAppID := connector.GetMetadata().Labels[teleport.OktaAppIDLabel]; connAppID != "" {
-		samlApp, err := fetchMetadataBasedOnAppID(ctx, oktaClient, connAppID)
-		if err != nil {
-			return &sso.SAMLConnectorInfo{
-				OktaAppID: connAppID,
-				Connector: connector,
-				OktaOrg:   oktaOrg,
-			}, nil
-		}
-		return &sso.SAMLConnectorInfo{
-			OktaOrg:      oktaOrg,
-			Connector:    connector,
-			OktaAppID:    connAppID,
-			OktaAppName:  samlApp.Name,
-			OktaAppLabel: samlApp.Label,
-		}, nil
-	}
-
-	appName, err := extractOktaAppNameFromConnector(connector)
-	if err != nil {
-		return &sso.SAMLConnectorInfo{
-			Connector: connector,
-			OktaOrg:   oktaOrg,
-		}, nil
-	}
-	app, err := s.fetchOktaAppByName(ctx, oktaClient, appName)
-	if err != nil {
-		// The fetchOktaAppByName Okta API call can fail due to various reasons
-		// for instance okta API token does not have enough permissions to get okta SAML app details
-		// Okta App is not found.
-		s.logger.With("app_name", appName, "error", err).InfoContext(ctx, "Failed to fetch Okta app by name.")
-
-		return &sso.SAMLConnectorInfo{
-			OktaAppName: appName,
-			Connector:   connector,
-			OktaOrg:     oktaOrg,
-		}, nil
-	}
-	return &sso.SAMLConnectorInfo{
-		OktaAppName:  appName,
-		OktaAppID:    app.Id,
-		OktaAppLabel: app.Label,
-		Connector:    connector,
-		OktaOrg:      oktaOrg,
-	}, nil
-}
-
-func fetchMetadataBasedOnAppID(ctx context.Context, oktaClient api.Client, appID string) (*okta.SamlApplication, error) {
-	app, err := oktaClient.GetApplication(ctx, api.OktaAppID(appID), &okta.SamlApplication{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	samlApp, ok := app.(*okta.SamlApplication)
-	if !ok {
-		return nil, trace.BadParameter("invalid Okta App type: %T", app)
-	}
-	return samlApp, nil
-}
-
-func extractOktaAppNameFromConnector(connector types.SAMLConnector) (string, error) {
-	var entityDesc samltypes.EntityDescriptor
-	if err := xml.Unmarshal([]byte(connector.GetEntityDescriptor()), &entityDesc); err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(entityDesc.IDPSSODescriptor.SingleSignOnServices) == 0 {
-		return "", trace.NotFound("no SingleSignOnService found in SAML connector")
-	}
-
-	re := regexp.MustCompile(`(https://[^/]+)/(app/([^/]+))`)
-	matches := re.FindStringSubmatch(entityDesc.IDPSSODescriptor.SingleSignOnServices[0].Location)
-	if len(matches) < 4 {
-		return "", trace.NotFound("failed to parse app name from SingleSignOnService location")
-	}
-	return matches[3], nil
-}
-
-func (s *Service) fetchOktaAppByName(ctx context.Context, oktaClient api.Client, oktaSAMLAppName string) (*okta.Application, error) {
-	var selectedApp *okta.Application
-	err := oktaClient.IterateApps(ctx, func(a okta.App) error {
-		var ok bool
-		app, ok := a.(*okta.Application)
-		if !ok {
-			s.logger.DebugContext(ctx, "Unable to process Okta application of unknown type", "type", fmt.Sprintf("%T", a))
-			return nil
-		}
-		if app.Name == oktaSAMLAppName {
-			selectedApp = app
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if selectedApp == nil {
-		return nil, trace.NotFound("Okta app %q not found", oktaSAMLAppName)
-	}
-	return selectedApp, nil
 }
 
 func hasSCIMPurpose(resLabels types.ResourceWithLabels) bool {

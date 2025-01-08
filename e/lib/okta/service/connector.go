@@ -91,7 +91,7 @@ func (s *Service) pluginInstallReuseExistingSAMLConnector(ctx context.Context, r
 		return nil, trace.Wrap(err)
 	}
 
-	connInfo, err := sso.ValidateSAMLConnector(ctx, samlConnector, oktaClient)
+	connInfo, err := sso.ValidateSAMLConnector(ctx, oktaClient, samlConnector)
 	if err != nil {
 		msg := err.Error()
 		if trace.IsAccessDenied(err) {

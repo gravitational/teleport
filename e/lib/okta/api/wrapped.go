@@ -191,13 +191,12 @@ func (w *WrappedClient) IterateGroups(ctx context.Context, fn func(*okta.Group) 
 // IterateApps will iterate over the list of all Okta applications. The callback
 // may return the `stopIteration` error to signal that it doesn't want any more
 // apps.
-func (w *WrappedClient) IterateApps(ctx context.Context, fn func(okta.App) error) error {
+func (w *WrappedClient) IterateApps(ctx context.Context, fn func(okta.App) error, paramOpt ...query.ParamOptions) error {
 	// The default for application listing is 20 per page. Here we'll bump it
 	// to the max of 200 per page to minimize API calls.
 	// https://developer.okta.com/docs/reference/api/apps/#list-applications
-	oktaApps, resp, err := w.Client.ListApplications(ctx, query.NewQueryParams(
-		query.WithLimit(200), // Max size.
-	))
+	paramOpt = append(paramOpt, query.WithLimit(200))
+	oktaApps, resp, err := w.Client.ListApplications(ctx, query.NewQueryParams(paramOpt...))
 	for {
 		if err != nil {
 			return trace.Wrap(w.oktaErrToTrace(ctx, err), "error when iterating through apps")
