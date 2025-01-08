@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -4288,7 +4290,27 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 
 	// most users are at least allowed to view *some* roles, so fallback to per-role access checks.
 	roles, nextKey, err := a.authServer.IterateRoles(ctx, req, func(role *types.RoleV6) (bool, error) {
-		return a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead) == nil, nil
+		if a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead) != nil {
+			return false, nil
+		}
+
+		if role.Origin() != common.OriginAWSIdentityCenter {
+			return true, nil
+		}
+
+		vs, ok := metadata.ClientVersionFromContext(ctx)
+		if !ok {
+			// version not set, deny!
+			return false, nil
+		}
+
+		clientVersion, err := semver.NewVersion(vs)
+		if err != nil {
+			// unparseable, deny!
+			return false, nil
+		}
+
+		return !clientVersion.LessThan(services.MinIdentityCenterSemVersion), nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

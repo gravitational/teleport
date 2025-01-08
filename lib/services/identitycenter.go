@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -29,6 +30,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
+
+// MinIdentityCenterSemVersion is the minimum version of teleport that supports
+// Identity Center Resources.
+var MinIdentityCenterSemVersion = semver.Version{Major: 17}
 
 // IdentityCenterAccount wraps a raw identity center record in a new type to
 // allow it to implement the interfaces required for use with the Unified
