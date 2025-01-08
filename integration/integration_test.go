@@ -4780,7 +4780,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 								}
 								return false
 							}, time.Second, 100*time.Millisecond, "failed to read display")
-						}, 10*time.Second, time.Second)
+						}, 10*time.Second, 2*time.Second)
 
 						// Make a new connection to the XServer proxy to confirm that forwarding is working.
 						serverDisplay, err := x11.ParseDisplay(<-display)
