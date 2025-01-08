@@ -305,7 +305,7 @@ func (m *metrics) setGroupStates(groups []*autoupdatepb.AutoUpdateAgentRolloutSt
 	}
 
 	// If we have less groups than before, we must unset the metrics for higher group numbers.
-	for i := len(groups); i <= m.groupCount; i++ {
+	for i := len(groups); i < m.groupCount; i++ {
 		labels := prometheus.Labels{metricsGroupNumberLabelName: strconv.Itoa(i)}
 		m.rolloutGroupState.With(labels).Set(float64(0))
 	}
@@ -322,7 +322,6 @@ func (m *metrics) observeRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, n
 		m.rolloutMode.Set(float64(agentModeCode[rollout.GetSpec().GetAutoupdateMode()]))
 		m.setVersionMetric(rollout.GetSpec().GetStartVersion(), m.rolloutStart, now)
 		m.setVersionMetric(rollout.GetSpec().GetTargetVersion(), m.rolloutTarget, now)
-
 	}
 
 	if to := rollout.GetStatus().GetTimeOverride().AsTime(); !(to.IsZero() || to.Unix() == 0) {
