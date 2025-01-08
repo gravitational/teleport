@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	gitlab "github.com/xanzy/go-gitlab"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 type gitlabClient struct {
