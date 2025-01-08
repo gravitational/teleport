@@ -281,14 +281,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
-	var trustBundleCache *spiffe.TrustBundleCache
-	setupTrustBundleCache := func() (*spiffe.TrustBundleCache, error) {
+	var trustBundleCache *workloadidentity.TrustBundleCache
+	setupTrustBundleCache := func() (*workloadidentity.TrustBundleCache, error) {
 		if trustBundleCache != nil {
 			return trustBundleCache, nil
 		}
 
 		var err error
-		trustBundleCache, err = spiffe.NewTrustBundleCache(spiffe.TrustBundleCacheConfig{
+		trustBundleCache, err = workloadidentity.NewTrustBundleCache(workloadidentity.TrustBundleCacheConfig{
 			FederationClient: b.botIdentitySvc.GetClient().SPIFFEFederationServiceClient(),
 			TrustClient:      b.botIdentitySvc.GetClient().TrustClient(),
 			EventsClient:     b.botIdentitySvc.GetClient(),
