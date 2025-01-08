@@ -278,14 +278,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				}
 			}
 		}
-		if target.GetKind() == types.KindGitServer {
-			switch target.GetSubKind() {
-			case types.SubKindGitHub:
-				serverAddr = types.GitHubSSHServerAddr
-			default:
-				return nil, trace.NotImplemented("unsupported git server subkind %q", target.GetSubKind())
-			}
-		}
 	} else {
 		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}

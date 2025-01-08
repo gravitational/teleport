@@ -616,6 +616,9 @@ func (s *ServerV2) gitServerCheckAndSetDefaults() error {
 }
 
 func (s *ServerV2) githubCheckAndSetDefaults() error {
+	// Set SSH host port for GitHub.
+	s.Spec.Addr = "github.com:22"
+
 	if s.Spec.GitHub == nil {
 		return trace.BadParameter("github must be set for Subkind %q", s.SubKind)
 	}

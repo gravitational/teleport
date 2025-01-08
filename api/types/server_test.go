@@ -623,6 +623,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 						},
 					},
 					Spec: ServerSpecV2{
+						Addr:     "github.com:22",
 						Hostname: "my-org.github-org",
 						GitHub: &GitHubServerMetadata{
 							Integration:  "my-org",

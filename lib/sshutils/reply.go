@@ -22,12 +22,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Reply is a helper to handle replying/rejecting and log messages when needed.
@@ -76,31 +73,15 @@ func (r *Reply) RejectWithNewRemoteSessionError(ctx context.Context, nch ssh.New
 // ReplyError replies an error to an ssh.Request.
 func (r *Reply) ReplyError(ctx context.Context, ch ssh.Channel, req *ssh.Request, err error) {
 	r.log.ErrorContext(ctx, "failure handling SSH request", "request_type", req.Type, "error", err)
-	// Terminate the error with a newline when writing to remote channel's
-	// stderr so the output does not mix with the rest of the output if the remote
-	// side is not doing additional formatting for extended data.
-	// See github.com/gravitational/teleport/issues/4542
-	message := utils.FormatErrorWithNewline(err)
-	r.writeStderr(ctx, ch, message)
-	if req.WantReply {
-		if err := req.Reply(false, []byte(message)); err != nil {
-			r.log.ErrorContext(ctx, "failed sending error Reply on SSH channel", "error", err)
-		}
-	}
-}
-
-func (r *Reply) writeStderr(ctx context.Context, ch ssh.Channel, msg string) {
-	if _, err := io.WriteString(ch.Stderr(), msg); err != nil {
-		r.log.WarnContext(ctx, "Failed writing to stderr of SSH channel", "error", err)
+	if err := req.Reply(false, []byte(err.Error())); err != nil {
+		r.log.ErrorContext(ctx, "failed sending error Reply on SSH channel", "error", err)
 	}
 }
 
 // ReplyRequest replies to an ssh.Request with provided ok and payload.
 func (r *Reply) ReplyRequest(ctx context.Context, req *ssh.Request, ok bool, payload []byte) {
-	if req.WantReply {
-		if err := req.Reply(ok, payload); err != nil {
-			r.log.ErrorContext(ctx, "failed replying OK  to SSH request", "request_type", req.Type, "error", err)
-		}
+	if err := req.Reply(ok, payload); err != nil {
+		r.log.ErrorContext(ctx, "failed replying OK  to SSH request", "request_type", req.Type, "error", err)
 	}
 }
 

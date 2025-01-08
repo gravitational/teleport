@@ -144,9 +144,6 @@ type ForwardServer struct {
 	// remoteClient is the client connected to the git-hosting service.
 	remoteClient *tracessh.Client
 
-	// waitExec receives exec response.
-	waitExec chan error
-
 	// verifyRemoteHost is a callback to verify remote host like "github.com".
 	// Can be overridden for tests. Defaults to verifyRemoteHost.
 	verifyRemoteHost ssh.HostKeyCallback
@@ -184,7 +181,6 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		logger:           logger,
 		reply:            sshutils.NewReply(logger),
 		id:               uuid.NewString(),
-		waitExec:         make(chan error, 1),
 		verifyRemoteHost: verifyRemoteHost(cfg.TargetServer),
 		makeRemoteSigner: makeRemoteSigner,
 	}
@@ -234,14 +230,14 @@ func (s *ForwardServer) Serve() {
 }
 
 func (s *ForwardServer) close() {
-	for _, closer := range []io.Closer{
-		s.serverConn,
-		s.clientConn,
-		s.cfg.TargetConn,
-	} {
-		if err := closer.Close(); err != nil && !utils.IsOKNetworkError(err) {
-			s.logger.WarnContext(s.cfg.ParentContext, "Failed to close", "error", err)
-		}
+	if err := s.serverConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+		s.logger.WarnContext(s.cfg.ParentContext, "Failed to close server conn", "error", err)
+	}
+	if err := s.clientConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+		s.logger.WarnContext(s.cfg.ParentContext, "Failed to close client conn", "error", err)
+	}
+	if err := s.cfg.TargetConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+		s.logger.WarnContext(s.cfg.ParentContext, "Failed to close target conn", "error", err)
 	}
 }
 
@@ -356,6 +352,7 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 	}
 	defer ch.Close()
 
+	sctx := newSessionContext(ch, remoteSession)
 	for {
 		select {
 		case req := <-in:
@@ -364,14 +361,14 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 				return
 			}
 
-			ok, err := s.dispatch(ctx, ch, req, remoteSession)
+			ok, err := s.dispatch(ctx, sctx, req)
 			if err != nil {
 				s.reply.ReplyError(ctx, ch, req, err)
 				return
 			}
 			s.reply.ReplyRequest(ctx, req, ok, nil)
 
-		case execErr := <-s.waitExec:
+		case execErr := <-sctx.waitExec:
 			code := sshutils.ExitCodeFromExecError(execErr)
 			s.logger.DebugContext(ctx, "Exec request complete", "code", code)
 			s.reply.SendExitStatus(ctx, ch, code)
@@ -383,9 +380,23 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 	}
 }
 
+type sessionContext struct {
+	channel       ssh.Channel
+	remoteSession *tracessh.Session
+	waitExec      chan error
+}
+
+func newSessionContext(ch ssh.Channel, remoteSession *tracessh.Session) *sessionContext {
+	return &sessionContext{
+		channel:       ch,
+		remoteSession: remoteSession,
+		waitExec:      make(chan error, 1),
+	}
+}
+
 // dispatch executes an incoming request. If successful, it returns the ok value
 // for the reply. Otherwise, it returns the error it encountered.
-func (s *ForwardServer) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, remoteSession *tracessh.Session) (bool, error) {
+func (s *ForwardServer) dispatch(ctx context.Context, sctx *sessionContext, req *ssh.Request) (bool, error) {
 	s.logger.DebugContext(ctx, "Dispatching client request", "request_type", req.Type)
 
 	switch req.Type {
@@ -393,16 +404,17 @@ func (s *ForwardServer) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.R
 		s.logger.DebugContext(ctx, "Ignored request", "request_type", req.Type)
 		return true, nil
 	case sshutils.ExecRequest:
-		return true, trace.Wrap(s.handleExec(ctx, ch, req, remoteSession))
+		return true, trace.Wrap(s.handleExec(ctx, sctx, req))
 	case sshutils.EnvRequest:
-		return true, trace.Wrap(s.handleEnv(ctx, req, remoteSession))
+		return true, trace.Wrap(s.handleEnv(ctx, sctx, req))
 	default:
 		s.logger.WarnContext(ctx, "Received unsupported SSH request", "request_type", req.Type)
 		return false, nil
 	}
 }
 
-func (s *ForwardServer) handleExec(ctx context.Context, ch ssh.Channel, req *ssh.Request, remoteSession *tracessh.Session) error {
+// handleExec proxies the Git command between client and the target server.
+func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, req *ssh.Request) error {
 	var r sshutils.ExecReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return trace.Wrap(err, "failed to unmarshal exec request")
@@ -415,36 +427,38 @@ func (s *ForwardServer) handleExec(ctx context.Context, ch ssh.Channel, req *ssh
 	}
 	recorder := NewCommandRecorder(command)
 	*/
-	remoteSession.Stdout = ch
-	remoteSession.Stderr = ch.Stderr()
-	remoteStdin, err := remoteSession.StdinPipe()
+	sctx.remoteSession.Stdout = sctx.channel
+	sctx.remoteSession.Stderr = sctx.channel.Stderr()
+	remoteStdin, err := sctx.remoteSession.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err, "failed to open remote session")
 	}
 	go func() {
 		defer remoteStdin.Close()
-		if _, err := io.Copy(remoteStdin, ch); err != nil {
+		if _, err := io.Copy(remoteStdin, sctx.channel); err != nil {
 			s.logger.WarnContext(ctx, "Failed to copy git command stdin", "error", err)
 		}
 	}()
 
-	if err := remoteSession.Start(ctx, r.Command); err != nil {
+	if err := sctx.remoteSession.Start(ctx, r.Command); err != nil {
 		return trace.Wrap(err, "failed to start git command")
 	}
 
 	go func() {
-		execErr := remoteSession.Wait()
-		s.waitExec <- execErr
+		execErr := sctx.remoteSession.Wait()
+		sctx.waitExec <- execErr
 	}()
 	return nil
 }
 
-func (s *ForwardServer) handleEnv(ctx context.Context, req *ssh.Request, remoteSession *tracessh.Session) error {
+// handleEnv sets env on the target server. Comm
+func (s *ForwardServer) handleEnv(ctx context.Context, sctx *sessionContext, req *ssh.Request) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
 		return trace.Wrap(err)
 	}
-	err := remoteSession.Setenv(ctx, e.Name, e.Value)
+	s.logger.DebugContext(ctx, "Setting env on remote Git server", "name", e.Name, "value", e.Value)
+	err := sctx.remoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to set env on remote session", "error", err, "request", e)
 	}

@@ -290,7 +290,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitHubProxyCASSH:        ECDSAP256,
-		GitClient:               ECDSAP256,
+		GitClient:               Ed25519,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

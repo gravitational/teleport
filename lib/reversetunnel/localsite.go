@@ -356,7 +356,7 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	s.log.Debug("Dialing and forwarding git from %s to %s", params.From, params.To)
+	s.logger.DebugContext(s.srv.ctx, "Dialing and forwarding git", "from", params.From, "to", params.To)
 
 	dialStart := s.srv.Clock.Now()
 	targetConn, err := s.dialDirect(params)
@@ -392,13 +392,14 @@ func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ 
 	}
 	remoteServer, err := git.NewForwardServer(serverConfig)
 	if err != nil {
-		s.log.WithError(err).Error("Failed to create git forward server")
+		s.logger.ErrorContext(s.srv.ctx, "Failed to create git forward server", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	go remoteServer.Serve()
 
 	return remoteServer.Dial()
 }
+
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	ctx := s.srv.ctx
 
@@ -515,7 +516,7 @@ func (s *localSite) dialDirect(params reversetunnelclient.DialParams) (net.Conn,
 
 	dialTimeout := apidefaults.DefaultIOTimeout
 	if cnc, err := s.accessPoint.GetClusterNetworkingConfig(s.srv.Context); err != nil {
-		s.log.WithError(err).Warn("Failed to get cluster networking config - using default dial timeout")
+		s.logger.WarnContext(s.srv.ctx, "Failed to get cluster networking config - using default dial timeout", "error", err)
 	} else {
 		dialTimeout = cnc.GetSSHDialTimeout()
 	}

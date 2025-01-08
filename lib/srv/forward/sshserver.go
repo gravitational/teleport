@@ -140,7 +140,7 @@ type Server struct {
 	// ciphers is a list of ciphers that the server supports. If omitted,
 	// the defaults will be used.
 	ciphers []string
-	// kexAlgorithms is a list of key exchange (KEX) algorithms that the/Env
+	// kexAlgorithms is a list of key exchange (KEX) algorithms that the
 	// server supports. If omitted, the defaults will be used.
 	kexAlgorithms []string
 	// macAlgorithms is a list of message authentication codes (MAC) that
@@ -506,13 +506,8 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
-	var subKind string
-	if s.targetServer != nil {
-		subKind = s.targetServer.GetSubKind()
-	}
 	return &types.ServerV2{
 		Kind:    types.KindNode,
-		SubKind: subKind,
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      s.ID(),
