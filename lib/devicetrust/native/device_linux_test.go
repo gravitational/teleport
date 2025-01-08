@@ -28,7 +28,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -39,9 +38,6 @@ import (
 )
 
 func TestCollectDeviceData_linux(t *testing.T) {
-	// Silence logging for tests.
-	log.SetLevel(log.PanicLevel)
-
 	// Do not cache data during testing.
 	skipCacheBefore := cachedDeviceData.skipCache
 	cachedDeviceData.skipCache = true

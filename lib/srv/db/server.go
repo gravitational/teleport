@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -68,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -138,6 +140,10 @@ type Config struct {
 	CADownloader CADownloader
 	// CloudClients creates cloud API clients.
 	CloudClients clients.Clients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+	// AWSDatabaseFetcherFactory provides AWS database fetchers
+	AWSDatabaseFetcherFactory *db.AWSFetcherFactory
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
@@ -192,12 +198,30 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		}
 		c.CloudClients = cloudClients
 	}
+	if c.AWSConfigProvider == nil {
+		provider, err := awsconfig.NewCache()
+		if err != nil {
+			return trace.Wrap(err, "unable to create AWS config provider cache")
+		}
+		c.AWSConfigProvider = provider
+	}
+	if c.AWSDatabaseFetcherFactory == nil {
+		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+			CloudClients:      c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.AWSDatabaseFetcherFactory = factory
+	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
-			AuthClient:  c.AuthClient,
-			AccessPoint: c.AccessPoint,
-			Clock:       c.Clock,
-			Clients:     c.CloudClients,
+			AuthClient:        c.AuthClient,
+			AccessPoint:       c.AccessPoint,
+			Clock:             c.Clock,
+			Clients:           c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -226,7 +250,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
-			Clients: c.CloudClients,
+			Clients:           c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -282,9 +307,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 
 	if c.discoveryResourceChecker == nil {
 		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
-			ResourceMatchers: c.ResourceMatchers,
-			Clients:          c.CloudClients,
-			Context:          ctx,
+			ResourceMatchers:  c.ResourceMatchers,
+			Clients:           c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
+			Context:           ctx,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -717,21 +743,21 @@ func (s *Server) getServerInfoFunc(database types.Database) func(context.Context
 	if s.cfg.GetServerInfoFn != nil {
 		return s.cfg.GetServerInfoFn(database)
 	}
-	return func(context.Context) (*types.DatabaseServerV3, error) {
-		return s.getServerInfo(database)
+	return func(ctx context.Context) (*types.DatabaseServerV3, error) {
+		return s.getServerInfo(ctx, database)
 	}
 }
 
 // getServerInfo returns up-to-date database resource e.g. with updated dynamic
 // labels.
-func (s *Server) getServerInfo(database types.Database) (*types.DatabaseServerV3, error) {
+func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*types.DatabaseServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.copyDatabaseWithUpdatedLabelsLocked(database)
 	s.mu.RUnlock()
 	if s.cfg.CloudIAM != nil {
-		s.cfg.CloudIAM.UpdateIAMStatus(copy)
+		s.cfg.CloudIAM.UpdateIAMStatus(ctx, copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 

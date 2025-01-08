@@ -16,18 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 
 import Indicator from 'design/Indicator';
 
-import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 import { useConnectMyComputerContext } from '../connectMyComputerContext';
-
-import { Status } from './Status';
 import { Setup } from './Setup';
+import { Status } from './Status';
 
 export function DocumentConnectMyComputer(props: {
   visible: boolean;

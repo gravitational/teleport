@@ -357,7 +357,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+			gateway.Log().WarnContext(ctx, "Failed to handle a gateway connection", "error", err)
 		}
 	}()
 
@@ -416,7 +416,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			},
 		})
 		if notifyErr != nil {
-			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
+			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -559,9 +559,9 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 		// Rather than continuing in presence of the race condition, let's attempt to close the new
 		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
-			newGateway.Log().Warnf(
-				"Failed to close the new gateway after failing to close the old gateway: %v",
-				newGatewayCloseErr,
+			newGateway.Log().WarnContext(s.closeContext,
+				"Failed to close the new gateway after failing to close the old gateway",
+				"error", newGatewayCloseErr,
 			)
 		}
 		return nil, trace.Wrap(err)
@@ -571,7 +571,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 	go func() {
 		if err := newGateway.Serve(); err != nil {
-			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+			newGateway.Log().WarnContext(s.closeContext, "Failed to handle a gateway connection", "error", err)
 		}
 	}()
 
@@ -842,7 +842,7 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	s.cfg.Log.Info("Stopping")
+	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
@@ -851,14 +851,14 @@ func (s *Service) Stop() {
 	s.StopHeadlessWatchers()
 
 	if err := s.clientCache.Clear(); err != nil {
-		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
+		s.cfg.Logger.ErrorContext(s.closeContext, "Failed to close remote clients", "error", err)
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
+		s.cfg.Logger.ErrorContext(timeoutCtx, "Gracefully stopping usage reporter failed", "error", err)
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
@@ -1131,10 +1131,14 @@ func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.
 	}
 	devicesClient := proxyClient.CurrentCluster().DevicesClient()
 
-	ceremony := dtauthn.NewCeremony()
-	confirmationToken, err := ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
-		Id:    req.DeviceWebToken.Id,
-		Token: req.DeviceWebToken.Token,
+	var confirmationToken *devicepb.DeviceConfirmationToken
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		ceremony := dtauthn.NewCeremony()
+		confirmationToken, err = ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
+			Id:    req.DeviceWebToken.Id,
+			Token: req.DeviceWebToken.Token,
+		})
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

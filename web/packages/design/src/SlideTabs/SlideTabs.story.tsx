@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
-import * as Icon from 'design/Icon';
 import Flex from 'design/Flex';
+import * as Icon from 'design/Icon';
 
-import { SlideTabs } from './SlideTabs';
+import { SlideTabs, TabSpec } from './SlideTabs';
 
 export default {
   title: 'Design/SlideTabs',
@@ -120,9 +120,33 @@ export const Small = () => {
     <Flex flexDirection="column" gap={3}>
       <SlideTabs
         tabs={[
-          { key: 'alarm', icon: Icon.AlarmRing, ariaLabel: 'alarm' },
-          { key: 'bots', icon: Icon.Bots, ariaLabel: 'bots' },
-          { key: 'check', icon: Icon.Check, ariaLabel: 'check' },
+          {
+            key: 'alarm',
+            icon: Icon.AlarmRing,
+            ariaLabel: 'alarm',
+            tooltip: {
+              content: 'ring ring',
+              position: 'bottom',
+            },
+          },
+          {
+            key: 'bots',
+            icon: Icon.Bots,
+            ariaLabel: 'bots',
+            tooltip: {
+              content: 'beep boop',
+              position: 'bottom',
+            },
+          },
+          {
+            key: 'check',
+            icon: Icon.Check,
+            ariaLabel: 'check',
+            tooltip: {
+              content: 'Do or do not. There is no try.',
+              position: 'right',
+            },
+          },
         ]}
         size="small"
         appearance="round"
@@ -154,14 +178,33 @@ export const Small = () => {
   );
 };
 
-export const LoadingTab = () => {
+export const StatusIcons = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabs: TabSpec[] = [
+    { key: 'warning', title: 'warning', status: { kind: 'warning' } },
+    { key: 'danger', title: 'danger', status: { kind: 'danger' } },
+    { key: 'neutral', title: 'neutral', status: { kind: 'neutral' } },
+  ];
   return (
-    <SlideTabs
-      tabs={threeSimpleTabs}
-      onChange={() => null}
-      activeIndex={1}
-      isProcessing={true}
-    />
+    <Flex flexDirection="column" gap={3}>
+      <SlideTabs
+        tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+        isProcessing={true}
+      />
+      <SlideTabs
+        tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
+      <SlideTabs
+        tabs={tabs}
+        hideStatusIconOnActiveTab
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
+    </Flex>
   );
 };
 

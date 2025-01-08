@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex } from 'design';
 import { createMemoryHistory } from 'history';
-import { Router, Route } from 'react-router';
 import { http, HttpResponse } from 'msw';
+import { useState } from 'react';
+import { Route, Router } from 'react-router';
+
+import { Flex } from 'design';
 
 import cfg from 'teleport/config';
 
@@ -60,11 +61,11 @@ ConsoleStory.parameters = {
 };
 
 export function TestLayout(props: PropType) {
-  const [context] = React.useState((): ConsoleContext => {
+  const [context] = useState((): ConsoleContext => {
     return props.ctx || new ConsoleContext();
   });
 
-  const [history] = React.useState((): any => {
+  const [history] = useState((): any => {
     const history =
       props.history ||
       createMemoryHistory({

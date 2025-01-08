@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
-import user from './user';
 import { makeTraits } from './makeUser';
 import { Acl, ExcludeUserField, PasswordState, User } from './types';
+import user from './user';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
@@ -278,9 +278,17 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    contacts: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     clipboardSharingEnabled: true,
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
+    fileTransferAccess: true,
   };
 
   expect(response).toEqual({

@@ -37,10 +37,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -208,7 +210,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	s3Opts := []func(*s3.Options){s3.WithEndpointResolverV2(resolver)}
+	s3Opts := []func(*s3.Options){
+		s3.WithEndpointResolverV2(resolver),
+		func(o *s3.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	if cfg.Endpoint != "" {
 		if _, err := url.Parse(cfg.Endpoint); err != nil {
@@ -232,8 +239,6 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions)
 
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(awsConfig, s3Opts...)
@@ -419,7 +424,11 @@ func (h *Handler) fromPath(p string) session.ID {
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
 func (h *Handler) ensureBucket(ctx context.Context) error {
-	_, err := h.client.HeadBucket(ctx, &s3.HeadBucketInput{
+	// Use a short timeout for the HeadBucket call in case it takes too long, in
+	// #50747 this call would hang.
+	shortCtx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
+	defer cancel()
+	_, err := h.client.HeadBucket(shortCtx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	err = awsutils.ConvertS3Error(err)
@@ -430,7 +439,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	case trace.IsBadParameter(err):
 		return trace.Wrap(err)
 	case !trace.IsNotFound(err):
-		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", "bucket", h.Bucket, "error", err)
+		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. This is expected if External Audit Storage is enabled or if Teleport has write-only access to the bucket, otherwise S3 session uploads may fail.", "bucket", h.Bucket, "error", err)
 		return nil
 	}
 

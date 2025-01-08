@@ -16,28 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { useLocation, useHistory } from 'react-router';
 import { formatRelative } from 'date-fns';
-import { Danger } from 'design/Alert';
+import { Fragment, useEffect, useState } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
-import Table, { Cell } from 'design/DataTable';
 import { Button, Label as Pill } from 'design';
+import { Danger } from 'design/Alert';
+import Table, { Cell } from 'design/DataTable';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import cfg from 'teleport/config';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { NavLink } from 'teleport/components/Router';
+import cfg from 'teleport/config';
+import { Lock, lockService, LockTarget } from 'teleport/services/locks';
 import useTeleport from 'teleport/useTeleport';
 
-import { lockService, Lock, LockTarget } from 'teleport/services/locks';
-
 import { TrashButton } from '../common';
-
 import { DeleteLockDialogue } from './DeleteLockDialogue';
 
 export function Locks() {
@@ -207,10 +205,10 @@ export function Pills({ targets }: { targets: LockTarget[] }) {
   const pills = targets.map((target, index) => {
     const labelText = `${target.kind}: ${target.name}`;
     return (
-      <React.Fragment key={`${target.kind}${target.name}${index}`}>
+      <Fragment key={`${target.kind}${target.name}${index}`}>
         {index > 0 && ' '}
         <Pill kind="secondary">{labelText}</Pill>
-      </React.Fragment>
+      </Fragment>
     );
   });
 

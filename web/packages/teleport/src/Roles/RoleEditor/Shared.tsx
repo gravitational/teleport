@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useTheme } from 'styled-components';
+
 import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 
@@ -34,6 +36,7 @@ export const EditorSaveCancelButton = ({
 }) => {
   const ctx = useTeleport();
   const roleAccess = ctx.storeUser.getRoleAccess();
+  const theme = useTheme();
 
   let hoverTooltipContent = '';
   if (isEditing && !roleAccess.edit) {
@@ -43,7 +46,12 @@ export const EditorSaveCancelButton = ({
   }
 
   return (
-    <Flex gap={2} mt={3}>
+    <Flex
+      gap={2}
+      p={3}
+      borderTop={1}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
+    >
       <Box width="50%">
         <HoverTooltip tipContent={hoverTooltipContent}>
           <ButtonPrimary
@@ -56,7 +64,7 @@ export const EditorSaveCancelButton = ({
               (!isEditing && !roleAccess.create)
             }
           >
-            {isEditing ? 'Update' : 'Create'} Role
+            {isEditing ? 'Save Changes' : 'Create Role'}
           </ButtonPrimary>
         </HoverTooltip>
       </Box>

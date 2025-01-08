@@ -30,11 +30,13 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -61,32 +63,6 @@ func TestIntegrationCRUD(t *testing.T) {
 		)
 		require.NoError(t, err)
 		return ig
-	}
-
-	newGitHubIntegration := func(name, id, secret string) (*types.IntegrationV1, error) {
-		ig, err := types.NewIntegrationGitHub(
-			types.Metadata{
-				Name: name,
-			},
-			&types.GitHubIntegrationSpecV1{
-				Organization: "my-org",
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if secret != "" {
-			ig.SetCredentials(&types.PluginCredentialsV1{
-				Credentials: &types.PluginCredentialsV1_IdSecret{
-					IdSecret: &types.PluginIdSecretCredential{
-						Id:     id,
-						Secret: secret,
-					},
-				},
-			})
-		}
-		return ig, nil
 	}
 
 	tt := []struct {
@@ -401,15 +377,17 @@ func TestIntegrationCRUD(t *testing.T) {
 			Setup: func(t *testing.T, igName string) {
 				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
 				require.NoError(t, err)
-				require.NoError(t, localClient.CreatePlugin(ctx, newPlugin(t, igName)))
+				// other existing plugin should not affect identity center plugin referenced integration.
+				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewMattermostPlugin(t)))
+				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewIdentityCenterPlugin(t, igName, igName)))
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
 				return err
 			},
 			Cleanup: func(t *testing.T, igName string) {
-				err := localClient.DeletePlugin(ctx, newPlugin(t, igName).GetName())
-				require.NoError(t, err)
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
 			},
 			ErrAssertion: trace.IsBadParameter,
 		},
@@ -446,7 +424,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				refUUID := uuid.NewString()
 				ig.SetCredentials(&types.PluginCredentialsV1{
 					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
-						StaticCredentialsRef: newStaticCredentialsRef(refUUID),
+						StaticCredentialsRef: credentials.NewRefWithUUID(refUUID),
 					},
 				})
 
@@ -459,8 +437,8 @@ func TestIntegrationCRUD(t *testing.T) {
 						Metadata: types.Metadata{
 							Name: igName,
 							Labels: map[string]string{
-								labelStaticCredentialsIntegration: refUUID,
-								labelStaticCredentialsPurpose:     "test",
+								credentials.LabelStaticCredentialsIntegration: refUUID,
+								credentials.LabelStaticCredentialsPurpose:     "test",
 							},
 						},
 					},
@@ -652,7 +630,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 				PublicAddrs: []string{proxyPublicAddr},
 			}},
 		},
-		IntegrationsService: *cacheResourceService,
+		IntegrationsService:            *cacheResourceService,
+		PluginStaticCredentialsService: localCredService,
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{
@@ -689,6 +668,7 @@ type mockCache struct {
 	returnErr error
 
 	local.IntegrationsService
+	*local.PluginStaticCredentialsService
 }
 
 func (m *mockCache) GetProxies() ([]types.Server, error) {
@@ -744,29 +724,30 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	return ca
 }
 
-func newPlugin(t *testing.T, integrationName string) *types.PluginV1 {
-	t.Helper()
-	return &types.PluginV1{
-		Metadata: types.Metadata{
-			Name: types.PluginTypeAWSIdentityCenter,
-			Labels: map[string]string{
-				types.HostedPluginLabel: "true",
-			},
+func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error) {
+	ig, err := types.NewIntegrationGitHub(
+		types.Metadata{
+			Name: name,
 		},
-		Spec: types.PluginSpecV1{
-			Settings: &types.PluginSpecV1_AwsIc{
-				AwsIc: &types.PluginAWSICSettings{
-					IntegrationName:         integrationName,
-					Region:                  "test-region",
-					Arn:                     "test-arn",
-					AccessListDefaultOwners: []string{"user1", "user2"},
-					ProvisioningSpec: &types.AWSICProvisioningSpec{
-						BaseUrl: "https://example.com",
-					},
+		&types.GitHubIntegrationSpecV1{
+			Organization: "my-org",
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if secret != "" {
+		ig.SetCredentials(&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     id,
+					Secret: secret,
 				},
 			},
-		},
+		})
 	}
+	return ig, nil
 }
 
 func mustFindGitHubCredentials(t *testing.T, localClient Backend, igName, wantId, wantSecret string) {

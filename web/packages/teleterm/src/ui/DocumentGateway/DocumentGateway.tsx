@@ -16,57 +16,79 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
+import { getCliCommandArgv0 } from 'teleterm/services/tshd/gateway';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
 import { OfflineGateway } from '../components/OfflineGateway';
-
-import { useDocumentGateway } from './useDocumentGateway';
+import { useWorkspaceContext } from '../Documents';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
+import { useGateway } from './useGateway';
 
-type Props = {
+export function DocumentGateway(props: {
   visible: boolean;
   doc: types.DocumentGateway;
-};
-
-export default function Container(props: Props) {
+}) {
   const { doc, visible } = props;
-  const state = useDocumentGateway(doc);
-  return (
-    <Document visible={visible}>
-      <DocumentGateway {...state} targetName={doc.targetName} />
-    </Document>
-  );
-}
+  const { documentsService } = useWorkspaceContext();
 
-export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway> & {
-  targetName: string;
-};
+  const {
+    connected,
+    // Needed for OfflineGateway.
+    connectAttempt,
+    reconnect,
+    defaultPort,
+    // Needed for OnlineDocumentGateway.
+    gateway,
+    disconnect,
+    disconnectAttempt,
+    changePort,
+    changePortAttempt,
+    changeTargetSubresourceNameAttempt: changeDbNameAttempt,
+    changeTargetSubresourceName: changeDbName,
+  } = useGateway(doc);
 
-export function DocumentGateway(props: DocumentGatewayProps) {
-  if (!props.connected) {
+  const runCliCommand = () => {
+    const command = getCliCommandArgv0(gateway.gatewayCliCommand);
+    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+
+    const cliDoc = documentsService.createGatewayCliDocument({
+      title,
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+      targetName: doc.targetName,
+      targetProtocol: gateway.protocol,
+    });
+    documentsService.add(cliDoc);
+    documentsService.setLocation(cliDoc.uri);
+  };
+
+  if (!connected) {
     return (
-      <OfflineGateway
-        connectAttempt={props.connectAttempt}
-        reconnect={props.reconnect}
-        gatewayPort={{ isSupported: true, defaultPort: props.defaultPort }}
-        targetName={props.targetName}
-        gatewayKind="database"
-      />
+      <Document visible={visible}>
+        <OfflineGateway
+          connectAttempt={connectAttempt}
+          reconnect={reconnect}
+          gatewayPort={{ isSupported: true, defaultPort }}
+          targetName={doc.targetName}
+          gatewayKind="database"
+        />
+      </Document>
     );
   }
 
   return (
-    <OnlineDocumentGateway
-      disconnect={props.disconnect}
-      changeDbName={props.changeDbName}
-      changeDbNameAttempt={props.changeDbNameAttempt}
-      changePortAttempt={props.changePortAttempt}
-      gateway={props.gateway}
-      changePort={props.changePort}
-      runCliCommand={props.runCliCommand}
-    />
+    <Document visible={visible}>
+      <OnlineDocumentGateway
+        disconnect={disconnect}
+        disconnectAttempt={disconnectAttempt}
+        changeDbName={changeDbName}
+        changeDbNameAttempt={changeDbNameAttempt}
+        changePortAttempt={changePortAttempt}
+        gateway={gateway}
+        changePort={changePort}
+        runCliCommand={runCliCommand}
+      />
+    </Document>
   );
 }

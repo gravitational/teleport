@@ -20,13 +20,16 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -64,8 +67,53 @@ func IsAzureMatcherType(matcherType string) bool {
 	return len(makeAzureFetcherFuncs[matcherType]) > 0
 }
 
-// MakeAWSFetchers creates new AWS database fetchers.
-func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfig string) (result []common.Fetcher, err error) {
+// AWSFetcherFactoryConfig is the configuration for an [AWSFetcherFactory].
+type AWSFetcherFactoryConfig struct {
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+	// CloudClients is an interface for retrieving AWS SDK v1 cloud clients.
+	CloudClients cloud.AWSClients
+	// IntegrationCredentialProviderFn is an optional function that provides
+	// credentials via AWS OIDC integration.
+	IntegrationCredentialProviderFn awsconfig.IntegrationCredentialProviderFunc
+	// RedshiftClientProviderFn is an optional function that provides
+	RedshiftClientProviderFn RedshiftClientProviderFunc
+}
+
+func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
+	if c.CloudClients == nil {
+		return trace.BadParameter("missing CloudClients")
+	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
+	if c.RedshiftClientProviderFn == nil {
+		c.RedshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
+			return redshift.NewFromConfig(cfg, optFns...)
+		}
+	}
+	return nil
+}
+
+// AWSFetcherFactory makes AWS database fetchers.
+type AWSFetcherFactory struct {
+	cfg AWSFetcherFactoryConfig
+}
+
+// NewAWSFetcherFactory checks the given config and returns a new fetcher
+// provider.
+func NewAWSFetcherFactory(cfg AWSFetcherFactoryConfig) (*AWSFetcherFactory, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AWSFetcherFactory{
+		cfg: cfg,
+	}, nil
+}
+
+// MakeFetchers returns AWS database fetchers for each matcher given.
+func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]common.Fetcher, error) {
+	var result []common.Fetcher
 	for _, matcher := range matchers {
 		assumeRole := types.AssumeRole{}
 		if matcher.AssumeRole != nil {
@@ -80,13 +128,16 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:      clients,
-						Type:            matcherType,
-						AssumeRole:      assumeRole,
-						Labels:          matcher.Tags,
-						Region:          region,
-						Integration:     matcher.Integration,
-						DiscoveryConfig: discoveryConfig,
+						AWSClients:                      f.cfg.CloudClients,
+						Type:                            matcherType,
+						AssumeRole:                      assumeRole,
+						Labels:                          matcher.Tags,
+						Region:                          region,
+						Integration:                     matcher.Integration,
+						DiscoveryConfigName:             discoveryConfigName,
+						AWSConfigProvider:               f.cfg.AWSConfigProvider,
+						IntegrationCredentialProviderFn: f.cfg.IntegrationCredentialProviderFn,
+						redshiftClientProviderFn:        f.cfg.RedshiftClientProviderFn,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -100,7 +151,7 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 }
 
 // MakeAzureFetchers creates new Azure database fetchers.
-func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher, discoveryConfig string) (result []common.Fetcher, err error) {
+func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
 	for _, matcher := range services.SimplifyAzureMatchers(matchers) {
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
@@ -112,13 +163,13 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 				for _, sub := range matcher.Subscriptions {
 					for _, group := range matcher.ResourceGroups {
 						fetcher, err := makeFetcher(azureFetcherConfig{
-							AzureClients:    clients,
-							Type:            matcherType,
-							Subscription:    sub,
-							ResourceGroup:   group,
-							Labels:          matcher.ResourceTags,
-							Regions:         matcher.Regions,
-							DiscoveryConfig: discoveryConfig,
+							AzureClients:        clients,
+							Type:                matcherType,
+							Subscription:        sub,
+							ResourceGroup:       group,
+							Labels:              matcher.ResourceTags,
+							Regions:             matcher.Regions,
+							DiscoveryConfigName: discoveryConfigName,
 						})
 						if err != nil {
 							return nil, trace.Wrap(err)
@@ -133,16 +184,16 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 }
 
 // filterDatabasesByLabels filters input databases with provided labels.
-func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
+func filterDatabasesByLabels(ctx context.Context, databases types.Databases, labels types.Labels, logger *slog.Logger) types.Databases {
 	var matchedDatabases types.Databases
 	for _, database := range databases {
 		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
 		if err != nil {
-			log.Warnf("Failed to match %v against selector: %v.", database, err)
+			logger.WarnContext(ctx, "Failed to match database gainst selector", "database", database, "error", err)
 		} else if match {
 			matchedDatabases = append(matchedDatabases, database)
 		} else {
-			log.Debugf("%v doesn't match selector.", database)
+			logger.DebugContext(ctx, "database doesn't match selector", "database", database)
 		}
 	}
 	return matchedDatabases

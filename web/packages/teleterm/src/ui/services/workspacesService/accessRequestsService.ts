@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ModalsService } from 'teleterm/ui/services/modals';
 import {
+  AppUri,
+  ClusterUri,
+  DatabaseUri,
+  KubeResourceNamespaceUri,
+  KubeUri,
   ResourceUri,
   routing,
-  ClusterUri,
   ServerUri,
-  DatabaseUri,
-  KubeUri,
-  AppUri,
-  KubeResourceNamespaceUri,
 } from 'teleterm/ui/uri';
-import { ModalsService } from 'teleterm/ui/services/modals';
 
 export class AccessRequestsService {
   constructor(
@@ -310,7 +310,8 @@ type SharedResourceAccessRequestKind =
   | 'db'
   | 'node'
   | 'kube_cluster'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'aws_ic_account_assignment';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -430,6 +431,18 @@ export function toResourceRequest({
             appId: resourceId,
           }),
           samlApp: true,
+        },
+        kind: 'app',
+      };
+    case 'aws_ic_account_assignment':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: false,
         },
         kind: 'app',
       };

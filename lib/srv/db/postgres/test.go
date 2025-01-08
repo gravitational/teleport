@@ -58,6 +58,9 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if config.UserAgent != "" {
+		pgconnConfig.RuntimeParams["application_name"] = config.UserAgent
+	}
 	pgConn, err := pgconn.ConnectConfig(ctx, pgconnConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

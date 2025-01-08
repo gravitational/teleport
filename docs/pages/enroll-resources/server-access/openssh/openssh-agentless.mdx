@@ -69,7 +69,7 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
 
   If you are having issues registering OpenSSH nodes or need to upgrade your
-  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can 
+  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can
   pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
   Proxy Service and set it to `yes`. This will allow connections to unregistered
   OpenSSH nodes but will be removed in Teleport v15.
@@ -104,10 +104,19 @@ Change the command-line options to assign the following values:
 - <Var name="teleport.example.com:443" /> Set to the address and port of your Teleport Proxy Service.
 - <Var name="(=presets.tokens.first=)" /> Set to the join token value.
 
-Check that your new node is listed with `tsh ls` or in the Web UI. You can edit the
-hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique, get the UUID
-from `tctl nodes ls -v` and edit with `tctl edit nodes/<uuid>`. After you've confirmed the node
-was registered successfully you can delete the copied `teleport` binary.
+Check that your new node is listed with `tsh ls` or in the Web UI.
+
+You can edit the node with `tctl edit nodes/<hostname>` or
+`tctl edit nodes/<UUID>`. The node's UUID can be found in the output of
+`tctl nodes ls -v`. Be careful when changing the node's hostname, as the
+hostname is a principal embedded in the host certificate that was generated
+with `teleport join openssh`. If you want to modify the node's hostname,
+you should either change the hostname of the instance and re-run
+`teleport join openssh`, or manually issue a new host certificate with
+`tctl auth sign --format=openssh`.
+
+After you've confirmed the node was registered successfully you can delete the
+copied `teleport` binary.
 
 ## Step 2/3. Generate an SSH client configuration
 
@@ -327,7 +336,7 @@ host's SSH port.
 
 <Details title="Using trusted clusters?">
 
-You can log in to a host in a trusted leaf cluster by placing the name of 
+You can log in to a host in a trusted leaf cluster by placing the name of
 the leaf cluster between the name of the node and the name of the root cluster:
 
 ```code

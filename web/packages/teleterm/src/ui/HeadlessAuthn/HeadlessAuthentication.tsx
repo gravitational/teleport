@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useEffect } from 'react';
-
-import { useAsync } from 'shared/hooks/useAsync';
+import { useEffect, useRef } from 'react';
 
 import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { HeadlessPrompt } from './HeadlessPrompt';
 

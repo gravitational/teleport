@@ -16,19 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-import { Alert, Box, Link } from 'design';
-
+import { Box, Flex, Link } from 'design';
+import { Info } from 'design/Alert';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import {
-  ResourceList,
-  ResourceMap,
-} from 'shared/components/AccessRequests/NewRequest';
+import { Roles } from 'shared/components/AccessRequests/NewRequest';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 /**
  * Only allows requesting roles (resources can be requested through the unified
@@ -51,7 +46,6 @@ export function NewRequest() {
   const loggedInUser = rootCluster?.loggedInUser;
   const requestableRoles = loggedInUser?.requestableRoles || [];
   const addedResources = accessRequestsService.getPendingAccessRequest();
-  const requestStarted = accessRequestsService.getAddedItemsCount() > 0;
 
   function openClusterDocument() {
     const doc = documentsService.createClusterDocument({
@@ -64,28 +58,32 @@ export function NewRequest() {
   const doesUnifiedResourcesShowBothAccessibleAndRequestableResources =
     rootCluster?.showResources === ShowResources.REQUESTABLE;
 
+  const [addOrRemoveRoleAttempt, addOrRemoveRole] = useAsync((role: string) =>
+    accessRequestsService.addOrRemoveRole(role)
+  );
+
   return (
-    <Layout mx="auto" px={5} pt={3} height="100%">
-      <StyledMain>
-        <ResourceList
-          agents={[]}
-          selectedResource={'role'}
-          requestStarted={requestStarted}
-          customSort={undefined}
-          onLabelClick={() => {}}
-          addedResources={toResourceMap(addedResources)}
-          addOrRemoveResource={(kind, resourceId) => {
-            // We can only have roles here.
-            if (kind === 'role') {
-              accessRequestsService.addOrRemoveRole(resourceId);
-            }
-          }}
-          requestableRoles={requestableRoles}
-          disableRows={false}
+    <Flex
+      mx="auto"
+      flexDirection="column"
+      justifyContent="space-between"
+      p={3}
+      gap={3}
+      width="100%"
+      maxWidth="1248px"
+    >
+      <Box>
+        <Roles
+          requestable={requestableRoles}
+          requested={
+            addedResources.kind === 'role' ? addedResources.roles : new Set()
+          }
+          onToggleRole={role => void addOrRemoveRole(role)}
+          disabled={addOrRemoveRoleAttempt.status === 'processing'}
         />
-      </StyledMain>
-      <Alert kind="outline-info" mb={2}>
-        To request access to a resource, go to the{' '}
+      </Box>
+      <Info mb={0}>
+        To request access to a resource, go to{' '}
         {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
         <Link
           css={`
@@ -94,51 +92,12 @@ export function NewRequest() {
           `}
           onClick={openClusterDocument}
         >
-          resources view
+          the resources view
         </Link>{' '}
         {doesUnifiedResourcesShowBothAccessibleAndRequestableResources
           ? 'or find it in the search bar.'
           : 'and select Access Requests > Show requestable resources.'}
-      </Alert>
-    </Layout>
+      </Info>
+    </Flex>
   );
-}
-
-const Layout = styled(Box)`
-  flex-direction: column;
-  display: flex;
-  flex: 1;
-  max-width: 1248px;
-
-  &::after {
-    content: ' ';
-    padding-bottom: 24px;
-  }
-`;
-
-const StyledMain = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`;
-
-function toResourceMap(request: PendingAccessRequest): ResourceMap {
-  const resourceMap: ResourceMap = {
-    user_group: {},
-    windows_desktop: {},
-    role: {},
-    kube_cluster: {},
-    node: {},
-    db: {},
-    app: {},
-    saml_idp_service_provider: {},
-    namespace: {},
-  };
-  if (request.kind === 'role') {
-    request.roles.forEach(role => {
-      resourceMap.role[role] = role;
-    });
-  }
-
-  return resourceMap;
 }

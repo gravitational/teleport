@@ -17,25 +17,25 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
-import { ITheme, Terminal } from '@xterm/xterm';
+
+import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { ITheme, Terminal } from '@xterm/xterm';
+
 import {
   SearchAddon,
   TerminalSearcher,
 } from 'shared/components/TerminalSearch';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { debounce, isInteger } from 'shared/utils/highbar';
 import Logger from 'shared/libs/logger';
+import { debounce, isInteger, type DebouncedFunc } from 'shared/utils/highbar';
 
 import cfg from 'teleport/config';
 
 import { TermEvent } from './enums';
 import Tty from './tty';
-
-import type { DebouncedFunc } from 'shared/utils/highbar';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';

@@ -19,13 +19,14 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -42,7 +43,7 @@ import (
 // when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
 // key store and an FS (~/.tsh) profile and trusted certs store.
 type Store struct {
-	log *logrus.Entry
+	log *slog.Logger
 
 	KeyStore
 	TrustedCertsStore
@@ -53,7 +54,7 @@ type Store struct {
 func NewFSClientStore(dirPath string) *Store {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
-		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyStore:          NewFSKeyStore(dirPath),
 		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
 		ProfileStore:      NewFSProfileStore(dirPath),
@@ -63,7 +64,7 @@ func NewFSClientStore(dirPath string) *Store {
 // NewMemClientStore initializes a new in-memory client store.
 func NewMemClientStore() *Store {
 	return &Store{
-		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyStore:          NewMemKeyStore(),
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
@@ -127,11 +128,11 @@ func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, erro
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCertExpiration, err := keyRing.TeleportTLSCertValidBefore()
+	// verify that the key ring has a TLS certificate
+	_, err = keyRing.TeleportTLSCertValidBefore()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Teleport TLS certificate valid until %q.", tlsCertExpiration)
 
 	// Validate the SSH certificate.
 	if keyRing.Cert != nil {
@@ -261,7 +262,10 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 		}
 		status, err := s.ReadProfileStatus(profileName)
 		if err != nil {
-			s.log.WithError(err).Warnf("skipping profile %q due to error", profileName)
+			s.log.WarnContext(context.Background(), "skipping profile due to error",
+				"profile_name", profileName,
+				"error", err,
+			)
 			continue
 		}
 		profiles = append(profiles, status)

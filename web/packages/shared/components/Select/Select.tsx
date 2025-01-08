@@ -16,29 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import ReactSelect, {
   ClearIndicatorProps,
+  components,
   DropdownIndicatorProps,
   GroupBase,
   MultiValueRemoveProps,
-  components,
 } from 'react-select';
 import ReactSelectAsync from 'react-select/async';
-import CreatableSelect from 'react-select/creatable';
 import ReactSelectCreatableAsync from 'react-select/async-creatable';
+import CreatableSelect from 'react-select/creatable';
 import styled from 'styled-components';
-import { width, space } from 'design/system';
 
-import { Theme } from 'design/theme/themes/types';
 import { ChevronDown, Cross } from 'design/Icon';
+import { space, width } from 'design/system';
+import { Theme } from 'design/theme/themes/types';
 
 import {
-  Props,
+  AsyncCreatableProps,
   AsyncProps,
   CreatableProps,
   Option,
-  AsyncCreatableProps,
+  Props,
   SelectSize,
 } from './types';
 

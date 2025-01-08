@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Flex } from 'design';
 
-import cfg from 'teleport/config';
+import { Flex, Text } from 'design';
+
 import {
   BadgeTitle,
   ToolTipNoPermBadge,
 } from 'teleport/components/ToolTipNoPermBadge';
+import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { IntegrationTile, IntegrationIcon } from './common';
+import { IntegrationIcon, IntegrationTile } from './common';
 
 export function IntegrationTiles({
   hasIntegrationAccess = true,
@@ -53,9 +53,9 @@ export function IntegrationTiles({
         data-testid="tile-aws-oidc"
       >
         <Flex flexBasis={100}>
-          <IntegrationIcon name="aws" />
+          <IntegrationIcon name="aws" size={80} />
         </Flex>
-        <Flex flexBasis={50}>
+        <Flex>
           <Text>AWS OIDC Identity Provider</Text>
         </Flex>
         {!hasIntegrationAccess && (
@@ -84,9 +84,9 @@ export function IntegrationTiles({
           data-testid="tile-external-audit-storage"
         >
           <Flex flexBasis={100}>
-            <IntegrationIcon name="aws" />
+            <IntegrationIcon name="aws" size={80} />
           </Flex>
-          <Flex flexBasis={50}>
+          <Flex>
             <Text>AWS External Audit Storage</Text>
           </Flex>
           {renderExternalAuditStorageBadge(
