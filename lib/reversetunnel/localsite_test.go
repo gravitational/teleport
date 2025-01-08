@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -52,7 +51,7 @@ func TestMain(m *testing.M) {
 func TestRemoteConnCleanup(t *testing.T) {
 	t.Parallel()
 
-	const clockBlockers = 3 // periodic ticker + heart beat timer + resync ticker
+	const clockBlockers = 3 //periodic ticker + heart beat timer + resync ticker
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -455,77 +454,4 @@ func (c *mockedSSHChannel) SendRequest(name string, wantReply bool, payload []by
 
 func (*mockedSSHChannel) Close() error {
 	return nil
-}
-
-func Test_shouldDialAndForward(t *testing.T) {
-	recordAtNode := types.DefaultSessionRecordingConfig()
-	recordAtProxy := recordAtNode.Clone()
-	recordAtProxy.SetMode(types.RecordAtProxy)
-
-	node, err := types.NewNode(
-		"node",
-		types.SubKindTeleportNode,
-		types.ServerSpecV2{
-			Addr:     "127.0.0.1:9001",
-			Hostname: "openssh",
-		},
-		nil,
-	)
-	openSSHNode, err := types.NewNode(
-		"openssh",
-		types.SubKindOpenSSHNode,
-		types.ServerSpecV2{
-			Addr:     "127.0.0.1:9001",
-			Hostname: "openssh",
-		},
-		nil,
-	)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name      string
-		params    reversetunnelclient.DialParams
-		recConfig types.SessionRecordingConfig
-		check     require.BoolAssertionFunc
-	}{
-		{
-			name: "from peer proxy",
-			params: reversetunnelclient.DialParams{
-				FromPeerProxy: true,
-			},
-			recConfig: recordAtNode,
-			check:     require.False,
-		},
-		{
-			name: "OpenSSH node",
-			params: reversetunnelclient.DialParams{
-				TargetServer: openSSHNode,
-			},
-			recConfig: recordAtNode,
-			check:     require.True,
-		},
-		{
-			name: "node",
-			params: reversetunnelclient.DialParams{
-				TargetServer: node,
-			},
-			recConfig: recordAtNode,
-			check:     require.False,
-		},
-		{
-			name: "node record at proxy",
-			params: reversetunnelclient.DialParams{
-				TargetServer: node,
-				ConnType:     types.NodeTunnel,
-			},
-			recConfig: recordAtProxy,
-			check:     require.True,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.check(t, shouldDialAndForward(test.params, test.recConfig))
-		})
-	}
 }
