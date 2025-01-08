@@ -16,31 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
-import { Text, Box } from 'design';
-import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
+import { Box, Text } from 'design';
+import { ChevronDown, Logout as LogoutIcon, Moon, Sun } from 'design/Icon';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
-import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
-import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
-import session from 'teleport/services/websession';
-import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
-import { useUser } from 'teleport/User/UserContext';
 import {
   Dropdown,
+  DropdownDivider,
   DropdownItem,
   DropdownItemButton,
-  DropdownItemLink,
   DropdownItemIcon,
-  DropdownDivider,
-  STARTING_TRANSITION_DELAY,
+  DropdownItemLink,
   INCREMENT_TRANSITION_DELAY,
+  STARTING_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
+import session from 'teleport/services/websession';
+import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
 import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
+import { useUser } from 'teleport/User/UserContext';
 
 interface UserMenuNavProps {
   username: string;

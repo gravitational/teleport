@@ -123,7 +123,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	authCfg.SSH.Enabled = true
 	authCfg.SSH.Addr.Addr = "localhost:0"
 	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	authCfg.Log = utils.NewLoggerForTests()
+	authCfg.Logger = utils.NewSlogLoggerForTests()
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	authProc, err := service.NewTeleport(authCfg)
@@ -162,7 +162,7 @@ func TestInstanceCertReissue(t *testing.T) {
 
 	agentCfg.WindowsDesktop.Enabled = true
 	agentCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	agentCfg.Log = utils.NewLoggerForTests()
+	agentCfg.Logger = utils.NewSlogLoggerForTests()
 	agentCfg.MaxRetryPeriod = time.Second
 	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 

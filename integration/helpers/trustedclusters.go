@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -60,18 +59,68 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	t.Helper()
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		_, err := authServer.CreateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+// TryUpdateTrustedCluster performs several attempts to update a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	t.Helper()
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		_, err := authServer.UpdateTrustedCluster(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+// TryUpdateTrustedCluster performs several attempts to upsert a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster, skipNameValidation bool) {
+	t.Helper()
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		var err error
+		if skipNameValidation {
+			_, err = authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		} else {
+			_, err = authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
+		}
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}

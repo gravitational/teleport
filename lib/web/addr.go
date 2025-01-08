@@ -20,13 +20,14 @@ package web
 
 import (
 	"bufio"
+	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,7 +57,7 @@ func NewXForwardedForMiddleware(next http.Handler) http.Handler {
 		// Serve with updated client source address.
 		default:
 			next.ServeHTTP(
-				responseWriterWithClientSrcAddr(w, clientSrcAddr),
+				responseWriterWithClientSrcAddr(r.Context(), w, clientSrcAddr),
 				requestWithClientSrcAddr(r, clientSrcAddr),
 			)
 		}
@@ -113,11 +114,11 @@ func requestWithClientSrcAddr(r *http.Request, clientSrcAddr net.Addr) *http.Req
 	return r
 }
 
-func responseWriterWithClientSrcAddr(w http.ResponseWriter, clientSrcAddr net.Addr) http.ResponseWriter {
+func responseWriterWithClientSrcAddr(ctx context.Context, w http.ResponseWriter, clientSrcAddr net.Addr) http.ResponseWriter {
 	// Returns the original ResponseWriter if not a http.Hijacker.
 	_, ok := w.(http.Hijacker)
 	if !ok {
-		logrus.Debug("Provided ResponseWriter is not a hijacker.")
+		slog.DebugContext(ctx, "Provided ResponseWriter is not a hijacker")
 		return w
 	}
 

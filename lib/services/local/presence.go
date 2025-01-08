@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -45,7 +44,7 @@ import (
 // PresenceService records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
-	log    *logrus.Entry
+	logger *slog.Logger
 	jitter retryutils.Jitter
 	backend.Backend
 }
@@ -57,7 +56,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
-		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
+		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
 	}
@@ -160,7 +159,10 @@ func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[type
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			s.log.Warnf("Skipping server info at %s, failed to unmarshal: %v", item.Key, err)
+			s.logger.WarnContext(ctx, "Failed to unmarshal server info",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
 		return si, true

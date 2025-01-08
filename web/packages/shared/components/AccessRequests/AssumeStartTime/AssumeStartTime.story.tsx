@@ -19,14 +19,11 @@
 import { useState } from 'react';
 
 import { Box, Text } from 'design';
-
 import { displayDateTime } from 'design/datetime';
-
 import { Option } from 'shared/components/Select';
 
-import { dryRunResponse } from '../fixtures';
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
-
+import { dryRunResponse } from '../fixtures';
 import { AssumeStartTime } from './AssumeStartTime';
 
 export default {

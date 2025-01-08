@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -155,23 +154,6 @@ func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) htt
 	}
 }
 
-// WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
-func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
-	handlerFn := MakeHandler(fn)
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			errHeader := csrf.VerifyHTTPHeader(r)
-			errForm := csrf.VerifyFormField(r)
-			if errForm != nil && errHeader != nil {
-				slog.WarnContext(r.Context(), "unable to validate CSRF token", "header_error", errHeader, "form_error", errForm)
-				trace.WriteError(w, trace.AccessDenied("access denied"))
-				return
-			}
-		}
-		handlerFn(w, r, p)
-	}
-}
-
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed any obj. A reasonable maximum size is enforced
 // to mitigate resource exhaustion attacks.
@@ -188,6 +170,7 @@ func ReadResourceJSON(r *http.Request, val any) error {
 
 func readJSON(r *http.Request, val any, maxSize int64) error {
 	// Check content type to mitigate CSRF attack.
+	// (Form POST requests don't support application/json payloads.)
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
 		slog.WarnContext(r.Context(), "Error parsing media type for reading JSON", "error", err)

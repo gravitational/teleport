@@ -149,6 +149,7 @@ import (
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/expiry"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -631,9 +632,6 @@ type TeleportProcess struct {
 	// during in-process reloads.
 	id string
 
-	// log is a process-local logrus.Entry.
-	// Deprecated: use logger instead.
-	log logrus.FieldLogger
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
@@ -1031,13 +1029,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if len(cfg.FileDescriptors) == 0 {
-		cfg.FileDescriptors, err = importFileDescriptors(cfg.Log)
+		cfg.FileDescriptors, err = importFileDescriptors(cfg.Logger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	supervisor := NewSupervisor(processID, cfg.Log)
+	supervisor := NewSupervisor(processID, cfg.Logger)
 	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1183,7 +1181,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		storage:                storage,
 		rotationCache:          rotationCache,
 		id:                     processID,
-		log:                    cfg.Log,
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
@@ -2475,6 +2472,25 @@ func (process *TeleportProcess) initAuthService() error {
 	})
 	process.RegisterFunc("auth.server.system-clock-monitor", func() error {
 		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
+	})
+
+	expiry, err := expiry.New(&expiry.Config{
+		Log: logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
+		),
+		Emitter:     authServer,
+		AccessPoint: authServer.Services,
+		Clock:       process.Clock,
+		HostID:      cfg.HostUUID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.expiry", func() error {
+		if err := expiry.Run(process.GracefulExitContext()); err != nil {
+			logger.ErrorContext(process.GracefulExitContext(), "expiry starting", "error", err)
+		}
+		return trace.Wrap(err)
 	})
 
 	// execute this when process is asked to exit:
@@ -4382,11 +4398,162 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	// We register the shutdown function before starting the services because we want to run it even if we encounter an
+	// error and return early. Some of the registered services don't watch if the context is Done (e.g. proxy.web).
+	// In case of error, if we don't run "proxy.shutdown", those registered services will run ad vitam aeternam and
+	// Supervisor.Wait() won't return.
+	var (
+		tsrv                     reversetunnelclient.Server
+		peerClient               *peer.Client
+		peerQUICTransport        *quic.Transport
+		rcWatcher                *reversetunnel.RemoteClusterTunnelManager
+		peerServer               *peer.Server
+		peerQUICServer           *peerquic.Server
+		webServer                *web.Server
+		minimalWebServer         *web.Server
+		sshProxy                 *regular.Server
+		sshGRPCServer            *grpc.Server
+		kubeServer               *kubeproxy.TLSServer
+		grpcServerPublic         *grpc.Server
+		grpcServerMTLS           *grpc.Server
+		alpnServer               *alpnproxy.Proxy
+		reverseTunnelALPNServer  *alpnproxy.Proxy
+		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+	)
+
+	defer func() {
+		// execute this when process is asked to exit:
+		process.OnExit("proxy.shutdown", func(payload interface{}) {
+			// Close the listeners at the beginning of shutdown, because we are not
+			// really guaranteed to be capable to serve new requests if we're
+			// halfway through a shutdown, and double closing a listener is fine.
+			listeners.Close()
+			if payload == nil {
+				logger.InfoContext(process.ExitContext(), "Shutting down immediately")
+				if tsrv != nil {
+					warnOnErr(process.ExitContext(), tsrv.Close(), logger)
+				}
+				if rcWatcher != nil {
+					warnOnErr(process.ExitContext(), rcWatcher.Close(), logger)
+				}
+				if peerServer != nil {
+					warnOnErr(process.ExitContext(), peerServer.Close(), logger)
+				}
+				if peerQUICServer != nil {
+					warnOnErr(process.ExitContext(), peerQUICServer.Close(), logger)
+				}
+				if webServer != nil {
+					warnOnErr(process.ExitContext(), webServer.Close(), logger)
+				}
+				if minimalWebServer != nil {
+					warnOnErr(process.ExitContext(), minimalWebServer.Close(), logger)
+				}
+				if peerClient != nil {
+					warnOnErr(process.ExitContext(), peerClient.Stop(), logger)
+				}
+				if sshProxy != nil {
+					warnOnErr(process.ExitContext(), sshProxy.Close(), logger)
+				}
+				if sshGRPCServer != nil {
+					sshGRPCServer.Stop()
+				}
+				if kubeServer != nil {
+					warnOnErr(process.ExitContext(), kubeServer.Close(), logger)
+				}
+				if grpcServerPublic != nil {
+					grpcServerPublic.Stop()
+				}
+				if grpcServerMTLS != nil {
+					grpcServerMTLS.Stop()
+				}
+				if alpnServer != nil {
+					warnOnErr(process.ExitContext(), alpnServer.Close(), logger)
+				}
+				if reverseTunnelALPNServer != nil {
+					warnOnErr(process.ExitContext(), reverseTunnelALPNServer.Close(), logger)
+				}
+
+				if clientTLSConfigGenerator != nil {
+					clientTLSConfigGenerator.Close()
+				}
+			} else {
+				logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
+				ctx := payloadContext(payload)
+				if tsrv != nil {
+					warnOnErr(ctx, tsrv.DrainConnections(ctx), logger)
+				}
+				if sshProxy != nil {
+					warnOnErr(ctx, sshProxy.Shutdown(ctx), logger)
+				}
+				if sshGRPCServer != nil {
+					sshGRPCServer.GracefulStop()
+				}
+				if webServer != nil {
+					warnOnErr(ctx, webServer.Shutdown(ctx), logger)
+				}
+				if minimalWebServer != nil {
+					warnOnErr(ctx, minimalWebServer.Shutdown(ctx), logger)
+				}
+				if tsrv != nil {
+					warnOnErr(ctx, tsrv.Shutdown(ctx), logger)
+				}
+				if rcWatcher != nil {
+					warnOnErr(ctx, rcWatcher.Close(), logger)
+				}
+				if peerServer != nil {
+					warnOnErr(ctx, peerServer.Shutdown(), logger)
+				}
+				if peerQUICServer != nil {
+					warnOnErr(ctx, peerQUICServer.Shutdown(ctx), logger)
+				}
+				if peerClient != nil {
+					peerClient.Shutdown(ctx)
+				}
+				if kubeServer != nil {
+					warnOnErr(ctx, kubeServer.Shutdown(ctx), logger)
+				}
+				if grpcServerPublic != nil {
+					grpcServerPublic.GracefulStop()
+				}
+				if grpcServerMTLS != nil {
+					grpcServerMTLS.GracefulStop()
+				}
+				if alpnServer != nil {
+					warnOnErr(ctx, alpnServer.Close(), logger)
+				}
+				if reverseTunnelALPNServer != nil {
+					warnOnErr(ctx, reverseTunnelALPNServer.Close(), logger)
+				}
+
+				// Explicitly deleting proxy heartbeats helps the behavior of
+				// reverse tunnel agents during rollouts, as otherwise they'll keep
+				// trying to reach proxies until the heartbeats expire.
+				if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+					if err := conn.Client.DeleteProxy(ctx, process.Config.HostUUID); err != nil {
+						if !trace.IsNotFound(err) {
+							logger.WarnContext(ctx, "Failed to delete heartbeat", "error", err)
+						} else {
+							logger.DebugContext(ctx, "Failed to delete heartbeat", "error", err)
+						}
+					}
+				}
+
+				if clientTLSConfigGenerator != nil {
+					clientTLSConfigGenerator.Close()
+				}
+			}
+			if peerQUICTransport != nil {
+				_ = peerQUICTransport.Close()
+				_ = peerQUICTransport.Conn.Close()
+			}
+			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+			warnOnErr(process.ExitContext(), conn.Close(), logger)
+			logger.InfoContext(process.ExitContext(), "Exited")
+		})
+	}()
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
-	var tsrv reversetunnelclient.Server
-	var peerClient *peer.Client
-	var peerQUICTransport *quic.Transport
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxyPeer != nil {
 			if process.Config.Proxy.QUICProxyPeering {
@@ -4456,7 +4623,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				PollingPeriod:         process.Config.PollingPeriod,
 				FIPS:                  cfg.FIPS,
 				Emitter:               streamEmitter,
-				Log:                   process.log,
 				Logger:                process.logger,
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
@@ -4496,7 +4662,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !process.Config.Proxy.DisableReverseTunnel {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
-			Log:              process.log.WithField(teleport.ComponentKey, "router"),
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
@@ -4530,8 +4695,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
-	var webServer *web.Server
-	var minimalWebServer *web.Server
 
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
@@ -4739,7 +4902,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				},
 			},
 			Handler: webHandler,
-			Log:     process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Log:     process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4775,8 +4938,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddrString string
-	var peerServer *peer.Server
-	var peerQUICServer *peerquic.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -4869,7 +5030,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		logger.InfoContext(process.ExitContext(), "advertising proxy peering QUIC support")
 	}
 
-	sshProxy, err := regular.New(
+	sshProxy, err = regular.New(
 		process.ExitContext(),
 		cfg.SSH.Addr,
 		cfg.Hostname,
@@ -4932,7 +5093,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// clientTLSConfigGenerator pre-generates specialized per-cluster client TLS config values
-	clientTLSConfigGenerator, err := auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
+	clientTLSConfigGenerator, err = auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
 		TLS:                  sshGRPCTLSConfig,
 		ClusterName:          clusterName,
 		PermitRemoteClusters: true,
@@ -4953,7 +5114,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	sshGRPCServer := grpc.NewServer(
+	sshGRPCServer = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			interceptors.GRPCServerUnaryErrorInterceptor,
 			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
@@ -5034,12 +5195,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
-	rcWatchLog := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
-	})
+	rcWatchLog := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelAgent, process.id))
 
 	// Create and register reverse tunnel AgentPool.
-	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
+	rcWatcher, err = reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.HostID(),
 		AuthClient:          conn.Client,
 		AccessPoint:         accessPoint,
@@ -5048,7 +5207,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
-		Log:                 rcWatchLog,
+		Logger:              rcWatchLog,
 		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 		PROXYSigner:         proxySigner,
 	})
@@ -5057,7 +5216,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	process.RegisterCriticalFunc("proxy.reversetunnel.watcher", func() error {
-		rcWatchLog.Infof("Starting reverse tunnel agent pool.")
+		rcWatchLog.InfoContext(process.ExitContext(), "Starting reverse tunnel agent pool")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -5068,7 +5227,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
-	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName:   clusterName,
@@ -5137,7 +5295,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:              accessPoint,
 			GetRotation:              process.GetRotation,
 			OnHeartbeat:              process.OnHeartbeat(component),
-			Log:                      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Log:                      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
@@ -5286,10 +5444,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
-	var (
-		grpcServerPublic *grpc.Server
-		grpcServerMTLS   *grpc.Server
-	)
 	if alpnRouter != nil {
 		grpcServerPublic, err = process.initPublicGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
 		if err != nil {
@@ -5316,8 +5470,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
-	var alpnServer *alpnproxy.Proxy
-	var reverseTunnelALPNServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
 			tsrv,
@@ -5380,123 +5532,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
-	// execute this when process is asked to exit:
-	process.OnExit("proxy.shutdown", func(payload interface{}) {
-		// Close the listeners at the beginning of shutdown, because we are not
-		// really guaranteed to be capable to serve new requests if we're
-		// halfway through a shutdown, and double closing a listener is fine.
-		listeners.Close()
-		if payload == nil {
-			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
-			if tsrv != nil {
-				warnOnErr(process.ExitContext(), tsrv.Close(), logger)
-			}
-			warnOnErr(process.ExitContext(), rcWatcher.Close(), logger)
-			if peerServer != nil {
-				warnOnErr(process.ExitContext(), peerServer.Close(), logger)
-			}
-			if peerQUICServer != nil {
-				warnOnErr(process.ExitContext(), peerQUICServer.Close(), logger)
-			}
-			if webServer != nil {
-				warnOnErr(process.ExitContext(), webServer.Close(), logger)
-			}
-			if minimalWebServer != nil {
-				warnOnErr(process.ExitContext(), minimalWebServer.Close(), logger)
-			}
-			if peerClient != nil {
-				warnOnErr(process.ExitContext(), peerClient.Stop(), logger)
-			}
-			warnOnErr(process.ExitContext(), sshProxy.Close(), logger)
-			sshGRPCServer.Stop()
-			if kubeServer != nil {
-				warnOnErr(process.ExitContext(), kubeServer.Close(), logger)
-			}
-			if grpcServerPublic != nil {
-				grpcServerPublic.Stop()
-			}
-			if grpcServerMTLS != nil {
-				grpcServerMTLS.Stop()
-			}
-			if alpnServer != nil {
-				warnOnErr(process.ExitContext(), alpnServer.Close(), logger)
-			}
-			if reverseTunnelALPNServer != nil {
-				warnOnErr(process.ExitContext(), reverseTunnelALPNServer.Close(), logger)
-			}
-
-			if clientTLSConfigGenerator != nil {
-				clientTLSConfigGenerator.Close()
-			}
-		} else {
-			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
-			ctx := payloadContext(payload)
-			if tsrv != nil {
-				warnOnErr(ctx, tsrv.DrainConnections(ctx), logger)
-			}
-			warnOnErr(ctx, sshProxy.Shutdown(ctx), logger)
-			sshGRPCServer.GracefulStop()
-			if webServer != nil {
-				warnOnErr(ctx, webServer.Shutdown(ctx), logger)
-			}
-			if minimalWebServer != nil {
-				warnOnErr(ctx, minimalWebServer.Shutdown(ctx), logger)
-			}
-			if tsrv != nil {
-				warnOnErr(ctx, tsrv.Shutdown(ctx), logger)
-			}
-			warnOnErr(ctx, rcWatcher.Close(), logger)
-			if peerServer != nil {
-				warnOnErr(ctx, peerServer.Shutdown(), logger)
-			}
-			if peerQUICServer != nil {
-				warnOnErr(ctx, peerQUICServer.Shutdown(ctx), logger)
-			}
-			if peerClient != nil {
-				peerClient.Shutdown(ctx)
-			}
-			if kubeServer != nil {
-				warnOnErr(ctx, kubeServer.Shutdown(ctx), logger)
-			}
-			if grpcServerPublic != nil {
-				grpcServerPublic.GracefulStop()
-			}
-			if grpcServerMTLS != nil {
-				grpcServerMTLS.GracefulStop()
-			}
-			if alpnServer != nil {
-				warnOnErr(ctx, alpnServer.Close(), logger)
-			}
-			if reverseTunnelALPNServer != nil {
-				warnOnErr(ctx, reverseTunnelALPNServer.Close(), logger)
-			}
-
-			// Explicitly deleting proxy heartbeats helps the behavior of
-			// reverse tunnel agents during rollouts, as otherwise they'll keep
-			// trying to reach proxies until the heartbeats expire.
-			if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-				if err := conn.Client.DeleteProxy(ctx, process.Config.HostUUID); err != nil {
-					if !trace.IsNotFound(err) {
-						logger.WarnContext(ctx, "Failed to delete heartbeat.", "error", err)
-					} else {
-						logger.DebugContext(ctx, "Failed to delete heartbeat.", "error", err)
-					}
-				}
-			}
-
-			if clientTLSConfigGenerator != nil {
-				clientTLSConfigGenerator.Close()
-			}
-		}
-		if peerQUICTransport != nil {
-			_ = peerQUICTransport.Close()
-			_ = peerQUICTransport.Conn.Close()
-		}
-		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-		warnOnErr(process.ExitContext(), conn.Close(), logger)
-		logger.InfoContext(process.ExitContext(), "Exited.")
-	})
-
 	return nil
 }
 
@@ -5535,7 +5570,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 		return nil
 	})
 
-	log := process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
+	log := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
 
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
@@ -5544,7 +5579,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
+			ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelError),
 		},
 		Handler: minimalWebHandler,
 		Log:     log,
@@ -6766,7 +6801,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	kubeServer, err := kubegrpc.New(kubegrpc.Config{
 		AccessPoint:           cfg.accessPoint,
 		Authz:                 authorizer,
-		Log:                   process.log,
+		Log:                   process.logger,
 		Emitter:               cfg.emitter,
 		KubeProxyAddr:         cfg.kubeProxyAddr.String(),
 		ClusterName:           clusterName,

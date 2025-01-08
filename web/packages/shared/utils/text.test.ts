@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { pluralize, capitalizeFirstLetter, listToSentence } from './text';
+import { capitalizeFirstLetter, listToSentence, pluralize } from './text';
 
 test('pluralize', () => {
   expect(pluralize(0, 'apple')).toBe('apples');

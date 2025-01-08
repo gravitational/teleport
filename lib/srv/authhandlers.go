@@ -631,7 +631,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
-	a.log.DebugContext(ctx, "Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
+	a.log.DebugContext(ctx, "Checking permissions to login to node with RBAC checks", "teleport_user", teleportUser, "os_user", osUser)
 
 	// get roles assigned to this user
 	accessInfo, err := fetchAccessInfo(cert, ca, teleportUser, clusterName)

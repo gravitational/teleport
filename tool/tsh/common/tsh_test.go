@@ -2542,18 +2542,15 @@ func TestSSHCommands(t *testing.T) {
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -7028,8 +7025,7 @@ func TestSCP(t *testing.T) {
 				return filepath.Join(dir, targetFile1)
 			},
 			assertion: func(tt require.TestingT, err error, i ...any) {
-				require.Error(tt, err, i...)
-				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+				require.ErrorIs(tt, err, teleport.ErrNodeIsAmbiguous, i...)
 			},
 		},
 		{
@@ -7088,8 +7084,7 @@ func TestSCP(t *testing.T) {
 				return "dev.example.com:" + filepath.Join(dir, targetFile1)
 			},
 			assertion: func(tt require.TestingT, err error, i ...any) {
-				require.Error(tt, err, i...)
-				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+				require.ErrorIs(tt, err, teleport.ErrNodeIsAmbiguous, i...)
 			},
 		},
 		{

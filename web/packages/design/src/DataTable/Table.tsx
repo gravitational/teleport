@@ -16,24 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode, PropsWithChildren } from 'react';
+import React, { PropsWithChildren, ReactNode } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { StyledTable, StyledPanel } from './StyledTable';
+import { SortHeaderCell, TextCell } from './Cells';
+import InputSearch from './InputSearch';
+import { ClientSidePager, ServerSidePager } from './Pager';
+import { StyledPanel, StyledTable } from './StyledTable';
 import {
   BasicTableProps,
   PagedTableProps,
   PagerPosition,
   SearchableBasicTableProps,
   ServersideTableProps,
-  TableProps,
   SortDir,
+  TableProps,
 } from './types';
-import { SortHeaderCell, TextCell } from './Cells';
-import { ClientSidePager, ServerSidePager } from './Pager';
-import InputSearch from './InputSearch';
 import useTable from './useTable';
 
 export default function Table<T>(props: TableProps<T>) {

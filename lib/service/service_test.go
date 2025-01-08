@@ -518,7 +518,6 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			exitContext: context.Background(),
 		},
 		backend: backend,
-		log:     utils.NewLoggerForTests(),
 		logger:  utils.NewSlogLoggerForTests(),
 	}
 
@@ -920,7 +919,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			process := TeleportProcess{
 				Config: cfg,
 				// Setting Supervisor so that `ExitContext` can be called.
-				Supervisor: NewSupervisor("process-id", cfg.Log),
+				Supervisor: NewSupervisor("process-id", cfg.Logger),
 			}
 			tls, err := process.setupProxyTLSConfig(
 				&Connector{},
@@ -950,6 +949,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
@@ -1291,7 +1291,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, utils.NewLoggerForTests()),
+		Supervisor: NewSupervisor(hostID, utils.NewSlogLoggerForTests()),
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1299,7 +1299,6 @@ func TestProxyGRPCServers(t *testing.T) {
 				},
 			},
 		},
-		log:    utils.NewLoggerForTests(),
 		logger: utils.NewSlogLoggerForTests(),
 	}
 

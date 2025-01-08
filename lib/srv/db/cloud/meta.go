@@ -23,15 +23,15 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
-	"github.com/aws/aws-sdk-go/service/redshift"
-	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
@@ -39,15 +39,30 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// redshiftClient defines a subset of the AWS Redshift client API.
+type redshiftClient interface {
+	redshift.DescribeClustersAPIClient
+}
+
+// redshiftClientProviderFunc provides a [redshiftClient].
+type redshiftClientProviderFunc func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+
+	// redshiftClientProviderFn is an internal-only [redshiftClient] provider
+	// func that is only set in tests.
+	redshiftClientProviderFn redshiftClientProviderFunc
 }
 
 // Check validates the metadata service config.
@@ -58,6 +73,15 @@ func (c *MetadataConfig) Check() error {
 			return trace.Wrap(err)
 		}
 		c.Clients = cloudClients
+	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
+
+	if c.redshiftClientProviderFn == nil {
+		c.redshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
+			return redshift.NewFromConfig(cfg, optFns...)
+		}
 	}
 	return nil
 }
@@ -177,13 +201,14 @@ func (m *Metadata) fetchRDSProxyMetadata(ctx context.Context, database types.Dat
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.
 func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	redshift := m.cfg.redshiftClientProviderFn(awsCfg)
 	cluster, err := describeRedshiftCluster(ctx, redshift, meta.Redshift.ClusterID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -296,8 +321,8 @@ func describeRDSCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterI
 }
 
 // describeRedshiftCluster returns AWS Redshift cluster for the specified ID.
-func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.RedshiftAPI, clusterID string) (*redshift.Cluster, error) {
-	out, err := redshiftClient.DescribeClustersWithContext(ctx, &redshift.DescribeClustersInput{
+func describeRedshiftCluster(ctx context.Context, clt redshiftClient, clusterID string) (*redshifttypes.Cluster, error) {
+	out, err := clt.DescribeClusters(ctx, &redshift.DescribeClustersInput{
 		ClusterIdentifier: aws.String(clusterID),
 	})
 	if err != nil {
@@ -306,7 +331,7 @@ func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.R
 	if len(out.Clusters) != 1 {
 		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %+v", clusterID, out.Clusters)
 	}
-	return out.Clusters[0], nil
+	return &out.Clusters[0], nil
 }
 
 // describeElastiCacheCluster returns AWS ElastiCache Redis cluster for the
@@ -369,7 +394,7 @@ func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, rdsClient rdsiface
 		return nil, trace.Wrap(err)
 	}
 
-	rdsProxy, err := describeRDSProxy(ctx, rdsClient, aws.StringValue(rdsProxyEndpoint.DBProxyName))
+	rdsProxy, err := describeRDSProxy(ctx, rdsClient, aws.ToString(rdsProxyEndpoint.DBProxyName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -389,7 +414,7 @@ func describeRDSProxyCustomEndpointAndFindURI(ctx context.Context, rdsClient rds
 	for _, customEndpoint := range out.DBProxyEndpoints {
 		// Double check if it has the same URI in case multiple custom
 		// endpoints have the same name.
-		if strings.Contains(uri, aws.StringValue(customEndpoint.Endpoint)) {
+		if strings.Contains(uri, aws.ToString(customEndpoint.Endpoint)) {
 			return customEndpoint, nil
 		}
 	}
@@ -408,7 +433,7 @@ func fetchRedshiftServerlessVPCEndpointMetadata(ctx context.Context, client reds
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, aws.StringValue(endpoint.WorkgroupName))
+	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, aws.ToString(endpoint.WorkgroupName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
