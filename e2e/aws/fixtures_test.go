@@ -241,10 +241,6 @@ func withDiscoveryService(t *testing.T, discoveryGroup string, awsMatchers ...ty
 		options.serviceConfigFuncs = append(options.serviceConfigFuncs, func(cfg *servicecfg.Config) {
 			cfg.Discovery.Enabled = true
 			cfg.Discovery.DiscoveryGroup = discoveryGroup
-			// Reduce the polling interval to speed up the test execution
-			// in the case of a failure of the first attempt.
-			// The default polling interval is 5 minutes.
-			cfg.Discovery.PollInterval = 1 * time.Minute
 			cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers, awsMatchers...)
 		})
 	}
