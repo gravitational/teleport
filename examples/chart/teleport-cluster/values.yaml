@@ -568,11 +568,13 @@ tls:
 # Values that you shouldn't need to change.
 ##################################################
 
-# Container image for the cluster.
-# Hardened distroless images are used by default.
+# Container image for the cluster. By default, the image contains only the
+# Teleport application and its runtime dependencies, and does not contain a
+# shell.
 image: public.ecr.aws/gravitational/teleport-distroless
-# Enterprise version of the image
-# Hardened distroless images are used by default.
+# Enterprise version of the image. By default, the image contains only the
+# Teleport application and its runtime dependencies, and does not contain a
+# shell.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
