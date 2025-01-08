@@ -111,60 +111,60 @@ logging in to the server in the leaf cluster.
 To add a user and role for accessing the trusted cluster:
 
 1. Open a terminal shell on the server running the Teleport Agent in the leaf cluster.
+
 1. Add the local `visitor` user and create a home directory for the user by running the
 following command:
 
-  ```code
-  $ sudo useradd --create-home visitor
-  ```
+   ```code
+   $ sudo useradd --create-home visitor
+   ```
 
-  The home directory is required for the `visitor` user to access a shell on the server.
+   The home directory is required for the `visitor` user to access a shell on the server.
 
 1. Sign out of all user logins and clusters by running the following command:
 
-  ```code
-  $ tsh logout
-  ```
+   ```code
+   $ tsh logout
+   ```
 
 1. Sign in to your **leaf cluster** from your administrative workstation using
 your Teleport username:
 
-  ```code
-  $ tsh login --proxy=<Var name="leafcluster.example.com" /> --user=<Var name="myuser" />
-  ```
+   ```code
+   $ tsh login --proxy=<Var name="leafcluster.example.com" /> --user=<Var name="myuser" />
+   ```
 
-  Replace `leafcluster.example.com` with the Teleport leaf cluster domain and
-  `myuser` with your Teleport username.
+   Replace `leafcluster.example.com` with the Teleport leaf cluster domain and
+   `myuser` with your Teleport username.
 
 1. Create a role definition file called `visitor.yaml` with the following content:
 
-  ```yaml
-  kind: role
-  version: v7
-  metadata:
-    name: visitor
-  spec:
-    allow:
-      logins:
-        - visitor
-      node_labels:
-        '*': '*'
-  ```
+   ```yaml
+   kind: role
+   version: v7
+   metadata:
+     name: visitor
+   spec:
+     allow:
+       logins:
+         - visitor
+       node_labels:
+         '*': '*'
+   ```
 
-  You must explicitly allow access to nodes with labels to SSH into the server running
-  the Teleport Agent. In this example, the `visitor` login is allowed access to any server.
+   You must explicitly allow access to nodes with labels to SSH into the server running
+   the Teleport Agent. In this example, the `visitor` login is allowed access to any server.
 
 1. Create the `visitor` role by running the following command:
 
-  ```code
-  $ tctl create visitor.yaml
-  ```
+   ```code
+   $ tctl create visitor.yaml
+   ```
 
-  You now have a `visitor` role on your leaf cluster. The `visitor` role allows
-  users with the `visitor` login to access nodes in the leaf cluster. In the next step,
-  you must add the `visitor` login to your user so you can satisfy the conditions of
-  the role and access the server in the leaf cluster.
-
+   You now have a `visitor` role on your leaf cluster. The `visitor` role allows
+   users with the `visitor` login to access nodes in the leaf cluster. In the next step,
+   you must add the `visitor` login to your user so you can satisfy the conditions of
+   the role and access the server in the leaf cluster.
 
 ## Step 2/5. Prepare the root cluster environment
 
@@ -177,38 +177,38 @@ To add the login to your Teleport user:
 
 1. Sign out of all user logins and clusters by running the following command:
 
-  ```code
-  $ tsh logout
-  ```
+   ```code
+   $ tsh logout
+   ```
 
 1. Sign in to your **root cluster** from your administrative workstation using
 your Teleport username:
 
-  ```code
-  $ tsh login --proxy=<Var name="rootcluster.example.com" /> --user=<Var name="myuser" />
-  ```
+   ```code
+   $ tsh login --proxy=<Var name="rootcluster.example.com" /> --user=<Var name="myuser" />
+   ```
 
-  Replace `rootcluster.example.com` with the Teleport root cluster domain and
-  `myuser` with your Teleport username.
+   Replace `rootcluster.example.com` with the Teleport root cluster domain and
+   `myuser` with your Teleport username.
 
 1. Open your user resource in your editor by running a command similar to the
 following:
 
-  ```code
-  $ tctl edit user/<Var name="myuser" />
-  ```
+   ```code
+   $ tctl edit user/<Var name="myuser" />
+   ```
 
-  Replace `myuser` with your Teleport username.
+   Replace `myuser` with your Teleport username.
 
 1. Add the `visitor` login:
 
-  ```diff
-     traits:
-       logins:
-  +    - visitor
-       - ubuntu
-       - root
-  ```
+   ```diff
+      traits:
+        logins:
+   +    - visitor
+        - ubuntu
+        - root
+   ```
 
 1. Apply your changes by saving and closing the file in your editor.
 
@@ -228,130 +228,133 @@ To establish the trust relationship:
 
 1. Sign out of all user logins and clusters by running the following command:
 
-  ```code
-  $ tsh logout
-  ```
+   ```code
+   $ tsh logout
+   ```
 
 1. Sign in to your **root cluster** from your administrative workstation using
 your Teleport username:
 
-  ```code
-  $ tsh login --proxy=<Var name="rootcluster.example.com" /> --user=<Var name="myuser" />
-  ```
+   ```code
+   $ tsh login --proxy=<Var name="rootcluster.example.com" /> --user=<Var name="myuser" />
+   ```
 
-  Replace `rootcluster.example.com` with the Teleport root cluster domain and
-  `myuser` with your Teleport username.
+   Replace `rootcluster.example.com` with the Teleport root cluster domain and
+   `myuser` with your Teleport username.
 
 1. Generate the invitation token by running the following command:
 
-  ```code
-  $ tctl tokens add --type=trusted_cluster --ttl=5m
-  The cluster invite token: (=presets.tokens.first=)
-  ```
+   ```code
+   $ tctl tokens add --type=trusted_cluster --ttl=5m
+   The cluster invite token: (=presets.tokens.first=)
+   ```
 
-  This command generates a trusted cluster invitation token to allow an inbound
-  connection from a leaf cluster. The token can be used multiple times. In this
-  command example, the token has an expiration time of five minutes.
+   This command generates a trusted cluster invitation token to allow an inbound
+   connection from a leaf cluster. The token can be used multiple times. In this
+   command example, the token has an expiration time of five minutes.
 
-  Note that the invitation token is only used to establish a
-  connection for the first time. Clusters exchange certificates and
-  don't use tokens to re-establish their connection afterward.
+   Note that the invitation token is only used to establish a
+   connection for the first time. Clusters exchange certificates and
+   don't use tokens to re-establish their connection afterward.
 
-  You can copy the token for later use. If you need to display the token again,
-  run the following command against your root cluster:
+   You can copy the token for later use. If you need to display the token again,
+   run the following command against your root cluster:
 
-  ```code
-  $ tctl tokens ls
-  Token                                                    Type            Labels   Expiry Time (UTC)
-  -------------------------------------------------------- --------------- -------- ---------------------------
-  (=presets.tokens.first=)                         trusted_cluster          28 Apr 22 19:19 UTC (4m48s)
-  ```
+   ```code
+   $ tctl tokens ls
+   Token                                                    Type            Labels   Expiry Time (UTC)
+   -------------------------------------------------------- --------------- -------- ---------------------------
+   (=presets.tokens.first=)                         trusted_cluster          28 Apr 22 19:19 UTC (4m48s)
+   ```
 
 1. Store the token in a Kubernetes secret
 
-  ```yaml
-  # secret.yaml
-  apiVersion: v1
-  kind: Secret
-  metadata:
-    name: teleport-trusted-cluster
-    annotations:
-      # This annotation allows any CR to look up this secret.
-      # You may want to restrict which CRs are allowed to look up this secret.
-      resources.teleport.dev/allow-lookup-from-cr: "*"
-  # We use stringData instead of data for the sake of simplicity, both are OK
-  stringData:
-    token: (=presets.tokens.first=)
-  ```
+   ```yaml
+   # secret.yaml
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: teleport-trusted-cluster
+     annotations:
+       # This annotation allows any CR to look up this secret.
+       # You may want to restrict which CRs are allowed to look up this secret.
+       resources.teleport.dev/allow-lookup-from-cr: "*"
+   # We use stringData instead of data for the sake of simplicity, both are OK
+   stringData:
+     token: (=presets.tokens.first=)
+   ```
 
-  ```code
-  $ kubectl apply -f secret.yaml
-  ```
+   ```code
+   $ kubectl apply -f secret.yaml
+   ```
 
-## Step 4/5. Create a trusted cluster resource using `kubectl`
+## Step 4/5. Create a trusted cluster resource
 
 1. Configure your trusted cluster resource in a file called `trusted-cluster.yaml`.
 
-  ```yaml
-  # trusted-cluster.yaml
-  apiVersion: resources.teleport.dev/v1
-  kind: TeleportTrustedClusterV2
-  metadata:
-    # The resource name must match the name of the trusted cluster.
-    name: rootcluster.example.com
-  spec:
-    # enabled enables the trusted cluster relationship.
-    enabled: true
+   ```yaml
+   # trusted-cluster.yaml
+   apiVersion: resources.teleport.dev/v1
+   kind: TeleportTrustedClusterV2
+   metadata:
+     # The resource name must match the name of the trusted cluster.
+     name: rootcluster.example.com
+   spec:
+     # enabled enables the trusted cluster relationship.
+     enabled: true
 
-    # role_map maps Teleport roles from the root cluster in the leaf cluster.
-    # In this case, users with the `access` role in the root cluster are granted
-    # the `visitor` role in the leaf cluster.
-    role_map:
-      - remote: access
-        local:
-          - visitor
+     # role_map maps Teleport roles from the root cluster in the leaf cluster.
+     # In this case, users with the `access` role in the root cluster are granted
+     # the `visitor` role in the leaf cluster.
+     role_map:
+       - remote: access
+         local:
+           - visitor
 
-    # token specifies the join token.
-    # This value will be resolved from the previously stored secret.
-    # `teleport-trusted-cluster` is the secret name and `token` is the secret key.
-    token: "secret://teleport-trusted-cluster/token"
+     # token specifies the join token.
+     # This value will be resolved from the previously stored secret.
+     # `teleport-trusted-cluster` is the secret name and `token` is the secret key.
+     token: "secret://teleport-trusted-cluster/token"
 
-    # tunnel_addr specifies the reverse tunnel address of the root cluster proxy.
-    tunnel_addr: rootcluster.example.com:443
+     # tunnel_addr specifies the reverse tunnel address of the root cluster proxy.
+     tunnel_addr: rootcluster.example.com:443
 
-    # web_proxy_addr specifies the address of the root cluster proxy.
-    web_proxy_addr: rootcluster.example.com:443
-  ```
+     # web_proxy_addr specifies the address of the root cluster proxy.
+     web_proxy_addr: rootcluster.example.com:443
+   ```
 
 1. Create the Kubernetes resource:
-  ```code
-  $ kubectl apply -f trusted-cluster.yaml
-  ```
+
+   ```code
+   $ kubectl apply -f trusted-cluster.yaml
+   ```
 
 1. List the created Kubernetes resource:
-  ```code
-  $ kubectl get trustedclustersv2
-  NAMESPACE         NAME                     AGE
-  default           rootcluster.example.com  60s
-  ```
+
+   ```code
+   $ kubectl get trustedclustersv2
+   NAMESPACE         NAME                     AGE
+   default           rootcluster.example.com  60s
+   ```
 
 1. Sign out of the leaf cluster and sign back in to the root cluster.
+
 1. Verify the trusted cluster configuration by running the following command in
 the root cluster:
 
-  ```code
-  $ tsh clusters
-  ```
+   ```code
+   $ tsh clusters
+   ```
 
-  This command should list the root cluster and the leaf cluster with output
-  similar to the following:
+   This command should list the root cluster and the leaf cluster with output
+   similar to the following:
 
-  ```code
-  Cluster Name                Status Cluster Type Labels Selected
-  --------------------------- ------ ------------ ------ --------
-  rootcluster.example.com     online root                *
-  leafcluster.example.com     online leaf
-  ```
+   ```code
+   Cluster Name                Status Cluster Type Labels Selected
+   --------------------------- ------ ------------ ------ --------
+   rootcluster.example.com     online root                *
+   leafcluster.example.com     online leaf
+   ```
 
 
 ## Step 5/5. Access a server in the leaf cluster
@@ -364,41 +367,41 @@ To test access to the server:
 1. Verify that you are signed in as a Teleport user on the root cluster by
 running the following command:
 
-  ```code
-  tsh status
-  ```
+   ```code
+   tsh status
+   ```
 
 1. Confirm that the server running the Teleport Agent is joined to the leaf cluster by
 running a command similar to the following:
 
-  ```code
-  $ tsh ls --cluster=<Var name="leafcluster.example.com" />
-  ```
+   ```code
+   $ tsh ls --cluster=<Var name="leafcluster.example.com" />
+   ```
 
-  This command displays output similar to the following:
+   This command displays output similar to the following:
 
-  ```code
-  Node Name       Address        Labels
-  --------------- -------------- ------------------------------------
-  ip-172-3-1-242  127.0.0.1:3022 hostname=ip-172-3-1-242
-  ip-172-3-2-205  ⟵ Tunnel      hostname=ip-172-3-2-205
-  ```
+   ```code
+   Node Name       Address        Labels
+   --------------- -------------- ------------------------------------
+   ip-172-3-1-242  127.0.0.1:3022 hostname=ip-172-3-1-242
+   ip-172-3-2-205  ⟵ Tunnel      hostname=ip-172-3-2-205
+   ```
 
 1. Open a secure shell connection using the `visitor` login:
 
-  ```code
-  $ tsh ssh --cluster=leafcluster.example.com visitor@ip-172-3-2-205
-  ```
+   ```code
+   $ tsh ssh --cluster=leafcluster.example.com visitor@ip-172-3-2-205
+   ```
 
 1. Confirm you are logged in with as the user `visitor` on the server
 in the leaf cluster by running the following commands:
 
-  ```code
-  $ pwd
-  /home/visitor
-  $ uname -a
-  Linux ip-172-3-2-205 5.15.0-1041-aws #46~20.04.1-Ubuntu SMP Wed Jul 19 15:39:29 UTC 2023 aarch64 aarch64 aarch64 GNU/Linux
-  ```
+   ```code
+   $ pwd
+   /home/visitor
+   $ uname -a
+   Linux ip-172-3-2-205 5.15.0-1041-aws #46~20.04.1-Ubuntu SMP Wed Jul 19 15:39:29 UTC 2023 aarch64 aarch64 aarch64 GNU/Linux
+   ```
 
 ## Manage an existing trusted cluster with the Teleport Operator
 
@@ -406,11 +409,11 @@ If you have an existing trusted cluster that you would like to manage with the
 Teleport Operator, you can do this by first setting the trusted cluster label
 `teleport.dev/origin: kubernetes`.
 
-  ```yaml
-  kind: trusted_cluster
-  metadata:
-    labels:
-      teleport.dev/origin: kubernetes
-    name: rootcluster.example.com
-  ...
-  ```
+```yaml
+kind: trusted_cluster
+metadata:
+  name: rootcluster.example.com
+  labels:
+    teleport.dev/origin: kubernetes
+...
+```
