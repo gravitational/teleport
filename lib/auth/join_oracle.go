@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func generateOracleChallenge() (string, error) {
@@ -127,6 +126,14 @@ func checkOracleAllowRules(claims oracle.Claims, token string, allowRules []*typ
 	return trace.AccessDenied("instance %v did not match any allow rules in token %v", claims.InstanceID, token)
 }
 
+func formatHeaderFromMap(m map[string]string) http.Header {
+	header := make(http.Header, len(m))
+	for k, v := range m {
+		header.Set(k, v)
+	}
+	return header
+}
+
 func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest) error {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
@@ -137,8 +144,8 @@ func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *
 		return trace.AccessDenied("this token does not support the Oracle join method")
 	}
 
-	outerHeaders := utils.FormatHeaderFromMap(req.Headers)
-	innerHeaders := utils.FormatHeaderFromMap(req.InnerHeaders)
+	outerHeaders := formatHeaderFromMap(req.Headers)
+	innerHeaders := formatHeaderFromMap(req.InnerHeaders)
 	if err := checkHeaders(outerHeaders, challenge, a.GetClock()); err != nil {
 		return trace.Wrap(err)
 	}

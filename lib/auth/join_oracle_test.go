@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestCheckHeaders(t *testing.T) {
@@ -42,7 +41,7 @@ func TestCheckHeaders(t *testing.T) {
 	defaultAuthHeader := fmt.Sprintf(`Signature headers="%s %s"`, oracle.DateHeader, oracle.ChallengeHeader)
 
 	t.Run("ok", func(t *testing.T) {
-		headers := utils.FormatHeaderFromMap(map[string]string{
+		headers := formatHeaderFromMap(map[string]string{
 			"Authorization":        defaultAuthHeader,
 			oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
 			oracle.ChallengeHeader: defaultChallenge,
@@ -119,7 +118,7 @@ func TestCheckHeaders(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Error(t, checkHeaders(utils.FormatHeaderFromMap(tc.headers), defaultChallenge, clock))
+			require.Error(t, checkHeaders(formatHeaderFromMap(tc.headers), defaultChallenge, clock))
 		})
 	}
 }

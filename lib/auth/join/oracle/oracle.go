@@ -31,17 +31,17 @@ import (
 const teleportUserAgent = "teleport/" + api.Version
 
 const (
-	dateHeader      = "x-date"
-	challengeHeader = "x-teleport-challenge"
+	DateHeader      = "x-date"
+	ChallengeHeader = "x-teleport-challenge"
 )
 
 const (
-	tenancyClaim     = "opc-tenancy-id"
-	compartmentClaim = "opc-compartment-id"
-	cnstanceClaim    = "opc-instance-id"
+	TenancyClaim     = "opc-tenancy-id"
+	CompartmentClaim = "opc-compartment-id"
+	InstanceClaim    = "opc-instance-id"
 )
 
-func formatDateHeader(d time.Time) string {
+func FormatDateHeader(d time.Time) string {
 	return d.UTC().Format(http.TimeFormat)
 }
 
@@ -56,9 +56,59 @@ type authenticateClientRequest struct {
 	Details   authenticateClientDetails `contributesTo:"body"`
 }
 
+type Claims struct {
+	TenancyID     string
+	CompartmentID string
+	InstanceID    string
+}
+
+func (c Claims) Region() string {
+	// OCID format: ocid1.<RESOURCE TYPE>.<REALM>.[REGION][.FUTURE USE].<UNIQUE ID>
+	idParts := strings.Split(c.InstanceID, ".")
+	switch len(idParts) {
+	case 5, 6:
+		return string(common.StringToRegion(idParts[3]))
+	default:
+		return ""
+	}
+}
+
+type Claim struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type Principal struct {
+	Claims []Claim `json:"claims"`
+}
+
+func (p Principal) GetClaims() Claims {
+	claims := Claims{}
+	for _, claim := range p.Claims {
+		switch claim.Key {
+		case TenancyClaim:
+			claims.TenancyID = claim.Value
+		case CompartmentClaim:
+			claims.CompartmentID = claim.Value
+		case InstanceClaim:
+			claims.InstanceID = claim.Value
+		}
+	}
+	return claims
+}
+
+type AuthenticateClientResult struct {
+	ErrorMessage string    `json:"errorMessage"`
+	Principal    Principal `json:"principal"`
+}
+
+type AuthenticateClientResponse struct {
+	AuthenticateClientResult `presentIn:"body"`
+}
+
 func newAuthenticateClientRequest(time time.Time, challenge string, headers http.Header) authenticateClientRequest {
 	req := authenticateClientRequest{
-		Date:      formatDateHeader(time),
+		Date:      FormatDateHeader(time),
 		Challenge: challenge,
 		UserAgent: teleportUserAgent,
 		Details: authenticateClientDetails{
@@ -89,7 +139,7 @@ func createAuthenticationRequest(region string, auth authenticateClientRequest) 
 // The returned headers should be sent to an auth server as part of
 // RegisterUsingOracleMethod.
 func CreateSignedRequest(provider common.ConfigurationProvider, challenge string) (innerHeaders, outerHeaders http.Header, err error) {
-	signedHeaders := append(common.DefaultGenericHeaders(), dateHeader, challengeHeader)
+	signedHeaders := append(common.DefaultGenericHeaders(), DateHeader, ChallengeHeader)
 	signer := common.RequestSigner(provider, signedHeaders, common.DefaultBodyHeaders())
 	region, err := provider.Region()
 	if err != nil {
@@ -110,7 +160,7 @@ func CreateSignedRequest(provider common.ConfigurationProvider, challenge string
 	return innerReq.Header, outerReq.Header, nil
 }
 
-func getAuthorizationHeaderValues(header http.Header) map[string]string {
+func GetAuthorizationHeaderValues(header http.Header) map[string]string {
 	rawValues := strings.TrimPrefix(header.Get("Authorization"), "Signature ")
 	keyValuePairs := strings.Split(rawValues, ",")
 	values := make(map[string]string, len(keyValuePairs))
@@ -119,4 +169,20 @@ func getAuthorizationHeaderValues(header http.Header) map[string]string {
 		values[k] = strings.Trim(v, "\"")
 	}
 	return values
+}
+
+func CreateRequestFromHeaders(region string, innerHeaders, outerHeaders http.Header) (*http.Request, error) {
+	req, err := createAuthenticationRequest(region, authenticateClientRequest{
+		Date:      outerHeaders.Get(DateHeader),
+		Challenge: outerHeaders.Get(ChallengeHeader),
+		UserAgent: teleportUserAgent,
+		Details: authenticateClientDetails{
+			RequestHeaders: innerHeaders,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header = outerHeaders
+	return req, nil
 }
