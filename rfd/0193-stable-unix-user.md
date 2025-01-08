@@ -43,6 +43,14 @@ spec:
 
 Teleport SSH servers will check the `enabled` field to know if the feature is enabled, and - if so - they will query the auth server for the UID to use through a new rpc whenever they need to provision a new host user in "keep" mode with no otherwise defined UID. In the initial implementation, provisioned host groups other than the primary group will be generated according to the default system behavior.
 
+## Backwards and forwards compatibility
+
+Teleport SSH servers that are not aware of this feature will ignore it and proceed to provision users with the current behavior; this is the best we can hope for. A missing `spec.stable_unix_user_config` has the same behavior as `spec.stable_unix_user_config.enabled: false` so a updated SSH server connected to an older control plane will treat the feature as disabled.
+
+During a rolling control plane upgrade it's technically possible for a SSH server to read the feature as enabled from an up-to-date Auth Service agent and then fail to obtain a UID from a not-yet-updated one; outside of very contrived scenarios, the window of time for this to happen is so short that we can treat such a failure to obtain a UID just like every other failure to obtain one - not letting the SSH session start.
+
+Since the SSH server is only going to look at the single boolean flag to know whether or not to ask the control plane for a UID to use, we're free to evolve the scheme to change the strategy used to pick UIDs as an Auth Service-only change (say, to support multiple disjoint UID ranges).
+
 ## Internals
 
 The Teleport SSH agent will use the new `teleport.userprovisioning.v2.StableUNIXUsersService/ObtainUIDForUsername` rpc to query the UID for any new username; the auth server will generate and persist a UID if one hasn't been set for the given username, or read the already persisted one, and then it will return it to the agent.
@@ -73,4 +81,14 @@ If the operation succeeds, the UID is returned, otherwise the operation is tried
 
 Seeing as we are not going to change UID allocations, the auth server will use a simple LRU or time-based cache for the very happy path (in which the username already has an assigned UID), to avoid bursts of backend reads as a result of a new username logging into several different servers for the first time in quick succession (with a `tsh` multi-host command or with something like Ansible). Since there's no expectation that any given value will be heavily read (since, in theory, each host will read each user at most once) and every write will require hard reads and atomic operations, we don't expect to need to replicate the data in the auth cache or to support watching, at least in the first implementation.
 
-The `ObtainUIDForUsername` rpc will require `create`+`read` permissions on the `stable_unix_user` kind, which will be granted to the `Node` builtin role. Future RPCs might include point and range reads for the mapping, which should require `read` and `read`+`list` permissions respectively, which can be assigned to a user or bot for inspection and automation.
+## Security and auditability
+
+The `ObtainUIDForUsername` rpc will require `create`+`read` permissions on the `stable_unix_user` pseudo-kind, which will be granted to the `Node` builtin role. Future RPCs might include point and range reads for the mapping, which should require `read` and `read`+`list` permissions respectively, which can be assigned to a user or bot for inspection and automation.
+
+Assuming that the UID range chosen by the cluster admin doesn't implicitly grant extra permissions to the provisioned users somehow, there should be no difference in behavior on the machines running the Teleport SSH server, other than picking a UID rather than letting the system tooling pick an available one from the local user database.
+
+As a side effect of `ObtainUIDForUsername` we will emit one of two new audit log events, `stable_unix_user.create` or `stable_host_user.read`, depending on whether the username already had an associated stable UID or not; the events will be identical other than the event name and code, containing the username, the associated UID and the host ID of the SSH server that issued the request.
+
+## Observability
+
+The `grpc_server_handled_total` prom metric will keep track of uses and failures of the `ObtainUIDForUsername` RPC; depending on the specifics of the implementation we might add metrics to count LRU cache hits and misses, internal retries caused by contention, and "slow path" UID allocation fallbacks (hopefully caused by configuration changes and not bugs).
