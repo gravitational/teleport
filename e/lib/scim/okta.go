@@ -9,7 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
-	oktapi "github.com/okta/okta-sdk-golang/v2/okta"
+	oktasdk "github.com/okta/okta-sdk-golang/v2/okta"
 	oktaquery "github.com/okta/okta-sdk-golang/v2/okta/query"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/okta"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -33,14 +34,16 @@ const (
 // and resource handlers. A new shim will be created for every request requiring
 // Okta-specific behavior.
 type oktaShim struct {
-	creds    CredentialsService
-	locks    LocksService
-	users    UsersService
-	roles    RolesService
-	plugin   *types.PluginV1
-	clock    clockwork.Clock
-	logger   *slog.Logger
-	identity IdentityService
+	creds               CredentialsService
+	locks               LocksService
+	users               UsersService
+	roles               RolesService
+	certAuthorityGetter certAuthorityGetter
+	jwtSignerGetter     jwtSignerGetter
+	plugin              *types.PluginV1
+	clock               clockwork.Clock
+	logger              *slog.Logger
+	identity            IdentityService
 }
 
 // Static assertion that the oktaShim implements the `shim` interface
@@ -62,14 +65,16 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 	log := slog.With(teleport.ComponentKey, teleport.Component(ComponentName, eteleport.ComponentOkta))
 
 	return &oktaShim{
-		creds:    service.creds,
-		locks:    service.locks,
-		clock:    service.clock,
-		users:    service.users,
-		roles:    service.roles,
-		identity: service.identity,
-		plugin:   p,
-		logger:   log,
+		creds:               service.creds,
+		locks:               service.locks,
+		clock:               service.clock,
+		users:               service.users,
+		roles:               service.roles,
+		identity:            service.identity,
+		certAuthorityGetter: service.certAuthorityGetter,
+		jwtSignerGetter:     service.jwtSignerGetter,
+		plugin:              p,
+		logger:              log,
 	}, nil
 }
 
@@ -520,30 +525,58 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 	return candidateID, nil
 }
 
-func (s *oktaShim) oktaClient(ctx context.Context) (*oktapi.Client, error) {
+func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 	staticCredsRef := s.plugin.GetCredentials().GetStaticCredentialsRef()
 	if staticCredsRef == nil {
 		return nil, trace.NotFound("no static credentials found")
 	}
-
 	staticCreds, err := s.creds.GetPluginStaticCredentialsByLabels(ctx, staticCredsRef.Labels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	oktAPIToken, err := okta.SelectAPIToken(staticCreds)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	syncSettings := s.plugin.Spec.GetOkta()
+	var authProvider oktaapi.AuthProvider
+	switch {
+	case syncSettings.CredentialsInfo.HasOauthCredentials:
+		oauthCreds, err := okta.SelectOAuthClientID(staticCreds)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clientID, _ := oauthCreds.GetOAuthClientSecret()
+		authProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
+			OAuthClientID: clientID,
+			AuthService:   s.certAuthorityGetter,
+			CAKeyStore:    s.jwtSignerGetter,
+			Clock:         s.clock,
+		})
+	case syncSettings.CredentialsInfo.HasSsmToken:
+		sswsCreds, err := okta.SelectAPIToken(staticCreds)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authProvider = oktaapi.NewSSWSAuthProvider(sswsCreds.GetAPIToken())
+	default:
+		return nil, trace.NotFound("no OAuth or SSM token static credentials set")
 	}
 
-	syncSettings := s.plugin.Spec.GetOkta()
-	_, apiClient, err := oktapi.NewClient(ctx,
-		oktapi.WithCache(false),
-		oktapi.WithOrgUrl(syncSettings.OrgUrl),
-		oktapi.WithToken(oktAPIToken.GetAPIToken()),
-		oktapi.WithRequestTimeout(okta.RequestTimeoutSeconds),
-		oktapi.WithRateLimitMaxRetries(math.MaxInt32),
+	var oktaAPIScopes = []string{
+		oktaapi.ScopeAppsRead,
+		oktaapi.ScopeGroupsRead,
+		oktaapi.ScopeUserRead,
+		oktaapi.ScopeOrgsRead,
+	}
+
+	oktaOpts := append(
+		authProvider.GetAuthOptions(),
+		oktasdk.WithCache(false),
+		oktasdk.WithOrgUrl(syncSettings.OrgUrl),
+		oktasdk.WithRequestTimeout(okta.RequestTimeoutSeconds),
+		oktasdk.WithRateLimitMaxRetries(math.MaxInt32),
+		oktasdk.WithScopes(oktaAPIScopes),
 	)
+
+	_, apiClient, err := oktasdk.NewClient(ctx, oktaOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

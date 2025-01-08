@@ -353,15 +353,17 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	userMonitor.Start(ctx)
 
 	err = p.registerSCIMService(ctx, gRPCServer, &scim.Config{
-		IdentityService:    p.authServer.AuthServer,
-		Authorizer:         p.authServer.Authorizer,
-		UsersService:       p.authServer.AuthServer,
-		RolesService:       p.authServer.AuthServer,
-		PluginsService:     p.plugins,
-		CredentialsService: p.pluginCreds,
-		LocksService:       p.authServer.AuthServer.Services,
-		AccessListsService: p.authServer.AuthServer.Services,
-		Logger:             logger,
+		IdentityService:     p.authServer.AuthServer,
+		Authorizer:          p.authServer.Authorizer,
+		UsersService:        p.authServer.AuthServer,
+		RolesService:        p.authServer.AuthServer,
+		PluginsService:      p.plugins,
+		CredentialsService:  p.pluginCreds,
+		LocksService:        p.authServer.AuthServer.Services,
+		AccessListsService:  p.authServer.AuthServer.Services,
+		CertAuthorityGetter: p.authServer.AuthServer,
+		JWTSignerGetter:     p.authServer.AuthServer.GetKeyStore(),
+		Logger:              logger,
 	})
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")
@@ -370,7 +372,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	oktaSvc, err := oktaservice.NewService(oktaservice.ServiceConfig{
 		Backend:       p.authServer.GetBackend(),
 		Authorizer:    p.authServer.Authorizer,
-		JWTSigner:     p.authServer.APIConfig.AuthServer.GetKeyStore(),
+		JWTSigner:     p.authServer.AuthServer.GetKeyStore(),
 		RoundTripper:  p.Config.HTTPTransport,
 		AuthCache:     p.authServer.AuthServer.Cache,
 		AuthService:   p.authServer.AuthServer,

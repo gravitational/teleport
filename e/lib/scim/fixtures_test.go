@@ -29,6 +29,8 @@ type testFixture struct {
 	users           mockUserService
 	roles           mockRoleService
 	accesslists     mockAccessListService
+	certAuthority   mockCertAuthority
+	jwtSigner       mockJwtSigner
 	locks           mockLocksService
 	plugins         mockPluginsService
 	creds           mockCredentialsService
@@ -72,15 +74,17 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*Service, *testFixture)
 	fix.CheckAndSetDefaults(t)
 
 	scimSvc, err := NewService(&Config{
-		Authorizer:         builtinRoleAuthorizer{},
-		UsersService:       &fix.users,
-		AccessListsService: &fix.accesslists,
-		LocksService:       &fix.locks,
-		PluginsService:     &fix.plugins,
-		RolesService:       &fix.roles,
-		CredentialsService: &fix.creds,
-		Clock:              fix.clock,
-		IdentityService:    &fix.identityService,
+		Authorizer:          builtinRoleAuthorizer{},
+		UsersService:        &fix.users,
+		AccessListsService:  &fix.accesslists,
+		CertAuthorityGetter: &fix.certAuthority,
+		JWTSignerGetter:     &fix.jwtSigner,
+		LocksService:        &fix.locks,
+		PluginsService:      &fix.plugins,
+		RolesService:        &fix.roles,
+		CredentialsService:  &fix.creds,
+		Clock:               fix.clock,
+		IdentityService:     &fix.identityService,
 	})
 	require.NoError(t, err, "creating test harness")
 

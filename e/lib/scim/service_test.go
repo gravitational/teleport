@@ -343,16 +343,18 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
 	sut, err := NewService(&Config{
-		Authorizer:         &authMock{},
-		Logger:             utils.NewSlogLoggerForTests(),
-		UsersService:       &userMock{users: users},
-		RolesService:       &mockRoleService{},
-		PluginsService:     &pluginMock{plugin: plugin},
-		CredentialsService: &credMock{creds: pluginCreds},
-		AccessListsService: &mockAccessListService{},
-		LocksService:       &mockLocksService{},
-		IdentityService:    &mockIdentityService{},
-		Clock:              clock,
+		Authorizer:          &authMock{},
+		Logger:              utils.NewSlogLoggerForTests(),
+		UsersService:        &userMock{users: users},
+		RolesService:        &mockRoleService{},
+		PluginsService:      &pluginMock{plugin: plugin},
+		CredentialsService:  &credMock{creds: pluginCreds},
+		AccessListsService:  &mockAccessListService{},
+		CertAuthorityGetter: &mockCertAuthority{},
+		JWTSignerGetter:     &mockJwtSigner{},
+		LocksService:        &mockLocksService{},
+		IdentityService:     &mockIdentityService{},
+		Clock:               clock,
 	})
 	require.NoError(t, err)
 

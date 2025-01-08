@@ -2,6 +2,7 @@ package scim
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 
 	"github.com/stretchr/testify/mock"
@@ -11,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // getResultAs extracts a value from a testify mock argument collection and
@@ -308,4 +310,26 @@ func (m *mockIdentityService) GetSAMLConnector(ctx context.Context, id string, w
 		return fn(ctx, id, withSecrets)
 	}
 	return getResultAs[types.SAMLConnector](result, 0), result.Error(1)
+}
+
+type mockCertAuthority struct {
+	mock.Mock
+}
+
+func (m *mockCertAuthority) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	result := m.Called(ctx, id, loadKeys)
+	return getResultAs[types.CertAuthority](result, 0), result.Error(1)
+}
+func (m *mockCertAuthority) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	result := m.Called(opts)
+	return getResultAs[types.ClusterName](result, 0), result.Error(1)
+}
+
+type mockJwtSigner struct {
+	mock.Mock
+}
+
+func (m *mockJwtSigner) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	result := m.Called(ctx, ca)
+	return getResultAs[crypto.Signer](result, 0), result.Error(1)
 }

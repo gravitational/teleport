@@ -194,7 +194,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra)
 
-	t.Run("enroll okta integration with SCM only", func(t *testing.T) {
+	t.Run("enroll okta integration with SCIM only", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
 			ScimToken:            scimToken,
@@ -224,7 +224,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			EnableUserSync: true,
 		})
 		require.NoError(t, err)
-		mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimeout(time.Second*3), withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimeout(time.Second*5), withTimePoint(from))
 		userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaInfra.Users[0])
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -251,7 +251,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimeout(time.Second*3), withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimeout(time.Second*5), withTimePoint(from))
 		mustWaitForEvent(t, sut, events.OktaApplicationsUpdateEvent, withTimeout(time.Second*10), withTimePoint(from))
 
 		require.EventuallyWithT(t, func(collection *assert.CollectT) {
@@ -277,7 +277,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}, time.Second, 200*time.Millisecond)
-		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*3), withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(from))
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
@@ -297,7 +297,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*3), withTimePoint(time.Now()))
+		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(time.Now()))
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)

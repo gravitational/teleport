@@ -2,10 +2,12 @@ package scim
 
 import (
 	"context"
+	"crypto"
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // UsersService is an abstraction over the lock used by the SCIM service to
@@ -93,7 +95,7 @@ type AccessListsService interface {
 // var _ AccessListsService = services.AccessLists(nil)
 
 // RolesService describes the minimal set of operations that the SCIM service
-// will run perform on the cluster Role database. This is expected to be a
+// will perform on the cluster Role database. This is expected to be a
 // subset of the Auth Service interface
 type RolesService interface {
 	// CreateRole creates a new role, failing if there is an existing Role of
@@ -102,4 +104,18 @@ type RolesService interface {
 
 	// DeleteRole deletes a given role
 	DeleteRole(context.Context, string) error
+}
+
+// certAuthorityGetter is expected to be the Auth Server. Used by SCIM service to
+// retrieve certificates for signing JWT tokens with [[jwtSigner]].
+type certAuthorityGetter interface {
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+}
+
+// jwtSignerGetter is expected to be the KeyStore of the Auth Server. Used by the SCIM service to sign
+// JWT tokens to authorize to third-party services like Okta. Certificates are provided with
+// [[certAuthority]].
+type jwtSignerGetter interface {
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }

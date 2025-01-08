@@ -290,7 +290,6 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 		},
 		Resource: res,
 	})
-
 	if err != nil {
 		log.ErrorContext(r.Context(), "Failed updating resource", "error", err)
 		return trace.Wrap(err)

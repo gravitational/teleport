@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -32,18 +33,20 @@ const (
 type Service struct {
 	scimpb.UnimplementedSCIMServiceServer
 
-	authorizer    authz.Authorizer
-	users         UsersService
-	roles         RolesService
-	plugins       PluginsService
-	creds         CredentialsService
-	locks         LocksService
-	accessLists   AccessListsService
-	shimFactories map[types.PluginType]shimFactory
-	resourceTypes map[string]resourceTypeHandler
-	logger        *slog.Logger
-	clock         clockwork.Clock
-	identity      IdentityService
+	authorizer          authz.Authorizer
+	users               UsersService
+	roles               RolesService
+	plugins             PluginsService
+	creds               CredentialsService
+	locks               LocksService
+	accessLists         AccessListsService
+	certAuthorityGetter certAuthorityGetter
+	jwtSignerGetter     jwtSignerGetter
+	shimFactories       map[types.PluginType]shimFactory
+	resourceTypes       map[string]resourceTypeHandler
+	logger              *slog.Logger
+	clock               clockwork.Clock
+	identity            IdentityService
 }
 
 // defaultShimFactoryMap is the default set of known compatibility shims
@@ -54,17 +57,20 @@ var defaultShimFactoryMap = map[types.PluginType]shimFactory{
 
 // Config is the externally-supplied configuration data for the SCIM service.
 type Config struct {
-	Authorizer         authz.Authorizer
-	Logger             *slog.Logger
-	UsersService       UsersService
-	RolesService       RolesService
-	PluginsService     PluginsService
-	CredentialsService CredentialsService
-	AccessListsService AccessListsService
-	LocksService       LocksService
-	ShimFactories      map[types.PluginType]shimFactory
-	Clock              clockwork.Clock
-	IdentityService    IdentityService
+	Authorizer          authz.Authorizer
+	Logger              *slog.Logger
+	UsersService        UsersService
+	RolesService        RolesService
+	PluginsService      PluginsService
+	CredentialsService  CredentialsService
+	AccessListsService  AccessListsService
+	CertAuthorityGetter certAuthorityGetter
+	JWTSignerGetter     jwtSignerGetter
+	LocksService        LocksService
+	AuthorityGetter     services.AuthorityGetter
+	ShimFactories       map[types.PluginType]shimFactory
+	Clock               clockwork.Clock
+	IdentityService     IdentityService
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -90,6 +96,14 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 	if cfg.AccessListsService == nil {
 		return trace.BadParameter("missing access lists service")
+	}
+
+	if cfg.CertAuthorityGetter == nil {
+		return trace.BadParameter("missing cert authority")
+	}
+
+	if cfg.JWTSignerGetter == nil {
+		return trace.BadParameter("missing JWT signer")
 	}
 
 	if cfg.IdentityService == nil {
@@ -126,17 +140,19 @@ func NewService(cfg *Config) (*Service, error) {
 	groupsLogger := logger.With("resource_type", "groups")
 
 	return &Service{
-		authorizer:    cfg.Authorizer,
-		users:         cfg.UsersService,
-		roles:         cfg.RolesService,
-		plugins:       cfg.PluginsService,
-		locks:         cfg.LocksService,
-		identity:      cfg.IdentityService,
-		accessLists:   cfg.AccessListsService,
-		shimFactories: cfg.ShimFactories,
-		creds:         cfg.CredentialsService,
-		logger:        logger,
-		clock:         cfg.Clock,
+		authorizer:          cfg.Authorizer,
+		users:               cfg.UsersService,
+		roles:               cfg.RolesService,
+		plugins:             cfg.PluginsService,
+		locks:               cfg.LocksService,
+		identity:            cfg.IdentityService,
+		accessLists:         cfg.AccessListsService,
+		certAuthorityGetter: cfg.CertAuthorityGetter,
+		jwtSignerGetter:     cfg.JWTSignerGetter,
+		shimFactories:       cfg.ShimFactories,
+		creds:               cfg.CredentialsService,
+		logger:              logger,
+		clock:               cfg.Clock,
 
 		resourceTypes: map[string]resourceTypeHandler{
 			"Users": {
