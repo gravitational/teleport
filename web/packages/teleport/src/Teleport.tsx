@@ -38,16 +38,13 @@ import { LoginClose } from './Login/LoginClose';
 import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
-import { SingleLogoutFailed } from './SingleLogoutFailed';
-import { Welcome } from './Welcome';
-
-import { Player } from './Player';
-
-import { MfaContextProvider } from './MFAContext/MFAContext';
-
 import { Main } from './Main';
+import { MfaContextProvider } from './MFAContext/MFAContext';
+import { Player } from './Player';
+import { SingleLogoutFailed } from './SingleLogoutFailed';
 import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
+import { Welcome } from './Welcome';
 
 const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;

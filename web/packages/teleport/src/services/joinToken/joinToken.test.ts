@@ -20,9 +20,9 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import auth from '../auth/auth';
-
 import JoinTokenService from './joinToken';
 import type { JoinTokenRequest } from './types';
+
 test('fetchJoinToken with an empty request properly sets defaults', async () => {
   const svc = new JoinTokenService();
   jest.spyOn(api, 'post').mockResolvedValue(null);
