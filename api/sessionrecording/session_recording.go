@@ -172,8 +172,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateInit:
 			// read the part header that consists of the protocol version
 			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.rawReader, sizeBytes[:Int64Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.rawReader, sizeBytes[:Int64Size]); err != nil {
 				// reached the end of the stream
 				if errors.Is(err, io.EOF) {
 					r.state = protoReaderStateEOF
@@ -186,14 +185,12 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
 			}
 			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.rawReader, sizeBytes[:Int64Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.rawReader, sizeBytes[:Int64Size]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			partSize := binary.BigEndian.Uint64(sizeBytes[:Int64Size])
 			// read padding size (could be 0)
-			_, err = io.ReadFull(r.rawReader, sizeBytes[:Int64Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.rawReader, sizeBytes[:Int64Size]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			r.padding = int64(binary.BigEndian.Uint64(sizeBytes[:Int64Size]))
@@ -216,8 +213,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 
 			// the record consists of length of the protobuf encoded
 			// message and the message itself
-			_, err := io.ReadFull(r.gzipReader, sizeBytes[:Int32Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, sizeBytes[:Int32Size]); err != nil {
 				if !errors.Is(err, io.EOF) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
@@ -264,13 +260,11 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if messageSize == 0 {
 				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
 			}
-			_, err = io.ReadFull(r.gzipReader, messageBytes[:messageSize])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, messageBytes[:messageSize]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			oneof := apievents.OneOf{}
-			err = oneof.Unmarshal(messageBytes[:messageSize])
-			if err != nil {
+			if err := oneof.Unmarshal(messageBytes[:messageSize]); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			event, err := apievents.FromOneOf(oneof)
