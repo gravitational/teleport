@@ -614,14 +614,6 @@ func (w *sliceWriter) startUploadCurrentSlice() error {
 	return nil
 }
 
-type bufferCloser struct {
-	*bytes.Buffer
-}
-
-func (b *bufferCloser) Close() error {
-	return nil
-}
-
 func (w *sliceWriter) newSlice() (*slice, error) {
 	w.lastPartNumber++
 	// This buffer will be returned to the pool by slice.Close
@@ -640,7 +632,7 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 	return &slice{
 		proto:  w.proto,
 		buffer: buffer,
-		writer: newGzipWriter(&bufferCloser{Buffer: buffer}),
+		writer: newGzipWriter(buffer),
 	}, nil
 }
 

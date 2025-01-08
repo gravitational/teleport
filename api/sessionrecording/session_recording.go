@@ -21,6 +21,7 @@
 package sessionrecording
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -52,41 +53,61 @@ const (
 )
 
 // NewReader returns a new session recording reader
+//
+// It is the caller's responsibility to call Close on the returned [Reader] from NewReader when done
+// with the [Reader].
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		reader:    r,
+		rawReader: r,
 		lastIndex: -1,
 	}
 }
 
 const (
 	// protoReaderStateInit is ready to start reading the next part
-	protoReaderStateInit = 0
+	protoReaderStateInit = iota
 	// protoReaderStateCurrent will read the data from the current part
-	protoReaderStateCurrent = iota
+	protoReaderStateCurrent
 	// protoReaderStateEOF indicates that reader has completed reading
 	// all parts
-	protoReaderStateEOF = iota
+	protoReaderStateEOF
 	// protoReaderStateError indicates that reader has reached internal
 	// error and should close
-	protoReaderStateError = iota
+	protoReaderStateError
 )
 
 // Reader reads Teleport's session recordings
 type Reader struct {
-	gzipReader   *gzipReader
-	padding      int64
-	reader       io.Reader
-	sizeBytes    [Int64Size]byte
+	// partReader wraps rawReader and is limited to reading a single
+	// (compressed) part from the session recording
+	partReader io.Reader
+	// gzipReader wraps partReader and decompresses a single part
+	// from the session recording
+	gzipReader *gzip.Reader
+	// padding is how many bytes were added to hit a minimum file upload size
+	padding int64
+	// rawReader is the raw data source we read from
+	rawReader io.Reader
+	// sizeBytes is used to hold the header of the current event being parsed
+	sizeBytes [Int64Size]byte
+	// messageBytes holds the current decompressed event being parsed
 	messageBytes [MaxProtoMessageSizeBytes]byte
-	state        int
-	error        error
-	lastIndex    int64
-	stats        ReaderStats
+	// state tracks where the Reader is at in consuming a session recording
+	state int
+	// error holds any error encountered while reading a session recording
+	error error
+	// lastIndex stores the last parsed event's index within a session (events found with an index less than or equal to lastIndex are skipped)
+	lastIndex int64
+	// stats contains info about processed events (e.g. total events processed, how many events were skipped)
+	stats ReaderStats
 }
 
 // ReaderStats contains some reader statistics
 type ReaderStats struct {
+	// SkippedBytes is a counter with encountered bytes that have been skipped for processing.
+	// Typically occurring due to a bug in older Teleport versions having padding bytes
+	// written to the gzip section.
+	SkippedBytes int64
 	// SkippedEvents is a counter with encountered
 	// events recorded several times or events
 	// that have been out of order as skipped
@@ -99,13 +120,14 @@ type ReaderStats struct {
 	TotalEvents int64
 }
 
-// ToFields returns a copy of the stats to be used as log fields
-func (p ReaderStats) ToFields() map[string]any {
-	return map[string]any{
-		"skipped-events":      p.SkippedEvents,
-		"out-of-order-events": p.OutOfOrderEvents,
-		"total-events":        p.TotalEvents,
-	}
+// LogValue returns a copy of the stats to be used as log fields
+func (p ReaderStats) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int64("skipped_bytes", p.SkippedBytes),
+		slog.Int64("skipped_events", p.SkippedEvents),
+		slog.Int64("out_of_order_events", p.OutOfOrderEvents),
+		slog.Int64("total_events", p.TotalEvents),
+	)
 }
 
 // Close releases reader resources
@@ -113,24 +135,6 @@ func (r *Reader) Close() error {
 	if r.gzipReader != nil {
 		return r.gzipReader.Close()
 	}
-	return nil
-}
-
-// Reset sets reader to read from the new reader
-// without resetting the stats, could be used
-// to deduplicate the events
-func (r *Reader) Reset(reader io.Reader) error {
-	if r.error != nil {
-		return r.error
-	}
-	if r.gzipReader != nil {
-		if r.error = r.gzipReader.Close(); r.error != nil {
-			return trace.Wrap(r.error)
-		}
-		r.gzipReader = nil
-	}
-	r.reader = reader
-	r.state = protoReaderStateInit
 	return nil
 }
 
@@ -151,9 +155,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	// is an extra precaution to avoid
 	// accidental endless loop due to logic error crashing the system
 	// and allows ctx timeout to kick in if specified
-	var checkpointIteration int64
-	for {
-		checkpointIteration++
+	for checkpointIteration := int64(1); ; checkpointIteration++ {
 		if checkpointIteration%maxIterationLimit == 0 {
 			select {
 			case <-ctx.Done():
@@ -172,8 +174,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateInit:
 			// read the part header that consists of the protocol version
 			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.rawReader, r.sizeBytes[:Int64Size]); err != nil {
 				// reached the end of the stream
 				if errors.Is(err, io.EOF) {
 					r.state = protoReaderStateEOF
@@ -186,21 +187,25 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
 			}
 			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.rawReader, r.sizeBytes[:Int64Size]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			partSize := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
 			// read padding size (could be 0)
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.rawReader, r.sizeBytes[:Int64Size]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
+			r.partReader = io.LimitReader(r.rawReader, int64(partSize))
+			gzipReader, err := gzip.NewReader(r.partReader)
+			// older bugged versions of teleport would sometimes incorrectly inject padding bytes into
+			// the gzip section of the archive. this causes gzip readers with multistream enabled (the
+			// default behavior) to fail. we  disable multistream here in order to ensure that the gzip
+			// reader halts when it reaches the end of the current (only) valid gzip entry.
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}
+			gzipReader.Multistream(false)
 			r.gzipReader = gzipReader
 			r.state = protoReaderStateCurrent
 			continue
@@ -208,8 +213,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateCurrent:
 			// the record consists of length of the protobuf encoded
 			// message and the message itself
-			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size]); err != nil {
 				if !errors.Is(err, io.EOF) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
@@ -217,12 +221,13 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				// due to a bug in older versions of teleport it was possible that padding
 				// bytes would end up inside of the gzip section of the archive. we should
 				// skip any dangling data in the gzip secion.
-				n, err := io.CopyBuffer(io.Discard, r.gzipReader.inner, r.messageBytes[:])
+				n, err := io.CopyBuffer(io.Discard, r.partReader, r.messageBytes[:])
 				if err != nil {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
 
 				if n != 0 {
+					r.stats.SkippedBytes += n
 					// log the number of bytes that were skipped
 					slog.DebugContext(ctx, "skipped dangling data in session recording section", "length", n)
 				}
@@ -233,7 +238,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
 				if r.padding != 0 {
-					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, r.padding), r.messageBytes[:])
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.rawReader, r.padding), r.messageBytes[:])
 					if err != nil {
 						return nil, r.setError(trace.ConvertSystemError(err))
 					}
@@ -255,13 +260,11 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if messageSize == 0 {
 				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
 			}
-			_, err = io.ReadFull(r.gzipReader, r.messageBytes[:messageSize])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, r.messageBytes[:messageSize]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			oneof := apievents.OneOf{}
-			err = oneof.Unmarshal(r.messageBytes[:messageSize])
-			if err != nil {
+			var oneof apievents.OneOf
+			if err := oneof.Unmarshal(r.messageBytes[:messageSize]); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			event, err := apievents.FromOneOf(oneof)
