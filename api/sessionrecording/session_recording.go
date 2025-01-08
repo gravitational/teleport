@@ -119,10 +119,10 @@ type ReaderStats struct {
 // LogValue returns a copy of the stats to be used as log fields
 func (p ReaderStats) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.Int64("skipped-bytes", p.SkippedBytes),
-		slog.Int64("skipped-events", p.SkippedEvents),
-		slog.Int64("out-of-order-events", p.OutOfOrderEvents),
-		slog.Int64("total-events", p.TotalEvents),
+		slog.Int64("skipped_bytes", p.SkippedBytes),
+		slog.Int64("skipped_events", p.SkippedEvents),
+		slog.Int64("out_of_order_events", p.OutOfOrderEvents),
+		slog.Int64("total_events", p.TotalEvents),
 	)
 }
 
