@@ -881,7 +881,8 @@ adminClusterRoleBinding:
 # automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
-# Hardened distroless images are used by default.
+# By default, the image contains only the Teleport application and its runtime
+# dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 # When running an enterprise version, you must use
 # [`enterpriseImage`](#enterpriseImage) instead.
@@ -902,7 +903,8 @@ image: public.ecr.aws/gravitational/teleport-distroless
 #   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
-# Hardened distroless images are used by default.
+# By default, the image contains only the Teleport application and its runtime
+# dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `true`.
 # When running an enterprise version, you must use [`image`](#image) instead.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
