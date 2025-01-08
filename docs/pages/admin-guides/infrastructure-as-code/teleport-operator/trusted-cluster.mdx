@@ -46,7 +46,7 @@ trusted clusters.
 
   </Admonition>
 
-- Follow the [Teleport operator guides](../teleport-operator.mdx)
+- Follow the [Teleport operator guides](teleport-operator.mdx)
   to install the Teleport Operator in your Kubernetes cluster.
 
   Confirm that the CRD (Custom Resource Definition) for trusted clusters has
@@ -100,7 +100,6 @@ logging in to the server in the leaf cluster.
 To add a user and role for accessing the trusted cluster:
 
 1. Open a terminal shell on the server running the Teleport agent in the leaf cluster.
-
 1. Add the local `visitor` user and create a home directory for the user by running the
 following command:
 
@@ -326,7 +325,6 @@ your Teleport username:
   ```
 
 1. Sign out of the leaf cluster and sign back in to the root cluster.
-
 1. Verify the trusted cluster configuration by running the following command in
 the root cluster:
 
