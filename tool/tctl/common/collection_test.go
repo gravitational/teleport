@@ -439,7 +439,7 @@ func makeTestLabels(extraStaticLabels map[string]string) map[string]string {
 }
 
 // autoUpdateConfigBrokenCollection is an intentionally broken version of the
-// autoUpdateConfigCollection that is not marshalling resources properly because
+// autoUpdateConfigCollection that is not marshaling resources properly because
 // it's doing json marshaling instead of protojson marshaling.
 type autoUpdateConfigBrokenCollection struct {
 	autoUpdateConfigCollection
@@ -497,6 +497,6 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	// Test execution: load the YAML manifest back and see that we can't unmarshal it.
 	decoder = kyaml.NewYAMLOrJSONDecoder(buf, defaults.LookaheadBufSize)
 	require.NoError(t, decoder.Decode(&raw))
-	result, err = services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	_, err = services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
 	require.Error(t, err)
 }

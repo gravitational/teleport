@@ -2349,6 +2349,8 @@ version: v1
 	require.NoError(t, err)
 
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.NoError(t, err)
+
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateConfig
@@ -2392,6 +2394,8 @@ version: v1
 	require.NoError(t, err)
 
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.NoError(t, err)
+
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateVersion
