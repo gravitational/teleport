@@ -1466,9 +1466,9 @@ version: v1
 	))
 
 	// Delete the resource
-	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateConfig})
+	_, err = runResourceCommand(t, fc, []string{"rm", types.KindAutoUpdateConfig})
 	require.NoError(t, err)
-	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig})
+	_, err = runResourceCommand(t, fc, []string{"get", types.KindAutoUpdateConfig})
 	require.ErrorContains(t, err, "autoupdate_config \"autoupdate-config\" doesn't exist")
 }
 
@@ -1508,8 +1508,8 @@ version: v1
 	))
 
 	// Delete the resource
-	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateVersion})
+	_, err = runResourceCommand(t, fc, []string{"rm", types.KindAutoUpdateVersion})
 	require.NoError(t, err)
-	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion})
+	_, err = runResourceCommand(t, fc, []string{"get", types.KindAutoUpdateVersion})
 	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
 }

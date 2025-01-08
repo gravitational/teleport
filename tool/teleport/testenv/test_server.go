@@ -22,6 +22,10 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"net"
 	"os"
 	"path/filepath"
@@ -607,4 +611,33 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 	}()
 
 	return lis.Addr().String()
+}
+
+// MakeDefaultAuthClient reimplements the bare minimum needed to create a
+// default root-level auth client for a Teleport server started by
+// MakeTestServer.
+func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *authclient.Client {
+	t.Helper()
+
+	cfg := process.Config
+	identity, err := storage.ReadLocalIdentity(
+		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
+		state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID},
+	)
+	require.NoError(t, err)
+
+	authConfig := new(authclient.Config)
+	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
+	require.NoError(t, err)
+
+	authConfig.AuthServers = cfg.AuthServerAddresses()
+	authConfig.Log = cfg.Log
+
+	client, err := authclient.Connect(context.Background(), authConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	return client
 }
