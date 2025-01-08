@@ -141,7 +141,7 @@ func extractFile(tarball *tar.Reader, header *tar.Header, dir string, dirMode os
 	case tar.TypeSymlink:
 		return writeSymbolicLink(filepath.Join(dir, header.Name), header.Linkname, dirMode)
 	default:
-		slog.WarnContext(context.Background(), "Unsupported type flag for taball",
+		slog.WarnContext(context.Background(), "Unsupported type flag for tarball",
 			"type_flag", header.Typeflag,
 			"header", header.Name,
 		)

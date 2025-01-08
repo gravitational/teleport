@@ -160,7 +160,7 @@ func (p *transport) start() {
 
 	p.logger.DebugContext(p.closeContext, "Received out-of-band proxy transport request",
 		"target_address", dreq.Address,
-		"taget_server_id", dreq.ServerID,
+		"target_server_id", dreq.ServerID,
 		"client_addr", dreq.ClientSrcAddr,
 	)
 
@@ -414,7 +414,7 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		}
 
 		errTun := err
-		p.logger.DebugContext(p.closeContext, "Attempting to dial server directly", "taget_addr", addr)
+		p.logger.DebugContext(p.closeContext, "Attempting to dial server directly", "target_addr", addr)
 		conn, err = p.directDial(addr)
 		if err != nil {
 			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", errTun, err)
