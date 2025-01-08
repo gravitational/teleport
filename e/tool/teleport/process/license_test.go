@@ -88,7 +88,6 @@ func TestConfigureLicense(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.cfg.Log = utils.NewLogger()
 			tc.cfg.Logger = utils.NewSlogLoggerForTests()
 			file, err := configureLicense(tc.cfg)
 			tc.assert(t, file, err)
