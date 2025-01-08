@@ -128,6 +128,8 @@ var knownFormatFields = map[string]struct{}{
 	TimestampField: {},
 }
 
+// ValidateFields ensures the provided fields map to the allowed fields. An error
+// is returned if any of the fields are invalid.
 func ValidateFields(formatInput []string) (result []string, err error) {
 	for _, component := range formatInput {
 		component = strings.TrimSpace(component)
