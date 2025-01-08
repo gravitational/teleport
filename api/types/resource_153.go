@@ -368,8 +368,6 @@ type protoResource153ToLegacyAdapter struct {
 
 // MarshalJSON adds support for marshaling the wrapped resource (instead of
 // marshaling the adapter itself).
-// If the resource153 is implemented by a protobuf type, we use
-// protojson.Marshal instead.
 func (r *protoResource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 	return protojson.MarshalOptions{
 		UseProtoNames: true,

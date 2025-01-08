@@ -1373,7 +1373,7 @@ func TestCreateResources(t *testing.T) {
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// tctlGetAllValidations allows tests to register post-test validations to validate
-	// that their resource is present in "ttcl get all" output.
+	// that their resource is present in "tctl get all" output.
 	// This allows running test rows instead of the whole test table.
 	var tctlGetAllValidations []func(t *testing.T, out string)
 
