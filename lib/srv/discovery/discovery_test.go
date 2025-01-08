@@ -37,7 +37,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -2032,18 +2031,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 			Clusters: []*eks.Cluster{eksAWSResource},
 		},
 	}
-	fakeConfigProvider := &mocks.AWSConfigProvider{}
-	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-		AWSConfigProvider: fakeConfigProvider,
-		CloudClients:      testCloudClients,
-		IntegrationCredentialProviderFn: func(_ context.Context, _, _ string) (awsv2.CredentialsProvider, error) {
-			return credentials.NewStaticCredentialsProvider("key", "secret", "session"), nil
-		},
-		RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-			Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
-		}),
-	})
-	require.NoError(t, err)
 
 	tcs := []struct {
 		name                        string
@@ -2334,6 +2321,23 @@ func TestDiscoveryDatabase(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
+			awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+				Name: integrationName,
+			}, &types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:iam::123456789012:role/teleport",
+			})
+			require.NoError(t, err)
+
+			testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+				proxies: nil,
+				integrations: map[string]types.Integration{
+					awsOIDCIntegration.GetName(): awsOIDCIntegration,
+				},
+			}
+
+			_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
+			require.NoError(t, err)
+
 			// Auth client for discovery service.
 			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
@@ -2349,6 +2353,19 @@ func TestDiscoveryDatabase(t *testing.T) {
 			waitForReconcile := make(chan struct{})
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
+			accessPoint := getDiscoveryAccessPoint(tlsServer.Auth(), authClient)
+			fakeConfigProvider := &mocks.AWSConfigProvider{
+				OIDCIntegrationClient: accessPoint,
+			}
+			dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+				AWSConfigProvider: fakeConfigProvider,
+				CloudClients:      testCloudClients,
+				RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
+					Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
+				}),
+			})
+			require.NoError(t, err)
+
 			srv, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
@@ -2358,7 +2375,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					AWSConfigProvider:          fakeConfigProvider,
 					ClusterFeatures:            func() proto.Features { return proto.Features{} },
 					KubernetesClient:           fake.NewSimpleClientset(),
-					AccessPoint:                getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+					AccessPoint:                accessPoint,
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,

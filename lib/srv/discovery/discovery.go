@@ -224,7 +224,11 @@ kubernetes matchers are present.`)
 		c.CloudClients = cloudClients
 	}
 	if c.AWSConfigProvider == nil {
-		provider, err := awsconfig.NewCache()
+		provider, err := awsconfig.NewCache(
+			awsconfig.WithDefaults(
+				awsconfig.WithOIDCIntegrationClient(c.AccessPoint),
+			),
+		)
 		if err != nil {
 			return trace.Wrap(err, "unable to create AWS config provider cache")
 		}
@@ -232,9 +236,8 @@ kubernetes matchers are present.`)
 	}
 	if c.AWSDatabaseFetcherFactory == nil {
 		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-			CloudClients:                    c.CloudClients,
-			AWSConfigProvider:               c.AWSConfigProvider,
-			IntegrationCredentialProviderFn: c.getIntegrationCredentialProviderFn(),
+			CloudClients:      c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -312,31 +315,8 @@ kubernetes matchers are present.`)
 }
 
 func (c *Config) getAWSConfig(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (aws.Config, error) {
-	opts = append(opts, awsconfig.WithIntegrationCredentialProvider(c.getIntegrationCredentialProviderFn()))
 	cfg, err := c.AWSConfigProvider.GetConfig(ctx, region, opts...)
 	return cfg, trace.Wrap(err)
-}
-
-func (c *Config) getIntegrationCredentialProviderFn() awsconfig.IntegrationCredentialProviderFunc {
-	return func(ctx context.Context, region, integrationName string) (aws.CredentialsProvider, error) {
-		integration, err := c.AccessPoint.GetIntegration(ctx, integrationName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if integration.GetAWSOIDCIntegrationSpec() == nil {
-			return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", integrationName)
-		}
-		token, err := c.AccessPoint.GenerateAWSOIDCToken(ctx, integrationName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cred, err := awsoidc.NewAWSCredentialsProvider(ctx, &awsoidc.AWSClientRequest{
-			Token:   token,
-			RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
-			Region:  region,
-		})
-		return cred, trace.Wrap(err)
-	}
 }
 
 // Server is a discovery server, used to discover cloud resources for

@@ -73,9 +73,6 @@ type AWSFetcherFactoryConfig struct {
 	AWSConfigProvider awsconfig.Provider
 	// CloudClients is an interface for retrieving AWS SDK v1 cloud clients.
 	CloudClients cloud.AWSClients
-	// IntegrationCredentialProviderFn is an optional function that provides
-	// credentials via AWS OIDC integration.
-	IntegrationCredentialProviderFn awsconfig.IntegrationCredentialProviderFunc
 	// RedshiftClientProviderFn is an optional function that provides
 	RedshiftClientProviderFn RedshiftClientProviderFunc
 }
@@ -128,16 +125,15 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:                      f.cfg.CloudClients,
-						Type:                            matcherType,
-						AssumeRole:                      assumeRole,
-						Labels:                          matcher.Tags,
-						Region:                          region,
-						Integration:                     matcher.Integration,
-						DiscoveryConfigName:             discoveryConfigName,
-						AWSConfigProvider:               f.cfg.AWSConfigProvider,
-						IntegrationCredentialProviderFn: f.cfg.IntegrationCredentialProviderFn,
-						redshiftClientProviderFn:        f.cfg.RedshiftClientProviderFn,
+						AWSClients:               f.cfg.CloudClients,
+						Type:                     matcherType,
+						AssumeRole:               assumeRole,
+						Labels:                   matcher.Tags,
+						Region:                   region,
+						Integration:              matcher.Integration,
+						DiscoveryConfigName:      discoveryConfigName,
+						AWSConfigProvider:        f.cfg.AWSConfigProvider,
+						redshiftClientProviderFn: f.cfg.RedshiftClientProviderFn,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)

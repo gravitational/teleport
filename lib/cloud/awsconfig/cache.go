@@ -36,10 +36,23 @@ func awsCredentialsCacheOptions(opts *aws.CredentialsCacheOptions) {
 // role.
 type Cache struct {
 	awsConfigCache *utils.FnCache
+	defaultOptions []OptionsFn
+}
+
+// CacheOption is an option func for setting additional options when creating
+// a new config cache.
+type CacheOption func(*Cache)
+
+// WithDefaults is a [CacheOption] function that sets default [OptionsFn] to
+// use when getting AWS config.
+func WithDefaults(optFns ...OptionsFn) CacheOption {
+	return func(c *Cache) {
+		c.defaultOptions = optFns
+	}
 }
 
 // NewCache returns a new [Cache].
-func NewCache() (*Cache, error) {
+func NewCache(optFns ...CacheOption) (*Cache, error) {
 	c, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:         15 * time.Minute,
 		ReloadOnErr: true,
@@ -47,14 +60,27 @@ func NewCache() (*Cache, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Cache{
+	cache := &Cache{
 		awsConfigCache: c,
-	}, nil
+	}
+	for _, fn := range optFns {
+		fn(cache)
+	}
+	return cache, nil
+}
+
+// withDefaultOptions prepends default options to the given option funcs,
+// providing for default cache options and per-call options.
+func (c *Cache) withDefaultOptions(optFns []OptionsFn) []OptionsFn {
+	if c.defaultOptions != nil {
+		return append(c.defaultOptions, optFns...)
+	}
+	return optFns
 }
 
 // GetConfig returns an [aws.Config] for the given region and options.
 func (c *Cache) GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
-	opts, err := buildOptions(optFns...)
+	opts, err := buildOptions(c.withDefaultOptions(optFns)...)
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}
@@ -112,7 +138,7 @@ func (c *Cache) getConfigForRoleChain(ctx context.Context, cfg aws.Config, opts 
 		}
 		credProvider, err := utils.FnCacheGet(ctx, c.awsConfigCache, cacheKey,
 			func(ctx context.Context) (aws.CredentialsProvider, error) {
-				clt := opts.assumeRoleClientProvider(cfg)
+				clt := opts.stsClientProvider(cfg)
 				credProvider := getAssumeRoleProvider(ctx, clt, r)
 				cc := aws.NewCredentialsCache(credProvider,
 					awsCredentialsCacheOptions,
