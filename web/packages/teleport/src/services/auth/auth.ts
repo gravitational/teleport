@@ -461,7 +461,7 @@ const auth = {
     }
   },
 
-  // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
+  // TODO(Joerger): Delete in favor of getAdminActionMfaResponse once /e is updated.
   getWebauthnResponseForAdminAction(allowReuse?: boolean) {
     return auth.getAdminActionMfaResponse(allowReuse);
   },

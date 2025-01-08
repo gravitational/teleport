@@ -75,7 +75,7 @@ export const JoinTokens = () => {
   const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
-    useAsync(() => ctx.joinTokenService.fetchJoinTokens(null));
+    useAsync(() => ctx.joinTokenService.fetchJoinTokens());
 
   const resources = useResources(
     joinTokensAttempt.data?.items.map(makeTokenResource) || [],
