@@ -10,8 +10,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/db/oracle/audit"
 	"github.com/gravitational/teleport/e/lib/db/oracle/connection"
+	"github.com/gravitational/teleport/e/lib/db/oracle/logging"
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/packetcapture"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -183,6 +185,12 @@ func readPacket[T protocol.Packet](conn *connection.OracleConn) (T, error) {
 }
 
 func (e *Engine) handleClientServerConn(ctx context.Context, sessionCtx *common.Session) error {
+	packetLogger, err := logging.NewPacketLogger(ctx, sessionCtx, e.Log)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer packetLogger.Close()
+
 	serverTcpConn, err := net.Dial("tcp", sessionCtx.Database.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
@@ -192,7 +200,7 @@ func (e *Engine) handleClientServerConn(ctx context.Context, sessionCtx *common.
 	// Note that we don't have to close clientConn or serverConn:
 	// - serverTcpConn.Close() already deals with the server connection,
 	// - e.clientConn.Close() deals with the client one.
-	clientConn, serverConn, err := e.openServerConnection(ctx, sessionCtx, serverTcpConn)
+	clientConn, serverConn, err := e.openServerConnection(ctx, packetLogger, sessionCtx, serverTcpConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -214,8 +222,12 @@ func (e *Engine) handleClientServerConn(ctx context.Context, sessionCtx *common.
 // The client declares the database it wishes to connect to and server accepts or refuses.
 // Server may also request TLS renegotiation.
 // Protocol version is negotiated, which impacts the binary message layout.
-func (e *Engine) openServerConnection(ctx context.Context, sessionCtx *common.Session, serverTcpConn net.Conn) (*connection.OracleConn, *connection.OracleConn, error) {
-	clientConn, err := connection.NewConn(e.clientConn)
+func (e *Engine) openServerConnection(ctx context.Context, packetLogger logging.PacketLogger, sessionCtx *common.Session, serverTcpConn net.Conn) (*connection.OracleConn, *connection.OracleConn, error) {
+	clientConn, err := connection.NewConn(e.clientConn,
+		connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ClientToTeleport, header) }),
+		connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ClientToTeleport, packet) }),
+		connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToClient, packet) }),
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -254,7 +266,11 @@ func (e *Engine) openServerConnection(ctx context.Context, sessionCtx *common.Se
 
 		e.Log.InfoContext(e.Context, "Sending connect packet", "attempt", attempt)
 
-		serverConn, err := connection.NewConn(serverTcpConn, connection.WithTLS(tlsConfig))
+		serverConn, err := connection.NewConn(serverTcpConn, connection.WithTLS(tlsConfig),
+			connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ServerToTeleport, header) }),
+			connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ServerToTeleport, packet) }),
+			connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToServer, packet) }),
+		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
