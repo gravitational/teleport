@@ -39,10 +39,8 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
-const (
-	// maxRetries is the default number of RPC call retries to prevent parallel create/update errors.
-	maxRetries = 3
-)
+// maxRetries is the default number of RPC call retries to prevent parallel create/update errors.
+const maxRetries = 3
 
 // AutoUpdateCommand implements the `tctl autoupdate` command for managing
 // autoupdate process for tools and agents.
