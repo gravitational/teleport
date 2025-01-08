@@ -153,9 +153,7 @@ func (r *Reader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	// is an extra precaution to avoid
 	// accidental endless loop due to logic error crashing the system
 	// and allows ctx timeout to kick in if specified
-	var checkpointIteration int64
-	for {
-		checkpointIteration++
+	for checkpointIteration := int64(1); ; checkpointIteration++ {
 		if checkpointIteration%maxIterationLimit == 0 {
 			select {
 			case <-ctx.Done():
