@@ -70,7 +70,7 @@ Create a file called `role.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: example-role
 spec:
@@ -83,6 +83,7 @@ spec:
     - kind: "*"
       namespace: "*"
       name: "*"
+      verbs: ["*"]
 ```
 
 Replace `example-role` with a descriptive name related to your use case.

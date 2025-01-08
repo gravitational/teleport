@@ -170,7 +170,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
 				require.Len(t, response.Results, 1)
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
 				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 			},
@@ -187,7 +187,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 					return strings.Compare(a.ClusterName, b.ClusterName)
 				})
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
 				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 				require.Equal(t, "EKS2", response.Results[1].ClusterName)

@@ -1628,13 +1628,13 @@ func (c *testContext) startHandlingConnections() {
 
 // postgresClient connects to test Postgres through database access as a
 // specified Teleport user and database account.
-func (c *testContext) postgresClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*pgconn.PgConn, error) {
-	return c.postgresClientWithAddr(ctx, c.mux.DB().Addr().String(), teleportUser, dbService, dbUser, dbName)
+func (c *testContext) postgresClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string, opts ...common.ClientOption) (*pgconn.PgConn, error) {
+	return c.postgresClientWithAddr(ctx, c.mux.DB().Addr().String(), teleportUser, dbService, dbUser, dbName, opts...)
 }
 
 // postgresClientWithAddr is like postgresClient but allows to override connection address.
-func (c *testContext) postgresClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser, dbName string) (*pgconn.PgConn, error) {
-	return postgres.MakeTestClient(ctx, common.TestClientConfig{
+func (c *testContext) postgresClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser, dbName string, opts ...common.ClientOption) (*pgconn.PgConn, error) {
+	cfg := common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
 		Address:    address,
@@ -1646,7 +1646,13 @@ func (c *testContext) postgresClientWithAddr(ctx context.Context, address, telep
 			Username:    dbUser,
 			Database:    dbName,
 		},
-	})
+	}
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return postgres.MakeTestClient(ctx, cfg)
 }
 
 // postgresClientLocalProxy connects to test Postgres through local ALPN proxy.

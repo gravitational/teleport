@@ -2283,12 +2283,56 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+//
+// Deprecated: Use [Client.UpsertTrustedClusterV2] instead.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertTrustedClusterV2 creates or updates a Trusted Cluster.
+func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.UpsertTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpsertTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// CreateTrustedCluster creates a Trusted Cluster.
+func (c *Client) CreateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.CreateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().CreateTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateTrustedCluster updates a Trusted Cluster.
+func (c *Client) UpdateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.UpdateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpdateTrustedCluster(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
@@ -49,11 +48,6 @@ func onAWS(cf *CLIConf) error {
 	awsApp, err := pickAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if shouldUseAWSEndpointURLMode(cf) {
-		log.Debugf("Forcing endpoint URL mode for AWS command %q.", cf.AWSCommandArgs)
-		cf.AWSEndpointURLMode = true
 	}
 
 	err = awsApp.StartLocalProxies(cf.Context)
@@ -81,55 +75,6 @@ func onAWS(cf *CLIConf) error {
 	return awsApp.RunCommand(cmd)
 }
 
-func shouldUseAWSEndpointURLMode(cf *CLIConf) bool {
-	inputAWSCommand := strings.Join(removeAWSCommandFlags(cf.AWSCommandArgs), " ")
-	switch inputAWSCommand {
-	// `aws ssm start-session` first calls ssm.<region>.amazonaws.com to get an
-	// stream URL and an token. Then it makes a wss connection with the
-	// provided token to the provided stream URL. The wss request currently
-	// respects HTTPS_PROXY but does not respect local CA bundle we provided
-	// thus causing a failure. Even if this is resolved one day, the wss send
-	// the token through websocket data channel for authentication, instead of
-	// sigv4, which likely we won't support.
-	//
-	// When using the endpoint URL mode, only the first request goes through
-	// Teleport Proxy. The wss connection does not respect the endpoint URL and
-	// goes to AWS directly (thus working fine).
-	//
-	// Reference:
-	// https://github.com/aws/session-manager-plugin/
-	//
-	// "aws ecs execute-command" also start SSM sessions.
-	case "ssm start-session", "ecs execute-command":
-		return true
-	default:
-		return false
-	}
-}
-
-func removeAWSCommandFlags(args []string) (ret []string) {
-	for i := 0; i < len(args); i++ {
-		switch {
-		case isAWSFlag(args, i):
-			// Skip next arg, if next arg is not a flag but a flag value.
-			if !isAWSFlag(args, i+1) {
-				i++
-			}
-			continue
-		default:
-			ret = append(ret, args[i])
-		}
-	}
-	return
-}
-
-func isAWSFlag(args []string, i int) bool {
-	if i >= len(args) {
-		return false
-	}
-	return strings.HasPrefix(args[i], "--")
-}
-
 // awsApp is an AWS app that can start local proxies to serve AWS APIs.
 type awsApp struct {
 	*localProxyApp
@@ -142,15 +87,20 @@ type awsApp struct {
 
 // newAWSApp creates a new AWS app.
 func newAWSApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*awsApp, error) {
+	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &awsApp{
-		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: localProxyApp,
 		cf:            cf,
 	}, nil
 }
 
 // GetAppName returns the app name.
 func (a *awsApp) GetAppName() string {
-	return a.appInfo.RouteToApp.Name
+	return a.routeToApp.Name
 }
 
 // StartLocalProxies sets up local proxies for serving AWS clients.
@@ -236,7 +186,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.appInfo.appLocalCAPath(a.cf.SiteName),
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
 	}
 
 	// Set proxy settings.
