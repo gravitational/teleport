@@ -1090,7 +1090,7 @@ func TestValidateRole(t *testing.T) {
 			require.NoError(t, err, trace.DebugReport(err))
 
 			if len(tc.expectWarnings) == 0 {
-				require.Empty(t, warning)
+				require.NoError(t, warning)
 			}
 			for _, msg := range tc.expectWarnings {
 				require.ErrorContains(t, warning, msg)
