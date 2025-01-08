@@ -4850,12 +4850,15 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 							assert.Eventually(t, func() bool {
 								output, err := os.ReadFile(tmpFile.Name())
 								if err == nil && len(output) != 0 {
-									display <- strings.TrimSpace(string(output))
+									select {
+									case display <- strings.TrimSpace(string(output)):
+									default:
+									}
 									return true
 								}
 								return false
 							}, time.Second, 100*time.Millisecond, "failed to read display")
-						}, 10*time.Second, 2*time.Second)
+						}, 10*time.Second, 1*time.Second)
 
 						// Make a new connection to the XServer proxy to confirm that forwarding is working.
 						serverDisplay, err := x11.ParseDisplay(<-display)
