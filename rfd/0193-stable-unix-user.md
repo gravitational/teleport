@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: someone from scale, someone from server access
+* Engineering: rosstimothy && eriktate
 
 ## What
 
