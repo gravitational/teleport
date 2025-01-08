@@ -1017,7 +1017,7 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 func onSCP(scpFlags *scp.Flags) (err error) {
 	// when 'teleport scp' is executed, it cannot write logs to stderr (because
 	// they're automatically replayed by the scp client)
-	utils.SwitchLoggingToSyslog()
+	slog.SetDefault(slog.New(logutils.DiscardHandler{}))
 	if len(scpFlags.Target) == 0 {
 		return trace.BadParameter("teleport scp: missing an argument")
 	}
