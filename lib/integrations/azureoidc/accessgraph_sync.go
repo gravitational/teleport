@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,6 +21,8 @@ package azureoidc
 import (
 	"context"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -33,9 +35,9 @@ import (
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
-// graphAppId is the pre-defined application ID of the Graph API
+// graphAppID is the pre-defined application ID of the Graph API
 // Ref: [https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in#application-ids-of-commonly-used-microsoft-applications].
-const graphAppId = "00000003-0000-0000-c000-000000000000"
+const graphAppID = "00000003-0000-0000-c000-000000000000"
 
 var requiredGraphRoleNames = map[string]bool{
 	"User.ReadBasic.All": true,
@@ -48,7 +50,7 @@ var requiredGraphRoleNames = map[string]bool{
 type AccessGraphAzureConfigureClient interface {
 	CreateRoleDefinition(ctx context.Context, scope string, roleDefinition armauthorization.RoleDefinition) (string, error)
 	CreateRoleAssignment(ctx context.Context, scope string, roleAssignment armauthorization.RoleAssignmentCreateParameters) error
-	GetServicePrincipalByAppId(ctx context.Context, appId string) (*msgraph.ServicePrincipal, error)
+	GetServicePrincipalByAppID(ctx context.Context, appID string) (*msgraph.ServicePrincipal, error)
 	GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment msgraph.AppRoleAssignment) error
 }
 
@@ -58,7 +60,7 @@ type azureConfigClient struct {
 	graphCli      *msgraph.Client
 }
 
-func NewAzureConfigClient(subId string) (AccessGraphAzureConfigureClient, error) {
+func NewAzureConfigClient(subscriptionID string) (AccessGraphAzureConfigureClient, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -67,7 +69,7 @@ func NewAzureConfigClient(subId string) (AccessGraphAzureConfigureClient, error)
 	if err != nil {
 		return nil, trace.BadParameter("failed to create role definitions client: %v", err)
 	}
-	roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subId, cred, nil)
+	roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.BadParameter("failed to create role assignments client: %v", err)
 	}
@@ -89,8 +91,8 @@ func (c *azureConfigClient) CreateRoleDefinition(ctx context.Context, scope stri
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	roleDefId := newUuid.String()
-	roleRes, err := c.roleDefCli.CreateOrUpdate(ctx, scope, roleDefId, roleDefinition, nil)
+	roleDefID := newUuid.String()
+	roleRes, err := c.roleDefCli.CreateOrUpdate(ctx, scope, roleDefID, roleDefinition, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -102,15 +104,15 @@ func (c *azureConfigClient) CreateRoleAssignment(ctx context.Context, scope stri
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	assignId := newUuid.String()
-	if _, err = c.roleAssignCli.Create(ctx, scope, assignId, roleAssignment, nil); err != nil {
+	assignID := newUuid.String()
+	if _, err = c.roleAssignCli.Create(ctx, scope, assignID, roleAssignment, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (c *azureConfigClient) GetServicePrincipalByAppId(ctx context.Context, appId string) (*msgraph.ServicePrincipal, error) {
-	graphPrincipal, err := c.graphCli.GetServicePrincipalByAppId(ctx, appId)
+func (c *azureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appID string) (*msgraph.ServicePrincipal, error) {
+	graphPrincipal, err := c.graphCli.GetServicePrincipalByAppId(ctx, appID)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get the graph API service principal: %v", err)
 	}
@@ -139,9 +141,9 @@ type AccessGraphAzureConfigureRequest struct {
 	stdout io.Writer
 }
 
-func newManagedIdAction(cred *azidentity.DefaultAzureCredential, clt AccessGraphAzureConfigureClient, subId string, managedId string, roleName string) (*provisioning.Action, error) {
+func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID string, managedID string, roleName string) (*provisioning.Action, error) {
 	customRole := "CustomRole"
-	scope := "/subscriptions/" + subId
+	scope := "/subscriptions/" + subscriptionID
 	runnerFn := func(ctx context.Context) error {
 		// Create the role
 		roleDefinition := armauthorization.RoleDefinition{
@@ -162,52 +164,60 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, clt AccessGraph
 				AssignableScopes: []*string{&scope}, // Scope must be provided
 			},
 		}
-		roleId, err := clt.CreateRoleDefinition(ctx, scope, roleDefinition)
+		roleID, err := clt.CreateRoleDefinition(ctx, scope, roleDefinition)
 		if err != nil {
-			return trace.BadParameter("failed to create custom role: %v", err)
+			return trace.Errorf("failed to create custom role: %v", err)
 		}
 
 		// Assign the new role to the managed identity
 		roleAssignParams := armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
-				PrincipalID:      &managedId,
-				RoleDefinitionID: &roleId,
+				PrincipalID:      &managedID,
+				RoleDefinitionID: &roleID,
 			},
 		}
 		if err = clt.CreateRoleAssignment(ctx, scope, roleAssignParams); err != nil {
-			return trace.BadParameter(
-				"failed to assign role %s to principal %s: %v", roleName, managedId, err)
+			return trace.Errorf("failed to assign role %s to principal %s: %v", roleName, managedID, err)
 		}
 
 		// Assign the Graph API permissions to the managed identity
-		graphPrincipal, err := clt.GetServicePrincipalByAppId(ctx, graphAppId)
+		graphPrincipal, err := clt.GetServicePrincipalByAppID(ctx, graphAppID)
 		if err != nil {
-			return trace.BadParameter("failed to get the graph API service principal: %v", err)
+			return trace.Errorf("could not get the graph API service principal: %v", err)
+		}
+		rolesNotAssigned := make(map[string]bool)
+		for k, v := range requiredGraphRoleNames {
+			rolesNotAssigned[k] = v
 		}
 		for _, appRole := range graphPrincipal.AppRoles {
 			if _, ok := requiredGraphRoleNames[*appRole.Value]; ok {
 				roleAssignment := msgraph.AppRoleAssignment{
 					AppRoleID:   appRole.ID,
-					PrincipalID: &managedId,
+					PrincipalID: &managedID,
 					ResourceID:  graphPrincipal.ID,
 				}
 				if err = clt.GrantAppRoleToServicePrincipal(ctx, roleAssignment); err != nil {
-					return trace.BadParameter("failed to assign graph API role to %s: %v", managedId, err)
+					return trace.Errorf("failed to assign graph API role to %s: %v", managedID, err)
 				}
+				delete(rolesNotAssigned, *appRole.Value)
 			}
+		}
+		if len(rolesNotAssigned) > 0 {
+			return trace.Errorf("could not assign all required roles: %v", slices.Collect(maps.Keys(rolesNotAssigned)))
 		}
 		return nil
 	}
 	cfg := provisioning.ActionConfig{
-		Name:    "NewSyncManagedId",
+		Name:    "AssignRole",
 		Summary: "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
 		Details: strings.Join([]string{
 			"The Discovery service needs to run as a credentialed Azure managed identity. This managed identity ",
 			"can be system assigned (i.e. tied to the lifecycle of a virtual machine running the Discovery service), ",
-			"or user-assigned (i.e. a persistent identity). The managed identity requires two types of permissions: ",
-			"1) Azure resource permissions in order to fetch virtual machines, role definitions, etc, and 2) Graph ",
-			"API permissions to fetch users, groups, and service principals. The command assigns both Azure resource ",
-			"permissions as well as Graph API permissions to the specified managed identity.",
+			"or user-assigned (i.e. a persistent identity). The managed identity requires two types of permissions:\n\n",
+			"\t1) Azure resource permissions in order to fetch virtual machines, role definitions, etc, and\n",
+			"\t2) Graph API permissions to fetch users, groups, and service principals.\n\n",
+			"The command assigns both Azure resource permissions as well as Graph API permissions to the specified ",
+			"managed identity.",
 		}, ""),
 		RunnerFn: runnerFn,
 	}
@@ -217,18 +227,14 @@ func newManagedIdAction(cred *azidentity.DefaultAzureCredential, clt AccessGraph
 // ConfigureAccessGraphSyncAzure sets up the managed identity and role required for Teleport to be able to pull
 // AWS resources into Teleport.
 func ConfigureAccessGraphSyncAzure(ctx context.Context, clt AccessGraphAzureConfigureClient, req AccessGraphAzureConfigureRequest) error {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	managedIdAction, err := newManagedIdAction(cred, clt, req.SubscriptionID, req.ManagedIdentity, req.RoleName)
+	managedIDAction, err := roleAssignmentAction(clt, req.SubscriptionID, req.ManagedIdentity, req.RoleName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	opCfg := provisioning.OperationConfig{
 		Name: "access-graph-azure-sync",
 		Actions: []provisioning.Action{
-			*managedIdAction,
+			*managedIDAction,
 		},
 		AutoConfirm: req.AutoConfirm,
 		Output:      req.stdout,
