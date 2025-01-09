@@ -468,6 +468,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		log.WarnContext(ctx, "Received unexpected cert type", "cert_type", cert.CertType)
 	}
 
+	// Skip RBAC check for proxy or git servers. RBAC check on git servers are
+	// performed outside this handler.
 	if h.isProxy() || h.c.Component == teleport.ComponentForwardingGit {
 		return permissions, nil
 	}

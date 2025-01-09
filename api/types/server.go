@@ -616,9 +616,6 @@ func (s *ServerV2) gitServerCheckAndSetDefaults() error {
 }
 
 func (s *ServerV2) githubCheckAndSetDefaults() error {
-	// Set SSH host port for GitHub.
-	s.Spec.Addr = "github.com:22"
-
 	if s.Spec.GitHub == nil {
 		return trace.BadParameter("github must be set for Subkind %q", s.SubKind)
 	}
@@ -629,6 +626,9 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 
+	// Set SSH host port for connection and "fake" hostname for routing. These
+	// values are hard-coded and cannot be customized.
+	s.Spec.Addr = "github.com:22"
 	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
 	if s.Metadata.Labels == nil {
 		s.Metadata.Labels = make(map[string]string)
