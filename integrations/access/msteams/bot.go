@@ -98,15 +98,15 @@ func NewBot(c *Config, clusterName, webProxyAddr string, log *slog.Logger) (*Bot
 	}
 
 	bot := &Bot{
-		Config:      c.MSAPI,
-		graphClient: msapi.NewGraphClient(c.MSAPI),
-		botClient:   msapi.NewBotFrameworkClient(c.MSAPI),
-		fullRecipients:  make(map[string]common.Recipient),
-		webProxyURL: webProxyURL,
-		clusterName: clusterName,
-		mu:          &sync.RWMutex{},
-		log:         log,
-		StatusSink:  c.StatusSink,
+		Config:         c.MSAPI,
+		graphClient:    msapi.NewGraphClient(c.MSAPI),
+		botClient:      msapi.NewBotFrameworkClient(c.MSAPI),
+		fullRecipients: make(map[string]common.Recipient),
+		webProxyURL:    webProxyURL,
+		clusterName:    clusterName,
+		mu:             &sync.RWMutex{},
+		log:            log,
+		StatusSink:     c.StatusSink,
 	}
 
 	return bot, nil
