@@ -667,6 +667,8 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		require.NoError(t, instance.StopAll())
 	})
 
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
+
 	tests := []struct {
 		name      string
 		command   []string
@@ -749,6 +751,8 @@ func TestRootStaticHostUsers(t *testing.T) {
 	}
 	_, err = instance.StartNode(nodeCfg)
 	require.NoError(t, err)
+
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
 
 	// Create host user resources.
 	groups := []string{"foo", "bar"}
