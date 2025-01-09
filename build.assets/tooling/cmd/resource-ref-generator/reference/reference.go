@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2023  Gravitational, Inc.
+// Copyright (C) 2025  Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -89,7 +89,7 @@ type GeneratorConfig struct {
 // not, returns the first error it encounters.
 func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
 	if err := value.Decode(&c); err != nil {
-		return fmt.Errorf("could not parse the configuration file as YAML: %v\n", err)
+		return fmt.Errorf("parsing the configuration file as YAML: %w\n", err)
 	}
 
 	switch {
@@ -234,7 +234,7 @@ func (g GenerationError) Error() string {
 func Generate(srcFS, destFS afero.Fs, conf GeneratorConfig) error {
 	sourceData, err := resource.NewSourceData(srcFS, conf.SourcePath)
 	if err != nil {
-		return fmt.Errorf("can't load Go source files: %v", err)
+		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
 	versionKindAssignments, err := resource.VersionKindAssignments(sourceData.PossibleFuncDecls, conf.FieldAssignmentMethodName)
@@ -259,7 +259,7 @@ func Generate(srcFS, destFS afero.Fs, conf GeneratorConfig) error {
 			continue
 		}
 		if err != nil {
-			errs.messages = append(errs.messages, fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.DeclName, decl.FilePath, err))
+			errs.messages = append(errs.messages, fmt.Errorf("creating a reference entry for declaration %v.%v in file %v: %w", k.PackageName, k.DeclName, decl.FilePath, err))
 		}
 
 		pc.Resource.ReferenceEntry = entries[k]
