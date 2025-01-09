@@ -72,5 +72,32 @@ func ValidateAutoUpdateAgentRollout(v *autoupdate.AutoUpdateAgentRollout) error 
 		return trace.Wrap(err, "validating spec.strategy")
 	}
 
+	groups := v.GetStatus().GetGroups()
+	seenGroups := make(map[string]int, len(groups))
+	for i, group := range groups {
+		if group.Name == "" {
+			return trace.BadParameter("status.groups[%d].name is empty", i)
+		}
+		if _, err := types.ParseWeekdays(group.ConfigDays); err != nil {
+			return trace.BadParameter("status.groups[%d].config_days is invalid", i)
+		}
+		if group.ConfigStartHour > 23 || group.ConfigStartHour < 0 {
+			return trace.BadParameter("spec.agents.schedules.regular[%d].start_hour must be less than or equal to 23", i)
+		}
+		if group.ConfigWaitHours < 0 {
+			return trace.BadParameter("status.schedules.groups[%d].config_wait_hours cannot be negative", i)
+		}
+		if v.Spec.Strategy == AgentsStrategyTimeBased && group.ConfigWaitHours != 0 {
+			return trace.BadParameter("status.schedules.groups[%d].config_wait_hours must be zero when strategy is %s", i, AgentsStrategyTimeBased)
+		}
+		if v.Spec.Strategy == AgentsStrategyHaltOnError && i == 0 && group.ConfigWaitHours != 0 {
+			return trace.BadParameter("status.schedules.groups[0].config_wait_hours must be zero as it's the first group")
+		}
+		if conflictingGroup, ok := seenGroups[group.Name]; ok {
+			return trace.BadParameter("spec.agents.schedules.regular contains groups with the same name %q at indices %d and %d", group.Name, conflictingGroup, i)
+		}
+		seenGroups[group.Name] = i
+	}
+
 	return nil
 }

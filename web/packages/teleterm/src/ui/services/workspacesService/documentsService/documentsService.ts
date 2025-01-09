@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { unique } from 'teleterm/ui/utils/uid';
+import type { Shell } from 'teleterm/mainProcess/shell';
+import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
-  ServerUri,
-  paths,
-  routing,
-  RootClusterUri,
   KubeUri,
+  paths,
+  RootClusterUri,
+  routing,
+  ServerUri,
 } from 'teleterm/ui/uri';
+import { unique } from 'teleterm/ui/utils/uid';
 
 import {
   CreateAccessRequestDocumentOpts,
@@ -33,23 +35,20 @@ import {
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
+  DocumentAuthorizeWebSession,
   DocumentCluster,
+  DocumentClusterQueryParams,
   DocumentConnectMyComputer,
   DocumentGateway,
-  DocumentGatewayKube,
   DocumentGatewayCliClient,
+  DocumentGatewayKube,
   DocumentOrigin,
+  DocumentPtySession,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
-  DocumentClusterQueryParams,
-  DocumentPtySession,
   WebSessionRequest,
-  DocumentAuthorizeWebSession,
 } from './types';
-
-import type { Shell } from 'teleterm/mainProcess/shell';
-import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 export class DocumentsService {
   constructor(
@@ -85,19 +84,12 @@ export class DocumentsService {
     };
   }
 
+  /** @deprecated Use createClusterDocument function instead of the method on DocumentsService. */
   createClusterDocument(opts: {
     clusterUri: uri.ClusterUri;
     queryParams?: DocumentClusterQueryParams;
   }): DocumentCluster {
-    const uri = routing.getDocUri({ docId: unique() });
-    const clusterName = routing.parseClusterName(opts.clusterUri);
-    return {
-      uri,
-      clusterUri: opts.clusterUri,
-      title: clusterName,
-      kind: 'doc.cluster',
-      queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
-    };
+    return createClusterDocument(opts);
   }
 
   /**
@@ -425,7 +417,7 @@ export class DocumentsService {
     if (doc.kind === 'doc.gateway_kube') {
       const { params } = routing.parseKubeUri(doc.targetUri);
       this.update(doc.uri, {
-        title: [shellBinName, cwd, params.kubeId].filter(Boolean).join(' · '),
+        title: [params.kubeId, shellBinName].filter(Boolean).join(' · '),
       });
     }
   }
@@ -507,6 +499,21 @@ export class DocumentsService {
       draft.documents.splice(newIndex, 0, doc);
     });
   }
+}
+
+export function createClusterDocument(opts: {
+  clusterUri: uri.ClusterUri;
+  queryParams?: DocumentClusterQueryParams;
+}): DocumentCluster {
+  const uri = routing.getDocUri({ docId: unique() });
+  const clusterName = routing.parseClusterName(opts.clusterUri);
+  return {
+    uri,
+    clusterUri: opts.clusterUri,
+    title: clusterName,
+    kind: 'doc.cluster',
+    queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
+  };
 }
 
 export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryParams {

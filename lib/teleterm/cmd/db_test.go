@@ -21,12 +21,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -66,7 +66,7 @@ func (m fakeDatabaseGateway) TargetName() string            { return m.targetURI
 func (m fakeDatabaseGateway) TargetUser() string            { return "alice" }
 func (m fakeDatabaseGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeDatabaseGateway) Protocol() string              { return m.protocol }
-func (m fakeDatabaseGateway) Log() *logrus.Entry            { return nil }
+func (m fakeDatabaseGateway) Log() *slog.Logger             { return nil }
 func (m fakeDatabaseGateway) LocalAddress() string          { return "localhost" }
 func (m fakeDatabaseGateway) LocalPortInt() int             { return 8888 }
 func (m fakeDatabaseGateway) LocalPort() string             { return "8888" }

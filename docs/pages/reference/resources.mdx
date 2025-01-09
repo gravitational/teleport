@@ -126,7 +126,7 @@ When no `kubernetes_resource` is set:
 {/* This table is cursed. Our current docs engine doesn't support HTML tables
 (due to SSR and the rehydration process). We have dto do everything inlined in
 markdown. Some HTML character codes are used to render specific chars like {}
-or to avoid line breaks in the middle fo the YAML. Whitespaces before br tags
+or to avoid line breaks in the middle fo the YAML. Spaces before br tags
 are required.*/}
 
 | Allow rule                                                                                                                                                                                                                                                                | Role v5                                                                                                           | Role v6                                                                                                           | Role v7                                                                                                                                                                                               |
@@ -222,10 +222,17 @@ Global cluster configuration options for authentication.
 metadata:
   name: cluster-auth-preference
 spec:
-  # Sets the type of second factor to use.
+  # Sets the list of allowed second factors for the cluster. 
+  # Possible values: "otp", "webauthn", and "sso".
+  # Defaults to ["otp"].
+  second_factors: ["webauthn", "otp"]
+
+  # second_factors is the list of allowed second factors for the cluster.
   # Possible values: "on", "otp" and "webauthn"
   # If "on" is set, all MFA protocols are supported.
-  second_factor: "otp"
+  #
+  # Prefer setting second_factors instead.
+  #second_factor: "webauthn"
 
   # The name of the OIDC or SAML connector. if this is not set, the first connector in the backend is used.
   connector_name: ""

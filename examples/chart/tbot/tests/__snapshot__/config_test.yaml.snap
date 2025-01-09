@@ -35,6 +35,10 @@ should match the snapshot (full):
           join_method: modified-join-method
           token: my-token
         outputs:
+        - destination:
+            name: RELEASE-NAME-tbot-out
+            type: kubernetes_secret
+          type: identity
         - app_name: foo
           destination:
             path: /bar

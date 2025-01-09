@@ -21,10 +21,10 @@ package userloginstate
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -49,7 +49,7 @@ type AccessListsAndLockGetter interface {
 // GeneratorConfig is the configuration for the user login state generator.
 type GeneratorConfig struct {
 	// Log is a logger to use for the generator.
-	Log *logrus.Entry
+	Log *slog.Logger
 
 	// AccessLists is a service for retrieving access lists and locks from the backend.
 	AccessLists AccessListsAndLockGetter
@@ -107,7 +107,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 // Generator will generate a user login state from a user.
 type Generator struct {
-	log         *logrus.Entry
+	log         *slog.Logger
 	accessLists AccessListsAndLockGetter
 	access      services.Access
 	usageEvents UsageEventsClient
@@ -191,7 +191,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User, ulsService se
 	if g.usageEvents != nil {
 		// Emit the usage event metadata.
 		if err := g.emitUsageEvent(ctx, user, uls, inheritedRoles, inheritedTraits); err != nil {
-			g.log.WithError(err).Debug("Error emitting usage event during user login state generation, skipping")
+			g.log.DebugContext(ctx, "Error emitting usage event during user login state generation, skipping", "error", err)
 		}
 	}
 
@@ -245,7 +245,7 @@ func (g *Generator) handleAccessListMembership(ctx context.Context, user types.U
 	if err != nil || membershipKind == accesslists.MembershipOrOwnershipTypeNone {
 		// Log any error.
 		if err != nil {
-			g.log.WithError(err).Warn("checking access list membership")
+			g.log.WarnContext(ctx, "checking access list membership", "error", err)
 		}
 		return inheritedRoles, inheritedTraits, nil
 	}
@@ -290,7 +290,7 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 	if err != nil || ownershipType == accesslists.MembershipOrOwnershipTypeNone {
 		// Log any error.
 		if err != nil {
-			g.log.WithError(err).Warn("checking access list ownership")
+			g.log.WarnContext(ctx, "checking access list ownership", "error", err)
 		}
 		return inheritedRoles, inheritedTraits, nil
 	}
@@ -497,6 +497,6 @@ func (g *Generator) emitSkippedAccessListEvent(ctx context.Context, accessListNa
 			UserMessage: "access list skipped because it references non-existent role(s)",
 		},
 	}); err != nil {
-		g.log.WithError(err).Warn("Failed to emit access list skipped warning audit event.")
+		g.log.WarnContext(ctx, "Failed to emit access list skipped warning audit event", "error", err)
 	}
 }

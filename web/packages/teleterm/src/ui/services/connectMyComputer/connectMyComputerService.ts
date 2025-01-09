@@ -17,13 +17,12 @@
  */
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import { CloneableAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
   Server,
 } from 'teleterm/services/tshd/types';
-import { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
-
 import type * as uri from 'teleterm/ui/uri';
 
 export class ConnectMyComputerService {

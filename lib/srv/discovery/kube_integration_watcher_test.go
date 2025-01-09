@@ -56,19 +56,19 @@ import (
 
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSClientV1{}},
 		FilterLabels: types.Labels{"l1": []string{"v1"}},
 		Region:       "region1",
 	})
 	require.NoError(t, err)
 	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSClientV1{}},
 		FilterLabels: types.Labels{"l1": []string{"v1"}},
 		Region:       "region1",
 		Integration:  "aws1"})
 	require.NoError(t, err)
 	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSClientV1{}},
 		FilterLabels: types.Labels{"l1": []string{"v1"}},
 		Region:       "region1",
 		Integration:  "aws1"})
@@ -314,7 +314,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			t.Parallel()
 
 			testCloudClients := &cloud.TestCloudClients{
-				STS: &mocks.STSMock{},
+				STS: &mocks.STSClientV1{},
 				EKS: &mockEKSAPI{
 					clusters: eksMockClusters[:2],
 				},

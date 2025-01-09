@@ -33,16 +33,21 @@ const (
 	// Common update reasons
 	updateReasonCreated         = "created"
 	updateReasonReconcilerError = "reconciler_error"
+	updateReasonRolloutChanged  = "rollout_changed_during_window"
 )
 
 // rolloutStrategy is responsible for rolling out the update across groups.
 // This interface allows us to inject dummy strategies for simpler testing.
 type rolloutStrategy interface {
 	name() string
-	progressRollout(context.Context, []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error
+	// progressRollout takes the new rollout spec, existing rollout status and current time.
+	// It updates the status resource in-place to progress the rollout to the next step if possible/needed.
+	progressRollout(context.Context, *autoupdate.AutoUpdateAgentRolloutSpec, *autoupdate.AutoUpdateAgentRolloutStatus, time.Time) error
 }
 
-func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
+// inWindow checks if the time is in the group's maintenance window.
+// The maintenance window is the semi-open interval: [windowStart, windowEnd).
+func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, duration time.Duration) (bool, error) {
 	dayOK, err := canUpdateToday(group.ConfigDays, now)
 	if err != nil {
 		return false, trace.Wrap(err, "checking the day of the week")
@@ -50,7 +55,22 @@ func inWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time
 	if !dayOK {
 		return false, nil
 	}
-	return int(group.ConfigStartHour) == now.Hour(), nil
+
+	// We compute the theoretical window start and end
+	windowStart := now.Truncate(24 * time.Hour).Add(time.Duration(group.ConfigStartHour) * time.Hour)
+	windowEnd := windowStart.Add(duration)
+
+	return !now.Before(windowStart) && now.Before(windowEnd), nil
+}
+
+// rolloutChangedInWindow checks if the rollout got created after the theoretical group start time
+func rolloutChangedInWindow(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now, rolloutStart time.Time, duration time.Duration) (bool, error) {
+	// If the rollout is older than 24h, we know it did not change during the window
+	if now.Sub(rolloutStart) > 24*time.Hour {
+		return false, nil
+	}
+	// Else we check if the rollout happened in the group window.
+	return inWindow(group, rolloutStart, duration)
 }
 
 func canUpdateToday(allowedDays []string, now time.Time) (bool, error) {

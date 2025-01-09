@@ -18,25 +18,24 @@
 
 import path, { delimiter } from 'path';
 
+import { makeCustomShellFromPath, Shell } from 'teleterm/mainProcess/shell';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
-import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
-import { assertUnreachable } from 'teleterm/ui/utils';
-import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
-import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
+import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
+import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import {
   PtyCommand,
   PtyProcessCreationStatus,
-  TshKubeLoginCommand,
-  WindowsPty,
   ShellCommand,
   SshOptions,
+  TshKubeLoginCommand,
+  WindowsPty,
 } from '../types';
-
 import {
   resolveShellEnvCached,
   ResolveShellEnvTimeoutError,

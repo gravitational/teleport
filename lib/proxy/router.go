@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -123,8 +122,6 @@ type LocalAccessPoint interface {
 type RouterConfig struct {
 	// ClusterName indicates which cluster the router is for
 	ClusterName string
-	// Log is the logger to use
-	Log *logrus.Entry
 	// LocalAccessPoint is the proxy cache
 	LocalAccessPoint LocalAccessPoint
 	// SiteGetter allows looking up sites
@@ -138,10 +135,6 @@ type RouterConfig struct {
 
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
-	}
-
 	if c.ClusterName == "" {
 		return trace.BadParameter("ClusterName must be provided")
 	}
@@ -169,7 +162,6 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // nodes and other clusters.
 type Router struct {
 	clusterName      string
-	log              *logrus.Entry
 	localAccessPoint LocalAccessPoint
 	localSite        reversetunnelclient.RemoteSite
 	siteGetter       SiteGetter
@@ -191,7 +183,6 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 
 	return &Router{
 		clusterName:      cfg.ClusterName,
-		log:              cfg.Log,
 		localAccessPoint: cfg.LocalAccessPoint,
 		localSite:        localSite,
 		siteGetter:       cfg.SiteGetter,
@@ -501,7 +492,10 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 			}
 		}
 	case len(matches) > 1:
-		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+		// TODO(tross) DELETE IN V20.0.0
+		// NodeIsAmbiguous is included in the error message for backwards compatibility
+		// with older nodes that expect to see that string in the error message.
+		return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous, teleport.NodeIsAmbiguous)
 	case len(matches) == 1:
 		server = matches[0]
 	}

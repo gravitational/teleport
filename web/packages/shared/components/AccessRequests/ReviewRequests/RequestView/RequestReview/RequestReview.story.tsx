@@ -17,14 +17,13 @@
  */
 
 import {
-  makeSuccessAttempt,
   makeEmptyAttempt,
-  makeProcessingAttempt,
   makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
 import { requestRolePending } from '../../../fixtures';
-
 import RequestReview, { RequestReviewProps } from './RequestReview';
 
 export default {

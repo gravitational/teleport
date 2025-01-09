@@ -21,8 +21,8 @@ import { render, theme } from 'design/utils/testing';
 import LabelState, {
   StateDanger,
   StateInfo,
-  StateWarning,
   StateSuccess,
+  StateWarning,
 } from './LabelState';
 
 const colors = {

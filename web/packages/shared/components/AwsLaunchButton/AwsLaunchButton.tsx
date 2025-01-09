@@ -18,11 +18,11 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { space, SpaceProps } from 'design/system';
-import { ButtonBorder, Flex, Text, Box } from 'design';
-import Menu, { MenuItem } from 'design/Menu';
-import { ChevronDown } from 'design/Icon';
 
+import { Box, ButtonBorder, Flex, Text } from 'design';
+import { ChevronDown } from 'design/Icon';
+import Menu, { MenuItem } from 'design/Menu';
+import { space, SpaceProps } from 'design/system';
 import { AwsRole } from 'shared/services/apps';
 
 export class AwsLaunchButton extends React.Component<Props> {
@@ -143,6 +143,13 @@ function RoleItemList({
     );
   });
 
+  let selectLabel = 'Select IAM Role';
+  let placeholder = 'Search IAM roles...';
+  if (isAwsIdentityCenterApp) {
+    selectLabel = 'Select Permission Sets';
+    placeholder = 'Search Permission Sets...';
+  }
+
   return (
     <Flex flexDirection="column">
       <Text
@@ -153,7 +160,7 @@ function RoleItemList({
           background: ${props => props.theme.colors.spotBackground[2]};
         `}
       >
-        Select IAM Role
+        {selectLabel}
       </Text>
       <StyledInput
         p="2"
@@ -161,7 +168,7 @@ function RoleItemList({
         type="text"
         onChange={onChange}
         autoFocus
-        placeholder={'Search IAM roles...'}
+        placeholder={placeholder}
         autoComplete="off"
       />
       <Box

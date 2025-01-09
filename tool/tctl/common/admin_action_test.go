@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )
@@ -1156,13 +1157,15 @@ func runTestCase(t *testing.T, ctx context.Context, client *authclient.Client, t
 
 	app := utils.InitCLIParser("tctl", tctl.GlobalHelpString)
 	cfg := servicecfg.MakeDefaultConfig()
-	tc.cliCommand.Initialize(app, cfg)
+	tc.cliCommand.Initialize(app, &tctlcfg.GlobalCLIFlags{}, cfg)
 
 	args := strings.Split(tc.command, " ")
 	commandName, err := app.Parse(args)
 	require.NoError(t, err)
 
-	match, err := tc.cliCommand.TryRun(ctx, commandName, client)
+	match, err := tc.cliCommand.TryRun(ctx, commandName, func(context.Context) (*authclient.Client, func(context.Context), error) {
+		return client, func(context.Context) {}, nil
+	})
 	require.True(t, match)
 	return err
 }

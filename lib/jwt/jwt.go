@@ -279,6 +279,12 @@ type SignParamsJWTSVID struct {
 	// Issuer is the value that should be included in the `iss` claim of the
 	// created token.
 	Issuer string
+
+	// SetExpiry overrides the expiry time of the token. This causes the value
+	// of TTL to be ignored.
+	SetExpiry time.Time
+	// SetIssuedAt overrides the issued at time of the token.
+	SetIssuedAt time.Time
 }
 
 // SignJWTSVID signs a JWT SVID token.
@@ -309,6 +315,12 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 		// valid OIDC ID token and used with non-SPIFFE aware systems that do
 		// understand OIDC.
 		Issuer: p.Issuer,
+	}
+	if !p.SetIssuedAt.IsZero() {
+		claims.IssuedAt = jwt.NewNumericDate(p.SetIssuedAt)
+	}
+	if !p.SetExpiry.IsZero() {
+		claims.Expiry = jwt.NewNumericDate(p.SetExpiry)
 	}
 
 	// > 2.2. Key ID:
