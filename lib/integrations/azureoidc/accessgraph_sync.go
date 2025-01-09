@@ -211,7 +211,7 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 		Name:    "AssignRole",
 		Summary: "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
 		Details: strings.Join([]string{
-			"The Discovery service needs to run as a credentialed Azure managed identity. This managed identity ",
+			"The Discovery Service needs to run as a credentialed Azure managed identity. This managed identity ",
 			"can be system assigned (i.e. tied to the lifecycle of a virtual machine running the Discovery service), ",
 			"or user-assigned (i.e. a persistent identity). The managed identity requires two types of permissions:\n\n",
 			"\t1) Azure resource permissions in order to fetch virtual machines, role definitions, etc, and\n",
