@@ -71,6 +71,8 @@ const (
 	profileFileExt = ".yaml"
 	// oracleWalletDirSuffix is the suffix of the oracle wallet database directory.
 	oracleWalletDirSuffix = "-wallet"
+	// keyAgentName is the name of the key agent socket file.
+	keyAgentName = "agent.sock"
 )
 
 // Here's the file layout of all these keypaths.
@@ -365,6 +367,13 @@ func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
 // <baseDir>/keys/<proxy>/kube_credentials.lock
 func KubeCredLockfilePath(baseDir, proxy string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameKubeCredLock)
+}
+
+// KeyAgentPath returns the path to the local key agent, served by `tsh agent`.
+//
+// <baseDir>/keys/<proxy>/agent.sock
+func KeyAgentPath(baseDir, proxy string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), keyAgentName)
 }
 
 // IsProfileKubeConfigPath makes a best effort attempt to check if the given

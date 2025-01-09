@@ -602,6 +602,13 @@ func (p *ProfileStatus) KubeConfigPath(name string) string {
 	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
+// KeyAgentPath returns the path to the local key agent, served by `tsh agent`.
+//
+// <baseDir>/keys/<proxy>/agent.sock
+func (p *ProfileStatus) KeyAgentPath() string {
+	return keypaths.KeyAgentPath(p.Dir, p.Name)
+}
+
 // DatabaseServices returns a list of database service names for this profile.
 func (p *ProfileStatus) DatabaseServices() (result []string) {
 	for _, db := range p.Databases {

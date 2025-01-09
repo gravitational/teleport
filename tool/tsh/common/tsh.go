@@ -210,7 +210,8 @@ type CLIConf struct {
 	// -R flag for ssh. Remote port forwarding like 'ssh -R 80:localhost:80 -R 443:localhost:443'
 	RemoteForwardPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
-	ForwardAgent bool
+	ForwardAgent          bool
+	EnableAgentExtensions bool
 	// ProxyJump is an optional -J flag pointing to the list of jumphosts,
 	// it is an equivalent of --proxy flag in tsh interpretation
 	ProxyJump string
@@ -1267,6 +1268,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	gitCmd := newGitCommands(app)
 
+	agent := newAgentCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1663,6 +1666,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case agent.FullCommand():
+		err = agent.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -4565,10 +4570,19 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
+
+	if cf.EnableAgentExtensions {
+		c.AgentExtensions = []client.AgentExtension{
+			client.WithKeyExtension(c.ClientStore),
+			client.WithSignExtension(),
+		}
+	}
+
 	return c, nil
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+
 	switch {
 	case cf.IdentityFileIn != "":
 		// Import identity file keys to in-memory client store.

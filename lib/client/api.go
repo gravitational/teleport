@@ -255,6 +255,8 @@ type Config struct {
 	// Agent is an SSH agent to use for local Agent procedures. Defaults to in-memory agent keyring.
 	Agent agent.ExtendedAgent
 
+	AgentExtensions []AgentExtension
+
 	ClientStore *Store
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
@@ -1305,14 +1307,15 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	tc.eventsCh = make(chan events.EventFields, 1024)
 
 	localAgentCfg := LocalAgentConfig{
-		ClientStore: tc.ClientStore,
-		Agent:       c.Agent,
-		ProxyHost:   tc.WebProxyHost(),
-		Username:    c.Username,
-		KeysOption:  c.AddKeysToAgent,
-		Insecure:    c.InsecureSkipVerify,
-		Site:        tc.SiteName,
-		LoadAllCAs:  tc.LoadAllCAs,
+		ClientStore:     tc.ClientStore,
+		Agent:           c.Agent,
+		ProxyHost:       tc.WebProxyHost(),
+		Username:        c.Username,
+		KeysOption:      c.AddKeysToAgent,
+		Insecure:        c.InsecureSkipVerify,
+		Site:            tc.SiteName,
+		LoadAllCAs:      tc.LoadAllCAs,
+		AgentExtensions: c.AgentExtensions,
 	}
 
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
