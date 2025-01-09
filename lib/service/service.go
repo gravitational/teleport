@@ -3418,12 +3418,13 @@ func (process *TeleportProcess) initUploaderService() error {
 
 // promHTTPLogAdapter adapts a slog.Logger into a promhttp.Logger.
 type promHTTPLogAdapter struct {
+	ctx context.Context
 	*slog.Logger
 }
 
 // Println implements the promhttp.Logger interface.
 func (l promHTTPLogAdapter) Println(v ...interface{}) {
-	l.Error(fmt.Sprint(v...))
+	l.ErrorContext(l.ctx, fmt.Sprint(v...))
 }
 
 // initMetricsService starts the metrics service currently serving metrics for
@@ -3446,7 +3447,10 @@ func (process *TeleportProcess) initMetricsService() error {
 			// As we move more things to the local registry, especially in other tools like tbot, we will have less
 			// conflicts in tests.
 			ErrorHandling: promhttp.ContinueOnError,
-			ErrorLog:      promHTTPLogAdapter{process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics)},
+			ErrorLog: promHTTPLogAdapter{
+				ctx:    process.ExitContext(),
+				Logger: process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics),
+			},
 		}),
 	)
 
