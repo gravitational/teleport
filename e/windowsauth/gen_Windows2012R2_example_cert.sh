@@ -17,7 +17,7 @@ encrypt_key  = no # Change to encrypt the private key using des3 or similar
 default_md   = sha384
 prompt       = no
 utf8         = yes
-# Speify the DN here so we aren't prompted (along with prompt = no above).
+# Specify the DN here so we aren't prompted (along with prompt = no above).
 distinguished_name = req_distinguished_name
 # Extensions for SAN IP and SAN DNS
 req_extensions = v3_req

@@ -126,7 +126,7 @@ tenant_json=$(kubectl get tenant $TENANT -n $NAMESPACE -o json --context=$KUBE_T
 echo "$tenant_json" | jq -r '.metadata.annotations."teleport.sh/skipreconcile"' | grep -v true
 fail_on_exit_code "Tenant $TENANT patched successfully. Pod rollout is blocked due to annotation \"teleport.sh/skipreconcile\"."
 echo "$tenant_json" | jq -r '.spec.suspended' | grep -v true
-fail_on_exit_code "Tenant $TENANT patched successfully. Pod rollout is blocked due to tenant supension."
+fail_on_exit_code "Tenant $TENANT patched successfully. Pod rollout is blocked due to tenant suspension."
 
 if [[ -n "$CLOUD_SKIP_ROLLOUT" ]]; then
 	echo "Skipping pod rollout. Use kubectl to check the status of your tenant's pods. (kubectl get pods -n $NAMESPACE --context $KUBE_AUTH_CONTEXT)"

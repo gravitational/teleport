@@ -356,7 +356,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 					Code:         types.PluginStatusCode_UNAUTHORIZED,
 					ErrorMessage: err.Error(),
 				}); err != nil {
-					log.ErrorContext(ctx, "Failed to emit plugin unauthrorized status", "error", err)
+					log.ErrorContext(ctx, "Failed to emit plugin unauthorized status", "error", err)
 				}
 
 			default:

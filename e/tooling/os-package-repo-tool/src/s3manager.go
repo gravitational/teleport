@@ -83,7 +83,7 @@ func (s *S3manager) ChangeLocalBucketPath(newBucketPath string) error {
 	slog.InfoContext(context.Background(), "Creating local bucket directory", "bucket_path", s.bucketLocalPath)
 	err = os.MkdirAll(s.bucketLocalPath, 0770)
 	if err != nil {
-		return trace.Wrap(err, "failed to create locak bucket directory %q", s.bucketLocalPath)
+		return trace.Wrap(err, "failed to create local bucket directory %q", s.bucketLocalPath)
 	}
 
 	return nil
