@@ -254,6 +254,8 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 	return uiToken, nil
 }
 
+// createTokenForDiscoveryHandle creates tokens used during guided discover flows.
+// V2 endpoint processes "suggestedLabels" field.
 func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -342,9 +344,10 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	// We create an ID and return it as part of the Token, so the UI can use this ID to query the Node that joined using this token
 	// WebUI can then query the resources by this id and answer the question:
 	//   - Which Node joined the cluster from this token Y?
-	req.SuggestedLabels = types.Labels{
-		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
+	if req.SuggestedLabels == nil {
+		req.SuggestedLabels = make(types.Labels)
 	}
+	req.SuggestedLabels[types.InternalResourceIDLabel] = apiutils.Strings{uuid.NewString()}
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
