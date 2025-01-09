@@ -711,7 +711,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		rsID := vmResourceID(subID, resourceGroup, "test-vm")
 		vmID := "vmID"
 
-		accessToken, err := makeToken(rsID, a.clock.Now())
+		accessToken, err := makeToken(rsID, "", a.clock.Now())
 		require.NoError(t, err)
 
 		// add token to auth server
