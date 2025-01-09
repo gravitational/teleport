@@ -1,0 +1,141 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.hardwarekeyagent.v1;
+
+import "teleport/attestation/v1/attestation.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/hardwarekeyagent/v1;hardwarekeyagentv1";
+
+// HardwareKeyAgentService provides an agent service for hardware key (PIV) signatures.
+// This allows multiple Teleport clients to share a PIV connection rather than blocking
+// each other, due to the exclusive nature of PIV connections. This also enabled shared
+// hardware key states, such as a custom PIN cache shared across Teleport clients.
+service HardwareKeyAgentService {
+  // Sign the given digest with the specified hardware private key. If a hash or salt
+  // was used to produce the digest, HashName and SaltLength must be provided as well.
+  //
+  // This rpc implements Go's crypto.Signer interface.
+  rpc Sign(SignRequest) returns (Signature) {}
+  // GetAttestation gets the attestation statement for the specified hardware private key.
+  // This attestation is used to attest hardware key info with the Teleport server, including
+  // the supported pin and touch policies. The client can also derive useful info from the
+  // attestation certs, such as the public key.
+  rpc GetAttestation(GetAttestationRequest) returns (GetAttestationResponse) {}
+}
+
+// SignRequest is a request to perform a signature with a specific hardware private key.
+message SignRequest {
+  // KeyRef references a specific hardware private key.
+  KeyRef key_ref = 1;
+  // PublicKeyDer is a public key encoded in PKIX, ASN.1 DER form.
+  // This is provided to verify that the hardware private key has not
+  // been swapped out against the public key expected by the client.
+  bytes public_key_der = 2;
+  // Digest is a hashed message to sign.
+  bytes digest = 3;
+  // HashName is the name of the hash used to generate the digest.
+  HashName hash_name = 4;
+  // SaltLength determines the length of the salt added to the digest before a signature.
+  // Only required for PSS signatures.
+  oneof salt_length {
+    // Length specifies an exact salt length to use.
+    uint32 length = 5;
+    // Auto specifies how the signing process should automatically pick a salt length
+    // based on the hash length and key length.
+    SaltLengthAuto auto = 6;
+  }
+}
+
+// Signature is a private key signature.
+message Signature {
+  // For an RSA key, signature should be either a PKCS #1 v1.5 or PSS signature,
+  // depending on the hash and salt chosen. For an (EC)DSA key, it should be a
+  // DER-serialised, ASN.1 signature structure.
+  bytes signature = 1;
+}
+
+// KeyRef references a specific hardware private key.
+message KeyRef {
+  // SerialNumber is the serial number of the hardware key.
+  uint32 serial_number = 1;
+  // PivSlot is a specific PIV slot on the hardware key.
+  PIVSlot piv_slot = 2;
+}
+
+// GetAttestationRequest is a response to GetAttestation
+message GetAttestationRequest {
+  // KeyRef references a specific hardware private key.
+  KeyRef key_ref = 1;
+}
+
+// GetAttestationResponse is a response to GetAttestationResponse.
+message GetAttestationResponse {
+  // AttestationStatement is a hardware key attestation statement corresponding
+  // to a hardware private key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 1;
+}
+
+// PIVSlot is a specific PIV slot on a hardware key.
+enum PIVSlot {
+  // PIV slot not specified.
+  PIV_SLOT_UNSPECIFIED = 0;
+  // PIV slot 9a. This is the default slot for pin_policy=never, touch_policy=never.
+  PIV_SLOT_9A = 1;
+  // PIV slot 9c. This is the default slot for pin_policy=never, touch_policy=cached.
+  PIV_SLOT_9C = 2;
+  // PIV slot 9d. This is the default slot for pin_policy=once, touch_policy=cached.
+  PIV_SLOT_9D = 3;
+  // PIV slot 9e. This is the default slot for pin_policy=once, touch_policy=never.
+  PIV_SLOT_9E = 4;
+}
+
+// HashName is the name of a specific hashing algorithm.
+// These values match the Go [crypto] standard library.
+enum HashName {
+  // TODO: remove unneeded hash functions. Check with a custom RSA, ECDSA and ED25519 hardware key.
+  HASH_NAME_UNSPECIFIED = 0;
+  HASH_NAME_MD4 = 1;
+  HASH_NAME_MD5 = 2;
+  HASH_NAME_SHA1 = 3;
+  HASH_NAME_SHA224 = 4;
+  HASH_NAME_SHA256 = 5;
+  HASH_NAME_SHA384 = 6;
+  HASH_NAME_SHA512 = 7;
+  HASH_NAME_MD5SHA1 = 8;
+  HASH_NAME_RIPEMD160 = 9;
+  HASH_NAME_SHA3_224 = 10;
+  HASH_NAME_SHA3_256 = 11;
+  HASH_NAME_SHA3_384 = 12;
+  HASH_NAME_SHA3_512 = 13;
+  HASH_NAME_SHA512_224 = 14;
+  HASH_NAME_SHA512_256 = 15;
+  HASH_NAME_BLAKE2S_256 = 16;
+  HASH_NAME_BLAKE2B_256 = 17;
+  HASH_NAME_BLAKE2B_384 = 18;
+  HASH_NAME_BLAKE2B_512 = 19;
+}
+
+// SaltLengthAuto is the length of the salt added to the digest before a signature.
+enum SaltLengthAuto {
+  SALT_LENGTH_AUTO_UNSPECIFIED = 0;
+  // Use the maximum salt length for a given public key size and hash function size.
+  SALT_LENGTH_AUTO_MAX = 1;
+  // Use a salt equal in length to the chosen hash used.
+  SALT_LENGTH_AUTO_HASH_LENGTH = 2;
+}
