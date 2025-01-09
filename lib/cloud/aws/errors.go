@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -55,6 +56,10 @@ func ConvertRequestFailureErrorV2(err error) error {
 	return err
 }
 
+var (
+	ecsClusterNotFoundException *ecstypes.ClusterNotFoundException
+)
+
 func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) error {
 	switch statusCode {
 	case http.StatusForbidden:
@@ -68,6 +73,10 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 		// "AccessDeniedException" instead of 403.
 		if strings.Contains(requestErr.Error(), redshiftserverless.ErrCodeAccessDeniedException) {
 			return trace.AccessDenied(requestErr.Error())
+		}
+
+		if strings.Contains(requestErr.Error(), ecsClusterNotFoundException.ErrorCode()) {
+			return trace.NotFound(requestErr.Error())
 		}
 	}
 

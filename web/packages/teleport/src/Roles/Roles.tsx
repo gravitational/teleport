@@ -21,13 +21,13 @@ import styled from 'styled-components';
 
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
+import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import {
   Notification,
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
-import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import {

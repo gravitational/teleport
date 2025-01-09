@@ -1,4 +1,7 @@
-/**
+//go:build !windows
+// +build !windows
+
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,10 +19,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  /** @deprecated Use `TooltipInfo` from `design/Tooltip` */
-  IconTooltip as ToolTipInfo,
+package log
 
-  /** @deprecated Use `HoverTooltip` from `design/Tooltip` */
-  HoverTooltip,
-} from 'design/Tooltip';
+import (
+	"io"
+	"log/syslog"
+
+	"github.com/gravitational/trace"
+)
+
+// NewSyslogWriter creates a writer that outputs to the local machine syslog.
+func NewSyslogWriter() (io.Writer, error) {
+	writer, err := syslog.Dial("", "", syslog.LOG_WARNING, "")
+	return writer, trace.Wrap(err)
+}
