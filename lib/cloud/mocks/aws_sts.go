@@ -54,6 +54,12 @@ type STSClient struct {
 	recordFn func(roleARN, externalID string)
 }
 
+func (m *STSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Arn: aws.String(m.ARN),
+	}, nil
+}
+
 func (m *STSClient) AssumeRoleWithWebIdentity(ctx context.Context, in *sts.AssumeRoleWithWebIdentityInput, _ ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error) {
 	m.record(aws.ToString(in.RoleArn), "")
 	expiry := time.Now().Add(60 * time.Minute)

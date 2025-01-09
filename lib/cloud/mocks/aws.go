@@ -28,8 +28,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -287,87 +285,4 @@ func (m *IAMErrorMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutU
 		return nil, m.Error
 	}
 	return nil, trace.AccessDenied("unauthorized")
-}
-
-// EKSMock is a mock EKS client.
-type EKSMock struct {
-	eksiface.EKSAPI
-	Clusters           []*eks.Cluster
-	AccessEntries      []*eks.AccessEntry
-	AssociatedPolicies []*eks.AssociatedAccessPolicy
-	Notify             chan struct{}
-}
-
-func (e *EKSMock) DescribeClusterWithContext(_ aws.Context, req *eks.DescribeClusterInput, _ ...request.Option) (*eks.DescribeClusterOutput, error) {
-	defer func() {
-		if e.Notify != nil {
-			e.Notify <- struct{}{}
-		}
-	}()
-	for _, cluster := range e.Clusters {
-		if aws.StringValue(req.Name) == aws.StringValue(cluster.Name) {
-			return &eks.DescribeClusterOutput{Cluster: cluster}, nil
-		}
-	}
-	return nil, trace.NotFound("cluster %v not found", aws.StringValue(req.Name))
-}
-
-func (e *EKSMock) ListClustersPagesWithContext(_ aws.Context, _ *eks.ListClustersInput, f func(*eks.ListClustersOutput, bool) bool, _ ...request.Option) error {
-	defer func() {
-		if e.Notify != nil {
-			e.Notify <- struct{}{}
-		}
-	}()
-	clusters := make([]*string, 0, len(e.Clusters))
-	for _, cluster := range e.Clusters {
-		clusters = append(clusters, cluster.Name)
-	}
-	f(&eks.ListClustersOutput{
-		Clusters: clusters,
-	}, true)
-	return nil
-}
-
-func (e *EKSMock) ListAccessEntriesPagesWithContext(_ aws.Context, _ *eks.ListAccessEntriesInput, f func(*eks.ListAccessEntriesOutput, bool) bool, _ ...request.Option) error {
-	defer func() {
-		if e.Notify != nil {
-			e.Notify <- struct{}{}
-		}
-	}()
-	accessEntries := make([]*string, 0, len(e.Clusters))
-	for _, a := range e.AccessEntries {
-		accessEntries = append(accessEntries, a.PrincipalArn)
-	}
-	f(&eks.ListAccessEntriesOutput{
-		AccessEntries: accessEntries,
-	}, true)
-	return nil
-}
-
-func (e *EKSMock) DescribeAccessEntryWithContext(_ aws.Context, req *eks.DescribeAccessEntryInput, _ ...request.Option) (*eks.DescribeAccessEntryOutput, error) {
-	defer func() {
-		if e.Notify != nil {
-			e.Notify <- struct{}{}
-		}
-	}()
-	for _, a := range e.AccessEntries {
-		if aws.StringValue(req.PrincipalArn) == aws.StringValue(a.PrincipalArn) && aws.StringValue(a.ClusterName) == aws.StringValue(req.ClusterName) {
-			return &eks.DescribeAccessEntryOutput{AccessEntry: a}, nil
-		}
-	}
-	return nil, trace.NotFound("access entry %v not found", aws.StringValue(req.PrincipalArn))
-}
-
-func (e *EKSMock) ListAssociatedAccessPoliciesPagesWithContext(_ aws.Context, _ *eks.ListAssociatedAccessPoliciesInput, f func(*eks.ListAssociatedAccessPoliciesOutput, bool) bool, _ ...request.Option) error {
-	defer func() {
-		if e.Notify != nil {
-			e.Notify <- struct{}{}
-		}
-	}()
-
-	f(&eks.ListAssociatedAccessPoliciesOutput{
-		AssociatedAccessPolicies: e.AssociatedPolicies,
-	}, true)
-	return nil
-
 }
