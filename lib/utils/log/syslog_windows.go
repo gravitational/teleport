@@ -16,19 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package log
 
 import (
 	"io"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
-
-// NewSyslogHook always returns an error on Windows.
-func NewSyslogHook(io.Writer) (logrus.Hook, error) {
-	return nil, trace.NotImplemented("cannot use syslog on Windows")
-}
 
 // NewSyslogWriter always returns an error on Windows.
 func NewSyslogWriter() (io.Writer, error) {

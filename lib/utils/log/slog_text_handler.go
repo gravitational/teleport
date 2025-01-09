@@ -27,7 +27,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 )
@@ -319,12 +318,6 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		case teleport.ComponentFields:
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
-				for k, v := range fields {
-					if state.appendAttr(slog.Any(k, v)) {
-						nonEmpty = true
-					}
-				}
-			case logrus.Fields:
 				for k, v := range fields {
 					if state.appendAttr(slog.Any(k, v)) {
 						nonEmpty = true

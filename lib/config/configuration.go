@@ -27,7 +27,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -70,13 +69,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-)
-
-const (
-	// logFileDefaultMode is the preferred permissions mode for log file.
-	logFileDefaultMode fs.FileMode = 0o644
-	// logFileDefaultFlag is the preferred flags set to log file.
-	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -789,77 +781,20 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
-	// TODO: this code is copied in the access plugin logging setup `logger.Config.NewSLogLogger`
-	// We'll want to deduplicate the logic next time we refactor the logging setup
-	var w io.Writer
 	switch loggerConfig.Output {
-	case "":
-		w = os.Stderr
-	case "stderr", "error", "2":
-		w = os.Stderr
+	case "stderr", "error", "2", "stdout", "out", "1":
 		cfg.Console = io.Discard // disable console printing
-	case "stdout", "out", "1":
-		w = os.Stdout
-		cfg.Console = io.Discard // disable console printing
-	case teleport.Syslog:
-		var err error
-		w, err = utils.NewSyslogWriter()
-		if err != nil {
-			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
-			break
-		}
-	default:
-		// Assume this is a file path.
-		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
-		if err != nil {
-			return trace.Wrap(err, "failed to init the log file shared writer")
-		}
-		w = logutils.NewWriterFinalizer[*logutils.FileSharedWriter](sharedWriter)
-		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
-	level := new(slog.LevelVar)
-	switch strings.ToLower(loggerConfig.Severity) {
-	case "", "info":
-		level.Set(slog.LevelInfo)
-	case "err", "error":
-		level.Set(slog.LevelError)
-	case teleport.DebugLevel:
-		level.Set(slog.LevelDebug)
-	case "warn", "warning":
-		level.Set(slog.LevelWarn)
-	case "trace":
-		level.Set(logutils.TraceLevel)
-	default:
-		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
-	}
-
-	configuredFields, err := logutils.ValidateFields(loggerConfig.Format.ExtraFields)
+	logger, level, err := logutils.Initialize(logutils.Config{
+		Output:       loggerConfig.Output,
+		Severity:     loggerConfig.Severity,
+		Format:       loggerConfig.Format.Output,
+		ExtraFields:  loggerConfig.Format.ExtraFields,
+		EnableColors: utils.IsTerminal(os.Stderr),
+	})
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	var logger *slog.Logger
-	switch strings.ToLower(loggerConfig.Format.Output) {
-	case "":
-		fallthrough // not set. defaults to 'text'
-	case "text":
-		logger = slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
-			Level:            level,
-			EnableColors:     utils.IsTerminal(os.Stderr),
-			ConfiguredFields: configuredFields,
-		}))
-		slog.SetDefault(logger)
-	case "json":
-		logger = slog.New(logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
-			Level:            level,
-			ConfiguredFields: configuredFields,
-		}))
-		slog.SetDefault(logger)
-	default:
-		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
 	cfg.Logger = logger
@@ -1920,7 +1855,7 @@ func readCACert(database *Database) ([]byte, error) {
 	if database.CACertFile != "" {
 		if database.TLS.CACertFile != "" {
 			// New and old fields are set. Ignore the old field.
-			slog.WarnContext(context.Background(), "Ignoring deprecated ca_cert_file database in configuration; using tls.ca_cert_file", "dababase", database.Name)
+			slog.WarnContext(context.Background(), "Ignoring deprecated ca_cert_file database in configuration; using tls.ca_cert_file", "database", database.Name)
 		} else {
 			// Only old field is set, inform about deprecation.
 			slog.WarnContext(context.Background(), "ca_cert_file is deprecated, please use tls.ca_cert_file instead for databases", "database", database.Name)

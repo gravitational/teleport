@@ -34,7 +34,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -52,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -222,10 +220,6 @@ type Config struct {
 
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
-
-	// Log optionally specifies the logger.
-	// Deprecated: use Logger instead.
-	Log utils.Logger
 
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
@@ -518,10 +512,6 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.Version = defaults.TeleportConfigVersionV1
 
-	if cfg.Log == nil {
-		cfg.Log = utils.NewLogger()
-	}
-
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -698,10 +688,6 @@ func applyDefaults(cfg *Config) {
 		cfg.Console = io.Discard
 	}
 
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger()
-	}
-
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -799,7 +785,6 @@ func verifyEnabledService(cfg *Config) error {
 // If called after `config.ApplyFileConfig` or `config.Configure` it will also
 // change the global loggers.
 func (c *Config) SetLogLevel(level slog.Level) {
-	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
 }
 

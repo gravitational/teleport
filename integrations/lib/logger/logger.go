@@ -34,15 +34,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// These values are meant to be kept in sync with teleport/lib/config.
-// (We avoid importing that package here because integrations must not require CGo)
-const (
-	// logFileDefaultMode is the preferred permissions mode for log file.
-	logFileDefaultMode fs.FileMode = 0o644
-	// logFileDefaultFlag is the preferred flags set to log file.
-	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
-)
-
 type Config struct {
 	Output   string `toml:"output"`
 	Severity string `toml:"severity"`
@@ -108,8 +99,16 @@ func Setup(conf Config) error {
 }
 
 // NewSLogLogger builds a slog.Logger from the logger.Config.
-// TODO: this code is adapted from `config.applyLogConfig`, we'll want to deduplicate the logic next time we refactor the logging setup
+// TODO(tross): Defer logging initialization to logutils.Initialize and use the
+// global slog loggers once integrations has been updated to use slog.
 func (conf Config) NewSLogLogger() (*slog.Logger, error) {
+	const (
+		// logFileDefaultMode is the preferred permissions mode for log file.
+		logFileDefaultMode fs.FileMode = 0o644
+		// logFileDefaultFlag is the preferred flags set to log file.
+		logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	)
+
 	var w io.Writer
 	switch conf.Output {
 	case "":
@@ -120,7 +119,7 @@ func (conf Config) NewSLogLogger() (*slog.Logger, error) {
 		w = logutils.NewSharedWriter(os.Stdout)
 	case teleport.Syslog:
 		w = os.Stderr
-		sw, err := utils.NewSyslogWriter()
+		sw, err := logutils.NewSyslogWriter()
 		if err != nil {
 			slog.Default().ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
 			break
