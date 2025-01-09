@@ -68,7 +68,7 @@ field_assignment_method: "setStaticFields"
 `
 
 func main() {
-	conf := flag.String("config", "./conf.yaml", configHelp)
+	conf := flag.String("config", "conf.yaml", configHelp)
 	flag.Parse()
 
 	conffile, err := os.Open(*conf)
