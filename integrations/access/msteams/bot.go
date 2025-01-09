@@ -188,11 +188,11 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Rec
 	b.mu.RLock()
 	d, ok := b.fullRecipients[recipient]
 	b.mu.RUnlock()
-	rd, err := getRecipientData(&d)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if ok {
+		rd, err := getRecipientData(&d)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		log.DebugContext(ctx, "Found recipient in cache",
 			slog.Group("recipient",
 				"id", d.ID,
