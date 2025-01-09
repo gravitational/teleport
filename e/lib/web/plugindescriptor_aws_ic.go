@@ -14,8 +14,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/samlsp"
-	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
@@ -241,23 +241,16 @@ func (a awsICPluginDescriptor) validateSCIM(ctx context.Context, baseURL, access
 		return trace.BadParameter("AWS Identity Center SCIM access token is required")
 	}
 
-	url, err := url.Parse(baseURL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if url.Scheme != "https" {
-		return trace.BadParameter("unsupported url scheme %q for base URL, must be https", url.Scheme)
-	}
-
 	httpClient, err := a.getHTTPClient()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	scimClient, err := scimsdk.New(&scimsdk.Config{
-		HTTPClient: httpClient,
-		Endpoint:   baseURL,
-		Token:      accessToken,
+		HTTPClient:      httpClient,
+		Endpoint:        baseURL,
+		Token:           accessToken,
+		IntegrationType: types.PluginTypeAWSIdentityCenter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -369,7 +362,7 @@ func (a awsICPluginDescriptor) getHTTPClient() (*http.Client, error) {
 
 // awsICPluginIdentityCenterClient creates a new Identity Center SDK client.
 func awsICPluginIdentityCenterClient(ctx context.Context, req awsicui.FetchICResourceRequest, authClient authclient.ClientI) (icsdk.Client, error) {
-	awsConfig, err := identitycenter.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+	awsConfig, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
 		Region:                req.Region,
 		IntegrationName:       req.IntegrationName,
 		IntegrationGetter:     authClient,

@@ -14,6 +14,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -124,6 +126,9 @@ type Config struct {
 	Endpoint string
 	// Token is the SCIM auth token.
 	Token string
+	// IntegrationType holds value of plugin or integration
+	// for which this SCIM client is configured.
+	IntegrationType string
 
 	// Log is the logger.
 	Log *slog.Logger
@@ -137,6 +142,16 @@ type Config struct {
 func (c *Config) checkAndSetDefaults() error {
 	if c.Endpoint == "" {
 		return trace.BadParameter("missing SCIM endpoint")
+	}
+	if c.IntegrationType == "" {
+		return trace.BadParameter("missing integration type")
+	}
+	if c.IntegrationType == types.PluginTypeAWSIdentityCenter {
+		ensuredURL, err := cloudaws.EnsureAWSICSCIMEndpoint(c.Endpoint)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Endpoint = ensuredURL
 	}
 	if c.Token == "" {
 		return trace.BadParameter("missing SCIM auth token")

@@ -2,9 +2,11 @@ package web
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -47,38 +49,38 @@ func TestAWSICCreatePlugin(t *testing.T) {
 	testCases := []testCase{
 		{
 			name:         "missing name",
-			form:         installRequestURLValues(t, testServer.URL, "name" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("name")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "required",
 		},
 		{
 			name:         "missing type",
-			form:         installRequestURLValues(t, testServer.URL, "type" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("type")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "unknown plugin type",
 		},
 		{
 			name:         "missing region",
-			form:         installRequestURLValues(t, testServer.URL, "region" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("region")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "required",
 		},
 		{
 			name:         "missing arn",
-			form:         installRequestURLValues(t, testServer.URL, "arn" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("arn")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "required",
 		},
 		{
 			name:         "missing oidcIntegrationName",
-			form:         installRequestURLValues(t, testServer.URL, "oidcIntegrationName" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("oidcIntegrationName")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "required",
 		},
 		{
 			name: "non existent oidc integration names",
 			form: func() url.Values {
-				values := installRequestURLValues(t, testServer.URL, "" /* key to remove */)
+				values := installRequestURLValues(t)
 				values.Set("oidcIntegrationName", "non-existent-oidc-integration")
 				return values
 			}(),
@@ -86,17 +88,16 @@ func TestAWSICCreatePlugin(t *testing.T) {
 			respContains: "doesn't exist",
 		},
 	}
-	testCases = append(testCases, samlTestCases(t, testServer.URL)...)
-	testCases = append(testCases, scimTestCases(t, testServer.URL)...)
+	testCases = append(testCases, samlTestCases(t)...)
+	testCases = append(testCases, scimTestCases(t)...)
 	testCases = append(testCases, testCase{
 		name:         "valid",
-		form:         installRequestURLValues(t, testServer.URL, "" /* key to remove */),
+		form:         installRequestURLValues(t),
 		statusCode:   http.StatusOK,
 		respContains: "",
 	})
 
 	installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugin")
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			form := maps.Clone(tc.form)
@@ -129,7 +130,7 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 
 	installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugins", "validate")
 
-	for _, tc := range samlTestCases(t, testServer.URL) {
+	for _, tc := range samlTestCases(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			form := maps.Clone(tc.form)
 			form.Set("resourceToValidate", pluginConfigAWSICValidateSAML)
@@ -146,7 +147,7 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 		})
 	}
 
-	for _, tc := range scimTestCases(t, testServer.URL) {
+	for _, tc := range scimTestCases(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			form := maps.Clone(tc.form)
 			form.Set("resourceToValidate", pluginConfigAWSICValidateSCIM)
@@ -184,7 +185,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		ictestenv.CreateICResources(t, ctx, client, testData, string(identitycenter.IdentityCenterDownstreamID))
 		createPluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin")
 
-		form := installRequestURLValues(t, testServer.URL, "" /* key to remove */)
+		form := installRequestURLValues(t)
 		resp, err := aPack.clt.PostForm(wSuite.ctx, createPluginEndpoint, form)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.Code())
@@ -244,7 +245,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 
 	t.Run("cleanup after plugin is deleted", func(t *testing.T) {
 		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
-		installAWSICPlugin(t, ctx, aPack.clt, testServer.URL)
+		installAWSICPlugin(t, ctx, aPack.clt)
 		ictestenv.CreateICResources(t, ctx, client, testData, string(identitycenter.IdentityCenterDownstreamID))
 
 		deletePluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin", types.PluginTypeAWSIdentityCenter)
@@ -296,16 +297,27 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T) (*webSuite, *authWebPack,
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
-	testSPServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testSCIMServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.RequestURI {
-		case "/ServiceProviderConfig":
+		case "/random-id/scim/v2/ServiceProviderConfig":
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(http.StatusForbidden)
 		}
 	}))
 
-	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = awsICPluginDescriptor{testSPServer.Client()}
+	// ensured SCIM base URL always points to real AWS endpoint so we need a custom transport
+	// to override dialer to dail test server.
+	client := testSCIMServer.Client()
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+		DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return net.Dial("tcp", testSCIMServer.Listener.Addr().String())
+		},
+	}
+	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = awsICPluginDescriptor{client}
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -317,7 +329,7 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T) (*webSuite, *authWebPack,
 		},
 	})
 
-	return s, webPack, testSPServer
+	return s, webPack, testSCIMServer
 }
 
 type testCase struct {
@@ -327,19 +339,19 @@ type testCase struct {
 	respContains string
 }
 
-func samlTestCases(t *testing.T, testServerURL string) []testCase {
+func samlTestCases(t *testing.T) []testCase {
 	t.Helper()
 	return []testCase{
 		{
 			name:         "missing samlServiceProviderName",
-			form:         installRequestURLValues(t, testServerURL, "samlServiceProviderName" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("samlServiceProviderName")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "required",
 		},
 		{
 			name: "SAML service provider with samlServiceProviderName already exists",
 			form: func() url.Values {
-				values := installRequestURLValues(t, testServerURL, "" /* key to remove */)
+				values := installRequestURLValues(t)
 				values.Set("samlServiceProviderName", existingServcieProviderName)
 				return values
 			}(),
@@ -348,14 +360,14 @@ func samlTestCases(t *testing.T, testServerURL string) []testCase {
 		},
 		{
 			name:         "missing samlServiceProviderMetadata",
-			form:         installRequestURLValues(t, testServerURL, "samlServiceProviderMetadata" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("samlServiceProviderMetadata")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "required",
 		},
 		{
 			name: "invalid samlServiceProviderMetadata",
 			form: func() url.Values {
-				values := installRequestURLValues(t, testServerURL, "" /* key to remove */)
+				values := installRequestURLValues(t)
 				values.Set("samlServiceProviderMetadata", "<xml></xml>")
 				return values
 			}(),
@@ -365,7 +377,7 @@ func samlTestCases(t *testing.T, testServerURL string) []testCase {
 		{
 			name: "existing entity ID for entity descriptor provider in samlServiceProviderMetadata",
 			form: func() url.Values {
-				values := installRequestURLValues(t, testServerURL, "" /* key to remove */)
+				values := installRequestURLValues(t)
 				values.Set("samlServiceProviderMetadata", newEntityDescriptor(existingServcieProviderName, fmt.Sprintf("https://%s/acs", existingServcieProviderName)))
 				return values
 			}(),
@@ -375,25 +387,26 @@ func samlTestCases(t *testing.T, testServerURL string) []testCase {
 	}
 }
 
-func scimTestCases(t *testing.T, testServerURL string) []testCase {
+func scimTestCases(t *testing.T) []testCase {
 	t.Helper()
-	return []testCase{{
-		name:         "missing scimBaseURL",
-		form:         installRequestURLValues(t, testServerURL, "scimBaseURL" /* key to remove */),
-		statusCode:   http.StatusBadRequest,
-		respContains: "required",
-	},
+	return []testCase{
+		{
+			name:         "missing scimBaseURL",
+			form:         installRequestURLValues(t, withFieldRemoved("scimBaseURL")),
+			statusCode:   http.StatusBadRequest,
+			respContains: "required",
+		},
 		{
 			name:         "missing scimAccessToken",
-			form:         installRequestURLValues(t, testServerURL, "scimAccessToken" /* key to remove */),
+			form:         installRequestURLValues(t, withFieldRemoved("scimAccessToken")),
 			statusCode:   http.StatusBadRequest,
 			respContains: "required",
 		},
 		{
 			name:         "invalid scimBaseURL",
-			form:         installRequestValidURLValues(t, testServerURL+"/status-unauthorized"),
-			statusCode:   http.StatusForbidden,
-			respContains: "unauthorized",
+			form:         installRequestValidURLValues(t, "https://test.example.com/scim/v2"),
+			statusCode:   http.StatusBadRequest,
+			respContains: "",
 		},
 	}
 }
@@ -410,7 +423,7 @@ const (
 	icOIDCIntegrationName       = "ic-oidc-integration"
 )
 
-func installRequestValidURLValues(t *testing.T, testServerURL string) url.Values {
+func installRequestValidURLValues(t *testing.T, scimBaseURL string) url.Values {
 	t.Helper()
 	return url.Values{
 		awsICPluginNameField:                        {types.PluginTypeAWSIdentityCenter},
@@ -421,26 +434,36 @@ func installRequestValidURLValues(t *testing.T, testServerURL string) url.Values
 		awsICPluginAccessListDefaultOwnersField:     {`["user1", "user2"]`},
 		awsICPluginSAMLServiceProviderNameField:     {newServcieProviderName},
 		awsICPluginSAMLServiceProviderMetadataField: {newEntityDescriptor("https://example.com", "https://example.com/acs")},
-		awsICPluginSCIMBaseURLField:                 {testServerURL},
+		awsICPluginSCIMBaseURLField:                 {scimBaseURL},
 		awsICPluginSCIMAccessTokenField:             {"abc123example"},
 	}
 }
 
-func installRequestURLValues(t *testing.T, testServerURL, keyToRemove string) url.Values {
-	t.Helper()
-	urlVals := installRequestValidURLValues(t, testServerURL)
+const validICSCIMBaseURLFormat = "https://scim.ca-central-1.amazonaws.com/random-id/scim/v2"
 
-	if keyToRemove != "" {
-		urlVals.Del(keyToRemove)
+type reqOpts func(urlVals url.Values)
+
+func withFieldRemoved(name string) reqOpts {
+	return func(urlVals url.Values) {
+		urlVals.Del(name)
+	}
+}
+
+func installRequestURLValues(t *testing.T, opts ...reqOpts) url.Values {
+	t.Helper()
+	urlVals := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
+
+	for _, opt := range opts {
+		opt(urlVals)
 	}
 
 	return urlVals
 }
 
-func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient, testServerURL string) {
+func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient) {
 	t.Helper()
 	installPluginEndPoint := clt.Endpoint("enterprise", "plugin")
-	form := maps.Clone(installRequestValidURLValues(t, testServerURL))
+	form := maps.Clone(installRequestValidURLValues(t, validICSCIMBaseURLFormat))
 	resp, err := clt.PostForm(ctx, installPluginEndPoint, form)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
