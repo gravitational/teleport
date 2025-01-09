@@ -39,6 +39,7 @@ import (
 // Ref: [https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in#application-ids-of-commonly-used-microsoft-applications].
 const graphAppID = "00000003-0000-0000-c000-000000000000"
 
+// requiredGraphRoleNames is the list of Graph API roles required for the managed identity to fetch resources from Azure
 var requiredGraphRoleNames = map[string]struct{}{
 	"User.ReadBasic.All": {},
 	"Group.Read.All":     {},
@@ -47,19 +48,28 @@ var requiredGraphRoleNames = map[string]struct{}{
 	"Policy.Read.All":    {},
 }
 
+// AccessGraphAzureConfigureClient provides an interface for granting the managed identity the necessary permissions
+// to fetch Azure resources
 type AccessGraphAzureConfigureClient interface {
+	// CreateRoleDefinition creates an Azure role definition
 	CreateRoleDefinition(ctx context.Context, scope string, roleDefinition armauthorization.RoleDefinition) (string, error)
+	// CreateRoleAssignment assigns a role to an Azure principal
 	CreateRoleAssignment(ctx context.Context, scope string, roleAssignment armauthorization.RoleAssignmentCreateParameters) error
+	// GetServicePrincipalByAppID returns a service principal based on its application ID
 	GetServicePrincipalByAppID(ctx context.Context, appID string) (*msgraph.ServicePrincipal, error)
+	// GrantAppRoleToServicePrincipal grants a specific type of application role to a service principal
 	GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment msgraph.AppRoleAssignment) error
 }
 
+// azureConfigClient wraps the role definition, role assignments, and Graph API clients
 type azureConfigClient struct {
 	roleDefCli    *armauthorization.RoleDefinitionsClient
 	roleAssignCli *armauthorization.RoleAssignmentsClient
 	graphCli      *msgraph.Client
 }
 
+// NewAzureConfigClient returns a new config client for granting the managed identity the necessary permissions
+// to fetch Azure resources
 func NewAzureConfigClient(subscriptionID string) (AccessGraphAzureConfigureClient, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
@@ -86,6 +96,7 @@ func NewAzureConfigClient(subscriptionID string) (AccessGraphAzureConfigureClien
 	}, nil
 }
 
+// CreateRoleDefinition creates an Azure role definition
 func (c *azureConfigClient) CreateRoleDefinition(ctx context.Context, scope string, roleDefinition armauthorization.RoleDefinition) (string, error) {
 	newUuid, err := uuid.NewRandom()
 	if err != nil {
@@ -99,6 +110,7 @@ func (c *azureConfigClient) CreateRoleDefinition(ctx context.Context, scope stri
 	return *roleRes.ID, err
 }
 
+// CreateRoleAssignment assigns a role to an Azure principal
 func (c *azureConfigClient) CreateRoleAssignment(ctx context.Context, scope string, roleAssignment armauthorization.RoleAssignmentCreateParameters) error {
 	newUuid, err := uuid.NewRandom()
 	if err != nil {
@@ -111,6 +123,7 @@ func (c *azureConfigClient) CreateRoleAssignment(ctx context.Context, scope stri
 	return nil
 }
 
+// GetServicePrincipalByAppID returns a service principal based on its application ID
 func (c *azureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appID string) (*msgraph.ServicePrincipal, error) {
 	graphPrincipal, err := c.graphCli.GetServicePrincipalByAppId(ctx, appID)
 	if err != nil {
@@ -119,6 +132,7 @@ func (c *azureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appI
 	return graphPrincipal, nil
 }
 
+// GrantAppRoleToServicePrincipal grants a specific type of application role to a service principal
 func (c *azureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment msgraph.AppRoleAssignment) error {
 	_, err := c.graphCli.GrantAppRoleToServicePrincipal(ctx, *roleAssignment.PrincipalID, &roleAssignment)
 	if err != nil {
@@ -141,6 +155,7 @@ type AccessGraphAzureConfigureRequest struct {
 	stdout io.Writer
 }
 
+// roleAssignmentAction assigns both the Azure role and Graph API roles to the managed identity
 func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID string, managedID string, roleName string) (*provisioning.Action, error) {
 	customRole := "CustomRole"
 	scope := "/subscriptions/" + subscriptionID
@@ -225,7 +240,7 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 }
 
 // ConfigureAccessGraphSyncAzure sets up the managed identity and role required for Teleport to be able to pull
-// AWS resources into Teleport.
+// Azure resources into Teleport.
 func ConfigureAccessGraphSyncAzure(ctx context.Context, clt AccessGraphAzureConfigureClient, req AccessGraphAzureConfigureRequest) error {
 	managedIDAction, err := roleAssignmentAction(clt, req.SubscriptionID, req.ManagedIdentity, req.RoleName)
 	if err != nil {
