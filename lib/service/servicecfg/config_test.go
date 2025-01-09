@@ -28,7 +28,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -651,44 +650,34 @@ func TestWebPublicAddr(t *testing.T) {
 
 func TestSetLogLevel(t *testing.T) {
 	for _, test := range []struct {
-		logLevel            slog.Level
-		expectedLogrusLevel logrus.Level
+		logLevel slog.Level
 	}{
 		{
-			logLevel:            logutils.TraceLevel,
-			expectedLogrusLevel: logrus.TraceLevel,
+			logLevel: logutils.TraceLevel,
 		},
 		{
-			logLevel:            slog.LevelDebug,
-			expectedLogrusLevel: logrus.DebugLevel,
+			logLevel: slog.LevelDebug,
 		},
 		{
-			logLevel:            slog.LevelInfo,
-			expectedLogrusLevel: logrus.InfoLevel,
+			logLevel: slog.LevelInfo,
 		},
 		{
-			logLevel:            slog.LevelWarn,
-			expectedLogrusLevel: logrus.WarnLevel,
+			logLevel: slog.LevelWarn,
 		},
 		{
-			logLevel:            slog.LevelError,
-			expectedLogrusLevel: logrus.ErrorLevel,
+			logLevel: slog.LevelError,
 		},
 	} {
 		t.Run(test.logLevel.String(), func(t *testing.T) {
 			// Create a configuration with local loggers to avoid modifying the
 			// global instances.
 			c := &Config{
-				Log:    logrus.New(),
 				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 			}
 			ApplyDefaults(c)
 
 			c.SetLogLevel(test.logLevel)
 			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
-			require.IsType(t, &logrus.Logger{}, c.Log)
-			l, _ := c.Log.(*logrus.Logger)
-			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
 	}
 }

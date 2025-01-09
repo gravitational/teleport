@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 )
@@ -114,22 +113,17 @@ func (s *handleState) appendAttr(a slog.Attr) bool {
 				}
 			}
 			return nonEmpty
-		case logrus.Fields:
-			for k, v := range fields {
-				if s.appendAttr(slog.Any(k, v)) {
-					nonEmpty = true
-				}
-			}
-			return nonEmpty
 		}
 	}
 
 	// Handle special cases before formatting.
+	var traceError bool
 	if a.Value.Kind() == slog.KindAny {
 		switch v := a.Value.Any().(type) {
 		case *slog.Source:
 			a.Value = slog.StringValue(fmt.Sprintf(" %s:%d", v.File, v.Line))
 		case trace.Error:
+			traceError = true
 			a.Value = slog.StringValue("[" + v.DebugReport() + "]")
 		case error:
 			a.Value = slog.StringValue(fmt.Sprintf("[%v]", v))
@@ -161,18 +155,11 @@ func (s *handleState) appendAttr(a slog.Attr) bool {
 		return true
 	}
 
-	if a.Value.Kind() == slog.KindString && a.Key != slog.LevelKey {
-		val := a.Value.String()
-		if needsQuoting(val) {
-			a.Value = slog.StringValue(strconv.Quote(val))
-		}
-	}
-
 	s.appendKey(a.Key)
 
-	// Write the log key directly to avoid quoting
-	// color formatting that exists.
-	if a.Key == slog.LevelKey {
+	// Write the level key to avoid quoting color formatting that exists or
+	// [trace.Error]s so that the debug report is output in it's entirety.
+	if traceError || a.Key == slog.LevelKey {
 		s.buf.WriteString(a.Value.String())
 	} else {
 		s.appendValue(a.Value)

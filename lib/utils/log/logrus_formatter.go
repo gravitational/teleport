@@ -25,7 +25,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -75,27 +74,6 @@ func (w *writer) WriteByte(c byte) error {
 func (w *writer) Bytes() []byte {
 	return *w.b
 }
-
-const (
-	noColor = -1
-	red     = 31
-	yellow  = 33
-	blue    = 36
-	gray    = 37
-	// LevelField is the log field that stores the verbosity.
-	LevelField = "level"
-	// ComponentField is the log field that stores the calling component.
-	ComponentField = "component"
-	// CallerField is the log field that stores the calling file and line number.
-	CallerField = "caller"
-	// TimestampField is the field that stores the timestamp the log was emitted.
-	TimestampField = "timestamp"
-	messageField   = "message"
-	// defaultComponentPadding is a default padding for component field
-	defaultComponentPadding = 11
-	// defaultLevelPadding is a default padding for level field
-	defaultLevelPadding = 4
-)
 
 // NewDefaultTextFormatter creates a TextFormatter with
 // the default options set.
@@ -304,15 +282,6 @@ func (w *writer) writeError(value interface{}) {
 	}
 }
 
-func padMax(in string, chars int) string {
-	switch {
-	case len(in) < chars:
-		return in + strings.Repeat(" ", chars-len(in))
-	default:
-		return in[:chars]
-	}
-}
-
 func (w *writer) writeField(value interface{}, color int) {
 	if w.Len() > 0 {
 		w.WriteByte(' ')
@@ -455,34 +424,4 @@ func frameToTrace(frame runtime.Frame) trace.Trace {
 		Path: frame.File,
 		Line: frame.Line,
 	}
-}
-
-var defaultFormatFields = []string{LevelField, ComponentField, CallerField, TimestampField}
-
-var knownFormatFields = map[string]struct{}{
-	LevelField:     {},
-	ComponentField: {},
-	CallerField:    {},
-	TimestampField: {},
-}
-
-func ValidateFields(formatInput []string) (result []string, err error) {
-	for _, component := range formatInput {
-		component = strings.TrimSpace(component)
-		if _, ok := knownFormatFields[component]; !ok {
-			return nil, trace.BadParameter("invalid log format key: %q", component)
-		}
-		result = append(result, component)
-	}
-	return result, nil
-}
-
-// needsQuoting returns true if any non-printable characters are found.
-func needsQuoting(text string) bool {
-	for _, r := range text {
-		if !unicode.IsPrint(r) {
-			return true
-		}
-	}
-	return false
 }

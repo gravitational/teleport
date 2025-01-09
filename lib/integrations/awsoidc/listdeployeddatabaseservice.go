@@ -27,6 +27,7 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/gravitational/trace"
 
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
@@ -139,6 +140,11 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 
 	listServicesOutput, err := clt.ListServices(ctx, listServicesInput)
 	if err != nil {
+		convertedError := awslib.ConvertRequestFailureErrorV2(err)
+		if trace.IsNotFound(convertedError) {
+			return &ListDeployedDatabaseServicesResponse{}, nil
+		}
+
 		return nil, trace.Wrap(err)
 	}
 

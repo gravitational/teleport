@@ -20,6 +20,7 @@ package testlib
 
 import (
 	"context"
+	"log/slog"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
@@ -112,7 +112,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         logrus.StandardLogger(),
+		Logger:      slog.Default(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()

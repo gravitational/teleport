@@ -35,7 +35,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -75,7 +74,6 @@ import (
 )
 
 var (
-	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentAuth)
 	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 )
 

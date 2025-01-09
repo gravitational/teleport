@@ -39,6 +39,8 @@ import (
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go/aws"
@@ -46,7 +48,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -85,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -692,7 +694,7 @@ func TestDiscoveryServer(t *testing.T) {
 			foundEC2Instances: []ec2types.Instance{},
 			ssm:               &mockSSMClient{},
 			cloudClients: &cloud.TestCloudClients{
-				STS: &mocks.STSMock{},
+				STS: &mocks.STSClientV1{},
 				EKS: &mocks.EKSMock{
 					Clusters: []*eks.Cluster{
 						{
@@ -1441,7 +1443,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			sts := &mocks.STSMock{}
+			sts := &mocks.STSClientV1{}
 
 			testCloudClients := &cloud.TestCloudClients{
 				STS:            sts,
@@ -1587,7 +1589,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 	}{
 		{
 			desc:         "no matchers error",
-			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSClientV1{}},
 			matchers:     Matchers{},
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers or discovery group configured for discovery"})
@@ -1596,7 +1598,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 		},
 		{
 			desc:         "success with EKS matcher",
-			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}, EKS: &mocks.EKSMock{}},
+			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSClientV1{}, EKS: &mocks.EKSMock{}},
 			matchers: Matchers{
 				AWS: []types.AWSMatcher{
 					{
@@ -1621,7 +1623,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 		{
 			desc: "EKS fetcher is skipped on initialization error (missing region)",
 			cloudClients: &cloud.TestCloudClients{
-				STS: &mocks.STSMock{},
+				STS: &mocks.STSClientV1{},
 				EKS: &mocks.EKSMock{},
 			},
 			matchers: Matchers{
@@ -2010,7 +2012,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSMock{},
+		STS: &mocks.STSClientV1{},
 		RDS: &mocks.RDSMock{
 			DBInstances: []*rds.DBInstance{awsRDSInstance},
 			DBEngineVersions: []*rds.DBEngineVersion{
@@ -2018,9 +2020,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 		},
 		MemoryDB: &mocks.MemoryDBMock{},
-		Redshift: &mocks.RedshiftMock{
-			Clusters: []*redshift.Cluster{awsRedshiftResource},
-		},
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -2322,6 +2321,23 @@ func TestDiscoveryDatabase(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
+			awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+				Name: integrationName,
+			}, &types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:iam::123456789012:role/teleport",
+			})
+			require.NoError(t, err)
+
+			testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+				proxies: nil,
+				integrations: map[string]types.Integration{
+					awsOIDCIntegration.GetName(): awsOIDCIntegration,
+				},
+			}
+
+			_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
+			require.NoError(t, err)
+
 			// Auth client for discovery service.
 			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
@@ -2337,14 +2353,29 @@ func TestDiscoveryDatabase(t *testing.T) {
 			waitForReconcile := make(chan struct{})
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
+			accessPoint := getDiscoveryAccessPoint(tlsServer.Auth(), authClient)
+			fakeConfigProvider := &mocks.AWSConfigProvider{
+				OIDCIntegrationClient: accessPoint,
+			}
+			dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+				AWSConfigProvider: fakeConfigProvider,
+				CloudClients:      testCloudClients,
+				RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
+					Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
+				}),
+			})
+			require.NoError(t, err)
+
 			srv, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
 					IntegrationOnlyCredentials: integrationOnlyCredential,
 					CloudClients:               testCloudClients,
+					AWSDatabaseFetcherFactory:  dbFetcherFactory,
+					AWSConfigProvider:          fakeConfigProvider,
 					ClusterFeatures:            func() proto.Features { return proto.Features{} },
 					KubernetesClient:           fake.NewSimpleClientset(),
-					AccessPoint:                getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+					AccessPoint:                accessPoint,
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -2422,7 +2453,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryConfigName: dc2Name, discoveryGroup: mainDiscoveryGroup})
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSMock{},
+		STS: &mocks.STSClientV1{},
 		RDS: &mocks.RDSMock{
 			DBInstances: []*rds.DBInstance{awsRDSInstance},
 			DBEngineVersions: []*rds.DBEngineVersion{
@@ -2606,15 +2637,15 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteD
 	return instance, database
 }
 
-func makeRedshiftCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*redshift.Cluster, types.Database) {
+func makeRedshiftCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*redshifttypes.Cluster, types.Database) {
 	t.Helper()
-	cluster := &redshift.Cluster{
+	cluster := &redshifttypes.Cluster{
 		ClusterIdentifier:   aws.String(name),
 		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:123456789012:namespace:%s", region, name)),
 		ClusterStatus:       aws.String("available"),
-		Endpoint: &redshift.Endpoint{
+		Endpoint: &redshifttypes.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int64(5439),
+			Port:    aws.Int32(5439),
 		},
 	}
 
@@ -3662,5 +3693,11 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 				Name: "project2",
 			},
 		},
+	}
+}
+
+func newFakeRedshiftClientProvider(c redshift.DescribeClustersAPIClient) db.RedshiftClientProviderFunc {
+	return func(cfg awsv2.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
+		return c
 	}
 }

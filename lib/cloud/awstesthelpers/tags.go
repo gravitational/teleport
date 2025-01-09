@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,10 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  /** @deprecated Use `TooltipInfo` from `design/Tooltip` */
-  IconTooltip as ToolTipInfo,
+package awstesthelpers
 
-  /** @deprecated Use `HoverTooltip` from `design/Tooltip` */
-  HoverTooltip,
-} from 'design/Tooltip';
+import (
+	"maps"
+	"slices"
+
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+)
+
+// LabelsToRedshiftTags converts labels into [redshifttypes.Tag] list.
+func LabelsToRedshiftTags(labels map[string]string) []redshifttypes.Tag {
+	keys := slices.Collect(maps.Keys(labels))
+	slices.Sort(keys)
+
+	ret := make([]redshifttypes.Tag, 0, len(keys))
+	for _, key := range keys {
+		key := key
+		value := labels[key]
+
+		ret = append(ret, redshifttypes.Tag{
+			Key:   &key,
+			Value: &value,
+		})
+	}
+
+	return ret
+}

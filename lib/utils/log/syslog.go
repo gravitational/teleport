@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -16,33 +19,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package log
 
 import (
-	"os"
+	"io"
+	"log/syslog"
 
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/trace"
 )
 
-type LoggerConfig struct {
-	logLevel logrus.Level
-	logJSON  bool
-}
-
-func NewLoggerConfig(logLevel logrus.Level, logJSON bool) *LoggerConfig {
-	return &LoggerConfig{
-		logLevel: logLevel,
-		logJSON:  logJSON,
-	}
-}
-
-func (lc *LoggerConfig) setupLogger() {
-	if lc.logJSON {
-		logrus.SetFormatter(&logrus.JSONFormatter{})
-	} else {
-		logrus.SetFormatter(&logrus.TextFormatter{})
-	}
-	logrus.SetOutput(os.Stdout)
-	logrus.SetLevel(lc.logLevel)
-	logrus.Debugf("Setup logger with config: %+v", lc)
+// NewSyslogWriter creates a writer that outputs to the local machine syslog.
+func NewSyslogWriter() (io.Writer, error) {
+	writer, err := syslog.Dial("", "", syslog.LOG_WARNING, "")
+	return writer, trace.Wrap(err)
 }
