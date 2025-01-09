@@ -1,0 +1,53 @@
+---
+title: {{ .Resource.SectionName }} Reference
+description: Provides a reference of fields within the {{ .Resource.SectionName }} resource, which you can manage with tctl.
+sidebar_title: {{ .Resource.SectionName }}
+---
+{{- if ne .Resource.Kind "" }}
+
+**Kind**: {{ .Resource.Kind }}
+{{- end }}
+
+{{- if ne .Resource.Version "" }}
+**Version**: {{ .Resource.Version }}
+{{- end }}
+
+{{ .Resource.Description }}
+
+{/*Automatically generated from: {{ .Resource.SourcePath}}*/}
+
+Example:
+
+```yaml
+{{ .Resource.YAMLExample -}}
+```
+
+{{- if gt (len .Resource.Fields) 0 }}
+|Field Name|Description|Type|
+|---|---|---|
+{{ range .Resource.Fields -}}
+|{{.Name}}|{{.Description}}|{{.Type}}|
+{{ end }} 
+{{- end }}
+
+{{- range .Fields }}
+## {{ .SectionName }}
+
+{{ .Description }}
+
+{/*Automatically generated from: {{ .SourcePath}}*/}
+{{ if ne .YAMLExample "" }}
+Example:
+
+```yaml
+{{ .YAMLExample -}}
+```
+{{ end }}
+{{- if gt (len .Fields) 0 }}
+|Field Name|Description|Type|
+|---|---|---|
+{{ range .Fields -}}
+|{{.Name}}|{{.Description}}|{{.Type}}|
+{{ end }} 
+{{- end }}
+{{- end }}
