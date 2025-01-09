@@ -72,7 +72,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 			return slog.Default(), level, nil
 		}
 	default:
-		// Assume this is a file path.
+		// Assume a file path for all other provided output values.
 		sharedWriter, err := NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
 			return nil, nil, trace.Wrap(err, "failed to init the log file shared writer")
