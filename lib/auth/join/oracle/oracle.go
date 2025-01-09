@@ -19,6 +19,7 @@ package oracle
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -121,7 +122,7 @@ func newAuthenticateClientRequest(time time.Time, challenge string, headers http
 	return req
 }
 
-func createAuthenticationRequest(region string, auth authenticateClientRequest) (*http.Request, error) {
+func createAuthenticationRequest(endpoint string, auth authenticateClientRequest) (*http.Request, error) {
 	req, err := common.MakeDefaultHTTPRequestWithTaggedStruct(
 		http.MethodPost,
 		"/v1/authentication/authenticateClient",
@@ -130,7 +131,12 @@ func createAuthenticationRequest(region string, auth authenticateClientRequest) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.URL.Host = fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
+	endpointURL, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header.Set("Host", endpointURL.Host)
+	req.URL = endpointURL
 	return &req, nil
 }
 
@@ -145,14 +151,15 @@ func CreateSignedRequest(provider common.ConfigurationProvider, challenge string
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	endpoint := fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
 	now := time.Now().UTC()
-	innerReq, err := createAuthenticationRequest(region, newAuthenticateClientRequest(now, challenge, nil))
+	innerReq, err := createAuthenticationRequest(endpoint, newAuthenticateClientRequest(now, challenge, nil))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	signer.Sign(innerReq)
 
-	outerReq, err := createAuthenticationRequest(region, newAuthenticateClientRequest(now, challenge, innerReq.Header))
+	outerReq, err := createAuthenticationRequest(endpoint, newAuthenticateClientRequest(now, challenge, innerReq.Header))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -171,8 +178,8 @@ func GetAuthorizationHeaderValues(header http.Header) map[string]string {
 	return values
 }
 
-func CreateRequestFromHeaders(region string, innerHeaders, outerHeaders http.Header) (*http.Request, error) {
-	req, err := createAuthenticationRequest(region, authenticateClientRequest{
+func CreateRequestFromHeaders(endpoint string, innerHeaders, outerHeaders http.Header) (*http.Request, error) {
+	req, err := createAuthenticationRequest(endpoint, authenticateClientRequest{
 		Date:      outerHeaders.Get(DateHeader),
 		Challenge: outerHeaders.Get(ChallengeHeader),
 		UserAgent: teleportUserAgent,

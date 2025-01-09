@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -83,8 +84,12 @@ func checkHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 	return nil
 }
 
-func fetchOraclePrincipalClaims(ctx context.Context, client *http.Client, req *http.Request) (oracle.Claims, error) {
+func fetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (oracle.Claims, error) {
 	// Block redirects.
+	client, err := defaults.HTTPClient()
+	if err != nil {
+		return oracle.Claims{}, trace.Wrap(err)
+	}
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -134,7 +139,7 @@ func formatHeaderFromMap(m map[string]string) http.Header {
 	return header
 }
 
-func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest) error {
+func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest, endpoint string) error {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
@@ -163,16 +168,16 @@ func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *
 	if region == "" {
 		return trace.BadParameter("invalid region: %v", region)
 	}
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
+	}
 
-	authReq, err := oracle.CreateRequestFromHeaders(region, innerHeaders, outerHeaders)
+	authReq, err := oracle.CreateRequestFromHeaders(endpoint, innerHeaders, outerHeaders)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	client, err := defaults.HTTPClient()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	claims, err := fetchOraclePrincipalClaims(ctx, client, authReq)
+
+	claims, err := fetchOraclePrincipalClaims(ctx, authReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,7 +197,7 @@ func (a *Server) RegisterUsingOracleMethod(
 	ctx context.Context,
 	challengeResponse client.RegisterOracleChallengeResponseFunc,
 ) (certs *proto.Certs, err error) {
-	certs, err = a.registerUsingOracleMethod(ctx, challengeResponse, "")
+	certs, err = a.registerUsingOracleMethod(ctx, challengeResponse, "" /* default endpoint */)
 	return certs, trace.Wrap(err)
 }
 
@@ -229,7 +234,7 @@ func (a *Server) registerUsingOracleMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.checkOracleRequest(ctx, challenge, req); err != nil {
+	if err := a.checkOracleRequest(ctx, challenge, req, endpoint); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -50,6 +50,7 @@ func TestCreateSignedRequest(t *testing.T) {
 		"Authorization":    "",
 		"Content-Length":   "",
 		"Content-Type":     "application/json",
+		"Host":             "auth.us-ashburn-1.oraclecloud.com",
 		"User-Agent":       teleportUserAgent,
 		"X-Content-Sha256": "",
 		DateHeader:         "",

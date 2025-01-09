@@ -26,11 +26,16 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/trace"
 )
 
 func TestCheckHeaders(t *testing.T) {
@@ -208,7 +213,7 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 			t.Cleanup(cancel)
 			req, err := http.NewRequest("", srv.URL, nil)
 			require.NoError(t, err)
-			claims, err := fetchOraclePrincipalClaims(ctx, srv.Client(), req)
+			claims, err := fetchOraclePrincipalClaims(ctx, req)
 			tc.assert(t, err)
 			assert.Equal(t, tc.expectedClaims, claims)
 		})
@@ -391,9 +396,91 @@ func TestCheckOracleAllowRules(t *testing.T) {
 	}
 }
 
+func mapFromHeader(header http.Header) map[string]string {
+	out := make(map[string]string, len(header))
+	for k := range header {
+		out[k] = header.Get(k)
+	}
+	return out
+}
+
 func TestRegisterUsingOracleMethod(t *testing.T) {
 	t.Parallel()
-	// ctx := context.Background()
-	// p, err := newTestPack(ctx, t.TempDir())
-	// require.NoError(t, err)
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+	a := p.a
+
+	pemBytes, ok := fixtures.PEMBytes["rsa"]
+	require.True(t, ok)
+
+	provider := common.NewRawConfigurationProvider(
+		"ocid1.tenancy.oc1..abcd1234",
+		"ocid1.user.oc1..abcd1234",
+		"us-ashburn-1",
+		"fingerprint",
+		string(pemBytes),
+		nil,
+	)
+
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec(
+		"my-token",
+		time.Now().Add(time.Minute),
+		types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodOracle,
+			Roles:      []types.SystemRole{types.RoleNode},
+			Oracle: &types.ProvisionTokenSpecV2Oracle{
+				Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+					{
+						Tenancy: makeTenancyID("foo"),
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, a.UpsertToken(ctx, token))
+
+	oracleAPIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := json.Marshal(claimsResponse(map[string]string{
+			oracle.TenancyClaim:     makeTenancyID("foo"),
+			oracle.CompartmentClaim: makeCompartmentID("bar"),
+			oracle.InstanceClaim:    makeInstanceID("us-phoenix-1", "baz"),
+		}))
+		if !assert.NoError(t, err) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Write(data)
+	}))
+	t.Cleanup(oracleAPIServer.Close)
+
+	_, err = a.registerUsingOracleMethod(
+		ctx,
+		func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error) {
+			innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(provider, challenge)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &proto.RegisterUsingOracleMethodRequest{
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+					Token:        "my-token",
+					HostID:       "test-node",
+					Role:         types.RoleNode,
+					PublicSSHKey: sshPublicKey,
+					PublicTLSKey: tlsPublicKey,
+				},
+				Headers:      mapFromHeader(outerHeaders),
+				InnerHeaders: mapFromHeader(innerHeaders),
+			}, nil
+		},
+		oracleAPIServer.URL,
+	)
+	require.NoError(t, err)
 }
