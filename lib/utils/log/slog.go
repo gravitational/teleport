@@ -27,7 +27,6 @@ import (
 	"unicode"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -66,25 +65,6 @@ var SupportedLevelsText = []string{
 	slog.LevelInfo.String(),
 	slog.LevelWarn.String(),
 	slog.LevelError.String(),
-}
-
-// SlogLevelToLogrusLevel converts a [slog.Level] to its equivalent
-// [logrus.Level].
-func SlogLevelToLogrusLevel(level slog.Level) logrus.Level {
-	switch level {
-	case TraceLevel:
-		return logrus.TraceLevel
-	case slog.LevelDebug:
-		return logrus.DebugLevel
-	case slog.LevelInfo:
-		return logrus.InfoLevel
-	case slog.LevelWarn:
-		return logrus.WarnLevel
-	case slog.LevelError:
-		return logrus.ErrorLevel
-	default:
-		return logrus.FatalLevel
-	}
 }
 
 // DiscardHandler is a [slog.Handler] that discards all messages. It
