@@ -8,6 +8,7 @@
 
 Enterprise:
 * Fix missing cleanup actions if the Oracle db connection is closed in its initial phases.
+* Significantly improve Oracle client compatibility. Add server support for connections without wallet. For client-side change see: [#49753](https://github.com/gravitational/teleport/pull/49753).
 
 ## 17.1.3 (1/2/25)
 
