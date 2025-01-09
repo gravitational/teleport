@@ -99,15 +99,11 @@ and `spec.hostname` to the name of the node as you would like users to see it in
 
 The `metadata.labels` field labels the SSH Service instance so you can apply RBAC rules to it.
 
-The `metadata.name` field isn't mandatory, but setting it here will save you some work later.
+The `metadata.name` field isn't mandatory, but setting it here will save you some work later. Using
+a non-UUID name can result in access errors when Teleport finds the node in its inventory.
 
 To generate a new universal unique identifier (UUID) suitable for a `node` name, use the `uuidgen`
 on Linux or macOS, or use the `New-Guid` cmdlet in Powershell on Windows.
-
-<Admonition type="warning">
-  Using a non-UUID format `metadata.name` will result in errors attempting to access the node in the 
-  Web UI.
-</Admonition>
 
 Create the node resource:
 
