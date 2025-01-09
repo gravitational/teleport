@@ -25,8 +25,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var KindApp string = "application"
-var V3 string = "v3"
+const (
+	KindApp string = "application"
+	V3      string = "v3"
+)
 
 // setStaticFields sets static resource header and metadata fields.
 func (a *AppV3) setStaticFields() {
