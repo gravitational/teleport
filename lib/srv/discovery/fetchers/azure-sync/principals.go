@@ -28,11 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
-type dirObjMetadata struct {
+type dirObjMetadata struct { //nolint:unused // invoked in a dependent PR
 	objectType string
 }
 
-type queryResult struct {
+type queryResult struct { //nolint:unused // invoked in a dependent PR
 	metadata dirObjMetadata
 	dirObj   msgraph.DirectoryObject
 }

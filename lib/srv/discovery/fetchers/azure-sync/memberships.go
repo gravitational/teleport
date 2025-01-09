@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
-const parallelism = 10
+const parallelism = 10 //nolint:unused // invoked in a dependent PR
 
 func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint:unused // invoked in a dependent PR
 	var eg errgroup.Group
