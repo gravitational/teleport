@@ -68,7 +68,7 @@ func (c *gitSSHCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Debugf("Proxying git command %v for GitHub user %s.", c.command, identity.Username)
+	logger.DebugContext(cf.Context, "Proxying git command for GitHub user.", "command", c.command, "user", identity.Username)
 
 	cf.RemoteCommand = c.command
 	cf.Options = c.options

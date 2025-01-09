@@ -137,7 +137,7 @@ tsh requires that the %q executable to be installed.
 You can install it by following the instructions at https://git-scm.com/book/en/v2/Getting-Started-Installing-Git`,
 			gitExecutable, err.Error(), gitExecutable)
 	}
-	log.Debugf("Executing %q with args: %v", gitPath, args)
+	logger.DebugContext(cf.Context, "Executing git command", "path", gitPath, "args", args)
 	cmd := exec.CommandContext(cf.Context, gitPath, args...)
 	cmd.Stdin = cf.Stdin()
 	cmd.Stdout = stdout

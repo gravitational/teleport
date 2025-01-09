@@ -124,15 +124,15 @@ func (c *gitConfigCommand) doUpdate(cf *CLIConf) error {
 	for _, url := range strings.Split(urls, "\n") {
 		u, err := parseGitSSHURL(url)
 		if err != nil {
-			log.Debugf("Skippig URL: %v", err)
+			logger.DebugContext(cf.Context, "Skippig URL", "error", err, "url", url)
 			continue
 		}
 		if !u.isGitHub() {
-			log.Debugf("Skippig non-GitHub host: %v", u.Host)
+			logger.DebugContext(cf.Context, "Skippig non-GitHub host", "host", u.Host)
 			continue
 		}
 
-		log.Debugf("Configuring %s (org %s) to use tsh.", url, u.owner())
+		logger.DebugContext(cf.Context, "Configuring repo to use tsh.", "url", url, "owner", u.owner())
 		args := []string{
 			"config", "--local",
 			"--replace-all", gitCoreSSHCommand,
