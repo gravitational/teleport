@@ -177,18 +177,19 @@ There are no new privacy considerations on Windows.
 // VnetUserProcessService is a service the VNet user process provides to the
 // VNet admin process.
 service VnetUserProcessService {
-  // AuthenticateProcess mutually authenticates the server and client VNet
-  // processes.
+  // AuthenticateProcess mutually authenticates the server and client VNet processes.
   rpc AuthenticateProcess(AuthenticateProcessRequest) returns (AuthenticateProcessResponse);
   // ResolveAppInfo returns info for the given app fqdn, or an error if the app
   // is not present in any logged-in cluster.
   rpc ResolveAppInfo(ResolveAppInfoRequest) returns (ResolveAppInfoResponse);
   // ReissueAppCert issues a new app cert.
   rpc ReissueAppCert(ReissueAppCertRequest) returns (ReissueAppCertResponse);
-  // SignForApp issues a signature with the private key for a requested app.
+  // SignForApp issues a signature with the private key associated with an x509
+  // certificate previously issued for a requested app.
   rpc SignForApp(SignForAppRequest) returns (SignForAppResponse);
   // Ping is used by the admin process to regularly poll that the user process
-  // is still running.
+  // is still running, and to share the Teleport version between the two
+  // processes to make sure they are compatible.
   rpc Ping(PingRequest) returns (PingResponse);
 }
 
@@ -223,29 +224,28 @@ message AppInfo {
   // app_key uniquely identifies a TCP app (and optionally a port for multi-port
   // TCP apps).
   AppKey app_key = 1;
+  // cluster is the name of the cluster in which the app is found.
+  // Iff the app is in a leaf cluster, this will match app_key.leaf_cluster.
+  string cluster = 2;
   // app is the app spec.
-  types.AppV3 app = 2;
+  types.AppV3 app = 3;
   // ipv4_cidr_range is the CIDR range from which an IPv4 address should be
   // assigned to the app.
-  string ipv4_cidr_range = 3;
+  string ipv4_cidr_range = 4;
   // dial_options holds options that should be used when dialing the root cluster
   // of the app.
-  DialOptions dial_options = 4;
+  DialOptions dial_options = 5;
 }
 
-// AppKey uniquely identifies a TCP app (and optionally a port for multi-port
-// TCP apps).
+// AppKey uniquely identifies a TCP app in a specific profile and cluster.
 message AppKey {
   // profile is the profile in which the app is found.
   string profile = 1;
-  // root_cluster is the root cluster in which the app is found.
-  string root_cluster = 2;
-  // leaf_cluster is the leaf cluster in which the app is found.
-  string leaf_cluster = 3;
+  // leaf_cluster is the leaf cluster in which the app is found. If empty, the
+  // app is in the root cluster for the profile.
+  string leaf_cluster = 2;
   // name is the name of the app.
-  string name = 4;
-  // target_port is the TCP port
-  uint32 target_port = 5;
+  string name = 3;
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
@@ -264,22 +264,36 @@ message DialOptions {
 
 // ReissueAppCertRequest is a request for ReissueAppCert.
 message ReissueAppCertRequest {
-  // app_key uniquely identifies a TCP app (and optionally a port for multi-port
-  // TCP apps).
-  AppKey app_key = 1;
-  // route_to_app is the unique route to the app.
-  proto.RouteToApp route_to_app = 2;
+  // app_info contains info about the app, every ReissueAppCertRequest must
+  // include an app_info as returned from ResolveAppInfo.
+  AppInfo app_info = 1;
+  // target_port is the TCP port to issue the cert for.
+  uint32 target_port = 2;
 }
 
-// SignForAppRequest is a request for SignForApp.
+// ReissueAppCertResponse is a response for ReissueAppCert.
+message ReissueAppCertResponse {
+  // cert is the issued app certificate in x509 DER format.
+  bytes cert = 1;
+}
+
+// SignForAppRequest is a request to sign data with a private key that the
+// server has cached for the (app_key, target_port) pair. The (app_key,
+// target_port) pair here must match a previous successful call to
+// ReissueAppCert. The private key used for the signature will match the subject
+// public key of the issued x509 certificate.
 message SignForAppRequest {
-  // app_key uniquely identifies a TCP app (and optionally a port for multi-port
-  // TCP apps).
+  // app_key uniquely identifies a TCP app, it must match the key of an app from
+  // a previous successful call to ReissueAppCert.
   AppKey app_key = 1;
+  // target_port identifies the TCP port of the app, it must match the
+  // target_port of a previous successful call to ReissueAppCert for an app
+  // matching AppKey.
+  uint32 target_port = 2;
   // digest is the bytes to sign.
-  bytes digest = 2;
+  bytes digest = 3;
   // hash is the hash function used to compute digest.
-  Hash hash = 3;
+  Hash hash = 4;
 }
 
 // Hash specifies a cryptographic hash function.
@@ -293,12 +307,6 @@ enum Hash {
 message SignForAppResponse {
   // signature is the signature.
   bytes signature = 1;
-}
-
-// ReissueAppCertResponse is a response for ReissueAppCert.
-message ReissueAppCertResponse {
-  // cert is the issued app certificate in x509 DER format.
-  bytes cert = 1;
 }
 
 // PingRequest is a request for the Ping rpc.
