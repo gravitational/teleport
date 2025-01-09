@@ -56,7 +56,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/quic-go/quic-go"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/acme"
@@ -992,10 +991,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	processID := fmt.Sprintf("%v", nextProcessID())
-	cfg.Log = utils.WrapLogger(cfg.Log.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentProcess, processID),
-		"pid":                 fmt.Sprintf("%v.%v", os.Getpid(), processID),
-	}))
 	cfg.Logger = cfg.Logger.With(
 		teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, processID),
 		"pid", fmt.Sprintf("%v.%v", os.Getpid(), processID),

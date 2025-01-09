@@ -51,7 +51,7 @@ var (
 	logErr = errors.New("the quick brown fox jumped really high")
 	addr   = fakeAddr{addr: "127.0.0.1:1234"}
 
-	fields = logrus.Fields{
+	fields = map[string]any{
 		"local":        &addr,
 		"remote":       &addr,
 		"login":        "llama",
