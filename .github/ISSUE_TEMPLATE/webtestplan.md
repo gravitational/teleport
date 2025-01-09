@@ -125,10 +125,9 @@ All actions should require re-authn with a webauthn device.
 For each, test the invite, reset, and login flows
 
 - [ ] Verify that input fields validates
-- [ ] Verify with `second_factor` type to `off`
-- [ ] Verify with `second_factor` type to `otp`, requires otp
-- [ ] Verify with `second_factor` type to `webauthn`, requires hardware key
-- [ ] Verify with `second_factor` type to `on`, requires a MFA device
+- [ ] Verify with `second_factors` set to `["otp"]`, requires otp
+- [ ] Verify with `second_factors` set to `["webauthn"]`, requires hardware key
+- [ ] Verify with `second_factors` set to `["webauthn", "otp"]`, requires a MFA device
 - [ ] Verify that error message is shown if an invite/reset is expired/invalid
 - [ ] Verify that account is locked after several unsuccessful login attempts
 
@@ -275,23 +274,23 @@ make an API request to the backend app at its teleport public_addr
   ```go
   package main
 
-  import (
-    "encoding/json"
-    "fmt"
-    "log"
-    "net/http"
-  )
+import (
+"encoding/json"
+"fmt"
+"log"
+"net/http"
+)
 
-  // change to your cluster addr
-  const clusterName = "avatus.sh"
+// change to your cluster addr
+const clusterName = "avatus.sh"
 
-  func main() {
-    // handler for the html page. this is the "client".
-    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-      html := fmt.Sprintf(html, clusterName)
-      w.Header().Set("Content-Type", "text/html")
-      w.Write([]byte(html))
-    })
+func main() {
+// handler for the html page. this is the "client".
+http.HandleFunc("/", func(w http.ResponseWriter, r \*http.Request) {
+html := fmt.Sprintf(html, clusterName)
+w.Header().Set("Content-Type", "text/html")
+w.Write([]byte(html))
+})
 
     // Handler for the API endpoint
     http.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
@@ -304,9 +303,11 @@ make an API request to the backend app at its teleport public_addr
 
     log.Println("Server starting on http://localhost:8080")
     log.Fatal(http.ListenAndServe(":8080", nil))
-  }
 
-  const html = `
+}
+
+const html = `
+
   <!DOCTYPE html>
   <html lang="en">
   <head>
@@ -332,6 +333,7 @@ make an API request to the backend app at its teleport public_addr
 </details>
 
 Update your app service to serve the apps like this (update your public addr to what makes sense for your cluster)
+
 ```
 app_service:
   enabled: "yes"
@@ -755,20 +757,16 @@ Add the following to enable read access to trusted clusters
 - Auth methods
   - Verify that the app supports clusters using different auth settings
     (`auth_service.authentication` in the cluster config):
-    - [ ] `type: local`, `second_factor: "off"`
-    - [ ] `type: local`, `second_factor: "otp"`
+    - [ ] `type: local`, `second_factors: ["otp"]`
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "webauthn"`,
+    - [ ] `type: local`, `second_factors: ["webauthn"]`,
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
-    - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
-    - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
-    - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
-    - [ ] `type: local`, `second_factor: "on"`, log in with OTP
+    - [ ] `type: local`, `second_factors: ["webauthn"]`, log in passwordlessly with hardware key
+    - [ ] `type: local`, `second_factors: ["webauthn"]`, log in passwordlessly with touch ID
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with OTP
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
-    - [ ] `type: local`, `second_factor: "on"`, log in with passwordless auth
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with hardware key
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with passwordless auth
     - [ ] Verify that the passwordless credential picker works.
       - To make the picker show up, you need to add the same MFA device with passwordless
         capabilities to multiple users.
@@ -985,21 +983,21 @@ Add the following to enable read access to trusted clusters
   - **Creating Access Requests (Role Based)**
     - To setup a test environment, follow the steps laid out in `Creating Access Requests (Role Based)` from the Web UI testplan and then verify the tasks below.
     - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and
-    `allow-users-with-short-ttl` are listed
+          `allow-users-with-short-ttl` are listed
     - [ ] Verify you can select/input/modify reviewers
     - [ ] Verify you can view the request you created from request list (should be in a pending
-    state)
+          state)
     - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
-    suggested_reviewers wasn't defined)
+          suggested_reviewers wasn't defined)
     - [ ] Verify you can't review own requests
   - **Creating Access Requests (Search Based)**
     - To setup a test environment, follow the steps laid out in `Creating Access Requests (Resource Based)` from the Web UI testplan and then verify the tasks below.
     - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
     - [ ] Verify you can select/input/modify reviewers
     - [ ] Verify you can view the request you created from request list (should be in a pending
-    state)
+          state)
     - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
-    suggested_reviewers wasn't defined)
+          suggested_reviewers wasn't defined)
     - [ ] Verify you can't review own requests
     - [ ] Verify that you can mix adding resources from the root and leaf clusters.
     - [ ] Verify that you can't mix roles and resources into the same request.
@@ -1067,7 +1065,8 @@ Add the following to enable read access to trusted clusters
           verify that Kube access is working with MFA.
   - [ ] Verify that Connect prompts for MFA during Connect My Computer setup.
 - Hardware key support
-  - You will need a YubiKey 4.3+ and Teleport Enterprise. 
+
+  - You will need a YubiKey 4.3+ and Teleport Enterprise.
     The easiest way to test it is to enable [cluster-wide hardware keys enforcement](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/#step-12-enforce-hardware-key-support)
     (set `require_session_mfa: hardware_key_touch_and_pin` to get both touch and PIN prompts).
   - [ ] Log in. Verify that you were asked for both PIN and touch.
@@ -1127,8 +1126,8 @@ Add the following to enable read access to trusted clusters
         authtrampoline → bash → tsh. Then just `sudo kill -s KILL <tsh pid>`.
       - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
       - [ ] The admin process _leaves_ files in `/etc/resolver`. However, it's possible to start
-        VNet again, connect to a TCP app, then shut VNet down and it results in the files being
-        cleaned up.
+            VNet again, connect to a TCP app, then shut VNet down and it results in the files being
+            cleaned up.
 - Misc
   - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
         `~/Library/Application\ Support/Teleport\ Connect/logs`.
