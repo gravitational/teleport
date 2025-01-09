@@ -81,7 +81,7 @@ Before you get started, you’ll need:
 
 1. Repeat steps 1 - 6 to add the **User Attribute** mapper.
 
-   ![User atrribute](../../../../img/sso/keycloak/user_attribute.png)
+   ![user attribute](../../../../img/sso/keycloak/user_attribute.png)
 
 1. Fill out the values as shown in the image below and **Save.**
 
@@ -98,7 +98,7 @@ $ tctl sso configure saml --name keycloak \
 --entity-descriptor https://<root>/realms/{realm-name}/protocol/saml/descriptor \
 --attributes-to-roles groups,/devops,dev \
 --audience https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak \
---acs https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak > keycloak-connector.yaml \
+--acs https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak > keycloak-connector.yaml
 ```
 
 In the example above:
@@ -108,8 +108,14 @@ In the example above:
 - Each `--attributes-to-roles` specifies the name of the schema definition for groups,
   groups, the name of a Keycloak group and the Teleport role that members of the group
   will be assigned.
-  - Keycloak includes an explicit leading `/` in the group name, 
-    which is reflected in the group name specified in the above example.
+
+- Keycloak includes an explicit leading `/` in the group name, 
+  which is reflected in the group name specified in the above example.
+
+- `--acs` specifies where the SAML provider makes callbacks after successful authentication.
+
+- `--audience`  uniquely identifies your service provider (Teleport).
+
 
 The file `keycloak-connector.yaml` should now resemble the following:
 
@@ -133,12 +139,12 @@ spec:
   service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   sso: ""
 version: v2
-```
- 
+``` 
 
-To optionally test the auth connector, navigate to the **Keys** tab to
-temporarily disable the **Client signature required** option. 
-This will be enabled later as you proceed through the guide. 
+To optionally test the auth connector, 
+temporarily disable the **Client signature required** option
+by navigating to the **Keys** tab of the SAML client. 
+This will be enabled at a later step as you proceed through the guide. 
 
 ![Edit client scope](../../../../img/sso/keycloak/disable_signature.png)
 
