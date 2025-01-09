@@ -19,16 +19,16 @@
 package services
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/common"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -596,7 +596,11 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 			Description: "Access AWS IAM Identity Center resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
-				types.OriginLabel:                  common.OriginAWSIdentityCenter,
+				// OriginLabel should not be set to AWS Identity center because:
+				// - identity center is not the one owning this role, this role
+				//   is part of the Teleport system requirements
+				// - setting the label to a value not support in older agents
+				//   (v16) will cause them to crash.
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -686,6 +690,11 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 		teleport.SystemOktaRequesterRoleName: {
 			types.TeleportInternalResourceType: types.SystemResource,
 			types.OriginLabel:                  types.OriginOkta,
+		},
+		// We unset the OriginLabel on the system AWS IC role because this value
+		// was not supported on v16 agents and this crashes them.
+		teleport.SystemIdentityCenterAccessRoleName: {
+			types.TeleportInternalResourceType: types.SystemResource,
 		},
 		// Group access, reviewer and requester are intentionally not added here as there may be
 		// existing customer defined roles that have these labels.
@@ -801,7 +810,7 @@ func defaultAllowAccountAssignments(enterprise bool) map[string][]types.Identity
 
 // AddRoleDefaults adds default role attributes to a preset role.
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
-func AddRoleDefaults(role types.Role) (types.Role, error) {
+func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 	changed := false
 
 	oldLabels := role.GetAllLabels()
@@ -855,7 +864,10 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 				continue
 			}
 
-			log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
+			slog.DebugContext(ctx, "Adding default allow rule to role",
+				"rule", defaultRule,
+				"role", role.GetName(),
+			)
 			rules := role.GetRules(types.Allow)
 			rules = append(rules, defaultRule)
 			role.SetRules(types.Allow, rules)

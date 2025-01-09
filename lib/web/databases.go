@@ -466,7 +466,6 @@ func (h *Handler) dbConnect(
 	}
 
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
-	defer stream.Close()
 
 	replConn, alpnConn := net.Pipe()
 	sess := &databaseInteractiveSession{
@@ -486,9 +485,20 @@ func (h *Handler) dbConnect(
 	}
 	defer sess.Close()
 
+	// Don't close the terminal stream on session error, as it would also
+	// cause the underlying connection to be closed. This will prevent the
+	// middleware from properly writing the error into the WebSocket connection.
 	if err := sess.Run(); err != nil {
 		log.ErrorContext(ctx, "Database interactive session exited with error", "error", err)
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO(gabrielcorado): Right now, if we send a close message the UI closes
+	// the terminal without giving the chance for users to review the session.
+	// Once this gets solved, we should send the close message here.
+
+	if err := stream.Close(); err != nil {
+		log.ErrorContext(ctx, "Unable to close web socket terminal stream", "error", err)
 	}
 
 	return nil, nil
@@ -617,7 +627,7 @@ func (s *databaseInteractiveSession) Run() error {
 
 func (s *databaseInteractiveSession) Close() error {
 	s.replConn.Close()
-	return s.ws.Close()
+	return nil
 }
 
 // issueCerts performs the MFA (if required) and generate the user session

@@ -19,7 +19,6 @@
 import { EventMeta } from 'teleport/services/userEvent';
 
 import { DeviceUsage, MfaChallengeResponse } from '../mfa';
-
 import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
 
 export type Base64urlString = string;

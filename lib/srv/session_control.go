@@ -236,7 +236,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	}
 
 	// Device Trust: authorize device extensions.
-	if err := dtauthz.VerifySSHUser(authPref.GetDeviceTrust(), identity.Certificate); err != nil {
+	if err := dtauthz.VerifySSHUser(ctx, authPref.GetDeviceTrust(), identity.Certificate); err != nil {
 		return ctx, trace.Wrap(err)
 	}
 

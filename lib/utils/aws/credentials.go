@@ -20,6 +20,7 @@ package aws
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -33,7 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -70,8 +70,11 @@ func NewCredentialsGetter() CredentialsGetter {
 }
 
 // Get obtains STS credentials.
-func (g *credentialsGetter) Get(_ context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
-	logrus.Debugf("Creating STS session %q for %q.", request.SessionName, request.RoleARN)
+func (g *credentialsGetter) Get(ctx context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
+	slog.DebugContext(ctx, "Creating STS session",
+		"session_name", request.SessionName,
+		"role_arn", request.RoleARN,
+	)
 	return stscreds.NewCredentials(request.Provider, request.RoleARN,
 		func(cred *stscreds.AssumeRoleProvider) {
 			cred.RoleSessionName = MaybeHashRoleSessionName(request.SessionName)

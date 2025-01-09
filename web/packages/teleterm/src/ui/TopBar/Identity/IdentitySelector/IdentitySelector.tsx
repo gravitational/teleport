@@ -17,16 +17,16 @@
  */
 
 import { forwardRef } from 'react';
+
 import { Box } from 'design';
 
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
+import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
+import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
-import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
-import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
-import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
-
-import { UserIcon } from './UserIcon';
 import { PamIcon } from './PamIcon';
+import { UserIcon } from './UserIcon';
 
 interface IdentitySelectorProps {
   isOpened: boolean;

@@ -17,7 +17,8 @@
  */
 
 import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
+
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -119,13 +120,13 @@ describe('Roles list', () => {
     expect(menuItems).toHaveLength(2);
   });
 
-  test('hides edit button if no access', async () => {
+  test('hides view/edit button if no access', async () => {
     const ctx = createTeleportContext();
     const testState = {
       ...defaultState,
       rolesAcl: {
         ...defaultState.rolesAcl,
-        edit: false,
+        list: false,
       },
     };
 
@@ -146,12 +147,15 @@ describe('Roles list', () => {
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
     expect(menuItems).toHaveLength(1);
-    expect(menuItems.every(item => item.textContent.includes('Edit'))).not.toBe(
-      true
-    );
+    expect(
+      menuItems.every(
+        item =>
+          item.textContent.includes('View') || item.textContent.includes('Edit')
+      )
+    ).not.toBe(true);
   });
 
-  test('hides delete button if no access', async () => {
+  test('hides delete button if user does not have permission to delete', async () => {
     const ctx = createTeleportContext();
     const testState = {
       ...defaultState,
@@ -183,14 +187,45 @@ describe('Roles list', () => {
     ).not.toBe(true);
   });
 
-  test('hides Options button if no permissions to edit or delete', async () => {
+  test('displays Options button if user has permission to list/read roles', async () => {
+    const ctx = createTeleportContext();
+    const testState = {
+      ...defaultState,
+      rolesAcl: {
+        list: true,
+        read: true,
+        create: false,
+        remove: false,
+        edit: false,
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <Roles {...testState} />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('cool-role')).toBeInTheDocument();
+    });
+    const optionsButton = screen.getByRole('button', { name: /options/i });
+    fireEvent.click(optionsButton);
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(1);
+    expect(menuItems[0]).toHaveTextContent('View');
+  });
+
+  test('hides Options button if no permissions to view or delete', async () => {
     const ctx = createTeleportContext();
     const testState = {
       ...defaultState,
       rolesAcl: {
         ...defaultState.rolesAcl,
         remove: false,
-        edit: false,
+        list: false,
       },
     };
 

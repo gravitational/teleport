@@ -22,15 +22,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Supervisor implements the simple service logic - registering
@@ -165,11 +166,11 @@ type LocalSupervisor struct {
 	id            string
 
 	// log specifies the logger
-	log logrus.FieldLogger
+	log *slog.Logger
 }
 
 // NewSupervisor returns new instance of initialized supervisor
-func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
+func NewSupervisor(id string, parentLog *slog.Logger) Supervisor {
 	ctx := context.TODO()
 
 	closeContext, cancel := context.WithCancel(ctx)
@@ -196,7 +197,7 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 		gracefulExitContext: gracefulExitContext,
 		signalGracefulExit:  signalGracefulExit,
 
-		log: parentLog.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
+		log: parentLog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
 	}
 	go srv.fanOut()
 	return srv
@@ -214,7 +215,7 @@ func (e *Event) String() string {
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
-	s.log.WithField("service", srv.Name()).Debug("Adding service to supervisor.")
+	s.log.DebugContext(s.closeContext, "Adding service to supervisor", "service", srv.Name())
 	s.Lock()
 	defer s.Unlock()
 	s.services = append(s.services, srv)
@@ -246,17 +247,17 @@ func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn Func) {
 
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
-	l := s.log.WithField("service", srv.Name())
+	l := s.log.With("service", srv.Name())
 	s.Lock()
 	defer s.Unlock()
 	for i, el := range s.services {
 		if el == srv {
 			s.services = append(s.services[:i], s.services[i+1:]...)
-			l.Debug("Service is completed and removed.")
+			l.DebugContext(s.closeContext, "Service is completed and removed")
 			return nil
 		}
 	}
-	l.Warning("Service is completed but not found.")
+	l.WarnContext(s.closeContext, "Service is completed but not found")
 	return trace.NotFound("service %v is not found", srv)
 }
 
@@ -302,15 +303,15 @@ func (s *LocalSupervisor) serve(srv Service) {
 			defer metricsServicesRunning.WithLabelValues(label).Dec()
 		}
 
-		l := s.log.WithField("service", srv.Name())
-		l.Debug("Service has started.")
+		l := s.log.With("service", srv.Name())
+		l.DebugContext(s.closeContext, "Service has started")
 		err := srv.Serve()
 		if err != nil {
 			if errors.Is(err, ErrTeleportExited) {
-				l.Info("Teleport process has shut down.")
+				l.InfoContext(s.closeContext, "Teleport process has shut down")
 			} else {
 				if s.ExitContext().Err() == nil {
-					l.WithError(err).Warning("Teleport process has exited with error.")
+					l.WarnContext(s.closeContext, "Teleport process has exited with error", "error", err)
 				}
 				s.BroadcastEvent(Event{
 					Name:    ServiceExitedWithErrorEvent,
@@ -327,7 +328,7 @@ func (s *LocalSupervisor) Start() error {
 	s.state = stateStarted
 
 	if len(s.services) == 0 {
-		s.log.Warning("Supervisor has no services to run. Exiting.")
+		s.log.WarnContext(s.closeContext, "Supervisor has no services to run - exiting")
 		return nil
 	}
 
@@ -408,7 +409,7 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	// Log all events other than recovered events to prevent the logs from
 	// being flooded.
 	if event.String() != TeleportOKEvent {
-		s.log.WithField("event", event.String()).Debug("Broadcasting event.")
+		s.log.DebugContext(s.closeContext, "Broadcasting event", "event", logutils.StringerAttr(&event))
 	}
 
 	go func() {
@@ -430,12 +431,12 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 					return
 				}
 			}(mappedEvent)
-			s.log.WithFields(logrus.Fields{
-				"in":  event.String(),
-				"out": m.String(),
-			}).Debug("Broadcasting mapped event.")
+			s.log.DebugContext(s.closeContext, "Broadcasting mapped event",
+				"in", logutils.StringerAttr(&event),
+				"out", logutils.StringerAttr(m),
+			)
 		} else if err != nil {
-			s.log.Debugf("Teleport not yet ready: %v", err)
+			s.log.DebugContext(s.closeContext, "Teleport not yet ready", "error", err)
 		}
 	}
 }

@@ -231,7 +231,7 @@ func testDatabaseLogin(t *testing.T) {
 	s.user = alice
 
 	// Log into Teleport cluster.
-	tmpHomePath, _ := mustLogin(t, s)
+	tmpHomePath, _ := mustLoginLegacy(t, s)
 
 	testCases := []struct {
 		// the test name
@@ -717,7 +717,7 @@ func testListDatabase(t *testing.T) {
 		}),
 	)
 
-	tshHome, _ := mustLogin(t, s)
+	tshHome, _ := mustLoginLegacy(t, s)
 
 	captureStdout := new(bytes.Buffer)
 	err := Run(context.Background(), []string{
@@ -1589,7 +1589,7 @@ func testDatabaseSelection(t *testing.T) {
 	s.user = alice
 
 	// Log into Teleport cluster.
-	tmpHomePath, _ := mustLogin(t, s)
+	tmpHomePath, _ := mustLoginLegacy(t, s)
 
 	t.Run("GetDatabasesForLogout", func(t *testing.T) {
 		t.Parallel()

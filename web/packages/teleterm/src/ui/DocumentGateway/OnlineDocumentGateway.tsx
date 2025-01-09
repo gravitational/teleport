@@ -17,28 +17,27 @@
  */
 
 import { useMemo, useRef } from 'react';
-import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
+
+import { Alert, Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
 import * as Alerts from 'design/Alert';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import Validation from 'shared/components/Validation';
+import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
 
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
-
 import { CliCommand } from './CliCommand';
-import { DocumentGatewayProps } from './DocumentGateway';
 
-type OnlineDocumentGatewayProps = Pick<
-  DocumentGatewayProps,
-  | 'changeDbNameAttempt'
-  | 'changePortAttempt'
-  | 'disconnect'
-  | 'changeDbName'
-  | 'changePort'
-  | 'gateway'
-  | 'runCliCommand'
->;
-
-export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
+export function OnlineDocumentGateway(props: {
+  changeDbName: (name: string) => RunFuncReturnValue<void>;
+  changeDbNameAttempt: Attempt<void>;
+  changePort: (port: string) => RunFuncReturnValue<void>;
+  changePortAttempt: Attempt<void>;
+  disconnect: () => RunFuncReturnValue<void>;
+  disconnectAttempt: Attempt<void>;
+  gateway: Gateway;
+  runCliCommand: () => void;
+}) {
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
     props.changePortAttempt.status === 'processing';
@@ -85,6 +84,13 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
           Close Connection
         </ButtonSecondary>
       </Flex>
+
+      {props.disconnectAttempt.status === 'error' && (
+        <Alert details={props.disconnectAttempt.statusText}>
+          Could not close the connection
+        </Alert>
+      )}
+
       <H2 mb={2}>Connect with CLI</H2>
       <Flex as="form" ref={formRef}>
         <Validation>
@@ -110,6 +116,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         onButtonClick={props.runCliCommand}
       />
       {$errors}
+
       <H2 mt={3} mb={2}>
         Connect with GUI
       </H2>

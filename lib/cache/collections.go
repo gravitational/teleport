@@ -943,7 +943,7 @@ func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource 
 	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
+			cache.Logger.WarnContext(ctx, "Failed to delete remote cluster", "cluster", resource.GetName(), "error", err)
 			return trace.Wrap(err)
 		}
 	}

@@ -19,7 +19,6 @@
 package services
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -2180,27 +2179,13 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 	return NewAccessCheckerWithRoleSet(accessInfo, "clustername", roleSet)
 }
 
-// testContext overrides context and captures log writes in action
-type testContext struct {
-	Context
-	// Buffer captures log writes
-	buffer *bytes.Buffer
-}
-
-// Write is implemented explicitly to avoid collision
-// of String methods when embedding
-func (t *testContext) Write(data []byte) (int, error) {
-	return t.buffer.Write(data)
-}
-
 func TestCheckRuleAccess(t *testing.T) {
 	type check struct {
-		hasAccess   bool
-		verb        string
-		namespace   string
-		rule        string
-		context     testContext
-		matchBuffer string
+		hasAccess bool
+		verb      string
+		namespace string
+		rule      string
+		context   Context
 	}
 	testCases := []struct {
 		name   string
@@ -2320,9 +2305,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindSession},
 									Verbs:     []string{types.VerbRead},
 									Where:     `contains(user.spec.traits["group"], "prod")`,
-									Actions: []string{
-										`log("info", "4 - tc match for user %v", user.metadata.name)`,
-									},
 								},
 							},
 						},
@@ -2333,17 +2315,14 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindSession, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindSession, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							User: &types.UserV2{
-								Metadata: types.Metadata{
-									Name: "bob",
-								},
-								Spec: types.UserSpecV2{
-									Traits: map[string][]string{
-										"group": {"dev", "prod"},
-									},
+					context: Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "bob",
+							},
+							Spec: types.UserSpecV2{
+								Traits: map[string][]string{
+									"group": {"dev", "prod"},
 								},
 							},
 						},
@@ -2354,14 +2333,11 @@ func TestCheckRuleAccess(t *testing.T) {
 					hasAccess: true,
 				},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							User: &types.UserV2{
-								Spec: types.UserSpecV2{
-									Traits: map[string][]string{
-										"group": {"dev"},
-									},
+					context: Context{
+						User: &types.UserV2{
+							Spec: types.UserSpecV2{
+								Traits: map[string][]string{
+									"group": {"dev"},
 								},
 							},
 						},
@@ -2389,9 +2365,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
-									Actions: []string{
-										`log("error", "4 - tc match")`,
-									},
 								},
 							},
 						},
@@ -2402,13 +2375,10 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindRole, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindRole, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							Resource: &types.RoleV6{
-								Metadata: types.Metadata{
-									Labels: map[string]string{"team": "dev"},
-								},
+					context: Context{
+						Resource: &types.RoleV6{
+							Metadata: types.Metadata{
+								Labels: map[string]string{"team": "dev"},
 							},
 						},
 					},
@@ -2439,9 +2409,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
-									Actions: []string{
-										`log("info", "matched more specific rule")`,
-									},
 								},
 							},
 						},
@@ -2450,21 +2417,17 @@ func TestCheckRuleAccess(t *testing.T) {
 			},
 			checks: []check{
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							Resource: &types.RoleV6{
-								Metadata: types.Metadata{
-									Labels: map[string]string{"team": "dev"},
-								},
+					context: Context{
+						Resource: &types.RoleV6{
+							Metadata: types.Metadata{
+								Labels: map[string]string{"team": "dev"},
 							},
 						},
 					},
-					rule:        types.KindRole,
-					verb:        types.VerbRead,
-					namespace:   apidefaults.Namespace,
-					hasAccess:   true,
-					matchBuffer: "more specific rule",
+					rule:      types.KindRole,
+					verb:      types.VerbRead,
+					namespace: apidefaults.Namespace,
+					hasAccess: true,
 				},
 			},
 		},
@@ -2486,9 +2449,6 @@ func TestCheckRuleAccess(t *testing.T) {
 			} else {
 				require.True(t, trace.IsAccessDenied(result), comment)
 			}
-			if check.matchBuffer != "" {
-				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
-			}
 		}
 	}
 }
@@ -2498,7 +2458,7 @@ func TestDefaultImplicitRules(t *testing.T) {
 		hasAccess bool
 		verb      string
 		rule      string
-		context   testContext
+		context   Context
 	}
 	testCases := []struct {
 		name   string

@@ -18,10 +18,11 @@
 
 import { useState } from 'react';
 
+import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-import { Indicator, Box } from 'design';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
+import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
   FeatureBox,
@@ -30,10 +31,7 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 
-import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
-
 import RecordingsList from './RecordingsList';
-
 import useRecordings, { State } from './useRecordings';
 
 export function RecordingsContainer() {

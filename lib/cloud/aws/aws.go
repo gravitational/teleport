@@ -17,19 +17,21 @@
 package aws
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 	"strings"
 
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/coreos/go-semver/semver"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // IsResourceAvailable checks if the input status indicates the resource is
@@ -38,7 +40,7 @@ import (
 // Note that this function checks some common values but not necessarily covers
 // everything. For types that have other known status values, separate
 // functions (e.g. IsDBClusterAvailable) can be implemented.
-func IsResourceAvailable(r interface{}, status *string) bool {
+func IsResourceAvailable(r any, status *string) bool {
 	switch strings.ToLower(aws.StringValue(status)) {
 	case "available", "modifying", "snapshotting", "active":
 		return true
@@ -47,7 +49,10 @@ func IsResourceAvailable(r interface{}, status *string) bool {
 		return false
 
 	default:
-		log.WithField("aws_resource", r).Warnf("Unknown status type: %q. Assuming the AWS resource %T is available.", aws.StringValue(status), r)
+		slog.WarnContext(context.Background(), "Assuming that AWS resource with an unknown status is available",
+			"status", aws.StringValue(status),
+			"resource", logutils.TypeAttr(r),
+		)
 		return true
 	}
 }
@@ -89,7 +94,7 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 	// MariaDB follows semver schema: https://mariadb.org/about/
 	ver, err := semver.NewVersion(aws.StringValue(instance.EngineVersion))
 	if err != nil {
-		log.Errorf("Failed to parse RDS MariaDB version: %s", aws.StringValue(instance.EngineVersion))
+		slog.ErrorContext(context.Background(), "Failed to parse RDS MariaDB version", "version", aws.StringValue(instance.EngineVersion))
 		return false
 	}
 
@@ -152,7 +157,7 @@ func AuroraMySQLVersion(cluster *rds.DBCluster) string {
 func IsDocumentDBClusterSupported(cluster *rds.DBCluster) bool {
 	ver, err := semver.NewVersion(aws.StringValue(cluster.EngineVersion))
 	if err != nil {
-		log.Errorf("Failed to parse DocumentDB engine version: %s", aws.StringValue(cluster.EngineVersion))
+		slog.ErrorContext(context.Background(), "Failed to parse DocumentDB engine version", "version", aws.StringValue(cluster.EngineVersion))
 		return false
 	}
 
@@ -201,9 +206,9 @@ func IsRDSInstanceAvailable(instanceStatus, instanceIdentifier *string) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming RDS instance %q is available.",
-			aws.StringValue(instanceStatus),
-			aws.StringValue(instanceIdentifier),
+		slog.WarnContext(context.Background(), "Assuming RDS instance with unknown status is available",
+			"status", aws.StringValue(instanceStatus),
+			"instance", aws.StringValue(instanceIdentifier),
 		)
 		return true
 	}
@@ -230,16 +235,16 @@ func IsDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming Aurora cluster %q is available.",
-			aws.StringValue(clusterStatus),
-			aws.StringValue(clusterIndetifier),
+		slog.WarnContext(context.Background(), "Assuming Aurora cluster with unknown status is available",
+			"status", aws.StringValue(clusterStatus),
+			"cluster", aws.StringValue(clusterIndetifier),
 		)
 		return true
 	}
 }
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
-func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
+func IsRedshiftClusterAvailable(cluster *redshifttypes.Cluster) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-mgmt-cluster-status
 	//
@@ -264,9 +269,9 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming Redshift cluster %q is available.",
-			aws.StringValue(cluster.ClusterStatus),
-			aws.StringValue(cluster.ClusterIdentifier),
+		slog.WarnContext(context.Background(), "Assuming Redshift cluster with unknown status is available",
+			"status", aws.StringValue(cluster.ClusterStatus),
+			"cluster", aws.StringValue(cluster.ClusterIdentifier),
 		)
 		return true
 	}

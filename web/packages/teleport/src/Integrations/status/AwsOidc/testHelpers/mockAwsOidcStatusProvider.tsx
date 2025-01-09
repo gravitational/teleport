@@ -17,14 +17,13 @@
  */
 
 import React from 'react';
-
 import { MemoryRouter } from 'react-router';
 
+import { ContextProvider } from 'teleport';
 import {
   awsOidcStatusContext,
   AwsOidcStatusContextState,
 } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
-import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 export const MockAwsOidcStatusProvider = ({

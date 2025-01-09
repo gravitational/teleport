@@ -16,44 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
+
 import {
-  Card,
-  Text,
-  Flex,
+  Box,
+  Button,
   ButtonLink,
   ButtonPrimary,
-  Box,
-  ButtonText,
   ButtonSecondary,
-  Button,
+  ButtonText,
+  Card,
+  Flex,
+  Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
+import { StepComponentProps, StepSlider } from 'design/StepSlider';
+import { P } from 'design/Text/Text';
+import FieldInput from 'shared/components/FieldInput';
+import { FieldSelect } from 'shared/components/FieldSelect';
+import Validation, { Validator } from 'shared/components/Validation';
 import {
-  AuthProvider,
+  requiredField,
+  requiredToken,
+} from 'shared/components/Validation/rules';
+import { useAttempt, useRefAutoFocus } from 'shared/hooks';
+import {
   Auth2faType,
+  AuthProvider,
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
-import { useAttempt, useRefAutoFocus } from 'shared/hooks';
-import Validation, { Validator } from 'shared/components/Validation';
-import FieldInput from 'shared/components/FieldInput';
-import { FieldSelect } from 'shared/components/FieldSelect';
-import {
-  requiredToken,
-  requiredField,
-} from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import { StepSlider, StepComponentProps } from 'design/StepSlider';
-
-import { P } from 'design/Text/Text';
 
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
 
 import { PasskeyIcons } from '../Passkeys';
-
 import SSOButtonList from './SsoButtons';
 
 const allAuthTypes: PrimaryAuthType[] = ['passwordless', 'sso', 'local'];
