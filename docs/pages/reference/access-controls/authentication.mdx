@@ -47,7 +47,7 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factor: on
+      second_factors: ["webauthn"]
       webauthn:
         rp_id: example.teleport.sh
   ```
@@ -68,7 +68,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -102,7 +102,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.teleport.sh
 version: v2
