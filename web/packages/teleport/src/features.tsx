@@ -476,7 +476,10 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.enrollIntegrations;
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.enrollIntegrations;
+    }
+    return true;
   }
 
   navigationItem = {
