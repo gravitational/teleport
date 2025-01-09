@@ -33,13 +33,13 @@ import (
 type Config struct {
 	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
 	// a path to a log file
-	Output string `yaml:"output,omitempty"`
+	Output string
 	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
-	Severity string `yaml:"severity,omitempty"`
+	Severity string
 	// Format defines the output format. Possible values are 'text' and 'json'.
-	Format string `yaml:"output,omitempty"`
+	Format string
 	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
-	ExtraFields []string `yaml:"extra_fields,omitempty"`
+	ExtraFields []string
 	// EnableColors dictates if output should be colored.
 	EnableColors bool
 }
