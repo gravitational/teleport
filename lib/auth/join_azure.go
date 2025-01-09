@@ -170,6 +170,8 @@ func (cfg *azureRegisterConfig) CheckAndSetDefaults(ctx context.Context) error {
 	}
 	if cfg.getVMClient == nil {
 		cfg.getVMClient = func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error) {
+			// The User-Agent is added for debugging purposes. It helps identify
+			// and isolate teleport traffic.
 			opts := &armpolicy.ClientOptions{
 				ClientOptions: policy.ClientOptions{
 					Telemetry: policy.TelemetryOptions{
