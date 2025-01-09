@@ -171,10 +171,11 @@ func TestGitConfigCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			cf := &CLIConf{
-				Context:        context.Background(),
-				OverrideStdout: &buf,
-				executablePath: "tsh",
-				cmdRunner:      tt.fakeRunner.run,
+				Context:          context.Background(),
+				OverrideStdout:   &buf,
+				executablePath:   "tsh",
+				cmdRunner:        tt.fakeRunner.run,
+				lookPathOverride: "git",
 			}
 			tt.checkError(t, tt.cmd.run(cf))
 			require.Contains(t, buf.String(), tt.checkOutputContains)

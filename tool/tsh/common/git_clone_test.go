@@ -104,9 +104,10 @@ func TestGitCloneCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cf := &CLIConf{
-				Context:        context.Background(),
-				executablePath: "tsh",
-				cmdRunner:      tt.verifyCommand,
+				Context:          context.Background(),
+				executablePath:   "tsh",
+				cmdRunner:        tt.verifyCommand,
+				lookPathOverride: "git",
 			}
 			tt.checkError(t, tt.cmd.run(cf))
 		})

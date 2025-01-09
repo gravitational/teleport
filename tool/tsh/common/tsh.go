@@ -572,6 +572,9 @@ type CLIConf struct {
 
 	// profileStatusOverride overrides return of ProfileStatus(). used in tests.
 	profileStatusOverride *client.ProfileStatus
+
+	// lookPathOverride overrides return of LookPath(). used in tests.
+	lookPathOverride string
 }
 
 // Stdout returns the stdout writer.
@@ -609,6 +612,14 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(c.cmdRunner(cmd))
 	}
 	return trace.Wrap(cmd.Run())
+}
+
+// LookPath searches for an executable named file.
+func (c *CLIConf) LookPath(file string) (string, error) {
+	if c.lookPathOverride != "" {
+		return c.lookPathOverride, nil
+	}
+	return exec.LookPath(file)
 }
 
 func Main() {

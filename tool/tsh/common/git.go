@@ -128,7 +128,7 @@ func execGit(cf *CLIConf, args ...string) error {
 
 func execGitWithStdoutAndStderr(cf *CLIConf, stdout, stderr io.Writer, args ...string) error {
 	const gitExecutable = "git"
-	gitPath, err := exec.LookPath(gitExecutable)
+	gitPath, err := cf.LookPath(gitExecutable)
 	if err != nil {
 		return trace.NotFound(`could not locate the executable %q. The following error occurred:
 %s
