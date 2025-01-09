@@ -250,7 +250,7 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 
 		if len(validation.IsDNS1035Label(name)) > 0 {
 			return "", trace.BadParameter(
-				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", name)
+				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
 		}
 
 		return name, nil

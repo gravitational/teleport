@@ -414,7 +414,7 @@ func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 // GetU2F gets the U2F configuration settings.
 func (c *AuthPreferenceV2) GetU2F() (*U2F, error) {
 	if c.Spec.U2F == nil {
-		return nil, trace.NotFound("U2F is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/u2f/")
+		return nil, trace.NotFound("U2F is not configured in this cluster")
 	}
 	return c.Spec.U2F, nil
 }
@@ -426,7 +426,7 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 
 func (c *AuthPreferenceV2) GetWebauthn() (*Webauthn, error) {
 	if c.Spec.Webauthn == nil {
-		return nil, trace.NotFound("Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/webauthn/")
+		return nil, trace.NotFound("Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/")
 	}
 	return c.Spec.Webauthn, nil
 }
@@ -718,7 +718,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	case "":
