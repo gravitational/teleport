@@ -79,9 +79,11 @@ Before you get started, you’ll need:
 
    ![Group mapper](../../../../img/sso/keycloak/group_mapping.png)
 
-1. Repeat steps 1 - 6 to add the **User Attribute** mapper
+1. Repeat steps 1 - 6 to add the **User Attribute** mapper.
 
-1. Fill out the values as shown in the image below and **Save**
+   ![User atrribute](../../../../img/sso/keycloak/user_attribute.png)
+
+1. Fill out the values as shown in the image below and **Save.**
 
    ![Edit client scope](../../../../img/sso/keycloak/attribute_mapping.png)
 
@@ -107,7 +109,7 @@ In the example above:
   groups, the name of a Keycloak group and the Teleport role that members of the group
   will be assigned.
   - Keycloak includes an explicit leading `/` in the group name, 
-    which is reflected in the group name speified in the above example.
+    which is reflected in the group name specified in the above example.
 
 The file `keycloak-connector.yaml` should now resemble the following:
 
@@ -134,13 +136,15 @@ version: v2
 ```
  
 
-To optionally test the auth connector, temporarily disable the **Client signature required**
-option with the Key tabs. This will be enabled as you proceed through the guide. 
+To optionally test the auth connector, navigate to the **Keys** tab to
+temporarily disable the **Client signature required** option. 
+This will be enabled later as you proceed through the guide. 
 
-   ![Edit client scope](../../../../img/sso/keycloak/disable_signature.png)
+![Edit client scope](../../../../img/sso/keycloak/disable_signature.png)
 
 
 With the connector in place on the cluster, you can test it with `tctl`: 
+
 ```code
 $ cat keycloak-connector.yaml | tctl sso test
 ```
@@ -197,9 +201,14 @@ $ tctl create dev.yaml
 
 ## Client Certificate Signature validation (Recommended)
 
-If you wish to have Keycloak require client signature validation from Teleport,
-you must configure the signing keys by generating or importing keys, 
-and the client will sign their saml requests and responses. The signature will be validated.
+If Client Signature Required is enabled, 
+documents coming from the client are expected to be signed. 
+Keycloak will validate this signature using the client public key 
+or cert set up in the **Keys** tab.
+
+To have Keycloak require client signature validation from Teleport,
+you must configure the signing keys by generating and importing keys to Keycloak, 
+The client will sign their saml requests and responses and the signature will be validated.
 
 
 ### Create private keys for signing
