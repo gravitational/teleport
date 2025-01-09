@@ -1,0 +1,43 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.keyagent.v1;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/keyagent/v1;keyagentv1";
+
+// KeyAgentService provides a Teleport key agent service. Allows multiple Teleport client
+// processes to share a single instance of a Teleport key. Useful for PIV keys which can
+// only be accessed by one process at a time.
+service KeyAgentService {
+  // Start starts the Teleport key agent server.
+  rpc Start(StartRequest) returns (StartResponse);
+  // Stop stops the Teleport key agent server.
+  rpc Stop(StopRequest) returns (StopResponse);
+}
+
+// Request for Start.
+message StartRequest {}
+
+// Response for Start.
+message StartResponse {}
+
+// Request for Stop.
+message StopRequest {}
+
+// Response for Stop.
+message StopResponse {}
