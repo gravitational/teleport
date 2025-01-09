@@ -104,6 +104,12 @@ The `metadata.name` field isn't mandatory, but setting it here will save you som
 To generate a new universal unique identifier (UUID) suitable for a `node` name, use the `uuidgen`
 on Linux or macOS, or use the `New-Guid` cmdlet in Powershell on Windows.
 
+<Admonition type="warning">
+  Using a non-uuid format `metadata.name` can result in errors in Teleport finding
+  the node in inventory. This could result in issues such as being unable to access the node
+  in the Web UI.
+</Admonition>
+
 Create the node resource:
 
 ```code
