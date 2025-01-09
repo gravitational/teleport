@@ -43,7 +43,10 @@ describe('access list management upsell links', () => {
   });
 
   test('no access should not render cta', async () => {
-    const error = new ApiError('', { status: 403 } as Response);
+    const error = new ApiError({
+      message: '',
+      response: { status: 403 } as Response,
+    });
 
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')

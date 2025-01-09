@@ -387,12 +387,18 @@ describe('okta PluginEnroll.tsx', () => {
     mockedGetOktaApps = jest
       .spyOn(pluginsService, 'getPluginConfigOktaApps')
       .mockRejectedValue(
-        new ApiError('invalid filter app-', { status: 400 } as Response)
+        new ApiError({
+          message: 'invalid filter app-',
+          response: { status: 400 } as Response,
+        })
       );
     mockedGetOktaGroups = jest
       .spyOn(pluginsService, 'getPluginConfigOktaGroups')
       .mockRejectedValue(
-        new ApiError('invalid filter group-', { status: 400 } as Response)
+        new ApiError({
+          message: 'invalid filter group-',
+          response: { status: 400 } as Response,
+        })
       );
 
     // Select the first user from dropdown.
