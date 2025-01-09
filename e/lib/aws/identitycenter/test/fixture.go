@@ -230,7 +230,7 @@ func createRoles(t *testing.T, ctx context.Context, roleService services.Access,
 		newRole, err := types.NewRole(r.Name, types.RoleSpecV6{})
 		require.NoError(t, err)
 		if r.WithICOrigin {
-			newRole.SetOrigin(commontypes.OriginAWSIdentityCenter)
+			newRole.SetSubKind(types.KindIdentityCenter)
 		}
 		_, err = roleService.UpsertRole(ctx, newRole)
 		require.NoError(t, err)

@@ -10,13 +10,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
-	RoleSubKindIdentityCenter = "aws_identity_center"
-	roleAccountLabel          = types.TeleportInternalLabelPrefix + "account_id"
+	roleAccountLabel = types.TeleportInternalLabelPrefix + "account_id"
 )
 
 // A note on role keys and roleAccountLabels.
@@ -82,8 +80,7 @@ func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (accountAssi
 		}
 
 		for _, role := range response.Roles {
-			if role.Origin() != common.OriginAWSIdentityCenter ||
-				role.GetSubKind() != RoleSubKindIdentityCenter {
+			if role.GetSubKind() != types.KindIdentityCenter {
 				continue
 			}
 
@@ -134,8 +131,7 @@ func NewAccountAssignmentRole(acct services.IdentityCenterAccount, ps *identityc
 	labels[roleAccountLabel] = acct.Spec.Id
 	role.SetStaticLabels(labels)
 
-	role.SetSubKind(RoleSubKindIdentityCenter)
-	role.SetOrigin(common.OriginAWSIdentityCenter)
+	role.SetSubKind(types.KindIdentityCenter)
 
 	return role.(*types.RoleV6), nil
 }
@@ -217,6 +213,15 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 			OnUpdate:            updateRole,
 			OnDelete:            deleteRole,
 			Logger:              svc.log.With("resource_type", types.KindRole),
+
+			// As part of addressing a backwards compatibility issue, we want the
+			// reconciler to be able to remove the origin value on the IC-created
+			// roles during an update. Previously the origin was set to
+			// [types.OriginAWSIdentityCenter] which Teleports older than v17
+			// reject as an unknown origin.
+			//
+			// See Also: https://github.com/gravitational/teleport/issues/50654
+			AllowOriginChanges: true,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Identity Center Account Assignment role reconciler")

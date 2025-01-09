@@ -175,7 +175,7 @@ func ListICOriginatedRoles(ctx context.Context, service RolesService) ([]*types.
 		}
 
 		for _, role := range response.Roles {
-			if matchByOriginAWSIdentityCenterLabel(role) {
+			if role.GetSubKind() == types.KindIdentityCenter {
 				out = append(out, role)
 			}
 		}
