@@ -1944,7 +1944,7 @@ type autoUpdateConfigCollection struct {
 }
 
 func (c *autoUpdateConfigCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.config)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.config)}
 }
 
 func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error {
@@ -1962,7 +1962,7 @@ type autoUpdateVersionCollection struct {
 }
 
 func (c *autoUpdateVersionCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.version)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.version)}
 }
 
 func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error {
@@ -1980,7 +1980,7 @@ type autoUpdateAgentRolloutCollection struct {
 }
 
 func (c *autoUpdateAgentRolloutCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.rollout)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.rollout)}
 }
 
 func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) error {
