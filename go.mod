@@ -242,7 +242,7 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
-require github.com/xanzy/go-gitlab v0.115.0
+require github.com/xanzy/go-gitlab v0.115.0 // indirect
 
 require (
 	cel.dev/expr v0.19.1 // indirect
