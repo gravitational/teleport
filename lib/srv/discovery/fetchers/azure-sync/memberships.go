@@ -31,8 +31,9 @@ import (
 const parallelism = 10 //nolint:unused // invoked in a dependent PR
 
 func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint:unused // invoked in a dependent PR
-	var eg errgroup.Group
+	eg, _ := errgroup.WithContext(ctx)
 	eg.SetLimit(parallelism)
+	errCh := make(chan error, len(principals))
 	for _, principal := range principals {
 		eg.Go(func() error {
 			err := cli.IterateUserMembership(ctx, principal.Id, func(obj *msgraph.DirectoryObject) bool {
@@ -40,10 +41,18 @@ func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*a
 				return true
 			})
 			if err != nil {
-				return trace.Wrap(err)
+				errCh <- err
 			}
 			return nil
 		})
 	}
-	return principals, eg.Wait()
+	_ = eg.Wait()
+	var errs []error
+	for chErr := range errCh {
+		errs = append(errs, chErr)
+	}
+	if len(errs) > 0 {
+		return nil, trace.NewAggregate(errs...)
+	}
+	return principals, nil
 }
