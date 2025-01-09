@@ -35,7 +35,7 @@ Before you get started, you’ll need:
 ## Step 1/3. Configure Keycloak
 
 ### Create a SAML Client
-1. Select the Realm to be used for your SAML integration, Click **Clients** in the menu.
+1. Select the Realm to be used for your SAML integration. Click **Clients** in the menu.
 
 1. Click **Create client** 
 
@@ -81,8 +81,6 @@ Before you get started, you’ll need:
 
 1. Repeat steps 1 - 6 to add the **User Attribute** mapper
 
-   ![Username attribute mapper](../../../../img/sso/keycloak/attribute_mapping.png)
-
 1. Fill out the values as shown in the image below and **Save**
 
    ![Edit client scope](../../../../img/sso/keycloak/attribute_mapping.png)
@@ -96,7 +94,9 @@ Now, create a SAML connector resource using `tctl`.
 ```code
 $ tctl sso configure saml --name keycloak \
 --entity-descriptor https://<root>/realms/{realm-name}/protocol/saml/descriptor \
---attributes-to-roles groups,devops,dev > keycloak-connector.yaml
+--attributes-to-roles groups,/devops,dev \
+--audience https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak \
+--acs https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak > keycloak-connector.yaml \
 ```
 
 In the example above:
@@ -106,6 +106,8 @@ In the example above:
 - Each `--attributes-to-roles` specifies the name of the schema definition for groups,
   groups, the name of a Keycloak group and the Teleport role that members of the group
   will be assigned.
+  - Keycloak includes an explicit leading `/` in the group name, 
+    which is reflected in the group name speified in the above example.
 
 The file `keycloak-connector.yaml` should now resemble the following:
 
@@ -130,9 +132,15 @@ spec:
   sso: ""
 version: v2
 ```
+ 
 
-With the connector in place on the cluster, you can test it with `tctl`:
+To optionally test the auth connector, temporarily disable the **Client signature required**
+option with the Key tabs. This will be enabled as you proceed through the guide. 
 
+   ![Edit client scope](../../../../img/sso/keycloak/disable_signature.png)
+
+
+With the connector in place on the cluster, you can test it with `tctl`: 
 ```code
 $ cat keycloak-connector.yaml | tctl sso test
 ```
@@ -187,7 +195,7 @@ $ tctl create dev.yaml
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
-## Client Certificate Signature validation (Optional)
+## Client Certificate Signature validation (Recommended)
 
 If you wish to have Keycloak require client signature validation from Teleport,
 you must configure the signing keys by generating or importing keys, 
@@ -212,7 +220,7 @@ Take note of the **name** and the defined **export password**
 as it will be used when importing the cert to Keycloak.
 
 ```code
-$ tctl edit saml
+$ tctl edit saml/keycloak
 ```
 
 You will notice that Teleport has generated a `signing_key_pair`. This key pair
@@ -340,8 +348,8 @@ it results in an invalid requester error as shown in the image below.
 
 ![Import certificate](../../../../img/sso/keycloak/invalid_requester.png)
 
-**Keycloak server logs:** 
-`error=invalid_signature` and `request validation failed: org.keycloak.common.VerificationException: SigAlg was null` error.
+The Keycloak server logs reads the below error:
+`error=invalid_signature` and `request validation failed: org.keycloak.common.VerificationException: SigAlg was null`.
 
 This occurs when Keycloak receives a SAML request that does not meet its signature validation expectations
 which causes Keycloak to fail when attempting to verify the SAML signature.
