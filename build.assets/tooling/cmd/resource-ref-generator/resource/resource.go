@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2023  Gravitational, Inc.
+// Copyright (C) 2025  Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -110,7 +110,7 @@ func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
 	// the resulting docs page know which files to modify.
 	err := afero.Walk(fs, rootPath, func(currentPath string, info gofs.FileInfo, err error) error {
 		if err != nil {
-			return fmt.Errorf("unable to load Go source due to path error: %v", err)
+			return fmt.Errorf("loading Go source: %w", err)
 		}
 
 		if info.IsDir() {
@@ -182,7 +182,7 @@ func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
 		return nil
 	})
 	if err != nil {
-		return SourceData{}, fmt.Errorf("can't load Go source files: %v", err)
+		return SourceData{}, fmt.Errorf("loading Go source files: %w", err)
 	}
 	return SourceData{
 		TypeDecls:         typeDecls,
