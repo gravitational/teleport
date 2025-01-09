@@ -64,7 +64,7 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 		return nil, trace.BadParameter("missing clock")
 	}
 	if reg == nil {
-		reg = prometheus.DefaultRegisterer
+		return nil, trace.BadParameter("missing prometheus.Registerer")
 	}
 
 	if period <= 0 {
