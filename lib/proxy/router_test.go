@@ -133,6 +133,11 @@ func TestRouteScoring(t *testing.T) {
 			hostname: "blue.example.com",
 			addr:     "2.3.4.5:22",
 		},
+		{
+			name:     "not-a-uuid",
+			hostname: "test.example.com",
+			addr:     "3.4.5.6:22",
+		},
 	})
 
 	// scoring behavior is independent of routing strategy so we just
@@ -204,6 +209,11 @@ func TestRouteScoring(t *testing.T) {
 			desc:   "indirect ip resolve",
 			host:   "red.example.com",
 			expect: "blue.example.com",
+		},
+		{
+			desc:   "non-uuid name",
+			host:   "not-a-uuid",
+			expect: "test.example.com",
 		},
 	}
 
@@ -326,6 +336,21 @@ func TestGetServers(t *testing.T) {
 		},
 	})
 
+	servers = append(servers,
+		&types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "agentless-node-1",
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "1.2.3.4:22",
+				Hostname: "agentless-1",
+			},
+		},
+	)
+
 	// ensure tests don't have order-dependence
 	rand.Shuffle(len(servers), func(i, j int) {
 		servers[i], servers[j] = servers[j], servers[i]
@@ -433,15 +458,6 @@ func TestGetServers(t *testing.T) {
 			},
 		},
 		{
-			name:         "failure on invalid addresses",
-			site:         testSite{cfg: &unambiguousCfg, nodes: servers},
-			host:         "lion",
-			errAssertion: require.NoError,
-			serverAssertion: func(t *testing.T, srv types.Server) {
-				require.Empty(t, srv)
-			},
-		},
-		{
 			name:         "case-insensitive match",
 			site:         testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host:         "capybara",
@@ -460,6 +476,17 @@ func TestGetServers(t *testing.T) {
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
+			},
+		},
+		{
+			name:         "agentless match by non-uuid name",
+			site:         testSite{cfg: &unambiguousCfg, nodes: servers},
+			host:         "agentless-node-1",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.Equal(t, "agentless-1", srv.GetHostname())
+				require.True(t, srv.IsOpenSSHNode())
 			},
 		},
 	}
@@ -627,7 +654,7 @@ func TestRouter_DialHost(t *testing.T) {
 		SubKind: types.SubKindOpenSSHNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name: uuid.NewString(),
+			Name: "agentless",
 		},
 		Spec: types.ServerSpecV2{
 			Addr:     "127.0.0.1:9001",
