@@ -39,12 +39,12 @@ import (
 // Ref: [https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in#application-ids-of-commonly-used-microsoft-applications].
 const graphAppID = "00000003-0000-0000-c000-000000000000"
 
-var requiredGraphRoleNames = map[string]bool{
-	"User.ReadBasic.All": true,
-	"Group.Read.All":     true,
-	"Directory.Read.All": true,
-	"User.Read.All":      true,
-	"Policy.Read.All":    true,
+var requiredGraphRoleNames = map[string]struct{}{
+	"User.ReadBasic.All": {},
+	"Group.Read.All":     {},
+	"Directory.Read.All": {},
+	"User.Read.All":      {},
+	"Policy.Read.All":    {},
 }
 
 type AccessGraphAzureConfigureClient interface {
@@ -185,7 +185,7 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 		if err != nil {
 			return trace.Errorf("could not get the graph API service principal: %v", err)
 		}
-		rolesNotAssigned := make(map[string]bool)
+		rolesNotAssigned := make(map[string]struct{})
 		for k, v := range requiredGraphRoleNames {
 			rolesNotAssigned[k] = v
 		}
