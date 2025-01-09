@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type nativeContext struct {
@@ -191,7 +192,7 @@ func TestUserCertCompatibility(t *testing.T) {
 
 	tt := setupNativeContext(context.Background(), t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, _, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -217,23 +218,22 @@ func TestUserCertCompatibility(t *testing.T) {
 	for i, tc := range tests {
 		comment := fmt.Sprintf("Test %v", i)
 
-		userCertificateBytes, err := tt.suite.A.GenerateUserCert(services.UserCertParams{
-			CASigner:      caSigner,
-			PublicUserKey: pub,
-			Username:      "user",
-			AllowedLogins: []string{"centos", "root"},
-			TTL:           time.Hour,
-			Roles:         []string{"foo"},
-			CertificateExtensions: []*types.CertExtension{{
-				Type:  types.CertExtensionType_SSH,
-				Mode:  types.CertExtensionMode_EXTENSION,
-				Name:  "login@github.com",
-				Value: "hello",
+		userCertificateBytes, err := tt.suite.A.GenerateUserCert(sshca.UserCertificateRequest{
+			CASigner:          caSigner,
+			PublicUserKey:     ssh.MarshalAuthorizedKey(caSigner.PublicKey()),
+			TTL:               time.Hour,
+			CertificateFormat: tc.inCompatibility,
+			Identity: sshca.Identity{
+				Username:      "user",
+				AllowedLogins: []string{"centos", "root"},
+				Roles:         []string{"foo"},
+				CertificateExtensions: []*types.CertExtension{{
+					Type:  types.CertExtensionType_SSH,
+					Mode:  types.CertExtensionMode_EXTENSION,
+					Name:  "login@github.com",
+					Value: "hello",
+				}},
 			},
-			},
-			CertificateFormat:     tc.inCompatibility,
-			PermitAgentForwarding: true,
-			PermitPortForwarding:  true,
 		})
 		require.NoError(t, err, comment)
 
