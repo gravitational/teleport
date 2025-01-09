@@ -143,15 +143,19 @@ export function ManualDeploy(props: {
   const { agentMeta, updateAgentMeta, nextStep, emitEvent } = useDiscover();
 
   // Fetches join token.
-  const { joinToken } = useJoinTokenSuspender(
-    [ResourceKind.Database],
-    props.labels
-  );
+  const { joinToken } = useJoinTokenSuspender({
+    resourceKinds: [ResourceKind.Database],
+    suggestedAgentMatcherLabels: props.labels,
+  });
 
   // Starts resource querying interval.
   const { active, result } = usePingTeleport<Database>(agentMeta.resourceName);
 
   const showHint = useShowHint(active);
+
+  useEffect(() => {
+    return () => clearCachedJoinTokenResult([ResourceKind.Database]);
+  }, []);
 
   function handleNextStep() {
     updateAgentMeta({
