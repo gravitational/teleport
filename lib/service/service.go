@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/quic-go/quic-go"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -657,6 +658,15 @@ type TeleportProcess struct {
 	// resolver is used to identify the reverse tunnel address when connecting via
 	// the proxy.
 	resolver reversetunnelclient.Resolver
+
+	// metricRegistry is the prometheus metric registry for the process.
+	// Every teleport service that wants to register metrics should use this
+	// instead of the global prometheus.DefaultRegisterer to avoid registration
+	// conflicts.
+	//
+	// Both the metricsRegistry and the default global registry are gathered by
+	// Telepeort's metric service.
+	metricsRegistry *prometheus.Registry
 }
 
 // processIndex is an internal process index
@@ -1179,6 +1189,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
+		metricsRegistry:        cfg.MetricsRegistry,
 	}
 
 	process.registerExpectedServices(cfg)
@@ -3405,11 +3416,41 @@ func (process *TeleportProcess) initUploaderService() error {
 	return nil
 }
 
+// promHTTPLogAdapter adapts a slog.Logger into a promhttp.Logger.
+type promHTTPLogAdapter struct {
+	*slog.Logger
+}
+
+// Println implements the promhttp.Logger interface.
+func (l promHTTPLogAdapter) Println(v ...interface{}) {
+	l.Error(fmt.Sprint(v...))
+}
+
 // initMetricsService starts the metrics service currently serving metrics for
 // prometheus consumption
 func (process *TeleportProcess) initMetricsService() error {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	gatherers := prometheus.Gatherers{
+		process.metricsRegistry,
+		prometheus.DefaultGatherer,
+	}
+
+	metricsHandler := promhttp.InstrumentMetricHandler(
+		process.metricsRegistry, promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{
+			// Errors can happen if metrics are registered with identical names in both the local and the global registry.
+			// In this case, we log the error but continue collecting metrics. The first collected metric will win
+			// (the one from the local metrics registry takes precedence).
+			// As we move more things to the local registry, especially in other tools like tbot, we will have less
+			// conflicts in tests.
+			ErrorHandling: promhttp.ContinueOnError,
+			ErrorLog:      promHTTPLogAdapter{process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics)},
+		}),
+	)
+
+	mux.Handle("/metrics", metricsHandler)
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentMetrics, process.id))
 
