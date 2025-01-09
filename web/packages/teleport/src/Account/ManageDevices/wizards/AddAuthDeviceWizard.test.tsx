@@ -16,22 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-import React from 'react';
-
-import { within } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
-import TeleportContext from 'teleport/teleportContext';
+import { render, screen } from 'design/utils/testing';
+
 import { ContextProvider } from 'teleport';
-import MfaService from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
-
-import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
-
-import { deviceCases } from './deviceCases';
+import MfaService, { SsoChallenge } from 'teleport/services/mfa';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AddAuthDeviceWizard } from '.';
+import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
 
 const dummyCredential: Credential = { id: 'cred-id', type: 'public-key' };
 let ctx: TeleportContext;
@@ -49,14 +45,6 @@ beforeEach(() => {
   jest
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
-  jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
-  jest
-    .spyOn(auth, 'createPrivilegeTokenWithTotp')
-    .mockImplementationOnce(token =>
-      Promise.resolve(`totp-privilege-token-${token}`)
-    );
   jest.spyOn(auth, 'createMfaRegistrationChallenge').mockResolvedValueOnce({
     qrCode: 'dummy-qr-code',
     webauthnPublicKey: {} as PublicKeyCredentialCreationOptions,
@@ -73,8 +61,7 @@ function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
     <ContextProvider ctx={ctx}>
       <AddAuthDeviceWizard
         usage="passwordless"
-        auth2faType="optional"
-        devices={deviceCases.all}
+        auth2faType="on"
         onClose={() => {}}
         onSuccess={onSuccess}
         {...props}
@@ -84,25 +71,30 @@ function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
 }
 
 describe('flow without reauthentication', () => {
+  beforeEach(() => {
+    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({});
+    jest
+      .spyOn(auth, 'createPrivilegeToken')
+      .mockResolvedValueOnce('privilege-token');
+  });
+
   test('adds a passkey', async () => {
     render(
       <TestWizard usage="passwordless" privilegeToken="privilege-token" />
     );
 
-    const createStep = within(screen.getByTestId('create-step'));
-    await user.click(
-      createStep.getByRole('button', { name: 'Create a passkey' })
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
     expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
       deviceUsage: 'passwordless',
     });
 
-    const saveStep = within(screen.getByTestId('save-step'));
-    await user.type(saveStep.getByLabelText('Passkey Nickname'), 'new-passkey');
-    await user.click(
-      saveStep.getByRole('button', { name: 'Save the Passkey' })
-    );
+    expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
+    await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
       credential: dummyCredential,
       addRequest: {
@@ -117,20 +109,22 @@ describe('flow without reauthentication', () => {
   test('adds a WebAuthn MFA', async () => {
     render(<TestWizard usage="mfa" privilegeToken="privilege-token" />);
 
-    const createStep = within(screen.getByTestId('create-step'));
-    await user.click(createStep.getByLabelText('Hardware Device'));
+    await waitFor(() => {
+      expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByLabelText('Security Key'));
     await user.click(
-      createStep.getByRole('button', { name: 'Create an MFA method' })
+      screen.getByRole('button', { name: 'Create an MFA method' })
     );
     expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
       deviceUsage: 'mfa',
     });
 
-    const saveStep = within(screen.getByTestId('save-step'));
-    await user.type(saveStep.getByLabelText('MFA Method Name'), 'new-mfa');
+    expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('MFA Method Name'), 'new-mfa');
     await user.click(
-      saveStep.getByRole('button', { name: 'Save the MFA method' })
+      screen.getByRole('button', { name: 'Save the MFA method' })
     );
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
       credential: dummyCredential,
@@ -146,21 +140,24 @@ describe('flow without reauthentication', () => {
   test('adds an authenticator app', async () => {
     render(<TestWizard usage="mfa" privilegeToken="privilege-token" />);
 
-    const createStep = within(screen.getByTestId('create-step'));
-    await user.click(createStep.getByLabelText('Authenticator App'));
-    expect(createStep.getByRole('img')).toHaveAttribute(
+    await waitFor(() => {
+      expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByLabelText('Authenticator App'));
+    expect(screen.getByRole('img')).toHaveAttribute(
       'src',
       'data:image/png;base64,dummy-qr-code'
     );
     await user.click(
-      createStep.getByRole('button', { name: 'Create an MFA method' })
+      screen.getByRole('button', { name: 'Create an MFA method' })
     );
 
-    const saveStep = within(screen.getByTestId('save-step'));
-    await user.type(saveStep.getByLabelText('MFA Method Name'), 'new-mfa');
-    await user.type(saveStep.getByLabelText(/Authenticator Code/), '345678');
+    expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('MFA Method Name'), 'new-mfa');
+    await user.type(screen.getByLabelText(/Authenticator Code/), '345678');
     await user.click(
-      saveStep.getByRole('button', { name: 'Save the MFA method' })
+      screen.getByRole('button', { name: 'Save the MFA method' })
     );
     expect(ctx.mfaService.addNewTotpDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
@@ -172,34 +169,54 @@ describe('flow without reauthentication', () => {
 });
 
 describe('flow with reauthentication', () => {
+  const dummyMfaChallenge = {
+    totpChallenge: true,
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    ssoChallenge: {} as SsoChallenge,
+  };
+
+  beforeEach(() => {
+    jest
+      .spyOn(auth, 'getMfaChallenge')
+      .mockResolvedValueOnce(dummyMfaChallenge);
+    jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+    jest
+      .spyOn(auth, 'createPrivilegeToken')
+      .mockResolvedValueOnce('privilege-token');
+  });
+
   test('adds a passkey with WebAuthn reauthentication', async () => {
     render(<TestWizard usage="passwordless" />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
-    await user.click(reauthenticateStep.getByText('Verify my identity'));
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+    });
 
-    const createStep = within(screen.getByTestId('create-step'));
-    await user.click(
-      createStep.getByRole('button', { name: 'Create a passkey' })
+    await user.click(screen.getByText('Verify my identity'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+      dummyMfaChallenge,
+      'webauthn',
+      ''
     );
     expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
-      tokenId: 'webauthn-privilege-token',
+      tokenId: 'privilege-token',
       deviceUsage: 'passwordless',
     });
 
-    const saveStep = within(screen.getByTestId('save-step'));
-    await user.type(saveStep.getByLabelText('Passkey Nickname'), 'new-passkey');
-    await user.click(
-      saveStep.getByRole('button', { name: 'Save the Passkey' })
-    );
+    expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
+    await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
       credential: dummyCredential,
       addRequest: {
         deviceName: 'new-passkey',
         deviceUsage: 'passwordless',
-        tokenId: 'webauthn-privilege-token',
+        tokenId: 'privilege-token',
       },
     });
     expect(onSuccess).toHaveBeenCalled();
@@ -208,90 +225,85 @@ describe('flow with reauthentication', () => {
   test('adds a passkey with OTP reauthentication', async () => {
     render(<TestWizard usage="passwordless" />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
-    await user.click(reauthenticateStep.getByText('Authenticator App'));
-    await user.type(
-      reauthenticateStep.getByLabelText('Authenticator Code'),
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Authenticator App'));
+    await user.type(screen.getByLabelText('Authenticator Code'), '654987');
+    await user.click(screen.getByText('Verify my identity'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+      dummyMfaChallenge,
+      'totp',
       '654987'
     );
-    await user.click(reauthenticateStep.getByText('Verify my identity'));
-
-    const createStep = within(screen.getByTestId('create-step'));
-    await user.click(
-      createStep.getByRole('button', { name: 'Create a passkey' })
-    );
     expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
-      tokenId: 'totp-privilege-token-654987',
+      tokenId: 'privilege-token',
       deviceUsage: 'passwordless',
     });
 
-    const saveStep = within(screen.getByTestId('save-step'));
-    await user.type(saveStep.getByLabelText('Passkey Nickname'), 'new-passkey');
-    await user.click(
-      saveStep.getByRole('button', { name: 'Save the Passkey' })
-    );
+    expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
+    await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
       credential: dummyCredential,
       addRequest: {
         deviceName: 'new-passkey',
         deviceUsage: 'passwordless',
-        tokenId: 'totp-privilege-token-654987',
+        tokenId: 'privilege-token',
       },
     });
     expect(onSuccess).toHaveBeenCalled();
   });
 
-  test('shows all authentication options', async () => {
-    render(
-      <TestWizard usage="mfa" auth2faType="on" devices={deviceCases.all} />
-    );
+  test('adds a passkey with SSO reauthentication', async () => {
+    render(<TestWizard usage="passwordless" />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('SSO'));
+    await user.click(screen.getByText('Verify my identity'));
+
+    expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+      dummyMfaChallenge,
+      'sso',
+      ''
     );
-    expect(
-      reauthenticateStep.queryByLabelText(/passkey or security key/i)
-    ).toBeVisible();
-    expect(
-      reauthenticateStep.queryByLabelText(/authenticator app/i)
-    ).toBeVisible();
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
+      tokenId: 'privilege-token',
+      deviceUsage: 'passwordless',
+    });
+
+    expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
+    await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
+    expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
+      credential: dummyCredential,
+      addRequest: {
+        deviceName: 'new-passkey',
+        deviceUsage: 'passwordless',
+        tokenId: 'privilege-token',
+      },
+    });
+    expect(onSuccess).toHaveBeenCalled();
   });
 
-  test('limits authentication options to devices owned', async () => {
-    render(
-      <TestWizard usage="mfa" auth2faType="on" devices={deviceCases.authApps} />
-    );
+  test('shows reauthentication options', async () => {
+    render(<TestWizard usage="mfa" />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
-    expect(
-      reauthenticateStep.queryByLabelText(/passkey or security key/i)
-    ).not.toBeInTheDocument();
-    expect(
-      reauthenticateStep.queryByLabelText(/authenticator app/i)
-    ).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText(/passkey or security key/i)).toBeVisible();
+    expect(screen.queryByLabelText(/authenticator app/i)).toBeVisible();
   });
-
-  test.each`
-    auth2faType   | deviceCase      | error
-    ${'otp'}      | ${'mfaDevices'} | ${/authenticator app is required/i}
-    ${'webauthn'} | ${'authApps'}   | ${/passkey or security key is required/i}
-    ${'on'}       | ${'none'}       | ${/identity verification is required/i}
-  `(
-    'shows an error if no way to authenticate for MFA type "$auth2faType"',
-    async ({ auth2faType, deviceCase, error }) => {
-      render(
-        <TestWizard
-          usage="mfa"
-          auth2faType={auth2faType}
-          devices={deviceCases[deviceCase]}
-        />
-      );
-
-      expect(screen.getByText(error)).toBeVisible();
-    }
-  );
 });

@@ -197,6 +197,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AccessListMemberUpdateEvent:                 &apievents.AccessListMemberUpdate{},
 	AccessListMemberDeleteEvent:                 &apievents.AccessListMemberDelete{},
 	AccessListMemberDeleteAllForAccessListEvent: &apievents.AccessListMemberDeleteAllForAccessList{},
+	UserLoginAccessListInvalidEvent:             &apievents.UserLoginAccessListInvalid{},
 	SecReportsAuditQueryRunEvent:                &apievents.AuditQueryRun{},
 	SecReportsReportRunEvent:                    &apievents.SecurityReportRun{},
 	ExternalAuditStorageEnableEvent:             &apievents.ExternalAuditStorageEnable{},
@@ -242,6 +243,12 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AutoUpdateVersionCreateEvent:                &apievents.AutoUpdateVersionCreate{},
 	AutoUpdateVersionUpdateEvent:                &apievents.AutoUpdateVersionUpdate{},
 	AutoUpdateVersionDeleteEvent:                &apievents.AutoUpdateVersionDelete{},
+	ContactCreateEvent:                          &apievents.ContactCreate{},
+	ContactDeleteEvent:                          &apievents.ContactDelete{},
+	WorkloadIdentityCreateEvent:                 &apievents.WorkloadIdentityCreate{},
+	WorkloadIdentityUpdateEvent:                 &apievents.WorkloadIdentityUpdate{},
+	WorkloadIdentityDeleteEvent:                 &apievents.WorkloadIdentityDelete{},
+	AccessRequestExpireEvent:                    &apievents.AccessRequestExpire{},
 }
 
 // TestJSON tests JSON marshal events

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -31,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -414,7 +414,7 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]*servicecfg.FileDescr
 }
 
 // importFileDescriptors imports file descriptors from environment if there are any
-func importFileDescriptors(log logrus.FieldLogger) ([]*servicecfg.FileDescriptor, error) {
+func importFileDescriptors(log *slog.Logger) ([]*servicecfg.FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
 	os.Unsetenv(teleportFilesEnvVar)
@@ -428,7 +428,7 @@ func importFileDescriptors(log logrus.FieldLogger) ([]*servicecfg.FileDescriptor
 	}
 
 	if len(files) != 0 {
-		log.Infof("Child has been passed files: %v", files)
+		log.InfoContext(context.Background(), "Child has been passed files", "file_descriptors", files)
 	}
 
 	return files, nil

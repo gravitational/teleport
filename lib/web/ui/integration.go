@@ -101,6 +101,31 @@ type ResourceTypeSummary struct {
 	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
 }
 
+// IntegrationDiscoveryRule describes a discovery rule associated with an integration.
+type IntegrationDiscoveryRule struct {
+	// ResourceType indicates the type of resource that this rule targets.
+	// This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+	// Example: ec2, rds, eks
+	ResourceType string `json:"resourceType,omitempty"`
+	// Region where this rule applies to.
+	Region string `json:"region,omitempty"`
+	// LabelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
+	LabelMatcher []ui.Label `json:"labelMatcher,omitempty"`
+	// DiscoveryConfig is the name of the DiscoveryConfig that created this rule.
+	DiscoveryConfig string `json:"discoveryConfig,omitempty"`
+	// LastSync contains the time when this rule was used.
+	// If empty, it indicates that the rule is not being used.
+	LastSync *time.Time `json:"lastSync,omitempty"`
+}
+
+// IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
+type IntegrationDiscoveryRules struct {
+	// Rules is the list of integration rules.
+	Rules []IntegrationDiscoveryRule `json:"rules"`
+	// NextKey is the position to resume listing rules.
+	NextKey string `json:"nextKey,omitempty"`
+}
+
 // Integration describes Integration fields
 type Integration struct {
 	// Name is the Integration name.
@@ -346,6 +371,26 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 	ClusterDashboardURL string `json:"clusterDashboardUrl"`
 }
 
+// AWSOIDCDeployedDatabaseService represents a Teleport Database Service that is deployed in Amazon ECS.
+type AWSOIDCDeployedDatabaseService struct {
+	// Name is the ECS Service name.
+	Name string `json:"name,omitempty"`
+	// DashboardURL is the link to the ECS Service in Amazon Web Console.
+	DashboardURL string `json:"dashboardUrl,omitempty"`
+	// ValidTeleportConfig returns whether this ECS Service has a valid Teleport Configuration for a deployed Database Service.
+	// ECS Services with non-valid configuration require the user to take action on them.
+	// No MatchingLabels are returned with an invalid configuration.
+	ValidTeleportConfig bool `json:"validTeleportConfig,omitempty"`
+	// MatchingLabels are the labels that are used by the Teleport Database Service to know which databases it should proxy.
+	MatchingLabels []ui.Label `json:"matchingLabels,omitempty"`
+}
+
+// AWSOIDCListDeployedDatabaseServiceResponse is a list of Teleport Database Services that are deployed as ECS Services.
+type AWSOIDCListDeployedDatabaseServiceResponse struct {
+	// Services are the ECS Services.
+	Services []AWSOIDCDeployedDatabaseService `json:"services"`
+}
+
 // AWSOIDCEnrollEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
 type AWSOIDCEnrollEKSClustersRequest struct {
 	// Region is the AWS Region.
@@ -354,6 +399,8 @@ type AWSOIDCEnrollEKSClustersRequest struct {
 	ClusterNames []string `json:"clusterNames"`
 	// EnableAppDiscovery specifies if Teleport Kubernetes App discovery should be enabled inside enrolled clusters.
 	EnableAppDiscovery bool `json:"enableAppDiscovery"`
+	// ExtraLabels added to the enrolled clusters.
+	ExtraLabels []ui.Label `json:"extraLabels"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.

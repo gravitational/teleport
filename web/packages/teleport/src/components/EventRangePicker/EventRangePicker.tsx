@@ -16,17 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { components, ValueContainerProps } from 'react-select';
-import 'react-day-picker/dist/style.css';
-import { Text, Box } from 'design';
-import Dialog from 'design/DialogConfirmation';
-import { displayDate } from 'design/datetime';
-import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
-import Select, { Option } from 'shared/components/Select';
+import 'react-day-picker/dist/style.css';
 
 import styled from 'styled-components';
+
+import { Box, Text } from 'design';
+import { displayDate } from 'design/datetime';
+import Dialog from 'design/DialogConfirmation';
+import Select, { Option } from 'shared/components/Select';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import { State } from 'teleport/Audit/useAuditEvents';
 

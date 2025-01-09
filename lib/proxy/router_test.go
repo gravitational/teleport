@@ -133,6 +133,11 @@ func TestRouteScoring(t *testing.T) {
 			hostname: "blue.example.com",
 			addr:     "2.3.4.5:22",
 		},
+		{
+			name:     "not-a-uuid",
+			hostname: "test.example.com",
+			addr:     "3.4.5.6:22",
+		},
 	})
 
 	// scoring behavior is independent of routing strategy so we just
@@ -205,13 +210,18 @@ func TestRouteScoring(t *testing.T) {
 			host:   "red.example.com",
 			expect: "blue.example.com",
 		},
+		{
+			desc:   "non-uuid name",
+			host:   "not-a-uuid",
+			expect: "test.example.com",
+		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
 			srv, err := getServerWithResolver(ctx, tt.host, tt.port, site, resolver)
 			if tt.ambiguous {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 				return
 			}
 			require.Equal(t, tt.expect, srv.GetHostname())
@@ -326,6 +336,21 @@ func TestGetServers(t *testing.T) {
 		},
 	})
 
+	servers = append(servers,
+		&types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "agentless-node-1",
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "1.2.3.4:22",
+				Hostname: "agentless-1",
+			},
+		},
+	)
+
 	// ensure tests don't have order-dependence
 	rand.Shuffle(len(servers), func(i, j int) {
 		servers[i], servers[j] = servers[j], servers[i]
@@ -375,7 +400,7 @@ func TestGetServers(t *testing.T) {
 			site: testSite{cfg: &unambiguousCfg, nodes: servers},
 			host: "sheep",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
@@ -433,15 +458,6 @@ func TestGetServers(t *testing.T) {
 			},
 		},
 		{
-			name:         "failure on invalid addresses",
-			site:         testSite{cfg: &unambiguousCfg, nodes: servers},
-			host:         "lion",
-			errAssertion: require.NoError,
-			serverAssertion: func(t *testing.T, srv types.Server) {
-				require.Empty(t, srv)
-			},
-		},
-		{
 			name:         "case-insensitive match",
 			site:         testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host:         "capybara",
@@ -456,10 +472,21 @@ func TestGetServers(t *testing.T) {
 			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host: "platypus",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
+			},
+		},
+		{
+			name:         "agentless match by non-uuid name",
+			site:         testSite{cfg: &unambiguousCfg, nodes: servers},
+			host:         "agentless-node-1",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.Equal(t, "agentless-1", srv.GetHostname())
+				require.True(t, srv.IsOpenSSHNode())
 			},
 		},
 	}
@@ -609,8 +636,6 @@ type fakeConn struct {
 func TestRouter_DialHost(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test")
-
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -627,7 +652,7 @@ func TestRouter_DialHost(t *testing.T) {
 		SubKind: types.SubKindOpenSSHNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name: uuid.NewString(),
+			Name: "agentless",
 		},
 		Spec: types.ServerSpecV2{
 			Addr:     "127.0.0.1:9001",
@@ -668,9 +693,8 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "failure resolving node",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				tracer:         tracing.NoopTracer("test"),
-				serverResolver: serverResolver(nil, trace.NotFound(teleport.NodeIsAmbiguous)),
+				serverResolver: serverResolver(nil, teleport.ErrNodeIsAmbiguous),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -682,7 +706,6 @@ func TestRouter_DialHost(t *testing.T) {
 			router: Router{
 				clusterName: "leaf",
 				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
-				log:         logger,
 				tracer:      tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
@@ -695,7 +718,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial failure",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
@@ -710,7 +732,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
@@ -727,7 +748,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
@@ -746,7 +766,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
@@ -783,7 +802,6 @@ func TestRouter_DialSite(t *testing.T) {
 	t.Parallel()
 
 	const cluster = "test"
-	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, cluster)
 
 	cases := []struct {
 		name      string
@@ -863,7 +881,6 @@ func TestRouter_DialSite(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			router := Router{
 				clusterName: cluster,
-				log:         logger,
 				localSite:   &tt.localSite,
 				siteGetter:  tt.tunnel,
 				tracer:      tracing.NoopTracer(cluster),

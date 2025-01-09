@@ -16,29 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-
-import {
-  useAsync,
-  Attempt,
-  makeEmptyAttempt,
-  makeProcessingAttempt,
-  makeErrorAttempt,
-  makeSuccessAttempt,
-  mapAttempt,
-  CanceledError,
-  hasFinished,
-} from 'shared/hooks/useAsync';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { UnifiedResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import {
+  Attempt,
+  CanceledError,
+  hasFinished,
+  makeEmptyAttempt,
+  makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
+  mapAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-
-import { routing, ClusterUri } from 'teleterm/ui/uri';
-
-import { UserPreferences } from 'teleterm/services/tshd/types';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { UserPreferences } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { ClusterUri, routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferencesAttempt: Attempt<void>;

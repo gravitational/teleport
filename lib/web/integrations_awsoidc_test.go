@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -31,13 +32,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/services"
+	libui "github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -967,8 +973,6 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := newWebPack(t, 1)
-	clt := env.proxies[0].client
 
 	rdsVPC1 := mustCreateRDS(t, types.RDS{
 		VPCID:   "vpc-1",
@@ -987,11 +991,18 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 
 	rdss := []*types.DatabaseV3{rdsVPC1, rdsVPC1a, rdsVPC2}
 
-	resp, err := awsOIDCRequiredVPCSHelper(ctx, clt, ui.AWSOIDCRequiredVPCSRequest{Region: "us-east-1"}, rdss)
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, &mockGetResources{}, ui.AWSOIDCRequiredVPCSRequest{Region: "us-east-1"}, rdss)
 	require.NoError(t, err)
 	require.Len(t, resp.VPCMapOfSubnets, 2)
 	require.ElementsMatch(t, []string{"subnet1", "subnet2", "subnet3", "subnet4"}, resp.VPCMapOfSubnets["vpc-1"])
 	require.ElementsMatch(t, []string{"subnet8"}, resp.VPCMapOfSubnets["vpc-2"])
+}
+
+type mockGetResources struct {
+}
+
+func (m *mockGetResources) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	return &proto.ListResourcesResponse{}, nil
 }
 
 func mustCreateRDS(t *testing.T, awsRDS types.RDS) *types.DatabaseV3 {
@@ -1067,7 +1078,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
 		Name: "my-integration",
 	}, &types.AWSOIDCIntegrationSpecV1{
-		RoleARN: "some-arn-role",
+		RoleARN: "arn:aws:iam::123456789012:role/teleport",
 	})
 	require.NoError(t, err)
 
@@ -1094,7 +1105,8 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		Kind:    types.KindAppServer,
 		Version: types.V3,
 		Metadata: types.Metadata{
-			Name: "my-integration",
+			Name:   "my-integration",
+			Labels: map[string]string{"aws_account_id": "123456789012"},
 		},
 		Spec: types.AppServerSpecV3{
 			Version: api.Version,
@@ -1103,7 +1115,8 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 				Kind:    types.KindApp,
 				Version: types.V3,
 				Metadata: types.Metadata{
-					Name: "my-integration",
+					Name:   "my-integration",
+					Labels: map[string]string{"aws_account_id": "123456789012"},
 				},
 				Spec: types.AppSpecV3{
 					URI:         "https://console.aws.amazon.com",
@@ -1133,7 +1146,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		myIntegrationWithAccountID, err := types.NewIntegrationAWSOIDC(types.Metadata{
 			Name: "123456789012",
 		}, &types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "some-arn-role",
+			RoleARN: "arn:aws:iam::123456789012:role/teleport",
 		})
 		require.NoError(t, err)
 
@@ -1143,4 +1156,332 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.NoError(t, err)
 	})
+}
+
+type mockDeployedDatabaseServices struct {
+	integration       string
+	servicesPerRegion map[string][]*integrationv1.DeployedDatabaseService
+}
+
+func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.Context, in *integrationv1.ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*integrationv1.ListDeployedDatabaseServicesResponse, error) {
+	const pageSize = 10
+	ret := &integrationv1.ListDeployedDatabaseServicesResponse{}
+	if in.Integration != m.integration {
+		return ret, nil
+	}
+
+	services := m.servicesPerRegion[in.Region]
+	if len(services) == 0 {
+		return ret, nil
+	}
+
+	requestedPage := 1
+	totalResources := len(services)
+
+	if in.NextToken != "" {
+		currentMarker, err := strconv.Atoi(in.NextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		requestedPage = currentMarker
+	}
+
+	sliceStart := pageSize * (requestedPage - 1)
+	sliceEnd := pageSize * requestedPage
+	if sliceEnd > totalResources {
+		sliceEnd = totalResources
+	}
+
+	ret.DeployedDatabaseServices = services[sliceStart:sliceEnd]
+	if sliceEnd < totalResources {
+		ret.NextToken = strconv.Itoa(requestedPage + 1)
+	}
+
+	return ret, nil
+}
+
+func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
+	ctx := context.Background()
+	logger := utils.NewSlogLoggerForTests()
+
+	for _, tt := range []struct {
+		name              string
+		integration       string
+		regions           []string
+		servicesPerRegion func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService
+		expectedServices  func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService
+	}{
+		{
+			name:        "valid",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-2": dummyDeployedDatabaseServices(1, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				return []ui.AWSOIDCDeployedDatabaseService{{
+					Name:                "database-service-vpc-0",
+					DashboardURL:        "url",
+					ValidTeleportConfig: true,
+					MatchingLabels: []libui.Label{
+						{Name: "vpc", Value: "vpc1"},
+						{Name: "vpc", Value: "vpc2"},
+					},
+				}}
+			},
+		},
+		{
+			name:        "no regions",
+			integration: "my-integration",
+			regions:     []string{},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				return make(map[string][]*integrationv1.DeployedDatabaseService)
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService { return nil },
+		},
+		{
+			name:        "no services",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				return make(map[string][]*integrationv1.DeployedDatabaseService)
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService { return nil },
+		},
+		{
+			name:        "services exist but for another region",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-1": dummyDeployedDatabaseServices(1, []string{}),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService { return nil },
+		},
+		{
+			name:        "services exist for multiple regions",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-1": dummyDeployedDatabaseServices(1, command),
+					"us-west-2": dummyDeployedDatabaseServices(1, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				return []ui.AWSOIDCDeployedDatabaseService{{
+					Name:                "database-service-vpc-0",
+					DashboardURL:        "url",
+					ValidTeleportConfig: true,
+					MatchingLabels: []libui.Label{
+						{Name: "vpc", Value: "vpc1"},
+						{Name: "vpc", Value: "vpc2"},
+					},
+				}}
+			},
+		},
+		{
+			name:        "service exist but has invalid configuration",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, false, nil)
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-2": dummyDeployedDatabaseServices(1, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				return []ui.AWSOIDCDeployedDatabaseService{{
+					Name:                "database-service-vpc-0",
+					DashboardURL:        "url",
+					ValidTeleportConfig: false,
+				}}
+			},
+		},
+		{
+			name:        "service exist but was changed and --config-string argument is missing",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+				command = command[:len(command)-1]
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-2": dummyDeployedDatabaseServices(1, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				return []ui.AWSOIDCDeployedDatabaseService{{
+					Name:                "database-service-vpc-0",
+					DashboardURL:        "url",
+					ValidTeleportConfig: false,
+				}}
+			},
+		},
+		{
+			name:        "service exist but was changed and --config-string flag is missing",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+				command[1] = "--no-config-string"
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-2": dummyDeployedDatabaseServices(1, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				return []ui.AWSOIDCDeployedDatabaseService{{
+					Name:                "database-service-vpc-0",
+					DashboardURL:        "url",
+					ValidTeleportConfig: false,
+				}}
+			},
+		},
+		{
+			name:        "supports pagination",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-2": dummyDeployedDatabaseServices(1_024, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				var ret []ui.AWSOIDCDeployedDatabaseService
+				for i := 0; i < 1_024; i++ {
+					ret = append(ret, ui.AWSOIDCDeployedDatabaseService{
+						Name:                fmt.Sprintf("database-service-vpc-%d", i),
+						DashboardURL:        "url",
+						ValidTeleportConfig: true,
+						MatchingLabels: []libui.Label{
+							{Name: "vpc", Value: "vpc1"},
+							{Name: "vpc", Value: "vpc2"},
+						},
+					})
+				}
+				return ret
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clt := &mockDeployedDatabaseServices{
+				integration:       tt.integration,
+				servicesPerRegion: tt.servicesPerRegion(t),
+			}
+			actual, err := listDeployedDatabaseServices(ctx, logger, tt.integration, tt.regions, clt)
+			require.NoError(t, err)
+			expected := tt.expectedServices(t)
+			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+func buildCommandDeployedDatabaseService(t *testing.T, valid bool, matchingLabels types.Labels) []string {
+	t.Helper()
+	if !valid {
+		return []string{"not valid"}
+	}
+
+	ret, err := deployserviceconfig.GenerateTeleportConfigString("host", "token", matchingLabels)
+	require.NoError(t, err)
+
+	return []string{"start", "--config-string", ret}
+}
+
+func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1.DeployedDatabaseService {
+	var ret []*integrationv1.DeployedDatabaseService
+	for i := 0; i < count; i++ {
+		ret = append(ret, &integrationv1.DeployedDatabaseService{
+			Name:                fmt.Sprintf("database-service-vpc-%d", i),
+			ServiceDashboardUrl: "url",
+			ContainerEntryPoint: []string{"teleport"},
+			ContainerCommand:    command,
+		})
+	}
+	return ret
+}
+
+func TestFetchRelevantAWSRegions(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("resources do not provide any region", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		gotRegions, err := fetchRelevantAWSRegions(ctx, clt, clt)
+		require.NoError(t, err)
+		require.Empty(t, gotRegions)
+	})
+
+	t.Run("resources provide multiple regions", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"us-east-1"}}},
+							{Labels: &types.Labels{"region": []string{"us-east-2"}}},
+						},
+					}},
+				}}},
+			},
+			databases: []types.Database{
+				&types.DatabaseV3{Spec: types.DatabaseSpecV3{AWS: types.AWS{Region: "us-west-1"}}},
+				&types.DatabaseV3{Metadata: types.Metadata{Labels: map[string]string{"region": "us-west-2"}}},
+			},
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{{
+				Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+					Regions: []string{"eu-west-1", "eu-west-2"},
+				}}},
+			}},
+		}
+		gotRegions, err := fetchRelevantAWSRegions(ctx, clt, clt)
+		require.NoError(t, err)
+		expectedRegions := []string{"us-east-1", "us-east-2", "us-west-1", "us-west-2", "eu-west-1", "eu-west-2"}
+		require.ElementsMatch(t, expectedRegions, gotRegions)
+	})
+
+	t.Run("invalid regions are ignored", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{},
+			},
+			databases: []types.Database{
+				&types.DatabaseV3{Spec: types.DatabaseSpecV3{AWS: types.AWS{Region: "us-west-1"}}},
+				&types.DatabaseV3{Metadata: types.Metadata{Labels: map[string]string{"region": "bad-region"}}},
+			},
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		gotRegions, err := fetchRelevantAWSRegions(ctx, clt, clt)
+		require.NoError(t, err)
+		expectedRegions := []string{"us-west-1"}
+		require.ElementsMatch(t, expectedRegions, gotRegions)
+	})
+}
+
+type mockRelevantAWSRegionsClient struct {
+	databaseServices *proto.ListResourcesResponse
+	databases        []types.Database
+	discoveryConfigs []*discoveryconfig.DiscoveryConfig
+}
+
+func (m *mockRelevantAWSRegionsClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	return m.databaseServices, nil
+}
+
+func (m *mockRelevantAWSRegionsClient) GetDatabases(context.Context) ([]types.Database, error) {
+	return m.databases, nil
+}
+
+func (m *mockRelevantAWSRegionsClient) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	return m.discoveryConfigs, "", nil
 }

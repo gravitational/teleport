@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function AlarmRing({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const AlarmRing = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-alarmring"
       {...otherProps}
+      ref={ref}
     >
       <path d="M5.78033 2.78033C6.07322 2.48744 6.07322 2.01256 5.78033 1.71967C5.48744 1.42678 5.01256 1.42678 4.71967 1.71967L1.71967 4.71967C1.42678 5.01256 1.42678 5.48744 1.71967 5.78033C2.01256 6.07322 2.48744 6.07322 2.78033 5.78033L5.78033 2.78033Z" />
       <path d="M12.75 6.75C12.75 6.33579 12.4142 6 12 6C11.5858 6 11.25 6.33579 11.25 6.75V12C11.25 12.4142 11.5858 12.75 12 12.75H17.25C17.6642 12.75 18 12.4142 18 12C18 11.5858 17.6642 11.25 17.25 11.25H12.75V6.75Z" />
@@ -67,5 +68,5 @@ export function AlarmRing({ size = 24, color, ...otherProps }: IconProps) {
       />
       <path d="M18.2197 1.71967C18.5126 1.42678 18.9874 1.42678 19.2803 1.71967L22.2803 4.71967C22.5732 5.01256 22.5732 5.48744 22.2803 5.78033C21.9874 6.07322 21.5126 6.07322 21.2197 5.78033L18.2197 2.78033C17.9268 2.48744 17.9268 2.01256 18.2197 1.71967Z" />
     </Icon>
-  );
-}
+  )
+);

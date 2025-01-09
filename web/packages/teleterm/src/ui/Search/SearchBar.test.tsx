@@ -16,32 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import userEvent from '@testing-library/user-event';
-import { render, screen, waitFor, act } from 'design/utils/testing';
+
+import { act, render, screen, waitFor } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import ModalsHost from 'teleterm/ui/ModalsHost';
 import {
-  makeRootCluster,
   makeRetryableError,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import ModalsHost from 'teleterm/ui/ModalsHost';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { ClusterUri } from 'teleterm/ui/uri';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { SearchAction } from './actions';
-
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
-import * as useSearch from './useSearch';
-import * as SearchContext from './SearchContext';
-
 import { SearchBarConnected } from './SearchBar';
+import * as SearchContext from './SearchContext';
+import * as useSearch from './useSearch';
 
 beforeAll(() => {
   Logger.init(new NullService());

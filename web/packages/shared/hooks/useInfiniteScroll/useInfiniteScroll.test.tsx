@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { renderHook, act } from '@testing-library/react';
-import { render, screen } from 'design/utils/testing';
+import { act, renderHook } from '@testing-library/react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+
+import { render, screen } from 'design/utils/testing';
 
 import { useInfiniteScroll } from './useInfiniteScroll';
 

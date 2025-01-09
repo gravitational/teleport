@@ -2,6 +2,14 @@
   "language": "en",
   "version": "0.2",
   "words": [
+    "aada",
+    "abee",
+    "fffc",
+    "fabfc",
+    "microservices",
+    "configmaps",
+    "genrsa",
+    "displayname",
     "AADUSER",
     "ABCDEFGHIJKL",
     "ADFS",
@@ -59,7 +67,6 @@
     "Elastcsearch",
     "Elasticvue",
     "Entra",
-    "entraid",
     "Exadata",
     "Exfiltrate",
     "Exrch",
@@ -457,6 +464,7 @@
     "enablerepo",
     "enterappname",
     "entityandreplyurl",
+    "entraid",
     "envfile",
     "enzos",
     "errcode",
@@ -602,6 +610,7 @@
     "lmnop",
     "loadbalancer",
     "localca",
+    "localinstall",
     "loginerrortroubleshooting",
     "loginrule",
     "loginrules",
@@ -795,6 +804,7 @@
     "relogged",
     "remotefx",
     "removelock",
+    "removerepo",
     "replaceall",
     "replicaset",
     "replicationgroup",
@@ -1014,9 +1024,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ],
+  "flagWords": ["hte"],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**"

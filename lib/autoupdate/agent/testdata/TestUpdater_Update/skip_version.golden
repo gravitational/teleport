@@ -6,6 +6,9 @@ spec:
     enabled: true
     pinned: false
 status:
-    active_version: old-version
-    backup_version: backup-version
-    skip_version: 16.3.0
+    active:
+        version: old-version
+    backup:
+        version: backup-version
+    skip:
+        version: 16.3.0

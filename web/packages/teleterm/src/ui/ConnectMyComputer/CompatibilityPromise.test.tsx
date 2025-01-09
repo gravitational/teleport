@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { screen } from '@testing-library/react';
+
 import { render } from 'design/utils/testing';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 
 import {
   checkAgentCompatibility,

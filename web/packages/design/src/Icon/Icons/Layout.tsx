@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,18 +50,19 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Layout({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Layout = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-layout"
       {...otherProps}
+      ref={ref}
     >
       <path
         d="M3.34 3.814a1.459 1.459 0 0 0-.666.413c-.226.235-.333.44-.39.752-.063.338-.062 13.774.001 14.069.113.535.516.979 1.029 1.135.279.084 17.093.084 17.372 0 .525-.16.929-.615 1.03-1.162.062-.331.062-13.711 0-14.042a1.366 1.366 0 0 0-.423-.784 1.511 1.511 0 0 0-.673-.393c-.239-.062-17.065-.05-17.28.012m16.9 3.306V9H3.76V5.24h16.48v1.88M9 14.64v4.12H3.76v-8.24H9v4.12m11.24 0v4.12h-9.72v-8.24h9.72v4.12"
         fillRule="evenodd"
       />
     </Icon>
-  );
-}
+  )
+);

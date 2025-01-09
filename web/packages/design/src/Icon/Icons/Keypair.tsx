@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Keypair({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Keypair = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-keypair"
       {...otherProps}
+      ref={ref}
     >
       <path d="M16.5 6C15.6716 6 15 6.67157 15 7.5C15 8.32843 15.6716 9 16.5 9C17.3284 9 18 8.32843 18 7.5C18 6.67157 17.3284 6 16.5 6Z" />
       <path
@@ -71,5 +72,5 @@ export function Keypair({ size = 24, color, ...otherProps }: IconProps) {
         d="M13.5 20V18.75H10.398C9.61991 20.0951 8.16564 21 6.5 21C4.01472 21 2 18.9853 2 16.5C2 14.0147 4.01472 12 6.5 12C8.16564 12 9.61991 12.9049 10.398 14.25H19.5C20.3284 14.25 21 14.9216 21 15.75V17.25C21 18.0784 20.3284 18.75 19.5 18.75H18V20C18 20.8284 17.3284 21.5 16.5 21.5H15C14.1716 21.5 13.5 20.8284 13.5 20ZM9.09957 15.0011L9.53279 15.75H19.5V17.25H16.5V20H15V17.25H9.53279L9.09957 17.9989C8.57859 18.8995 7.60853 19.5 6.5 19.5C4.84315 19.5 3.5 18.1569 3.5 16.5C3.5 14.8431 4.84315 13.5 6.5 13.5C7.60853 13.5 8.57859 14.1005 9.09957 15.0011Z"
       />
     </Icon>
-  );
-}
+  )
+);

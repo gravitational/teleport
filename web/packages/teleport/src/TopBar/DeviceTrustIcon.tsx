@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode } from 'react';
 import styled from 'styled-components';
+
 import { Flex } from 'design';
 import { ShieldCheck, ShieldWarning } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
@@ -53,7 +55,7 @@ const ShieldIcon = ({
   color,
   ...props
 }: {
-  Icon: (props: IconProps) => JSX.Element;
+  Icon: (props: IconProps) => ReactNode;
   iconSize: number;
   color: string;
 }) => {

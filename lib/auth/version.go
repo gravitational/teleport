@@ -27,11 +27,6 @@ import (
 )
 
 const (
-	// majorVersionConstraint is the major version constraint when previous major version must be
-	// present in the storage, if not - we must refuse to start.
-	// TODO(vapopov): DELETE IN 18.0.0
-	majorVersionConstraint = 18
-
 	// skipVersionUpgradeCheckEnv is environment variable key for disabling the check
 	// major version upgrade check.
 	skipVersionUpgradeCheckEnv = "TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK"
@@ -43,7 +38,6 @@ func validateAndUpdateTeleportVersion(
 	ctx context.Context,
 	storage VersionStorage,
 	currentVersion *semver.Version,
-	firstTimeStart bool,
 ) error {
 	if skip := os.Getenv(skipVersionUpgradeCheckEnv); skip != "" {
 		return nil
@@ -51,17 +45,6 @@ func validateAndUpdateTeleportVersion(
 
 	lastKnownVersion, err := storage.GetTeleportVersion(ctx)
 	if trace.IsNotFound(err) {
-		// When this is not the first start, we have to ensure that previous versions,
-		// introduced before this check, were also verified. Therefore, not having a version
-		// in the database means the last known version is <v17.
-		if currentVersion.Major >= majorVersionConstraint && !firstTimeStart {
-			return trace.BadParameter("Unsupported upgrade path detected: to %v. "+
-				"Teleport supports direct upgrades to the next major version only.\n "+
-				"For instance, if you have version 15.x.x, you must upgrade to version 16.x.x first. "+
-				"See compatibility guarantees for details: "+
-				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-				currentVersion.String())
-		}
 		if err := storage.WriteTeleportVersion(ctx, currentVersion); err != nil {
 			return trace.Wrap(err)
 		}

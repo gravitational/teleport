@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Spinner({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Spinner = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-spinner"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -99,5 +100,5 @@ export function Spinner({ size = 24, color, ...otherProps }: IconProps) {
         d="M4.92913 4.92963C5.22953 4.62923 5.71658 4.62923 6.01699 4.92963L8.19295 7.10559C8.49335 7.40599 8.49335 7.89304 8.19295 8.19345C7.89254 8.49385 7.40549 8.49385 7.10509 8.19345L4.92913 6.01749C4.62873 5.71708 4.62873 5.23003 4.92913 4.92963Z"
       />
     </Icon>
-  );
-}
+  )
+);

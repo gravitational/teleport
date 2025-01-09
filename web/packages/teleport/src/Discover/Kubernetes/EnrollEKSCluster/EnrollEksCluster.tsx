@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import styled from 'styled-components';
+
 import {
   Box,
   ButtonPrimary,
@@ -26,53 +28,47 @@ import {
   Text,
   Toggle,
 } from 'design';
-import styled from 'styled-components';
-import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
-
+import { FetchStatus } from 'design/DataTable/types';
+import { IconTooltip } from 'design/Tooltip';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import { EksMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import {
-  Regions,
-  integrationService,
-  AwsEksCluster,
-} from 'teleport/services/integrations';
-
-import {
-  DISCOVERY_GROUP_CLOUD,
-  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
-  DiscoveryConfig,
-  createDiscoveryConfig,
-} from 'teleport/services/discovery';
-import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
+import cfg from 'teleport/config';
+import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
-import { AgentStepProps } from 'teleport/Discover/types';
-import useTeleport from 'teleport/useTeleport';
-
-import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
-import { Kube } from 'teleport/services/kube';
-
-import { JoinToken } from 'teleport/services/joinToken';
-import cfg from 'teleport/config';
+import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import {
   ConfigureDiscoveryServiceDirections,
   CreatedDiscoveryConfigDialog,
 } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import { AgentStepProps } from 'teleport/Discover/types';
+import { EksMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  createDiscoveryConfig,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+  DISCOVERY_GROUP_CLOUD,
+  DiscoveryConfig,
+} from 'teleport/services/discovery';
+import {
+  AwsEksCluster,
+  integrationService,
+  Regions,
+} from 'teleport/services/integrations';
+import { JoinToken } from 'teleport/services/joinToken';
+import { Kube } from 'teleport/services/kube';
 import {
   DiscoverEvent,
   DiscoverEventStatus,
 } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons, Header } from '../../Shared';
-
-import { ClustersList } from './EksClustersList';
-import ManualHelmDialog from './ManualHelmDialog';
-import { EnrollmentDialog } from './EnrollmentDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
+import { ClustersList } from './EksClustersList';
+import { EnrollmentDialog } from './EnrollmentDialog';
+import ManualHelmDialog from './ManualHelmDialog';
 
 type TableData = {
   items: CheckedEksCluster[];
@@ -435,11 +431,11 @@ export function EnrollEksCluster(props: AgentStepProps) {
               <Box ml={2} mr={1}>
                 Enable Kubernetes App Discovery
               </Box>
-              <ToolTipInfo>
+              <IconTooltip>
                 Teleport's Kubernetes App Discovery will automatically identify
                 and enroll to Teleport HTTP applications running inside a
                 Kubernetes cluster.
-              </ToolTipInfo>
+              </IconTooltip>
             </Toggle>
             <Toggle
               isToggled={isAutoDiscoveryEnabled}
@@ -448,11 +444,11 @@ export function EnrollEksCluster(props: AgentStepProps) {
               <Box ml={2} mr={1}>
                 Auto-enroll all EKS clusters for selected region
               </Box>
-              <ToolTipInfo>
+              <IconTooltip>
                 Auto-enroll will automatically identify all EKS clusters from
                 the selected region and register them as Kubernetes resources in
                 your infrastructure.
-              </ToolTipInfo>
+              </IconTooltip>
             </Toggle>
           </Box>
           {showTable && (

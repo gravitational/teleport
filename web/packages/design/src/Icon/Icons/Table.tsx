@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,19 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Table({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-table" {...otherProps}>
+export const Table = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-table"
+      {...otherProps}
+      ref={ref}
+    >
       <path
         d="M2.613 4.621a.901.901 0 0 0-.26.25l-.093.149-.012 6.5c-.008 4.739.001 6.565.034 6.739a1.5 1.5 0 0 0 1.288 1.223c.33.048 16.53.048 16.86 0a1.5 1.5 0 0 0 1.288-1.223c.033-.174.042-2 .034-6.739l-.012-6.5-.093-.15a.891.891 0 0 0-.264-.25l-.17-.1h-9.217l-9.216.001-.167.1M20.24 7.5V9H3.76V6h16.48v1.5M7.48 12.02v1.5H3.76v-3h3.72v1.5m12.76 0v1.5H9v-3h11.24v1.5M7.48 16.5V18H3.76v-3h3.72v1.5m12.76 0V18H9v-3h11.24v1.5"
         fillRule="evenodd"
       />
     </Icon>
-  );
-}
+  )
+);

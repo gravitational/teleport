@@ -1,5 +1,5 @@
-//go:build !darwin
-// +build !darwin
+//go:build !darwin && !windows
+// +build !darwin,!windows
 
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
@@ -31,10 +31,6 @@ func newVnetCommand(app *kingpin.Application) vnetNotSupported {
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) vnetNotSupported {
-	return vnetNotSupported{}
-}
-
-func newVnetDaemonCommand(app *kingpin.Application) vnetNotSupported {
 	return vnetNotSupported{}
 }
 

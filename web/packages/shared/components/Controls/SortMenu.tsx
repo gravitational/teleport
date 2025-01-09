@@ -17,10 +17,10 @@
  */
 
 import React, { useState } from 'react';
+
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
 import { ArrowDown, ArrowUp } from 'design/Icon';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 type SortMenuSort<T extends object> = {
   fieldName: Exclude<keyof T, symbol | number>;

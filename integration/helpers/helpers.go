@@ -132,10 +132,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	}
 
 	// Create an exec.Command and tell it where to find the SSH agent.
-	cmd, err := exec.Command(sshpath, execArgs...), nil
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	cmd := exec.Command(sshpath, execArgs...)
 	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.SocketPath)}
 
 	return cmd, nil
@@ -382,7 +379,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Proxy.Enabled = false
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -420,7 +417,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 		cfg.Proxy.WebAddr,
 	}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -457,7 +454,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	db, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -490,7 +487,7 @@ func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAd
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = false
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	agent, err := service.NewTeleport(cfg)
 	require.NoError(t, err)

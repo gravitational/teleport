@@ -16,49 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
-import makeNode from '../nodes/makeNode';
-import auth from '../auth/auth';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
-
+import auth, { MfaChallengeScope } from '../auth/auth';
+import makeNode from '../nodes/makeNode';
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import {
-  Integration,
-  IntegrationCreateRequest,
-  IntegrationUpdateRequest,
-  IntegrationStatusCode,
-  IntegrationListResponse,
-  AwsOidcListDatabasesRequest,
-  AwsRdsDatabase,
-  ListAwsRdsDatabaseResponse,
-  RdsEngineIdentifier,
+  AwsDatabaseVpcsResponse,
+  AwsOidcDeployDatabaseServicesRequest,
   AwsOidcDeployServiceRequest,
-  ListEc2InstancesRequest,
-  ListEc2InstancesResponse,
-  Ec2InstanceConnectEndpoint,
-  ListEc2InstanceConnectEndpointsRequest,
-  ListEc2InstanceConnectEndpointsResponse,
-  ListAwsSecurityGroupsRequest,
-  ListAwsSecurityGroupsResponse,
+  AwsOidcListDatabasesRequest,
+  AwsOidcPingRequest,
+  AwsOidcPingResponse,
+  AwsRdsDatabase,
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
-  SecurityGroup,
-  SecurityGroupRule,
-  ListEksClustersResponse,
-  EnrollEksClustersResponse,
+  Ec2InstanceConnectEndpoint,
   EnrollEksClustersRequest,
-  ListEksClustersRequest,
-  AwsOidcDeployDatabaseServicesRequest,
-  Regions,
+  EnrollEksClustersResponse,
+  Integration,
+  IntegrationCreateRequest,
+  IntegrationListResponse,
+  IntegrationStatusCode,
+  IntegrationUpdateRequest,
+  IntegrationWithSummary,
+  ListAwsRdsDatabaseResponse,
   ListAwsRdsFromAllEnginesResponse,
+  ListAwsSecurityGroupsRequest,
+  ListAwsSecurityGroupsResponse,
   ListAwsSubnetsRequest,
   ListAwsSubnetsResponse,
+  ListEc2InstanceConnectEndpointsRequest,
+  ListEc2InstanceConnectEndpointsResponse,
+  ListEc2InstancesRequest,
+  ListEc2InstancesResponse,
+  ListEksClustersRequest,
+  ListEksClustersResponse,
+  RdsEngineIdentifier,
+  Regions,
+  SecurityGroup,
+  SecurityGroupRule,
   Subnet,
-  AwsDatabaseVpcsResponse,
-  AwsOidcPingResponse,
-  AwsOidcPingRequest,
 } from './types';
 
 export const integrationService = {
@@ -271,14 +272,22 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<string> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const response = await auth.getMfaChallengeResponse(challenge);
 
     return api
       .post(
         cfg.getAwsDeployTeleportServiceUrl(integrationName),
         req,
         null,
-        webauthnResponse
+        response
       )
       .then(resp => resp.serviceDashboardUrl);
   },
@@ -293,14 +302,14 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployDatabaseServicesRequest
   ): Promise<string> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
     return api
       .post(
         cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
         req,
         null,
-        webauthnResponse
+        mfaResponse
       )
       .then(resp => resp.clusterDashboardUrl);
   },
@@ -309,13 +318,28 @@ export const integrationService = {
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
-    return api.post(
-      cfg.getEnrollEksClusterUrl(integrationName),
-      req,
-      null,
-      webauthnResponse
+    // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+    if (!req.extraLabels?.length) {
+      return api.post(
+        cfg.getEnrollEksClusterUrl(integrationName),
+        req,
+        null,
+        mfaResponse
+      );
+    }
+
+    return (
+      api
+        .post(
+          cfg.getEnrollEksClusterUrlV2(integrationName),
+          req,
+          null,
+          mfaResponse
+        )
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
     );
   },
 
@@ -412,6 +436,12 @@ export const integrationService = {
           nextToken: json?.nextToken,
         };
       });
+  },
+
+  fetchIntegrationStats(name: string): Promise<IntegrationWithSummary> {
+    return api.get(cfg.getIntegrationStatsUrl(name)).then(resp => {
+      return resp;
+    });
   },
 };
 

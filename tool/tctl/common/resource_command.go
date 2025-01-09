@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"slices"
@@ -34,7 +35,6 @@ import (
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -49,13 +49,13 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -71,7 +71,10 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -127,7 +130,7 @@ Same as above, but using JSON output:
 `
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
-func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                     rc.createUser,
 		types.KindRole:                     rc.createRole,
@@ -172,11 +175,13 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
 		types.KindPlugin:                   rc.createPlugin,
 		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
+		types.KindWorkloadIdentity:         rc.createWorkloadIdentity,
 		types.KindStaticHostUser:           rc.createStaticHostUser,
 		types.KindUserTask:                 rc.createUserTask,
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
 		types.KindGitServer:                rc.createGitServer,
+		types.KindAutoUpdateAgentRollout:   rc.createAutoUpdateAgentRollout,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -198,6 +203,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
 		types.KindGitServer:               rc.updateGitServer,
+		types.KindAutoUpdateAgentRollout:  rc.updateAutoUpdateAgentRollout,
 	}
 	rc.config = config
 
@@ -241,23 +247,31 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	// tctl get
 	case rc.getCmd.FullCommand():
-		err = rc.Get(ctx, client)
+		commandFunc = rc.Get
 		// tctl create
 	case rc.createCmd.FullCommand():
-		err = rc.Create(ctx, client)
+		commandFunc = rc.Create
 		// tctl rm
 	case rc.deleteCmd.FullCommand():
-		err = rc.Delete(ctx, client)
+		commandFunc = rc.Delete
 		// tctl update
 	case rc.updateCmd.FullCommand():
-		err = rc.UpdateFields(ctx, client)
+		commandFunc = rc.UpdateFields
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
@@ -396,6 +410,9 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 		return trace.AlreadyExists("trusted cluster %q already exists", name)
 	}
 
+	//nolint:staticcheck // SA1019. UpsertTrustedCluster is deprecated but will
+	// continue being supported for tctl clients.
+	// TODO(bernardjkim) consider using UpsertTrustedClusterV2 in VX.0.0
 	out, err := client.UpsertTrustedCluster(ctx, tc)
 	if err != nil {
 		// If force is used and UpsertTrustedCluster returns trace.AlreadyExists,
@@ -490,7 +507,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(rc.config.Log, role)
+	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
 
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
@@ -519,8 +536,8 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(rc.config.Log, role)
-	warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
+	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
+	warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -531,21 +548,21 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 
 // warnAboutKubernetesResources warns about kubernetes resources
 // if kubernetes_labels are set but kubernetes_resources are not.
-func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
+func warnAboutKubernetesResources(ctx context.Context, logger *slog.Logger, r types.Role) {
 	role, ok := r.(*types.RoleV6)
 	// only warn about kubernetes resources for v6 roles
 	if !ok || role.Version != types.V6 {
 		return
 	}
 	if len(role.Spec.Allow.KubernetesLabels) > 0 && len(role.Spec.Allow.KubernetesResources) == 0 {
-		logger.Warningf("role %q has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake. Teleport will restrict access to pods.", role.Metadata.Name)
+		logger.WarnContext(ctx, "role has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake - Teleport will restrict access to pods", "role", role.Metadata.Name)
 	}
 	if len(role.Spec.Allow.KubernetesLabels) == 0 && len(role.Spec.Allow.KubernetesResources) > 0 {
-		logger.Warningf("role %q has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake. kubernetes_resources won't be effective.", role.Metadata.Name)
+		logger.WarnContext(ctx, "role has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake - kubernetes_resources won't be effective", "role", role.Metadata.Name)
 	}
 
 	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
-		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
+		logger.WarnContext(ctx, "role has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake - deny.kubernetes_resources won't be effective", "role", role.Metadata.Name)
 	}
 }
 
@@ -557,13 +574,13 @@ func dynamicLabelWarningMessage(r types.Role) string {
 // warnAboutDynamicLabelsInDenyRule warns about using dynamic/ labels in deny
 // rules. Only applies to existing roles as adding dynamic/ labels to deny
 // rules in a new role is not allowed.
-func warnAboutDynamicLabelsInDenyRule(logger utils.Logger, r types.Role) {
+func warnAboutDynamicLabelsInDenyRule(ctx context.Context, logger *slog.Logger, r types.Role) {
 	if err := services.CheckDynamicLabelsInDenyRules(r); err == nil {
 		return
 	} else if trace.IsBadParameter(err) {
-		logger.Warningf(dynamicLabelWarningMessage(r))
+		logger.WarnContext(ctx, "existing role has labels with the a dynamic prefix in its deny rules, this is not recommended due to the volatility of dynamic labels and is not allowed for new roles", "role", r.GetName())
 	} else {
-		logger.WithError(err).Warningf("error checking deny rules labels")
+		logger.WarnContext(ctx, "error checking deny rules labels", "error", err)
 	}
 }
 
@@ -1079,6 +1096,32 @@ func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *a
 	return nil
 }
 
+func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalWorkloadIdentity(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.WorkloadIdentityResourceServiceClient()
+	if rc.force {
+		if _, err := c.UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+			WorkloadIdentity: in,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if _, err := c.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+			WorkloadIdentity: in,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Printf("Workload identity %q has been created\n", in.GetMetadata().GetName())
+
+	return nil
+}
+
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw)
 	if err != nil {
@@ -1326,7 +1369,10 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 
 		// issue warning about unsupported ACS bindings.
 		if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
-			log.Warnf("Entity descriptor for SAML IdP service provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
+			slog.WarnContext(ctx, "Entity descriptor for SAML IdP service provider contains unsupported ACS bindings",
+				"entity_id", sp.GetEntityID(),
+				"error", err,
+			)
 		}
 	}
 
@@ -1580,6 +1626,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindNetworkRestrictions,
 		types.KindAutoUpdateConfig,
 		types.KindAutoUpdateVersion,
+		types.KindAutoUpdateAgentRollout,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -1974,13 +2021,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentity:
+		if _, err := client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(
+			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+				Name: rc.ref.Name,
+			}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
 	case types.KindGitServer:
-		if _, err := client.GitServerClient().DeleteGitServer(ctx, &gitserverv1.DeleteGitServerRequest{Name: rc.ref.Name}); err != nil {
+		if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
@@ -1994,6 +2049,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateVersion has been deleted\n")
+	case types.KindAutoUpdateAgentRollout:
+		if err := client.DeleteAutoUpdateAgentRollout(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2193,7 +2253,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
 					if trace.IsBadParameter(err) {
-						log.Warnf("failed to get certificate authority: %v; skipping", err)
+						slog.WarnContext(ctx, "failed to get certificate authority; skipping", "error", err)
 						continue
 					}
 					return nil, trace.Wrap(err)
@@ -2231,7 +2291,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			for _, r := range page {
 				srv, ok := r.ResourceWithLabels.(types.Server)
 				if !ok {
-					log.Warnf("expected types.Server but received unexpected type %T", r)
+					slog.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
 					continue
 				}
 
@@ -2297,7 +2357,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
+		warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
 		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {
@@ -3132,6 +3192,36 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &spiffeFederationCollection{items: resources}, nil
+	case types.KindWorkloadIdentity:
+		if rc.ref.Name != "" {
+			resource, err := client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &workloadIdentityCollection{items: []*workloadidentityv1pb.WorkloadIdentity{resource}}, nil
+		}
+
+		var resources []*workloadidentityv1pb.WorkloadIdentity
+		pageToken := ""
+		for {
+			resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesRequest{
+				PageToken: pageToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.WorkloadIdentities...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &workloadIdentityCollection{items: resources}, nil
 	case types.KindBotInstance:
 		if rc.ref.Name != "" && rc.ref.SubKind != "" {
 			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
@@ -3208,6 +3298,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateVersionCollection{version}, nil
+	case types.KindAutoUpdateAgentRollout:
+		version, err := client.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateAgentRolloutCollection{version}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
@@ -3232,29 +3328,27 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &accessMonitoringRuleCollection{items: rules}, nil
 	case types.KindGitServer:
-		var servers []types.Server
+		var page, servers []types.Server
 
 		// TODO(greedy52) use unified resource request once available.
 		if rc.ref.Name != "" {
-			server, err := client.GitServerClient().GetGitServer(ctx, &gitserverv1.GetGitServerRequest{Name: rc.ref.Name})
+			server, err := client.GitServerClient().GetGitServer(ctx, rc.ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &serverCollection{servers: append(servers, server)}, nil
 		}
-		req := &gitserverv1.ListGitServersRequest{}
+		var err error
+		var token string
 		for {
-			resp, err := client.GitServerClient().ListGitServers(ctx, req)
+			page, token, err = client.GitServerClient().ListGitServers(ctx, 0, token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			for _, server := range resp.Servers {
-				servers = append(servers, server)
-			}
-			if resp.NextPageToken == "" {
+			servers = append(servers, page...)
+			if token == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
 		}
 		// TODO(greedy52) consider making dedicated git server collection.
 		return &serverCollection{servers: servers}, nil
@@ -3671,19 +3765,46 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 	return nil
 }
 
+func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateAgentRollout(ctx, version)
+	} else {
+		_, err = client.CreateAutoUpdateAgentRollout(ctx, version)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_agent_rollout has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, version); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
 func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	server, err := services.UnmarshalGitServer(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverV2, ok := server.(*types.ServerV2)
-	if !ok {
-		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
-	}
 	if rc.IsForced() {
-		_, err = client.GitServerClient().UpsertGitServer(ctx, &gitserverv1.UpsertGitServerRequest{Server: serverV2})
+		_, err = client.GitServerClient().UpsertGitServer(ctx, server)
 	} else {
-		_, err = client.GitServerClient().CreateGitServer(ctx, &gitserverv1.CreateGitServerRequest{Server: serverV2})
+		_, err = client.GitServerClient().CreateGitServer(ctx, server)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3696,11 +3817,7 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverV2, ok := server.(*types.ServerV2)
-	if !ok {
-		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
-	}
-	_, err = client.GitServerClient().UpdateGitServer(ctx, &gitserverv1.UpdateGitServerRequest{Server: serverV2})
+	_, err = client.GitServerClient().UpdateGitServer(ctx, server)
 	if err != nil {
 		return trace.Wrap(err)
 	}

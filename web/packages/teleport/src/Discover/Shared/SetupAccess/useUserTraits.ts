@@ -16,28 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { arrayStrDiff } from 'teleport/lib/util';
-import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
-import { useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  useDiscover,
+  type AppMeta,
+  type DbMeta,
+  type KubeMeta,
+  type NodeMeta,
+} from 'teleport/Discover/useDiscover';
+import { arrayStrDiff } from 'teleport/lib/util';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import {
   ExcludeUserField,
   type User,
   type UserTraits,
 } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
 import { ResourceKind } from '../ResourceKind';
-
-import type {
-  AppMeta,
-  DbMeta,
-  KubeMeta,
-  NodeMeta,
-} from 'teleport/Discover/useDiscover';
 
 // useUserTraits handles:
 //  - retrieving the latest user (for the dynamic traits) from the backend

@@ -18,6 +18,7 @@
 
 import React, { ReactNode, useState } from 'react';
 import styled from 'styled-components';
+
 import {
   ButtonPrimary,
   ButtonSecondary,
@@ -26,10 +27,9 @@ import {
   MenuItem,
   Text,
 } from 'design';
-import { ChevronDown } from 'design/Icon';
 import { CheckboxInput } from 'design/Checkbox';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { ChevronDown } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 
 type MultiselectMenuProps<T> = {
   options: {

@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 import JoinTokenService from './joinToken';
-
 import type { JoinTokenRequest } from './types';
+
+beforeEach(() => {
+  jest.resetAllMocks();
+});
 
 test('fetchJoinToken with an empty request properly sets defaults', () => {
   const svc = new JoinTokenService();
@@ -30,7 +33,7 @@ test('fetchJoinToken with an empty request properly sets defaults', () => {
   // Test with all empty fields.
   svc.fetchJoinToken({} as any);
   expect(api.post).toHaveBeenCalledWith(
-    cfg.getJoinTokenUrl(),
+    cfg.api.discoveryJoinToken.create,
     {
       roles: undefined,
       join_method: 'token',
@@ -53,12 +56,32 @@ test('fetchJoinToken request fields are set as requested', () => {
   };
   svc.fetchJoinToken(mock);
   expect(api.post).toHaveBeenCalledWith(
-    cfg.getJoinTokenUrl(),
+    cfg.api.discoveryJoinToken.create,
     {
       roles: ['Node'],
       join_method: 'iam',
       allow: [{ aws_account: '1234', aws_arn: 'xxxx' }],
       suggested_agent_matcher_labels: { env: ['dev'] },
+    },
+    null
+  );
+});
+
+test('fetchJoinToken with labels calls v2 endpoint', () => {
+  const svc = new JoinTokenService();
+  jest.spyOn(api, 'post').mockResolvedValue(null);
+
+  const mock: JoinTokenRequest = {
+    suggestedLabels: [{ name: 'env', value: 'testing' }],
+  };
+  svc.fetchJoinToken(mock);
+  expect(api.post).toHaveBeenCalledWith(
+    cfg.api.discoveryJoinToken.createV2,
+    {
+      suggested_labels: { env: ['testing'] },
+      suggested_agent_matcher_labels: {},
+      join_method: 'token',
+      allow: [],
     },
     null
   );

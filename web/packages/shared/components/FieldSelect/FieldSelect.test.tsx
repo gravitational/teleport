@@ -16,17 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { screen } from '@testing-library/react';
-
-import { render, fireEvent } from 'design/utils/testing';
-
-import { darkTheme } from 'design/theme';
-
 import selectEvent from 'react-select-event';
 
-import useRule from '../Validation/useRule';
+import { darkTheme } from 'design/theme';
+import { fireEvent, render } from 'design/utils/testing';
 
+import useRule from '../Validation/useRule';
 import { FieldSelect, FieldSelectAsync } from './FieldSelect';
 
 jest.mock('../Validation/useRule');

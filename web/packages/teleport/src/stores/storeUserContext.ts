@@ -19,7 +19,6 @@
 import { Store } from 'shared/libs/stores';
 
 import cfg from 'teleport/config';
-
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {
@@ -159,6 +158,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getSamlIdPServiceProviderAccess() {
     return this.state.acl.samlIdpServiceProvider;
+  }
+
+  hasFileTransferAccess() {
+    return this.state.acl.fileTransferAccess;
   }
 
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite

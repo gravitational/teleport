@@ -16,25 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen } from 'design/utils/testing';
 
-import { getOSSFeatures } from 'teleport/features';
 import { Context, ContextProvider } from 'teleport';
+import { apps } from 'teleport/Apps/fixtures';
 import { events } from 'teleport/Audit/fixtures';
 import { clusters } from 'teleport/Clusters/fixtures';
-import { nodes } from 'teleport/Nodes/fixtures';
-import { sessions } from 'teleport/Sessions/fixtures';
-import { apps } from 'teleport/Apps/fixtures';
-import { kubes } from 'teleport/Kubes/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
+import { getOSSFeatures } from 'teleport/features';
+import { kubes } from 'teleport/Kubes/fixtures';
 import { userContext } from 'teleport/Main/fixtures';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { nodes } from 'teleport/Nodes/fixtures';
+import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { Main, MainProps } from './Main';
 

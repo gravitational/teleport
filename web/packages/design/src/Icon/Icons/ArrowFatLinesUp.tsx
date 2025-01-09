@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,17 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function ArrowFatLinesUp({
-  size = 24,
-  color,
-  ...otherProps
-}: IconProps) {
-  return (
+export const ArrowFatLinesUp = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-arrowfatlinesup"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -70,5 +67,5 @@ export function ArrowFatLinesUp({
       <path d="M6.75 20.25C6.75 19.8358 7.08579 19.5 7.5 19.5H16.5C16.9142 19.5 17.25 19.8358 17.25 20.25C17.25 20.6642 16.9142 21 16.5 21H7.5C7.08579 21 6.75 20.6642 6.75 20.25Z" />
       <path d="M7.5 16.5C7.08579 16.5 6.75 16.8358 6.75 17.25C6.75 17.6642 7.08579 18 7.5 18H16.5C16.9142 18 17.25 17.6642 17.25 17.25C17.25 16.8358 16.9142 16.5 16.5 16.5H7.5Z" />
     </Icon>
-  );
-}
+  )
+);

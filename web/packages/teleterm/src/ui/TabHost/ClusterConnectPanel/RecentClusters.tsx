@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Box, ButtonBorder, Card, Text, Flex } from 'design';
+import { Box, ButtonBorder, Card, Flex, Text } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { getUserWithClusterName } from 'teleterm/ui/utils';
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
+import { RootClusterUri } from 'teleterm/ui/uri';
+import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 export function RecentClusters() {
   const ctx = useAppContext();

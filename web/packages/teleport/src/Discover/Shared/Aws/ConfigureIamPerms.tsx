@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { Flex, Link, Box, H3 } from 'design';
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
-import TextEditor from 'shared/components/TextEditor';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 
+import { Box, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
+import { IconTooltip } from 'design/Tooltip';
+import TextEditor from 'shared/components/TextEditor';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { Regions } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 type AwsResourceKind = 'rds' | 'ec2' | 'eks';
@@ -179,11 +178,11 @@ export function ConfigureIamPerms({
         <>
           <Flex alignItems="center">
             <H3 mr={1}>Configure your AWS IAM permissions</H3>
-            <ToolTipInfo sticky={true} maxWidth={450}>
+            <IconTooltip sticky={true} maxWidth={450}>
               The following IAM permissions will be added as an inline policy
               named <b>{iamPolicyName}</b> to IAM role <b>{iamRoleName}</b>
               <Box mb={2}>{editor}</Box>
-            </ToolTipInfo>
+            </IconTooltip>
           </Flex>
           <P mb={3}>
             {msg} Run the command below on your{' '}

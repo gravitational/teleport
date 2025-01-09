@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function PlugsConnected({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const PlugsConnected = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-plugsconnected"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -68,5 +69,5 @@ export function PlugsConnected({ size = 24, color, ...otherProps }: IconProps) {
       <path d="M18.0387 14.013C18.1697 13.6201 18.5944 13.4077 18.9874 13.5387L21.2374 14.2887C21.6303 14.4197 21.8427 14.8444 21.7117 15.2374C21.5807 15.6303 21.156 15.8427 20.763 15.7117L18.513 14.9617C18.1201 14.8307 17.9077 14.406 18.0387 14.013Z" />
       <path d="M14.9617 18.513C14.8307 18.1201 14.406 17.9077 14.013 18.0387C13.6201 18.1697 13.4077 18.5944 13.5387 18.9874L14.2887 21.2374C14.4197 21.6303 14.8444 21.8427 15.2374 21.7117C15.6303 21.5807 15.8427 21.156 15.7117 20.763L14.9617 18.513Z" />
     </Icon>
-  );
-}
+  )
+);

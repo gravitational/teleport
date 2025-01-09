@@ -667,7 +667,7 @@ func (s *SSHMultiplexerService) handleConn(
 		host = cleanTargetHost(host, proxyHost, clusterName)
 		target = net.JoinHostPort(host, port)
 	} else {
-		node, err := resolveTargetHostWithClient(ctx, authClient, expanded.Search, expanded.Query)
+		node, err := resolveTargetHostWithClient(ctx, authClient.APIClient, expanded.Search, expanded.Query)
 		if err != nil {
 			return trace.Wrap(err, "resolving target host")
 		}

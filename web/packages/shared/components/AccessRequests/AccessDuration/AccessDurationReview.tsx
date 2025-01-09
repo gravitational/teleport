@@ -16,11 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Flex, Text } from 'design';
-
-import { ToolTipInfo } from 'shared/components/ToolTip';
-
+import { IconTooltip } from 'design/Tooltip';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getFormattedDurationTxt } from '../Shared/utils';
@@ -41,9 +38,9 @@ export function AccessDurationReview({
           end: accessRequest.expires,
         })}
       </Text>
-      <ToolTipInfo>
+      <IconTooltip>
         How long the access will be granted for after approval.
-      </ToolTipInfo>
+      </IconTooltip>
     </Flex>
   );
 }

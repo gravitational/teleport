@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
-
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import makeJoinToken from './makeJoinToken';
-import { JoinToken, JoinRule, JoinTokenRequest } from './types';
+import { JoinRule, JoinToken, JoinTokenRequest } from './types';
 
 const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
@@ -32,20 +32,43 @@ class JoinTokenService {
     req: JoinTokenRequest,
     signal: AbortSignal = null
   ): Promise<JoinToken> {
-    return api
-      .post(
-        cfg.getJoinTokenUrl(),
-        {
-          roles: req.roles,
-          join_method: req.method || 'token',
-          allow: makeAllowField(req.rules || []),
-          suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
-            req.suggestedAgentMatcherLabels
-          ),
-        },
-        signal
-      )
-      .then(makeJoinToken);
+    // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+    if (!req.suggestedLabels?.length) {
+      return api
+        .post(
+          cfg.api.discoveryJoinToken.create,
+          {
+            roles: req.roles,
+            join_method: req.method || 'token',
+            allow: makeAllowField(req.rules || []),
+            suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
+              req.suggestedAgentMatcherLabels
+            ),
+          },
+          signal
+        )
+        .then(makeJoinToken);
+    }
+
+    return (
+      api
+        .post(
+          cfg.api.discoveryJoinToken.createV2,
+          {
+            roles: req.roles,
+            join_method: req.method || 'token',
+            allow: makeAllowField(req.rules || []),
+            suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
+              req.suggestedAgentMatcherLabels
+            ),
+            suggested_labels: makeLabelMapOfStrArrs(req.suggestedLabels),
+          },
+          signal
+        )
+        .then(makeJoinToken)
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
   }
 
   upsertJoinTokenYAML(

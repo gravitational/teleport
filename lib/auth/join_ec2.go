@@ -34,9 +34,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/digitorus/pkcs7"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,7 +63,9 @@ func ec2ClientFromConfig(ctx context.Context, cfg aws.Config) ec2Client {
 	if ok {
 		return ec2Client
 	}
-	return ec2.NewFromConfig(cfg)
+	return ec2.NewFromConfig(cfg, func(o *ec2.Options) {
+		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+	})
 }
 
 // checkEC2AllowRules checks that the iid matches at least one of the allow
@@ -96,7 +100,9 @@ func checkInstanceRunning(ctx context.Context, instanceID, region, IAMRole strin
 
 	// assume the configured IAM role if necessary
 	if IAMRole != "" {
-		stsClient := sts.NewFromConfig(awsClientConfig)
+		stsClient := sts.NewFromConfig(awsClientConfig, func(o *sts.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})
 		creds := stscreds.NewAssumeRoleProvider(stsClient, IAMRole)
 		awsClientConfig.Credentials = aws.NewCredentialsCache(creds)
 	}
@@ -332,8 +338,12 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 		return trace.Wrap(err)
 	}
 	if instanceExists {
-		log.Warnf("Server with ID %q and role %q is attempting to join the cluster with a Simplified Node Joining request, but"+
-			" a server with this ID is already present in the cluster.", req.HostID, req.Role)
+		const msg = "Server is attempting to join the cluster with a Simplified Node Joining request, but" +
+			" a server with this ID is already present in the cluster"
+		a.logger.WarnContext(ctx, msg,
+			"host_id", req.HostID,
+			"role", req.Role,
+		)
 		return trace.AccessDenied("server with host ID %q and role %q already exists", req.HostID, req.Role)
 	}
 	return nil
@@ -357,7 +367,7 @@ func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsi
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Received Simplified Node Joining request for host %q", req.HostID)
+	a.logger.DebugContext(ctx, "Received Simplified Node Joining request", "host_id", req.HostID)
 
 	if len(req.EC2IdentityDocument) == 0 {
 		return trace.AccessDenied("this token is only valid for the EC2 join " +

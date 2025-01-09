@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import Validation from 'shared/components/Validation';
-import { ButtonSecondary } from 'design/Button';
+import { useState } from 'react';
 
-import { LabelsInput, Label } from './LabelsInput';
+import { ButtonSecondary } from 'design/Button';
+import Validation from 'shared/components/Validation';
+
+import { Label, LabelsInput } from './LabelsInput';
 
 export default {
   title: 'Teleport/LabelsInput',

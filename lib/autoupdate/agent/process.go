@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	// crashMonitorInterval is the polling interval for determining restart times from LastRestartPath.
+	// crashMonitorInterval is the polling interval for determining restart times from PIDFile.
 	crashMonitorInterval = 2 * time.Second
-	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detect
+	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detected
 	// before the service is determined stable.
 	minRunningIntervalsBeforeStable = 6
 	// maxCrashesBeforeFailure is the number of total crashes detected before the service is marked as crash-looping.
@@ -210,7 +210,7 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 
 // readInt reads an integer from a file.
 func readInt(path string) (int, error) {
-	p, err := readFileN(path, 32)
+	p, err := readFileAtMost(path, 32)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -298,14 +298,14 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	code := s.systemctl(ctx, slog.LevelDebug, "is-enabled", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
-		return false, trace.Errorf("unable to determine if systemd service %q is enabled", s.ServiceName)
+		return false, trace.Errorf("unable to determine if systemd service %s is enabled", s.ServiceName)
 	case code == 0:
 		return true, nil
 	}
 	code = s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
-		return false, trace.Errorf("unable to determine if systemd service %q is active", s.ServiceName)
+		return false, trace.Errorf("unable to determine if systemd service %s is active", s.ServiceName)
 	case code == 0:
 		return true, nil
 	}
@@ -368,64 +368,5 @@ func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, 
 	stderr.Flush()
 	stdout.Flush()
 	code := cmd.ProcessState.ExitCode()
-
-	// Treat out-of-range exit code (255) as an error executing the command.
-	// This allows callers to treat codes that are more likely OS-related as execution errors
-	// instead of intentionally returned error codes.
-	if code == 255 {
-		code = -1
-	}
 	return code, trace.Wrap(err)
-}
-
-// lineLogger logs each line written to it.
-type lineLogger struct {
-	ctx    context.Context
-	log    *slog.Logger
-	level  slog.Level
-	prefix string
-
-	last bytes.Buffer
-}
-
-func (w *lineLogger) out(s string) {
-	w.log.Log(w.ctx, w.level, w.prefix+s) //nolint:sloglint // msg cannot be constant
-}
-
-func (w *lineLogger) Write(p []byte) (n int, err error) {
-	lines := bytes.Split(p, []byte("\n"))
-	// Finish writing line
-	if len(lines) > 0 {
-		n, err = w.last.Write(lines[0])
-		lines = lines[1:]
-	}
-	// Quit if no newline
-	if len(lines) == 0 || err != nil {
-		return n, trace.Wrap(err)
-	}
-
-	// Newline found, log line
-	w.out(w.last.String())
-	n += 1
-	w.last.Reset()
-
-	// Log lines that are already newline-terminated
-	for _, line := range lines[:len(lines)-1] {
-		w.out(string(line))
-		n += len(line) + 1
-	}
-
-	// Store remaining line non-newline-terminated line.
-	n2, err := w.last.Write(lines[len(lines)-1])
-	n += n2
-	return n, trace.Wrap(err)
-}
-
-// Flush logs any trailing bytes that were never terminated with a newline.
-func (w *lineLogger) Flush() {
-	if w.last.Len() == 0 {
-		return
-	}
-	w.out(w.last.String())
-	w.last.Reset()
 }

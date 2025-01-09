@@ -16,29 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { StoryObj } from '@storybook/react';
+import { delay, http, HttpResponse } from 'msw';
+import { MemoryRouter } from 'react-router';
 import { withoutQuery } from 'web/packages/build/storybook';
 
-import { http, delay, HttpResponse } from 'msw';
-
+import { ContextProvider, Context as TeleportContext } from 'teleport';
+import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
-import { Context as TeleportContext, ContextProvider } from 'teleport';
-import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { getUserContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import HelmChart from './HelmChart';
 
@@ -62,7 +60,9 @@ export const Polling: StoryObj = {
         http.get(kubePathWithoutQuery, async () => {
           await delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
+          HttpResponse.json(rawJoinToken)
+        ),
       ],
     },
   },
@@ -82,7 +82,9 @@ export const PollingSuccess: StoryObj = {
         http.get(kubePathWithoutQuery, () => {
           return HttpResponse.json({ items: [{}] });
         }),
-        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
+          HttpResponse.json(rawJoinToken)
+        ),
       ],
     },
   },
@@ -105,7 +107,9 @@ export const PollingError: StoryObj = {
         http.get(kubePathWithoutQuery, async () => {
           await delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
+          HttpResponse.json(rawJoinToken)
+        ),
       ],
     },
   },
@@ -122,7 +126,7 @@ export const Processing: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, async () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, async () => {
           await delay('infinite');
         }),
       ],
@@ -141,7 +145,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.getJoinTokenUrl(), () =>
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
           HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },

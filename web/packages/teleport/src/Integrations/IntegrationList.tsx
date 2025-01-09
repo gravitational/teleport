@@ -17,21 +17,21 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
+import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { ToolTipInfo } from 'shared/components/ToolTip';
-import { useAsync } from 'shared/hooks/useAsync';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { IconTooltip } from 'design/Tooltip';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import cfg from 'teleport/config';
+import { getStatus } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
-
 import {
   ExternalAuditStorageIntegration,
   getStatusCodeDescription,
@@ -41,9 +41,7 @@ import {
   IntegrationStatusCode,
   Plugin,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
-
-import { getStatus } from 'teleport/Integrations/helpers';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
@@ -66,7 +64,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    if (row.kind !== 'okta') return;
+    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
@@ -154,15 +152,26 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {/* Currently, only AWSOIDC supports editing. */}
+                    {/* Currently, only AWS OIDC supports editing & status dash */}
                     {item.kind === IntegrationKind.AwsOidc && (
-                      <MenuItem
-                        onClick={() =>
-                          props.integrationOps.onEditIntegration(item)
-                        }
-                      >
-                        Edit...
-                      </MenuItem>
+                      <>
+                        <MenuItem
+                          as={InternalRouteLink}
+                          to={cfg.getIntegrationStatusRoute(
+                            item.kind,
+                            item.name
+                          )}
+                        >
+                          View Status
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() =>
+                            props.integrationOps.onEditIntegration(item)
+                          }
+                        >
+                          Edit...
+                        </MenuItem>
+                      </>
                     )}
                     <MenuItem
                       onClick={() =>
@@ -251,7 +260,7 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
         {getStatusCodeTitle(item.statusCode)}
         {statusDescription && (
           <Box mx="1">
-            <ToolTipInfo>{statusDescription}</ToolTipInfo>
+            <IconTooltip>{statusDescription}</IconTooltip>
           </Box>
         )}
       </Flex>

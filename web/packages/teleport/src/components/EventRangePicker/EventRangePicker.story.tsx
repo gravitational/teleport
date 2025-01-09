@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-
-import RangePicker from './EventRangePicker';
+import { useState } from 'react';
 
 import { EventRange, getRangeOptions } from '.';
+import RangePicker from './EventRangePicker';
 
 export default {
   title: 'Teleport/RangePicker',

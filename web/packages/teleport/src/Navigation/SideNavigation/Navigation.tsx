@@ -16,38 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type * as history from 'history';
 import React, {
-  useState,
+  ReactNode,
   useCallback,
   useEffect,
-  useRef,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
-import styled from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
-import { Flex, Box } from 'design';
+import styled from 'styled-components';
 
+import { Box, Flex } from 'design';
 import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
 
 import cfg from 'teleport/config';
-
 import { useFeatures } from 'teleport/FeaturesContext';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import type { TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
-
-import { DefaultSection, rightPanelWidth } from './Section';
-import { zIndexMap } from './zIndexMap';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
   CustomNavigationSubcategory,
   NAVIGATION_CATEGORIES,
   SidenavCategory,
 } from './categories';
-import { SearchSection } from './Search';
 import { getResourcesSection, ResourcesSection } from './ResourcesSection';
-
-import type * as history from 'history';
-import type { TeleportFeature } from 'teleport/types';
+import { SearchSection } from './Search';
+import { DefaultSection, rightPanelWidth } from './Section';
+import { zIndexMap } from './zIndexMap';
 
 const SideNavContainer = styled(Flex).attrs({
   gap: 2,
@@ -90,7 +88,7 @@ export type NavigationSubsection = {
   title: string;
   route: string;
   exact: boolean;
-  icon: (props) => JSX.Element;
+  icon: (props) => ReactNode;
   parent?: TeleportFeature;
   searchableTags?: string[];
   /**
@@ -350,31 +348,30 @@ export function Navigation() {
 
     // If the page is not part of the sidenav, such as Account Settings, curentPageSection will be undefined, and the drawer should be collapsed.
     if (currentPageSection) {
+      // If there is already an expanded section set, don't change it.
+      if (debouncedSection) {
+        return;
+      }
       handleSetExpandedSection(currentPageSection);
     } else {
       collapseDrawer(false);
     }
   }, [currentPageSection]);
 
-  // Handler for navigation actions
-  const handleNavigation = useCallback(
-    (route: string) => {
-      history.push(route);
+  // Handler for clicking nav items.
+  const onNavigationItemClick = useCallback(() => {
+    // Clear any existing timeout
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
 
-      // Clear any existing timeout
-      if (navigationTimeoutRef.current) {
-        clearTimeout(navigationTimeoutRef.current);
-      }
-
-      if (!stickyMode) {
-        // Add a small delay to the close to allow the user to see some feedback (see the section they clicked become active).
-        navigationTimeoutRef.current = setTimeout(() => {
-          collapseDrawer(false);
-        }, 150);
-      }
-    },
-    [collapseDrawer, history]
-  );
+    if (!stickyMode) {
+      // Add a small delay to the close to allow the user to see some feedback (see the section they clicked become active).
+      navigationTimeoutRef.current = setTimeout(() => {
+        collapseDrawer(false);
+      }, 150);
+    }
+  }, [collapseDrawer]);
 
   // Hide the nav if the current feature has hideNavigation set to true.
   const hideNav = features.find(
@@ -449,7 +446,7 @@ export function Navigation() {
                 toggleStickyMode={toggleStickyMode}
                 $active={section.category === currentView?.category}
                 aria-controls={`panel-${debouncedSection?.category}`}
-                handleNavigation={handleNavigation}
+                onNavigationItemClick={onNavigationItemClick}
                 isExpanded={isExpanded}
               />
             </React.Fragment>

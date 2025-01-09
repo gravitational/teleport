@@ -16,26 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
-import { Box, Text, Mark } from 'design';
+
+import { Box, Mark, Text } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
+import cfg from 'teleport/config';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  createDiscoveryConfig,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+} from 'teleport/services/discovery';
 import useTeleport from 'teleport/useTeleport';
 
-import {
-  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
-  createDiscoveryConfig,
-} from 'teleport/services/discovery';
-import cfg from 'teleport/config';
-
 import { ActionButtons, Header, ResourceKind } from '../../Shared';
-
-import { CreatedDiscoveryConfigDialog } from './CreatedDiscoveryConfigDialog';
 import { ConfigureDiscoveryServiceDirections } from './ConfigureDiscoveryServiceDirections';
+import { CreatedDiscoveryConfigDialog } from './CreatedDiscoveryConfigDialog';
 
 export function ConfigureDiscoveryService({
   withCreateConfig = false,

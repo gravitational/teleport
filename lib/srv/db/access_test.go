@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1629,13 +1630,13 @@ func (c *testContext) startHandlingConnections() {
 
 // postgresClient connects to test Postgres through database access as a
 // specified Teleport user and database account.
-func (c *testContext) postgresClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*pgconn.PgConn, error) {
-	return c.postgresClientWithAddr(ctx, c.mux.DB().Addr().String(), teleportUser, dbService, dbUser, dbName)
+func (c *testContext) postgresClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string, opts ...common.ClientOption) (*pgconn.PgConn, error) {
+	return c.postgresClientWithAddr(ctx, c.mux.DB().Addr().String(), teleportUser, dbService, dbUser, dbName, opts...)
 }
 
 // postgresClientWithAddr is like postgresClient but allows to override connection address.
-func (c *testContext) postgresClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser, dbName string) (*pgconn.PgConn, error) {
-	return postgres.MakeTestClient(ctx, common.TestClientConfig{
+func (c *testContext) postgresClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser, dbName string, opts ...common.ClientOption) (*pgconn.PgConn, error) {
+	cfg := common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
 		Address:    address,
@@ -1647,7 +1648,13 @@ func (c *testContext) postgresClientWithAddr(ctx context.Context, address, telep
 			Username:    dbUser,
 			Database:    dbName,
 		},
-	})
+	}
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return postgres.MakeTestClient(ctx, cfg)
 }
 
 // postgresClientLocalProxy connects to test Postgres through local ALPN proxy.
@@ -2389,7 +2396,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2441,6 +2448,8 @@ type agentParams struct {
 	CADownloader CADownloader
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
@@ -2481,9 +2490,8 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:                &mocks.STSMock{},
+			STS:                &mocks.STSClientV1{},
 			RDS:                &mocks.RDSMock{},
-			Redshift:           &mocks.RedshiftMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{},
 			ElastiCache:        p.ElastiCache,
 			MemoryDB:           p.MemoryDB,
@@ -2491,6 +2499,9 @@ func (p *agentParams) setDefaults(c *testContext) {
 			IAM:                &mocks.IAMMock{},
 			GCPSQL:             p.GCPSQL,
 		}
+	}
+	if p.AWSConfigProvider == nil {
+		p.AWSConfigProvider = &mocks.AWSConfigProvider{}
 	}
 
 	if p.DiscoveryResourceChecker == nil {
@@ -2524,10 +2535,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient:  c.authClient,
-		AccessPoint: c.authClient,
-		Clients:     &clients.TestCloudClients{},
-		Clock:       c.clock,
+		AuthClient:        c.authClient,
+		AccessPoint:       c.authClient,
+		Clients:           &clients.TestCloudClients{},
+		Clock:             c.clock,
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
 
@@ -2542,7 +2554,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2596,6 +2608,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		OnReconcile:              p.OnReconcile,
 		ConnectionMonitor:        connMonitor,
 		CloudClients:             p.CloudClients,
+		AWSConfigProvider:        p.AWSConfigProvider,
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
@@ -2611,7 +2624,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		for _, db := range p.Databases {
 			select {
 			case sender := <-inventoryHandle.Sender():
-				dbServer, err := server.getServerInfo(db)
+				dbServer, err := server.getServerInfo(ctx, db)
 				require.NoError(t, err)
 				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
 					DatabaseServer: dbServer,

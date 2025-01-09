@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,17 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function SlidersVertical({
-  size = 24,
-  color,
-  ...otherProps
-}: IconProps) {
-  return (
+export const SlidersVertical = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-slidersvertical"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -78,5 +75,5 @@ export function SlidersVertical({
         d="M21.75 15.75C21.75 17.1479 20.7939 18.3225 19.5 18.6555V20.25C19.5 20.6642 19.1642 21 18.75 21C18.3358 21 18 20.6642 18 20.25V18.6555C16.7061 18.3225 15.75 17.1479 15.75 15.75C15.75 14.3521 16.7061 13.1775 18 12.8445V3.75C18 3.33579 18.3358 3 18.75 3C19.1642 3 19.5 3.33579 19.5 3.75V12.8445C20.7939 13.1775 21.75 14.3521 21.75 15.75ZM17.25 15.75C17.25 14.9216 17.9216 14.25 18.75 14.25C19.5784 14.25 20.25 14.9216 20.25 15.75C20.25 16.5784 19.5784 17.25 18.75 17.25C17.9216 17.25 17.25 16.5784 17.25 15.75Z"
       />
     </Icon>
-  );
-}
+  )
+);

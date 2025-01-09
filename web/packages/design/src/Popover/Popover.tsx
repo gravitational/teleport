@@ -40,13 +40,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React, { createRef, Component } from 'react';
+import React, { Component, createRef } from 'react';
 import styled, { CSSProp } from 'styled-components';
 
 import Flex from 'design/Flex';
 
-import Modal, { BackdropProps, ModalProps as ModalProps } from '../Modal';
-
+import Modal, { BackdropProps, ModalProps } from '../Modal';
 import { Transition } from './Transition';
 
 type Offset = { top: number; left: number };
@@ -738,7 +737,12 @@ export class Popover extends Component<Props> {
         BackdropProps={{ invisible: true, ...this.props.backdropProps }}
         {...other}
       >
-        <Transition onEntering={this.handleEntering}>
+        <Transition
+          onEntering={this.handleEntering}
+          enablePaperResizeObserver={this.props.updatePositionOnChildResize}
+          paperRef={this.paperRef}
+          onPaperResize={this.setPositioningStyles}
+        >
           <StyledPopover
             shadow={true}
             popoverCss={popoverCss}
@@ -860,6 +864,15 @@ interface Props extends Omit<ModalProps, 'children' | 'open'> {
    * arrow tips.
    */
   arrowMargin?: number;
+
+  /**
+   * If false (default), positioning styles are updated only on the initial render of the children.
+   *
+   * If true, updates positioning styles of the popover whenever the children are resized.
+   * This is useful in situations where the children are updated asynchronously, e.g., after
+   * receiving a response over network.
+   */
+  updatePositionOnChildResize?: boolean;
 }
 
 export const StyledPopover = styled(Flex)<{
