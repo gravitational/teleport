@@ -17,10 +17,11 @@
 package reference
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"go/ast"
-	"path"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -28,6 +29,12 @@ import (
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
+
+var tmpl *template.Template
+
+func init() {
+	tmpl = template.Must(template.New("Main reference").Parse(referenceTemplate))
+}
 
 // pageContent represents a reference page for a single resource and its related
 // fields. Fields must be exported so we can use them in templates.
@@ -45,61 +52,9 @@ type resourceSection struct {
 }
 
 // Intended to be executed with a ReferenceContent.
-// Ampersands are replaced with backticks.
-var referenceTemplate string = strings.ReplaceAll(`---
-title: {{ .Resource.SectionName }} Reference
-description: Provides a reference of fields within the {{ .Resource.SectionName }} resource, which you can manage with tctl.
-sidebar_title: {{ .Resource.SectionName }}
----
-{{- if ne .Resource.Kind "" }}
-
-**Kind**: {{ .Resource.Kind }}
-{{- end }}
-
-{{- if ne .Resource.Version "" }}
-**Version**: {{ .Resource.Version }}
-{{- end }}
-
-{{ .Resource.Description }}
-
-{/*Automatically generated from: {{ .Resource.SourcePath}}*/}
-
-Example:
-
-&&&yaml
-{{ .Resource.YAMLExample -}}
-&&&
-
-{{- if gt (len .Resource.Fields) 0 }}
-|Field Name|Description|Type|
-|---|---|---|
-{{ range .Resource.Fields -}}
-|{{.Name}}|{{.Description}}|{{.Type}}|
-{{ end }} 
-{{- end }}
-
-{{- range .Fields }}
-## {{ .SectionName }}
-
-{{ .Description }}
-
-{/*Automatically generated from: {{ .SourcePath}}*/}
-{{ if ne .YAMLExample "" }}
-Example:
-
-&&&yaml
-{{ .YAMLExample -}}
-&&&
-{{ end }}
-{{- if gt (len .Fields) 0 }}
-|Field Name|Description|Type|
-|---|---|---|
-{{ range .Fields -}}
-|{{.Name}}|{{.Description}}|{{.Type}}|
-{{ end }} 
-{{- end }}
-{{- end }}
-`, "&", "`")
+//
+//go:embed reference.tmpl
+var referenceTemplate string
 
 // TypeInfo represents the name and package name of an exported Go type. It
 // makes no guarantees about whether the type was actually declared within the
@@ -331,12 +286,12 @@ func Generate(srcFS, destFS afero.Fs, conf GeneratorConfig) error {
 		pc.Resource.Version = verName
 
 		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
-		doc, err := destFS.Create(path.Join(conf.DestinationDirectory, filename+".mdx"))
+		doc, err := destFS.Create(filepath.Join(conf.DestinationDirectory, filename+".mdx"))
 		if err != nil {
 			errs.messages = append(errs.messages, err)
 		}
 
-		if err := template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(doc, pc); err != nil {
+		if err := tmpl.Execute(doc, pc); err != nil {
 			errs.messages = append(errs.messages, err)
 		}
 	}
