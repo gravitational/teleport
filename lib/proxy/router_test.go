@@ -509,7 +509,7 @@ func TestGetServers(t *testing.T) {
 		{
 			name:         "git server",
 			site:         testSite{cfg: &unambiguousCfg, gitServers: gitServers},
-			host:         "org2.github-org",
+			host:         "org2.teleport-github-org",
 			errAssertion: require.NoError,
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.NotNil(t, srv)
@@ -520,7 +520,7 @@ func TestGetServers(t *testing.T) {
 		{
 			name: "git server not found",
 			site: testSite{cfg: &unambiguousCfg, gitServers: gitServers},
-			host: "org-not-found.github-org",
+			host: "org-not-found.teleport-github-org",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
