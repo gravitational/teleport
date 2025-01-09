@@ -1,0 +1,6 @@
+type: kubernetes/v2
+destination:
+  type: memory
+selectors:
+  - name: foo
+    labels: {}
