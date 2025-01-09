@@ -2,18 +2,17 @@ package azuresync
 
 import (
 	"context"
-	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/msgraph"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 const parallelism = 10
 
-func expandMemberships(
-	ctx context.Context,
-	cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal,
-) ([]*accessgraphv1alpha.AzurePrincipal, error) {
+func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint:unused // invoked in a dependent PR
 	var eg errgroup.Group
 	eg.SetLimit(parallelism)
 	for _, principal := range principals {

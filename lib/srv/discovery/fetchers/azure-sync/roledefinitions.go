@@ -20,14 +20,14 @@ package azuresync
 
 import (
 	"context"
-	"fmt" //nolint:golint // used in a dependent PR
-	"github.com/gravitational/teleport/lib/utils/slices"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // RoleDefinitionsClient specifies the methods used to fetch roles from Azure
@@ -55,7 +55,7 @@ func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDe
 		}
 		pbPerms := make([]*accessgraphv1alpha.AzureRBACPermission, 0, len(roleDef.Properties.Permissions))
 		for _, perm := range roleDef.Properties.Permissions {
-			if perm.Actions == nil || perm.NotActions == nil {
+			if perm.Actions == nil && perm.NotActions == nil {
 				fetchErrs = append(fetchErrs, trace.BadParameter("nil values on Permission object: %v", perm))
 				continue
 			}

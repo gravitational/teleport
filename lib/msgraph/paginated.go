@@ -54,12 +54,7 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
-	rawQuery := url.Values{
-		"$top": {
-			strconv.Itoa(c.pageSize),
-		},
-	}
-	uri.RawQuery = rawQuery.Encode()
+	uri.RawQuery = url.Values{"$top": {strconv.Itoa(c.pageSize)}}.Encode()
 	uriString := uri.String()
 	for uriString != "" {
 		resp, err := c.request(ctx, http.MethodGet, uriString, nil)
@@ -114,27 +109,12 @@ func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal 
 	return iterateSimple(c, ctx, "servicePrincipals", f)
 }
 
-func (c *Client) IterateUserMembership(ctx context.Context, userID string, f func(obj *DirectoryObject) bool) error {
-	var err error
-	itErr := c.iterate(ctx, path.Join("users", userID, "memberOf"), func(msg json.RawMessage) bool {
-		var page []json.RawMessage
-		if err = json.Unmarshal(msg, &page); err != nil {
-			return false
-		}
-		for _, entry := range page {
-			var d *DirectoryObject
-			err := json.Unmarshal(entry, &d)
-			if err != nil {
-				return false
-			}
-			f(d)
-		}
-		return true
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(itErr)
+// IterateUserMembership lists all group memberships for a given user ID as directory objects.
+// `f` will be called for each directory object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-memberof].
+func (c *Client) IterateUserMembership(ctx context.Context, userID string, f func(object *DirectoryObject) bool) error {
+	return iterateSimple(c, ctx, path.Join("users", userID, "memberOf"), f)
 }
 
 // IterateGroupMembers lists all members for the given Entra ID group using pagination.

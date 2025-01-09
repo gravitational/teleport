@@ -28,7 +28,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-const allResourceGroups = "*" //nolint:unused // used in a dependent PR
+const allResourceGroups = "*"
 
 // VirtualMachinesClient specifies the methods used to fetch virtual machines from Azure
 type VirtualMachinesClient interface {
