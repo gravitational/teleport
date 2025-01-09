@@ -16,40 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { isBefore, isAfter, formatDistanceToNowStrict } from 'date-fns';
+import { formatDistanceToNowStrict, isAfter, isBefore } from 'date-fns';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+
 import { Alert, Box, Flex, Indicator, Text } from 'design';
-
-import { Notification as NotificationIcon, BellRinging } from 'design/Icon';
-import Logger from 'shared/libs/logger';
-import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import { HoverTooltip } from 'shared/components/ToolTip';
-
+import { BellRinging, Notification as NotificationIcon } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import {
   useInfiniteScroll,
   useKeyBasedPagination,
 } from 'shared/hooks/useInfiniteScroll';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
-
+import Logger from 'shared/libs/logger';
 import { useStore } from 'shared/libs/stores';
 
 import { useTeleport } from 'teleport';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Dropdown } from 'teleport/components/Dropdown';
-
-import { ButtonIconContainer } from 'teleport/TopBar/Shared';
-
 import {
   LocalNotificationGroupedKind,
   LocalNotificationKind,
   Notification as NotificationType,
 } from 'teleport/services/notifications';
-
 import {
   Notification as AccessListNotification,
   LocalNotificationStates,
 } from 'teleport/stores/storeNotifications';
+import { ButtonIconContainer } from 'teleport/TopBar/Shared';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { Notification } from './Notification';
 
@@ -298,7 +293,7 @@ function Header({
           box-sizing: border-box;
           gap: 12px;
           border-bottom: 1px solid
-            ${p => p.theme.colors.interactive.tonal.neutral[2].background};
+            ${p => p.theme.colors.interactive.tonal.neutral[2]};
           padding-bottom: ${p => p.theme.space[3]}px;
           margin-bottom: ${p => p.theme.space[3]}px;
         `}
@@ -337,11 +332,9 @@ function EmptyState() {
           justify-content: center;
           height: 88px;
           width: 88px;
-          background-color: ${p =>
-            p.theme.colors.interactive.tonal.neutral[0].background};
+          background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
           border-radius: ${p => p.theme.radii[7]}px;
-          border: 1px solid
-            ${p => p.theme.colors.interactive.tonal.neutral[1].background};
+          border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[1]};
         `}
       >
         <BellRinging size={40} />
@@ -516,8 +509,7 @@ const NotificationsList = styled.div`
   padding-right: ${p => `${p.theme.space[3] - 8}px`};
 
   ::-webkit-scrollbar-thumb {
-    background-color: ${p =>
-      p.theme.colors.interactive.tonal.neutral[2].background};
+    background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
     border-radius: ${p => p.theme.radii[2]}px;
     // Trick to make the scrollbar thumb 2px narrower than the track.
     border: 2px solid transparent;
@@ -528,8 +520,7 @@ const NotificationsList = styled.div`
     width: 8px;
     border-radius: ${p => p.theme.radii[2]}px;
     border-radius: ${p => p.theme.radii[2]}px;
-    background-color: ${p =>
-      p.theme.colors.interactive.tonal.neutral[0].background};
+    background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
   }
 
   .notification {

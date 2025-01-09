@@ -562,7 +562,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				ClusterName: "root.example.com",
 				HostID:      uuid.New().String(),
 				NodeName:    helpers.Loopback,
-				Log:         utils.NewLoggerForTests(),
+				Logger:      utils.NewSlogLoggerForTests(),
 			}
 			tconf := servicecfg.MakeDefaultConfig()
 			tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
@@ -1236,7 +1236,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// advance the fake clock and verify that the local proxy thinks its cert expired.
 		fakeClock.Advance(time.Hour * 48)
-		err = lp.CheckDBCert(routeToDatabase)
+		err = lp.CheckDBCert(context.Background(), routeToDatabase)
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
@@ -1395,7 +1395,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -1499,7 +1499,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 		NodeName:    helpers.Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	rootCfg.Listeners = helpers.StandardListenerSetup(t, &rootCfg.Fds)
 	rc := helpers.NewInstance(t, rootCfg)
@@ -1569,7 +1569,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    addr,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	instanceCfg.Listeners = helpers.SingleProxyPortSetupOn(addr)(t, &instanceCfg.Fds)
 	rc := helpers.NewInstance(t, instanceCfg)
@@ -1614,7 +1614,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
 	defer cancel()
 
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 1)
+	err = rc.WaitForNodeCount(ctx, "root.example.com", 1)
 	require.NoError(t, err)
 
 	require.Zero(t, ph.Count())
@@ -1624,7 +1624,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	require.NoError(t, os.Unsetenv("no_proxy"))
 	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
 	require.NoError(t, err)
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 2)
+	err = rc.WaitForNodeCount(ctx, "root.example.com", 2)
 	require.NoError(t, err)
 
 	require.NotZero(t, ph.Count())
@@ -1636,7 +1636,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
@@ -1644,17 +1644,15 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcAddr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
-	log.Info("Creating Teleport instance...")
 	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    rcAddr,
-		Log:         log,
+		Logger:      log,
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
 	defer rc.StopAll()
-	log.Info("Teleport root cluster instance created")
 
 	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
@@ -1668,20 +1666,15 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	rcConf.Log = log
+	rcConf.Logger = log
 
-	log.Infof("Root cluster config: %#v", rcConf)
-
-	log.Info("Creating Root cluster...")
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
 
-	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
 
 	// Create and start http_proxy server.
-	log.Info("Creating HTTP Proxy server...")
 	ph := &helpers.ProxyHandler{}
 	authorizer := helpers.NewProxyAuthorizer(ph, "alice", "rosebud")
 	ts := httptest.NewServer(authorizer)
@@ -1689,7 +1682,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	proxyURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
 	// set http_proxy to user:password@host
 	// these credentials will be rejected by the auth proxy (initially).
@@ -1699,7 +1691,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 	nodeCfg := makeNodeConfig("node1", rcProxyAddr)
-	nodeCfg.Log = log
+	nodeCfg.Logger = log
 
 	timeout := time.Second * 60
 	startErrC := make(chan error)
@@ -1723,7 +1715,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 		startErrC <- err
 	}()
 	require.NoError(t, <-startErrC)
-	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
+	require.NoError(t, rc.WaitForNodeCount(context.Background(), rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
 }
 

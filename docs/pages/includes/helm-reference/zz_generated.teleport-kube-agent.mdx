@@ -77,7 +77,7 @@ roles `App` and `Kube`.
 
 ## `joinParams`
 
-`joinParams` controls how the Teleport agent joins the Teleport cluster.
+`joinParams` controls how the Teleport Agent joins the Teleport cluster.
 These sub-values must be configured for the agent to connect to a cluster.
 
 This value serves the same purpose as [`authToken`](#authToken) but supports
@@ -131,7 +131,7 @@ is provided through an existing Kubernetes Secret, see
 | `string` | `""` |
 
 `kubeClusterName` sets the name used for the Kubernetes cluster proxied by
-the Teleport agent. This name will be shown to Teleport users connecting to
+the Teleport Agent. This name will be shown to Teleport users connecting to
 the cluster.
 
 This setting is required if the chart `roles` contains `kube`.
@@ -266,7 +266,7 @@ annotations:
 
 `azureDatabases` configures Azure database auto-discovery.
 <Admonition type="note" title="Azure IAM">
-  For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+  For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-25-configure-iam-permissions-for-teleport).
 
   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
   The easiest way is to use an Azure client secret.
@@ -372,7 +372,7 @@ databases:
 ```
 
 <Admonition type="tip" title="Supported values">
-  You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
+  You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
 </Admonition>
 
 <Admonition type="tip" title="Trusting Database CA">
@@ -630,6 +630,21 @@ teleportConfig:
       tags:
         "*":"*"
 ```
+
+## `terminationGracePeriodSeconds`
+
+| Type | Default |
+|------|---------|
+| `integer` | `30` |
+
+`terminationGracePeriodSeconds` is the time the pod has to do a graceful shutdown.
+If teleport has not existed after this delay, the process gets killed.
+Teleport will wait until every connection backed by the agent is over before exiting.
+If you want to reduce the disruption of rolling out agents at the price of a slower rollout, you can increase this
+value to an hour.
+
+See the [Kubernetes Pod Lifecycle docs](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination)
+for more details.
 
 ## `tls`
 
@@ -902,7 +917,7 @@ labels:
 ## `highAvailability`
 
 `highAvailability` contains settings controlling the availability of the
-Teleport agent deployed by the chart.
+Teleport Agent deployed by the chart.
 
 The availability can be increased by:
 - running more replicas with `replicaCount`
@@ -1097,25 +1112,23 @@ cluster role binding.
 |------|---------|
 | `string` | `"public.ecr.aws/gravitational/teleport-distroless"` |
 
-`image` sets the container image used for Teleport OSS agent pods
-created by the chart.
+`image` sets the container image used for Teleport Community Edition
+Agent pods created by the chart.
 
-You can override this to use your own Teleport image rather than a Teleport-published image.
+You can override this to use your own Teleport image rather than a
+Teleport-published image.
 
 <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
-  When using the Teleport Kube Agent Updater, you must ensure the image is
-  available before the updater version target gets updated and Kubernetes tries
-  to pull the image.
+When using the Teleport Kube Agent Updater, you must ensure the
+image is available before the updater version target gets updated and
+Kubernetes tries to pull the image.
 
-  For this reason, it is strongly discouraged to set a custom image when
-  using automatic updates. Teleport Cloud uses automatic updates by default.
+For this reason, it is strongly discouraged to set a custom image when using
+automatic updates. Teleport Cloud uses automatic updates by default.
 </Admonition>
 
-Since version 13, hardened distroless images are used by default.
-You can use the deprecated debian-based images by setting the value to
-`public.ecr.aws/gravitational/teleport`. Those images will be
-removed with teleport 15.
-
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 When running an enterprise version, you must use
 [`enterpriseImage`](#enterpriseImage) instead.
@@ -1141,11 +1154,8 @@ Teleport-published image.
   using automatic updates. Teleport Cloud uses automatic updates by default.
 </Admonition>
 
-Since version 13, hardened distroless images are used by default.
-You can use the deprecated debian-based images by setting the value to
-`public.ecr.aws/gravitational/teleport-ent`. Those images will be
-removed with teleport 15.
-
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `true`.
 When running an enterprise version, you must use [`image`](#image) instead.
 

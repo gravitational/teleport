@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -203,7 +202,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-							log.Debugf("Terminating connection at event %v", event.GetIndex())
+							t.Logf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -235,7 +234,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.Add(1) <= 10 {
-							log.Debugf("Terminating connection #%v at event %v", terminateConnection.Load(), event.GetIndex())
+							t.Logf("Terminating connection #%v at event %v", terminateConnection.Load(), event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -268,7 +267,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-							log.Debugf("Terminating connection at event %v", event.GetIndex())
+							t.Logf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -307,7 +306,7 @@ func TestUploadResume(t *testing.T) {
 					if filepath.Ext(fi.Name()) == checkpointExt {
 						err := os.Remove(filepath.Join(uploader.cfg.ScanDir, fi.Name()))
 						require.NoError(t, err)
-						log.Debugf("Deleted checkpoint file: %v.", fi.Name())
+						t.Logf("Deleted checkpoint file: %v.", fi.Name())
 						checkpointsDeleted++
 					}
 				}
@@ -322,7 +321,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-							log.Debugf("Terminating connection at event %v", event.GetIndex())
+							t.Logf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -371,7 +370,7 @@ func TestUploadBackoff(t *testing.T) {
 				event := pe.GetAuditEvent()
 				terminateAt := terminateConnectionAt.Load()
 				if terminateAt > 0 && event.GetIndex() >= terminateAt {
-					log.Debugf("Terminating connection at event %v", event.GetIndex())
+					t.Logf("Terminating connection at event %v", event.GetIndex())
 					return trace.ConnectionProblem(nil, "connection terminated at event index %v", terminateAt)
 				}
 				return nil
@@ -555,7 +554,7 @@ type wrapStreamerFn func(streamer events.Streamer) (events.Streamer, error)
 
 // runResume runs resume scenario based on the test case specification
 func runResume(t *testing.T, testCase resumeTestCase) {
-	log.Debugf("Running test %q.", testCase.name)
+	t.Logf("Running test %q.", testCase.name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

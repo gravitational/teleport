@@ -19,7 +19,7 @@
 package common
 
 import (
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -113,7 +113,7 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 
 			var localProxyCreated bool
 			var loadedKubeClusters kubeconfig.LocalProxyClusters
-			wantLocalProxyKubeConfigLocation := path.Join(tshHome, uuid.NewString())
+			wantLocalProxyKubeConfigLocation := filepath.Join(tshHome, uuid.NewString())
 
 			closeFn, actualKubeConfigLocation, err := maybeStartKubeLocalProxy(cf,
 				withKubectlArgs(test.inputArgs),
@@ -266,7 +266,7 @@ func Test_overwriteKubeconfigFlagInEnv(t *testing.T) {
 }
 
 func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
-	kubeconfigLocation := path.Join(tshHome, "kubeconfig")
+	kubeconfigLocation := filepath.Join(tshHome, "kubeconfig")
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	priv, err := keys.NewSoftwarePrivateKey(key)

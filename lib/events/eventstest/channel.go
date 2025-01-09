@@ -20,9 +20,8 @@ package eventstest
 
 import (
 	"context"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -32,19 +31,19 @@ import (
 // ChannelEmitter emits audit events by writing them to a channel.
 type ChannelEmitter struct {
 	events chan apievents.AuditEvent
-	log    logrus.FieldLogger
+	log    *slog.Logger
 }
 
 // NewChannelEmitter returns a new instance of test emitter.
 func NewChannelEmitter(capacity int) *ChannelEmitter {
 	return &ChannelEmitter{
-		log:    logrus.WithField(teleport.ComponentKey, "channel_emitter"),
+		log:    slog.With(teleport.ComponentKey, "channel_emitter"),
 		events: make(chan apievents.AuditEvent, capacity),
 	}
 }
 
 func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	e.log.Infof("EmitAuditEvent(%v)", event)
+	e.log.InfoContext(ctx, "EmitAuditEvent", "event_type", event.GetType(), "event_code", event.GetCode())
 	start := time.Now()
 	for {
 		select {
@@ -53,10 +52,11 @@ func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 		case e.events <- event:
 			return nil
 		case <-time.After(5 * time.Second):
-			e.log.WithFields(logrus.Fields{
-				"event":   event,
-				"elapsed": time.Since(start),
-			}).Info("EmitAuditEvent has been blocked sending to a full ChannelEmitter for a long time")
+			e.log.InfoContext(ctx, "EmitAuditEvent has been blocked sending to a full ChannelEmitter for a long time",
+				"event_type", event.GetType(),
+				"event_code", event.GetCode(),
+				"elapsed", time.Since(start),
+			)
 		}
 	}
 }
@@ -68,13 +68,13 @@ func (e *ChannelEmitter) C() <-chan apievents.AuditEvent {
 // ChannelRecorder records session events by writing them to a channel.
 type ChannelRecorder struct {
 	events chan apievents.AuditEvent
-	log    logrus.FieldLogger
+	log    *slog.Logger
 }
 
 // NewChannelRecorder returns a new instance of test recorder.
 func NewChannelRecorder(capacity int) *ChannelRecorder {
 	return &ChannelRecorder{
-		log:    logrus.WithField(teleport.ComponentKey, "channel_recorder"),
+		log:    slog.With(teleport.ComponentKey, "channel_recorder"),
 		events: make(chan apievents.AuditEvent, capacity),
 	}
 }
@@ -96,7 +96,10 @@ func (*ChannelRecorder) Write(b []byte) (int, error) {
 }
 
 func (e *ChannelRecorder) RecordEvent(ctx context.Context, event apievents.PreparedSessionEvent) error {
-	e.log.Infof("RecordEvent(%v)", event.GetAuditEvent())
+	e.log.InfoContext(ctx, "RecordEvent",
+		"event_type", event.GetAuditEvent().GetType(),
+		"event_code", event.GetAuditEvent().GetCode(),
+	)
 	start := time.Now()
 	for {
 		select {
@@ -105,10 +108,11 @@ func (e *ChannelRecorder) RecordEvent(ctx context.Context, event apievents.Prepa
 		case e.events <- event.GetAuditEvent():
 			return nil
 		case <-time.After(5 * time.Second):
-			e.log.WithFields(logrus.Fields{
-				"event":   event.GetAuditEvent(),
-				"elapsed": time.Since(start),
-			}).Info("RecordEvent has been blocked sending to a full ChannelRecorder for a long time")
+			e.log.InfoContext(ctx, "RecordEvent has been blocked sending to a full ChannelRecorder for a long time",
+				"event_type", event.GetAuditEvent().GetType(),
+				"event_code", event.GetAuditEvent().GetCode(),
+				"elapsed", time.Since(start),
+			)
 		}
 	}
 }

@@ -19,6 +19,7 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -27,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestEICEIAMConfigReqDefaults(t *testing.T) {
@@ -35,6 +38,7 @@ func TestEICEIAMConfigReqDefaults(t *testing.T) {
 			Region:          "us-east-1",
 			IntegrationRole: "integrationrole",
 			AccountID:       "123456789012",
+			AutoConfirm:     true,
 		}
 	}
 
@@ -53,6 +57,7 @@ func TestEICEIAMConfigReqDefaults(t *testing.T) {
 				Region:                    "us-east-1",
 				IntegrationRole:           "integrationrole",
 				IntegrationRoleEICEPolicy: "EC2InstanceConnectEndpoint",
+				AutoConfirm:               true,
 			},
 		},
 		{
@@ -85,6 +90,7 @@ func TestEICEIAMConfigReqDefaults(t *testing.T) {
 				Region:                    "us-east-1",
 				IntegrationRole:           "integrationrole",
 				IntegrationRoleEICEPolicy: "EC2InstanceConnectEndpoint",
+				AutoConfirm:               true,
 			},
 		},
 	} {
@@ -108,6 +114,7 @@ func TestEICEIAMConfig(t *testing.T) {
 			Region:          "us-east-1",
 			IntegrationRole: "integrationrole",
 			AccountID:       "123456789012",
+			AutoConfirm:     true,
 		}
 	}
 
@@ -142,7 +149,7 @@ func TestEICEIAMConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockEICEIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -152,8 +159,31 @@ func TestEICEIAMConfig(t *testing.T) {
 	}
 }
 
+func TestEICEIAMConfigOutput(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	req := EICEIAMConfigureRequest{
+		Region:          "us-east-1",
+		IntegrationRole: "integrationrole",
+		AccountID:       "123456789012",
+		AutoConfirm:     true,
+		stdout:          &buf,
+	}
+
+	clt := mockEICEIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
+		existingRoles:        []string{req.IntegrationRole},
+	}
+
+	require.NoError(t, ConfigureEICEIAM(ctx, &clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockEICEIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 

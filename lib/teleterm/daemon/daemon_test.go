@@ -21,6 +21,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +31,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -298,6 +299,9 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -332,6 +336,9 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -433,6 +440,9 @@ func TestRetryWithRelogin(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+					return nil
+				},
 			})
 			require.NoError(t, err)
 
@@ -479,13 +489,16 @@ func TestRetryWithRelogin(t *testing.T) {
 	}
 }
 
-func TestImportantModalSemaphore(t *testing.T) {
+func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -509,54 +522,54 @@ func TestImportantModalSemaphore(t *testing.T) {
 	// Claim the important modal semaphore.
 
 	customWaitDuration := 10 * time.Millisecond
-	daemon.importantModalSemaphore.waitDuration = customWaitDuration
-	err = daemon.importantModalSemaphore.Acquire(ctx)
+	daemon.headlessAuthSemaphore.waitDuration = customWaitDuration
+	err = daemon.headlessAuthSemaphore.Acquire(ctx)
 	require.NoError(t, err)
 
-	// relogin and sending pending headless authentications should be blocked.
+	// Pending headless authentications should be blocked.
 
-	reloginErrC := make(chan error)
+	headlessPromptErr1 := make(chan error)
 	go func() {
-		reloginErrC <- daemon.relogin(ctx, &api.ReloginRequest{})
+		headlessPromptErr1 <- daemon.sendPendingHeadlessAuthentication(ctx, &types.HeadlessAuthentication{}, "")
 	}()
 
-	sphaErrC := make(chan error)
+	headlessPromptErr2 := make(chan error)
 	go func() {
-		sphaErrC <- daemon.sendPendingHeadlessAuthentication(ctx, &types.HeadlessAuthentication{}, "")
+		headlessPromptErr2 <- daemon.sendPendingHeadlessAuthentication(ctx, &types.HeadlessAuthentication{}, "")
 	}()
 
 	select {
-	case <-reloginErrC:
-		t.Error("relogin completed successfully without acquiring the important modal semaphore")
-	case <-sphaErrC:
-		t.Error("sendPendingHeadlessAuthentication completed successfully without acquiring the important modal semaphore")
+	case <-headlessPromptErr1:
+		t.Error("sendPendingHeadlessAuthentication for the first prompt completed successfully without acquiring the semaphore")
+	case <-headlessPromptErr2:
+		t.Error("sendPendingHeadlessAuthentication for the second prompt completed successfully without acquiring the semaphore")
 	case <-time.After(100 * time.Millisecond):
 	}
 
-	// if the request's ctx is canceled, they will unblock and return an error instead.
+	// If the request's ctx is canceled, they will unblock and return an error instead.
 
 	cancelCtx, cancel := context.WithCancel(ctx)
 	cancel()
 
-	err = daemon.relogin(cancelCtx, &api.ReloginRequest{})
+	err = daemon.sendPendingHeadlessAuthentication(cancelCtx, &types.HeadlessAuthentication{}, "")
 	require.Error(t, err)
 	err = daemon.sendPendingHeadlessAuthentication(cancelCtx, &types.HeadlessAuthentication{}, "")
 	require.Error(t, err)
 
-	// Release the semaphore. relogin and sending pending headless authentication should
+	// Release the semaphore. Pending headless authentication should
 	// complete successfully after a short delay between each semaphore release.
 
 	releaseTime := time.Now()
-	daemon.importantModalSemaphore.Release()
+	daemon.headlessAuthSemaphore.Release()
 
 	var otherC chan error
 	select {
-	case err := <-reloginErrC:
+	case err := <-headlessPromptErr1:
 		require.NoError(t, err)
-		otherC = sphaErrC
-	case err := <-sphaErrC:
+		otherC = headlessPromptErr2
+	case err := <-headlessPromptErr2:
 		require.NoError(t, err)
-		otherC = reloginErrC
+		otherC = headlessPromptErr1
 	case <-time.After(time.Second):
 		t.Error("important modal operations failed to acquire unclaimed semaphore")
 	}
@@ -576,8 +589,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 		t.Error("important modal semaphore should not be acquired before waiting the specified duration")
 	}
 
-	require.EqualValues(t, 1, service.reloginCount.Load(), "Unexpected number of calls to service.Relogin")
-	require.EqualValues(t, 1, service.sendPendingHeadlessAuthenticationCount.Load(), "Unexpected number of calls to service.SendPendingHeadlessAuthentication")
+	require.EqualValues(t, 2, service.sendPendingHeadlessAuthenticationCount.Load(), "Unexpected number of calls to service.SendPendingHeadlessAuthentication")
 }
 
 type mockTSHDEventsService struct {
@@ -714,7 +726,7 @@ func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbNa
 func (m fakeGateway) TargetUser() string            { return "alice" }
 func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeGateway) Protocol() string              { return defaults.ProtocolSQLServer }
-func (m fakeGateway) Log() *logrus.Entry            { return nil }
+func (m fakeGateway) Log() *slog.Logger             { return nil }
 func (m fakeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeGateway) LocalPort() string             { return "8888" }

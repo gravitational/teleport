@@ -49,4 +49,6 @@ type ExternalAuditStorageConfiguration struct {
 	GlueTable string
 	// Partition is the AWS partition to use (default: aws).
 	Partition string
+	// AccountID is the AWS account ID.
+	AccountID string
 }

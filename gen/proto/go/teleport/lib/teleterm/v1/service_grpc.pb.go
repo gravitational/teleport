@@ -39,7 +39,7 @@ const (
 	TerminalService_UpdateTshdEventsServerAddress_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
 	TerminalService_ListRootClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
 	TerminalService_ListLeafClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
-	TerminalService_GetDatabases_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/GetDatabases"
+	TerminalService_StartHeadlessWatcher_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
 	TerminalService_ListDatabaseUsers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
 	TerminalService_GetServers_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
 	TerminalService_GetAccessRequests_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
@@ -51,8 +51,7 @@ const (
 	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
 	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
 	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
-	TerminalService_GetKubes_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
-	TerminalService_GetApps_FullMethodName                           = "/teleport.lib.teleterm.v1.TerminalService/GetApps"
+	TerminalService_ListKubernetesResources_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
 	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
 	TerminalService_RemoveCluster_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
 	TerminalService_ListGateways_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
@@ -102,11 +101,15 @@ type TerminalServiceClient interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
-	// GetDatabases returns a filtered and paginated list of databases
-	GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error)
+	// StartHeadlessWatcher starts a headless watcher.
+	// If the watcher is already running, it is restarted.
+	StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
+	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
+	//
+	// Deprecated: Use ListUnifiedResources instead.
 	GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(ctx context.Context, in *GetAccessRequestsRequest, opts ...grpc.CallOption) (*GetAccessRequestsResponse, error)
@@ -126,10 +129,9 @@ type TerminalServiceClient interface {
 	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access request.
 	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
-	// GetKubes returns filtered, sorted, and paginated kubes
-	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
-	// GetApps returns a filtered and paginated list of apps.
-	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
+	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+	ListKubernetesResources(ctx context.Context, in *ListKubernetesResourcesRequest, opts ...grpc.CallOption) (*ListKubernetesResourcesResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -251,10 +253,10 @@ func (c *terminalServiceClient) ListLeafClusters(ctx context.Context, in *ListLe
 	return out, nil
 }
 
-func (c *terminalServiceClient) GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error) {
+func (c *terminalServiceClient) StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetDatabasesResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetDatabases_FullMethodName, in, out, cOpts...)
+	out := new(StartHeadlessWatcherResponse)
+	err := c.cc.Invoke(ctx, TerminalService_StartHeadlessWatcher_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +273,7 @@ func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListD
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *terminalServiceClient) GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetServersResponse)
@@ -371,20 +374,10 @@ func (c *terminalServiceClient) GetSuggestedAccessLists(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *terminalServiceClient) GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error) {
+func (c *terminalServiceClient) ListKubernetesResources(ctx context.Context, in *ListKubernetesResourcesRequest, opts ...grpc.CallOption) (*ListKubernetesResourcesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetKubesResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetKubes_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAppsResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetApps_FullMethodName, in, out, cOpts...)
+	out := new(ListKubernetesResourcesResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListKubernetesResources_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -666,11 +659,15 @@ type TerminalServiceServer interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
-	// GetDatabases returns a filtered and paginated list of databases
-	GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error)
+	// StartHeadlessWatcher starts a headless watcher.
+	// If the watcher is already running, it is restarted.
+	StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
+	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
+	//
+	// Deprecated: Use ListUnifiedResources instead.
 	GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(context.Context, *GetAccessRequestsRequest) (*GetAccessRequestsResponse, error)
@@ -690,10 +687,9 @@ type TerminalServiceServer interface {
 	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access request.
 	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
-	// GetKubes returns filtered, sorted, and paginated kubes
-	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
-	// GetApps returns a filtered and paginated list of apps.
-	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
+	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+	ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(context.Context, *AddClusterRequest) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -794,8 +790,8 @@ func (UnimplementedTerminalServiceServer) ListRootClusters(context.Context, *Lis
 func (UnimplementedTerminalServiceServer) ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListLeafClusters not implemented")
 }
-func (UnimplementedTerminalServiceServer) GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
+func (UnimplementedTerminalServiceServer) StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartHeadlessWatcher not implemented")
 }
 func (UnimplementedTerminalServiceServer) ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseUsers not implemented")
@@ -830,11 +826,8 @@ func (UnimplementedTerminalServiceServer) PromoteAccessRequest(context.Context, 
 func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
 }
-func (UnimplementedTerminalServiceServer) GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetKubes not implemented")
-}
-func (UnimplementedTerminalServiceServer) GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
+func (UnimplementedTerminalServiceServer) ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesResources not implemented")
 }
 func (UnimplementedTerminalServiceServer) AddCluster(context.Context, *AddClusterRequest) (*Cluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCluster not implemented")
@@ -983,20 +976,20 @@ func _TerminalService_ListLeafClusters_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDatabasesRequest)
+func _TerminalService_StartHeadlessWatcher_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartHeadlessWatcherRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetDatabases(ctx, in)
+		return srv.(TerminalServiceServer).StartHeadlessWatcher(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TerminalService_GetDatabases_FullMethodName,
+		FullMethod: TerminalService_StartHeadlessWatcher_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetDatabases(ctx, req.(*GetDatabasesRequest))
+		return srv.(TerminalServiceServer).StartHeadlessWatcher(ctx, req.(*StartHeadlessWatcherRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1199,38 +1192,20 @@ func _TerminalService_GetSuggestedAccessLists_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_GetKubes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetKubesRequest)
+func _TerminalService_ListKubernetesResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesResourcesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetKubes(ctx, in)
+		return srv.(TerminalServiceServer).ListKubernetesResources(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TerminalService_GetKubes_FullMethodName,
+		FullMethod: TerminalService_ListKubernetesResources_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetKubes(ctx, req.(*GetKubesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAppsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetApps(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_GetApps_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetApps(ctx, req.(*GetAppsRequest))
+		return srv.(TerminalServiceServer).ListKubernetesResources(ctx, req.(*ListKubernetesResourcesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1669,8 +1644,8 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_ListLeafClusters_Handler,
 		},
 		{
-			MethodName: "GetDatabases",
-			Handler:    _TerminalService_GetDatabases_Handler,
+			MethodName: "StartHeadlessWatcher",
+			Handler:    _TerminalService_StartHeadlessWatcher_Handler,
 		},
 		{
 			MethodName: "ListDatabaseUsers",
@@ -1717,12 +1692,8 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_GetSuggestedAccessLists_Handler,
 		},
 		{
-			MethodName: "GetKubes",
-			Handler:    _TerminalService_GetKubes_Handler,
-		},
-		{
-			MethodName: "GetApps",
-			Handler:    _TerminalService_GetApps_Handler,
+			MethodName: "ListKubernetesResources",
+			Handler:    _TerminalService_ListKubernetesResources_Handler,
 		},
 		{
 			MethodName: "AddCluster",

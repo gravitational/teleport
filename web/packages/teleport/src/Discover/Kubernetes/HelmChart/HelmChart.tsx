@@ -16,33 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text, Mark, H3, Subtitle3 } from 'design';
+
+import { Box, ButtonSecondary, H3, Link, Mark, Subtitle3, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { P } from 'design/Text/Text';
-
-import { ResourceLabel } from 'teleport/services/agents';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CatchError } from 'teleport/components/CatchError';
-import {
-  clearCachedJoinTokenResult,
-  useJoinTokenSuspender,
-} from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import useTeleport from 'teleport/useTeleport';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import {
   HintBox,
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
-
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import {
+  clearCachedJoinTokenResult,
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
+import { ResourceLabel } from 'teleport/services/agents';
+import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
+import type { Kube } from 'teleport/services/kube';
+import useTeleport from 'teleport/useTeleport';
 
 import {
   ActionButtons,
@@ -52,11 +53,7 @@ import {
   TextIcon,
   useShowHint,
 } from '../../Shared';
-
 import type { AgentStepProps } from '../../types';
-import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
-import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
-import type { Kube } from 'teleport/services/kube';
 
 export default function Container(props: AgentStepProps) {
   const [namespace, setNamespace] = useState('');
@@ -284,7 +281,7 @@ const StepTwo = ({
                 disabled={disabled}
                 rule={requiredField('Kubernetes Cluster Name is required')}
                 label="Kubernetes Cluster Name"
-                labelTip="Name shown to Teleport users connecting to the cluster"
+                helperText="Name shown to Teleport users connecting to the cluster"
                 value={clusterName}
                 placeholder="my-cluster"
                 width="100%"
@@ -365,14 +362,6 @@ export function generateCmd(data: GenerateCmdProps) {
     // AutomaticUpgradesTargetVersion contains a v, eg, v13.4.2.
     // However, helm chart expects no 'v', eg, 13.4.2.
     deployVersion = data.automaticUpgradesTargetVersion.replace(/^v/, '');
-
-    // TODO(marco): remove when stable/cloud moves to v14
-    // For v13 releases of the helm chart, we must remove the App role.
-    // We get the following error otherwise:
-    // Error: INSTALLATION FAILED: execution error at (teleport-kube-agent/templates/statefulset.yaml:26:28): at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README
-    if (deployVersion.startsWith('13.')) {
-      roles = ['Kube'];
-    }
   }
 
   const yamlRoles = roles.join(',').toLowerCase();

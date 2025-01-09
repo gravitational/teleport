@@ -20,8 +20,8 @@ import React, { forwardRef } from 'react';
 import styled from 'styled-components';
 
 import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import Validation from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 
 export const Form = styled.form.attrs(() => ({
   'aria-label': 'form',
@@ -38,8 +38,9 @@ export const PathInput = forwardRef<HTMLInputElement, FieldInputProps>(
     return (
       <Validation>
         {({ validator }) => (
-          <StyledFieldInput
+          <FieldInput
             {...props}
+            size="small"
             onFocus={moveCaretAtEnd}
             ref={ref}
             spellCheck={false}
@@ -54,10 +55,3 @@ export const PathInput = forwardRef<HTMLInputElement, FieldInputProps>(
     );
   }
 );
-
-const StyledFieldInput = styled(FieldInput)`
-  input {
-    font-size: 14px;
-    height: 32px;
-  }
-`;

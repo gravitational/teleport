@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/gravitational/roundtrip"
@@ -34,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
@@ -337,77 +335,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via CreateToken/UpsertToken.
-func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &certs, nil
-}
-
-type upsertReverseTunnelRawReq struct {
-	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
-	TTL           time.Duration   `json:"ttl"`
-}
-
-// UpsertReverseTunnel is used by admins to create a new reverse tunnel
-// to the remote proxy to bypass firewall restrictions
-func (c *HTTPClient) UpsertReverseTunnel(tunnel types.ReverseTunnel) error {
-	data, err := services.MarshalReverseTunnel(tunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertReverseTunnelRawReq{
-		ReverseTunnel: data,
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("reversetunnels"), args)
-	return trace.Wrap(err)
-}
-
-// GetReverseTunnels returns the list of created reverse tunnels
-func (c *HTTPClient) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnels := make([]types.ReverseTunnel, len(items))
-	for i, raw := range items {
-		tunnel, err := services.UnmarshalReverseTunnel(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tunnels[i] = tunnel
-	}
-	return tunnels, nil
-}
-
-// DeleteReverseTunnel deletes reverse tunnel by domain name
-func (c *HTTPClient) DeleteReverseTunnel(domainName string) error {
-	// this is to avoid confusing error in case if domain empty for example
-	// HTTP route will fail producing generic not found error
-	// instead we catch the error here
-	if strings.TrimSpace(domainName) == "" {
-		return trace.BadParameter("empty domain name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("reversetunnels", domainName))
-	return trace.Wrap(err)
-}
-
 type upsertTunnelConnectionRawReq struct {
 	TunnelConnection json.RawMessage `json:"tunnel_connection"`
 }
@@ -607,7 +534,7 @@ func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (t
 func (c *HTTPClient) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	out, err := c.PostJSON(
 		ctx,
-		c.Endpoint("users", user, "web", "sessions"),
+		c.Endpoint("users", url.PathEscape(user), "web", "sessions"),
 		WebSessionReq{User: user},
 	)
 	if err != nil {
@@ -619,9 +546,10 @@ func (c *HTTPClient) CreateWebSession(ctx context.Context, user string) (types.W
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
+
 	out, err := c.PostJSON(
 		ctx,
-		c.Endpoint("users", req.Username, "web", "authenticate"),
+		c.Endpoint("users", url.PathEscape(req.Username), "web", "authenticate"),
 		req,
 	)
 	if err != nil {
@@ -635,7 +563,7 @@ func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUs
 func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	out, err := c.PostJSON(
 		ctx,
-		c.Endpoint("users", req.Username, "ssh", "authenticate"),
+		c.Endpoint("users", url.PathEscape(req.Username), "ssh", "authenticate"),
 		req,
 	)
 	if err != nil {
@@ -653,7 +581,7 @@ func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSS
 func (c *HTTPClient) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
 	out, err := c.Get(
 		ctx,
-		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
+		c.Endpoint("users", url.PathEscape(user), "web", "sessions", sessionID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -662,7 +590,7 @@ func (c *HTTPClient) GetWebSessionInfo(ctx context.Context, user, sessionID stri
 
 // DeleteWebSession deletes the web session specified with sid for the given user
 func (c *HTTPClient) DeleteWebSession(ctx context.Context, user string, sid string) error {
-	_, err := c.Delete(ctx, c.Endpoint("users", user, "web", "sessions", sid))
+	_, err := c.Delete(ctx, c.Endpoint("users", url.PathEscape(user), "web", "sessions", sid))
 	return trace.Wrap(err)
 }
 
@@ -690,6 +618,8 @@ type OIDCAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
@@ -710,6 +640,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
+		MFAToken: rawResponse.MFAToken,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -759,6 +690,8 @@ type SAMLAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// TLSCert is TLS certificate authority certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
@@ -781,6 +714,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
+		MFAToken: rawResponse.MFAToken,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)

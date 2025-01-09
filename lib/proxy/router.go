@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -109,10 +109,12 @@ type SiteGetter interface {
 	GetSite(clusterName string) (reversetunnelclient.RemoteSite, error)
 }
 
-// RemoteClusterGetter provides access to remote cluster resources
-type RemoteClusterGetter interface {
+// LocalAccessPoint provides access to remote cluster resources
+type LocalAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	// GetAuthPreference returns the local cluster auth preference.
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
 }
 
 // RouterConfig contains all the dependencies required
@@ -120,10 +122,8 @@ type RemoteClusterGetter interface {
 type RouterConfig struct {
 	// ClusterName indicates which cluster the router is for
 	ClusterName string
-	// Log is the logger to use
-	Log *logrus.Entry
-	// AccessPoint is the proxy cache
-	RemoteClusterGetter RemoteClusterGetter
+	// LocalAccessPoint is the proxy cache
+	LocalAccessPoint LocalAccessPoint
 	// SiteGetter allows looking up sites
 	SiteGetter SiteGetter
 	// TracerProvider allows tracers to be created
@@ -135,16 +135,12 @@ type RouterConfig struct {
 
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
-	}
-
 	if c.ClusterName == "" {
 		return trace.BadParameter("ClusterName must be provided")
 	}
 
-	if c.RemoteClusterGetter == nil {
-		return trace.BadParameter("RemoteClusterGetter must be provided")
+	if c.LocalAccessPoint == nil {
+		return trace.BadParameter("LocalAccessPoint must be provided")
 	}
 
 	if c.SiteGetter == nil {
@@ -165,13 +161,12 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // Router is used by the proxy to establish connections to both
 // nodes and other clusters.
 type Router struct {
-	clusterName    string
-	log            *logrus.Entry
-	clusterGetter  RemoteClusterGetter
-	localSite      reversetunnelclient.RemoteSite
-	siteGetter     SiteGetter
-	tracer         oteltrace.Tracer
-	serverResolver serverResolverFn
+	clusterName      string
+	localAccessPoint LocalAccessPoint
+	localSite        reversetunnelclient.RemoteSite
+	siteGetter       SiteGetter
+	tracer           oteltrace.Tracer
+	serverResolver   serverResolverFn
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -187,13 +182,12 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:    cfg.ClusterName,
-		log:            cfg.Log,
-		clusterGetter:  cfg.RemoteClusterGetter,
-		localSite:      localSite,
-		siteGetter:     cfg.SiteGetter,
-		tracer:         cfg.TracerProvider.Tracer("Router"),
-		serverResolver: cfg.serverResolver,
+		clusterName:      cfg.ClusterName,
+		localAccessPoint: cfg.LocalAccessPoint,
+		localSite:        localSite,
+		siteGetter:       cfg.SiteGetter,
+		tracer:           cfg.TracerProvider.Tracer("Router"),
+		serverResolver:   cfg.serverResolver,
 	}, nil
 }
 
@@ -277,7 +271,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				sshSigner, err = signer(ctx, client)
+				sshSigner, err = signer(ctx, r.localAccessPoint, client)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -366,7 +360,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	rc, err := r.clusterGetter.GetRemoteCluster(ctx, clusterName)
+	rc, err := r.localAccessPoint.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -381,7 +375,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 // site is the minimum interface needed to match servers
 // for a reversetunnelclient.RemoteSite. It makes testing easier.
 type site interface {
-	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
+	GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 }
 
@@ -392,13 +386,13 @@ type remoteSite struct {
 }
 
 // GetNodes uses the wrapped sites NodeWatcher to filter nodes
-func (r remoteSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
+func (r remoteSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	watcher, err := r.site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return watcher.GetNodes(ctx, fn), nil
+	return watcher.CurrentResourcesWithFilter(ctx, fn)
 }
 
 // GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
@@ -448,7 +442,7 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 
 	var maxScore int
 	scores := make(map[string]int)
-	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
+	matches, err := site.GetNodes(ctx, func(server readonly.Server) bool {
 		score := routeMatcher.RouteToServerScore(server)
 		if score < 1 {
 			return false
@@ -498,7 +492,10 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 			}
 		}
 	case len(matches) > 1:
-		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+		// TODO(tross) DELETE IN V20.0.0
+		// NodeIsAmbiguous is included in the error message for backwards compatibility
+		// with older nodes that expect to see that string in the error message.
+		return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous, teleport.NodeIsAmbiguous)
 	case len(matches) == 1:
 		server = matches[0]
 	}

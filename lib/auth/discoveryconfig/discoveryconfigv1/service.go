@@ -20,10 +20,10 @@ package discoveryconfigv1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -40,7 +40,7 @@ import (
 // ServiceConfig holds configuration options for the DiscoveryConfig gRPC service.
 type ServiceConfig struct {
 	// Logger is the logger to use.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
@@ -70,7 +70,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.New().WithField(teleport.ComponentKey, "discoveryconfig_crud_service")
+		s.Logger = slog.With(teleport.ComponentKey, "discoveryconfig_crud_service")
 	}
 
 	if s.Clock == nil {
@@ -84,7 +84,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
-	log        logrus.FieldLogger
+	log        *slog.Logger
 	authorizer authz.Authorizer
 	backend    services.DiscoveryConfigs
 	clock      clockwork.Clock
@@ -189,7 +189,7 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit discovery config create event.")
+		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
 
 	return conv.ToProto(resp), nil
@@ -235,7 +235,7 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit discovery config update event.")
+		s.log.WarnContext(ctx, "Failed to emit discovery config update event.", "error", err)
 	}
 
 	return conv.ToProto(resp), nil
@@ -278,7 +278,7 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit discovery config create event.")
+		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
 
 	return conv.ToProto(resp), nil
@@ -310,7 +310,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit discovery config delete event.")
+		s.log.WarnContext(ctx, "Failed to emit discovery config delete event.", "error", err)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -339,7 +339,7 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 		UserMetadata:       authCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit discovery config delete all event.")
+		s.log.WarnContext(ctx, "Failed to emit discovery config delete all event.", "error", err)
 	}
 
 	return &emptypb.Empty{}, nil

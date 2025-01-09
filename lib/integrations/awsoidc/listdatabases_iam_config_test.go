@@ -19,6 +19,7 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -27,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
@@ -83,6 +86,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 		Region:          "us-east-1",
 		IntegrationRole: "integrationrole",
 		AccountID:       "123456789012",
+		AutoConfirm:     true,
 	}
 
 	for _, tt := range []struct {
@@ -116,7 +120,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockListDatabasesIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -126,8 +130,30 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 	}
 }
 
+func TestListDatabasesIAMConfigOutput(t *testing.T) {
+	var buf bytes.Buffer
+	req := ConfigureIAMListDatabasesRequest{
+		Region:          "us-east-1",
+		IntegrationRole: "integrationrole",
+		AccountID:       "123456789012",
+		AutoConfirm:     true,
+		stdout:          &buf,
+	}
+	clt := &mockListDatabasesIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
+		existingRoles:        []string{req.IntegrationRole},
+	}
+
+	ctx := context.Background()
+	require.NoError(t, ConfigureListDatabasesIAM(ctx, clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockListDatabasesIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 

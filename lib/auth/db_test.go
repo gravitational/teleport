@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -90,7 +90,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			subject, issuer := getSnowflakeJWTParams(tt.args.accountName, tt.args.userName, tt.args.publicKey)
+			subject, issuer := getSnowflakeJWTParams(context.Background(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
 
 			require.Equal(t, tt.wantSubject, subject)
 			require.Equal(t, tt.wantIssuer, issuer)
@@ -110,7 +110,7 @@ func TestDBCertSigning(t *testing.T) {
 
 	ctx := context.Background()
 
-	privateKey, err := testauthority.New().GeneratePrivateKey()
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{
@@ -153,6 +153,7 @@ func TestDBCertSigning(t *testing.T) {
 	tests := []struct {
 		name           string
 		requester      proto.DatabaseCertRequest_Requester
+		extensions     proto.DatabaseCertRequest_Extensions
 		wantCertSigner []byte
 		wantCACerts    [][]byte
 		wantKeyUsage   []x509.ExtKeyUsage
@@ -170,16 +171,32 @@ func TestDBCertSigning(t *testing.T) {
 			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
 			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		},
+		{
+			name:           "DB service request for SQL Server databases is signed by active db client and trusts db client CAs",
+			extensions:     proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			wantCertSigner: activeDBClientCACert,
+			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
+			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		},
+		{
+			name:           "tctl request for SQL Server databases is signed by new db CA and trusts db client CAs",
+			requester:      proto.DatabaseCertRequest_TCTL,
+			extensions:     proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			wantCertSigner: newDBCACert,
+			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
+			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			certResp, err := authServer.AuthServer.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
-				CSR:           csr,
-				ServerName:    "localhost",
-				TTL:           proto.Duration(time.Hour),
-				RequesterName: tt.requester,
+				CSR:                   csr,
+				ServerName:            "localhost",
+				TTL:                   proto.Duration(time.Hour),
+				RequesterName:         tt.requester,
+				CertificateExtensions: tt.extensions,
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantCACerts, certResp.CACerts)

@@ -16,23 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+import { Alert, Box, Indicator } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Indicator, Box, Alert } from 'design';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import {
+  integrationService,
+  type Integration,
+} from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
-import { integrationService } from 'teleport/services/integrations';
 
-import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationList } from './IntegrationList';
-import { useIntegrationOperation, IntegrationOperations } from './Operations';
-
-import type { Integration } from 'teleport/services/integrations';
+import { IntegrationsAddButton } from './IntegrationsAddButton';
+import { IntegrationOperations, useIntegrationOperation } from './Operations';
 import type { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 
 export function Integrations() {
@@ -41,7 +43,6 @@ export function Integrations() {
   const { attempt, run } = useAttempt('processing');
 
   const ctx = useTeleport();
-  const canCreateIntegrations = ctx.storeUser.getIntegrationsAccess().create;
 
   useEffect(() => {
     // TODO(lisa): handle paginating as a follow up polish.
@@ -61,8 +62,11 @@ export function Integrations() {
     });
   }
 
-  function editIntegration(req: EditableIntegrationFields) {
-    return integrationOps.edit(req).then(updatedIntegration => {
+  function editIntegration(
+    integration: Integration,
+    req: EditableIntegrationFields
+  ) {
+    return integrationOps.edit(integration, req).then(updatedIntegration => {
       const updatedItems = items.map(item => {
         if (item.name == integrationOps.item.name) {
           return updatedIntegration;
@@ -77,9 +81,16 @@ export function Integrations() {
   return (
     <>
       <FeatureBox>
-        <FeatureHeader>
+        <FeatureHeader justifyContent="space-between">
           <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
-          <IntegrationsAddButton canCreate={canCreateIntegrations} />
+          <IntegrationsAddButton
+            requiredPermissions={[
+              {
+                value: ctx.storeUser.getIntegrationsAccess().create,
+                label: 'integration.create',
+              },
+            ]}
+          />
         </FeatureHeader>
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         {attempt.status === 'processing' && (

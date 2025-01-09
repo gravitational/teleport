@@ -16,46 +16,49 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
-import makeNode from '../nodes/makeNode';
-import auth from '../auth/auth';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
-
+import auth, { MfaChallengeScope } from '../auth/auth';
+import makeNode from '../nodes/makeNode';
 import {
-  Integration,
-  IntegrationCreateRequest,
-  IntegrationUpdateRequest,
-  IntegrationStatusCode,
-  IntegrationListResponse,
-  AwsOidcListDatabasesRequest,
-  AwsRdsDatabase,
-  ListAwsRdsDatabaseResponse,
-  RdsEngineIdentifier,
+  AwsDatabaseVpcsResponse,
+  AwsOidcDeployDatabaseServicesRequest,
   AwsOidcDeployServiceRequest,
-  ListEc2InstancesRequest,
-  ListEc2InstancesResponse,
-  Ec2InstanceConnectEndpoint,
-  ListEc2InstanceConnectEndpointsRequest,
-  ListEc2InstanceConnectEndpointsResponse,
-  ListAwsSecurityGroupsRequest,
-  ListAwsSecurityGroupsResponse,
+  AwsOidcListDatabasesRequest,
+  AwsOidcPingRequest,
+  AwsOidcPingResponse,
+  AwsRdsDatabase,
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
-  SecurityGroup,
-  ListEksClustersResponse,
-  EnrollEksClustersResponse,
+  Ec2InstanceConnectEndpoint,
   EnrollEksClustersRequest,
-  ListEksClustersRequest,
-  AwsOidcDeployDatabaseServicesRequest,
-  Regions,
+  EnrollEksClustersResponse,
+  Integration,
+  IntegrationCreateRequest,
+  IntegrationListResponse,
+  IntegrationStatusCode,
+  IntegrationUpdateRequest,
+  IntegrationWithSummary,
+  ListAwsRdsDatabaseResponse,
   ListAwsRdsFromAllEnginesResponse,
+  ListAwsSecurityGroupsRequest,
+  ListAwsSecurityGroupsResponse,
   ListAwsSubnetsRequest,
   ListAwsSubnetsResponse,
+  ListEc2InstanceConnectEndpointsRequest,
+  ListEc2InstanceConnectEndpointsResponse,
+  ListEc2InstancesRequest,
+  ListEc2InstancesResponse,
+  ListEksClustersRequest,
+  ListEksClustersResponse,
+  RdsEngineIdentifier,
+  Regions,
+  SecurityGroup,
+  SecurityGroupRule,
   Subnet,
-  AwsDatabaseVpcsResponse,
 } from './types';
 
 export const integrationService = {
@@ -75,6 +78,16 @@ export const integrationService = {
 
   createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
     return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  },
+
+  pingAwsOidcIntegration(
+    urlParams: {
+      integrationName: string;
+      clusterId: string;
+    },
+    req: AwsOidcPingRequest
+  ): Promise<AwsOidcPingResponse> {
+    return api.post(cfg.getPingAwsOidcIntegrationUrl(urlParams), req);
   },
 
   updateIntegration(
@@ -258,14 +271,22 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<string> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const response = await auth.getMfaChallengeResponse(challenge);
 
     return api
       .post(
         cfg.getAwsDeployTeleportServiceUrl(integrationName),
         req,
         null,
-        webauthnResponse
+        response
       )
       .then(resp => resp.serviceDashboardUrl);
   },
@@ -280,14 +301,14 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployDatabaseServicesRequest
   ): Promise<string> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
     return api
       .post(
         cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
         req,
         null,
-        webauthnResponse
+        mfaResponse
       )
       .then(resp => resp.clusterDashboardUrl);
   },
@@ -296,13 +317,13 @@ export const integrationService = {
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
     return api.post(
       cfg.getEnrollEksClusterUrl(integrationName),
       req,
       null,
-      webauthnResponse
+      mfaResponse
     );
   },
 
@@ -400,6 +421,12 @@ export const integrationService = {
         };
       });
   },
+
+  fetchIntegrationStats(name: string): Promise<IntegrationWithSummary> {
+    return api.get(cfg.getIntegrationStatsUrl(name)).then(resp => {
+      return resp;
+    });
+  },
 };
 
 export function makeIntegrations(json: any): Integration[] {
@@ -409,7 +436,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc } = json;
+  const { name, subKind, awsoidc, github } = json;
   return {
     resourceType: 'integration',
     name,
@@ -418,7 +445,11 @@ function makeIntegration(json: any): Integration {
       roleArn: awsoidc?.roleArn,
       issuerS3Bucket: awsoidc?.issuerS3Bucket,
       issuerS3Prefix: awsoidc?.issuerS3Prefix,
+      audience: awsoidc?.audience,
     },
+    details: github
+      ? `GitHub Organization "${github.organization}"`
+      : undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only
@@ -438,9 +469,10 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     uri,
     status: aws?.status,
     labels: labels ?? [],
-    subnets: aws?.rds?.subnets,
+    subnets: aws?.rds?.subnets ?? [],
     resourceId: aws?.rds?.resource_id,
     vpcId: aws?.rds?.vpc_id,
+    securityGroups: aws?.rds?.security_groups ?? [],
     accountId: aws?.account_id,
     region: aws?.region,
   };
@@ -469,8 +501,22 @@ function makeSecurityGroup(json: any): SecurityGroup {
     name,
     id,
     description,
-    inboundRules: inboundRules ?? [],
-    outboundRules: outboundRules ?? [],
+    inboundRules: inboundRules?.map(rule => makeSecurityGroupRule(rule)) ?? [],
+    outboundRules:
+      outboundRules?.map(rule => makeSecurityGroupRule(rule)) ?? [],
+  };
+}
+
+function makeSecurityGroupRule(json: any): SecurityGroupRule {
+  json = json ?? {};
+  const { ipProtocol, fromPort, toPort, cidrs, groups } = json;
+
+  return {
+    ipProtocol,
+    fromPort,
+    toPort,
+    cidrs: cidrs ?? [],
+    groups: groups ?? [],
   };
 }
 

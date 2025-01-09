@@ -16,13 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Text, Toggle, Link, Flex, H2 } from 'design';
-
+import { Flex, H2, Link, Text, Toggle } from 'design';
 import { P } from 'design/Text/Text';
-
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 
 const GUIDE_URL =
   'https://goteleport.com/docs/reference/predicate-language/#resource-filtering';
@@ -44,9 +40,9 @@ export function AdvancedSearchToggle(props: {
     >
       <Toggle isToggled={props.isToggled} onToggle={props.onToggle} />
       <Text typography="body3">Advanced</Text>
-      <ToolTipInfo trigger="click">
+      <IconTooltip trigger="click">
         <PredicateDocumentation />
-      </ToolTipInfo>
+      </IconTooltip>
     </Flex>
   );
 }

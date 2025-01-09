@@ -25,13 +25,13 @@ import (
 	"encoding/pem"
 	"fmt"
 	iofs "io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -161,7 +161,7 @@ func (ms *MemTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) ([]ssh.P
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSTrustedCertsStore struct {
 	// log holds the structured logger.
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	// Dir is the directory where all keys are stored.
 	Dir string
@@ -171,7 +171,7 @@ type FSTrustedCertsStore struct {
 func NewFSTrustedCertsStore(dirPath string) *FSTrustedCertsStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSTrustedCertsStore{
-		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }
@@ -296,7 +296,7 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInCASDir(proxyHost string, cas []
 		}
 		// check if cluster name is safe and doesn't contain miscellaneous characters.
 		if strings.Contains(ca.ClusterName, "..") {
-			fs.log.Warnf("Skipped unsafe cluster name: %q", ca.ClusterName)
+			fs.log.WarnContext(context.Background(), "Skipped unsafe cluster name", "cluster_name", ca.ClusterName)
 			continue
 		}
 		// Create CA files in cas dir for each cluster.
@@ -392,7 +392,10 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []authclient.
 	// add every host key to the list of entries
 	for _, ca := range cas {
 		for _, hostKey := range ca.AuthorizedKeys {
-			fs.log.Debugf("Adding known host %s with proxy %s", ca.ClusterName, proxyHost)
+			fs.log.DebugContext(context.Background(), "Adding known host entry",
+				"cluster_name", ca.ClusterName,
+				"proxy", proxyHost,
+			)
 
 			// Write keys in an OpenSSH-compatible format. A previous format was not
 			// quite OpenSSH-compatible, so we may write a duplicate entry here. Any
@@ -467,7 +470,10 @@ func (fs *FSTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, e
 				break
 			}
 			if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
-				fs.log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
+				fs.log.DebugContext(context.Background(), "Skipping PEM block",
+					"type", block.Type,
+					"headers", block.Headers,
+				)
 				data = rest
 				continue
 			}

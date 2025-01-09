@@ -76,7 +76,8 @@ func (s UnstableService) AssertSystemRole(ctx context.Context, req proto.SystemR
 		Expires: time.Now().Add(assertionTTL).UTC(),
 	}
 	if item != nil {
-		_, err = s.CompareAndSwap(ctx, *item, newItem)
+		newItem.Revision = item.Revision
+		_, err = s.ConditionalUpdate(ctx, newItem)
 		if trace.IsCompareFailed(err) {
 			// nodes are expected to perform assertions sequentially
 			return trace.CompareFailed("system role assertion set was concurrently modified (this is bug)")

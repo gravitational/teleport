@@ -16,44 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
+
 import {
-  Card,
-  Text,
-  Flex,
+  Box,
+  Button,
   ButtonLink,
   ButtonPrimary,
-  Box,
-  ButtonText,
   ButtonSecondary,
-  Button,
+  ButtonText,
+  Card,
+  Flex,
+  Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
+import { StepComponentProps, StepSlider } from 'design/StepSlider';
+import { P } from 'design/Text/Text';
+import FieldInput from 'shared/components/FieldInput';
+import { FieldSelect } from 'shared/components/FieldSelect';
+import Validation, { Validator } from 'shared/components/Validation';
 import {
-  AuthProvider,
+  requiredField,
+  requiredToken,
+} from 'shared/components/Validation/rules';
+import { useAttempt, useRefAutoFocus } from 'shared/hooks';
+import {
   Auth2faType,
+  AuthProvider,
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
-import { useAttempt, useRefAutoFocus } from 'shared/hooks';
-import Validation, { Validator } from 'shared/components/Validation';
-import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
-import {
-  requiredToken,
-  requiredField,
-} from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import { StepSlider, StepComponentProps } from 'design/StepSlider';
-
-import { P } from 'design/Text/Text';
 
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
 
 import { PasskeyIcons } from '../Passkeys';
-
 import SSOButtonList from './SsoButtons';
 
 const allAuthTypes: PrimaryAuthType[] = ['passwordless', 'sso', 'local'];
@@ -156,7 +155,7 @@ const Passwordless = ({
       <Flex
         flexDirection="column"
         border={1}
-        borderColor="interactive.tonal.neutral.2.background"
+        borderColor="interactive.tonal.neutral.2"
         borderRadius={3}
         p={3}
         gap={3}
@@ -259,6 +258,16 @@ const LocalForm = ({
             <FieldInput
               rule={requiredField('Password is required')}
               label="Password"
+              helperText={
+                isRecoveryEnabled && (
+                  <ButtonLink
+                    style={{ padding: '0px', minHeight: 0 }}
+                    onClick={() => onRecover(true)}
+                  >
+                    Forgot Password?
+                  </ButtonLink>
+                )
+              }
               value={pass}
               onChange={e => setPass(e.target.value)}
               type="password"
@@ -267,32 +276,31 @@ const LocalForm = ({
               mb={0}
               width="100%"
             />
-            {isRecoveryEnabled && (
-              <Box textAlign="right">
-                <ButtonLink
-                  style={{ padding: '0px', minHeight: 0 }}
-                  onClick={() => onRecover(true)}
-                >
-                  Forgot Password?
-                </ButtonLink>
-              </Box>
-            )}
           </Box>
           {auth2faType !== 'off' && (
             <Box mb={isRecoveryEnabled ? 2 : 3}>
-              <Flex alignItems="flex-end">
+              <Flex alignItems="flex-start">
                 <FieldSelect
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
                   label="Multi-factor Type"
+                  helperText={
+                    isRecoveryEnabled && (
+                      <ButtonLink
+                        style={{ padding: '0px', minHeight: 0 }}
+                        onClick={() => onRecover(false)}
+                      >
+                        Lost Two-Factor Device?
+                      </ButtonLink>
+                    )
+                  }
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
                   mr={3}
                   mb={0}
                   isDisabled={isProcessing}
-                  menuIsOpen={true}
                   // Needed to prevent the menu from causing scroll bars to
                   // appear.
                   menuPosition="fixed"
@@ -312,14 +320,6 @@ const LocalForm = ({
                   />
                 )}
               </Flex>
-              {isRecoveryEnabled && (
-                <ButtonLink
-                  style={{ padding: '0px', minHeight: 0 }}
-                  onClick={() => onRecover(false)}
-                >
-                  Lost Two-Factor Device?
-                </ButtonLink>
-              )}
             </Box>
           )}
           <ButtonPrimary

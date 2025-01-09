@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -317,7 +317,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 	// Start writer events receiver.
 	go func() {
 		if err := writer.receiveAndUpload(); err != nil {
-			log.WithError(err).Debug("slice writer ended with error")
+			slog.DebugContext(cancelCtx, "slice writer ended with error", "error", err)
 			stream.setCancelError(err)
 		}
 
@@ -408,7 +408,7 @@ func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSess
 	case s.eventsCh <- protoEvent{index: event.GetIndex(), oneof: oneof}:
 		diff := time.Since(start)
 		if diff > 100*time.Millisecond {
-			log.Debugf("[SLOW] RecordEvent took %v.", diff)
+			slog.DebugContext(ctx, "[SLOW] RecordEvent took", "duration", diff)
 		}
 		return nil
 	case <-s.cancelCtx.Done():
@@ -566,15 +566,15 @@ func (w *sliceWriter) receiveAndUpload() error {
 				// event occurs, set the timer channel to nil
 				flushCh = nil
 				if w.current != nil && !w.current.isEmpty() {
-					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold and have data. Flushing.", now, inactivityPeriod)
+					slog.DebugContext(w.proto.completeCtx, "Inactivity timer ticked and exceeded threshold and have data. Flushing.", "tick", now, "inactivity_period", inactivityPeriod)
 					if err := w.startUploadCurrentSlice(); err != nil {
 						return trace.Wrap(err)
 					}
 				} else {
-					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold but have no data. Nothing to do.", now, inactivityPeriod)
+					slog.DebugContext(w.proto.completeCtx, "Inactivity timer ticked and exceeded threshold but have no data. Nothing to do.", "tick", now, "inactivity_period", inactivityPeriod)
 				}
 			} else {
-				log.Debugf("Inactivity timer ticked at %v, inactivity period: %v have not exceeded threshold. Set timer to tick after %v.", now, inactivityPeriod, w.proto.cfg.InactivityFlushPeriod-inactivityPeriod)
+				slog.DebugContext(w.proto.completeCtx, "Inactivity timer ticked and did not exceeded threshold. Resetting ticker.", "tick", now, "inactivity_period", inactivityPeriod, "next_tick", w.proto.cfg.InactivityFlushPeriod-inactivityPeriod)
 				flushCh = clock.After(w.proto.cfg.InactivityFlushPeriod - inactivityPeriod)
 			}
 		case event := <-w.proto.eventsCh:
@@ -585,7 +585,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 				flushCh = clock.After(w.proto.cfg.InactivityFlushPeriod)
 			}
 			if err := w.submitEvent(event); err != nil {
-				log.WithError(err).Error("Lost event.")
+				slog.ErrorContext(w.proto.cancelCtx, "Lost event.", "error", err)
 				// Failure on `newSlice` indicates that the streamer won't be
 				// able to process events. Close the streamer and set the
 				// returned error so that event emitters can proceed.
@@ -675,10 +675,11 @@ func (w *sliceWriter) completeStream() {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).
-					WithField("upload", w.proto.cfg.Upload.ID).
-					WithField("session", w.proto.cfg.Upload.SessionID).
-					Warning("Failed to upload part")
+				slog.WarnContext(w.proto.cancelCtx, "Failed to upload part",
+					"error", err,
+					"upload", w.proto.cfg.Upload.ID,
+					"session", w.proto.cfg.Upload.SessionID,
+				)
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
@@ -694,10 +695,11 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			log.WithError(err).
-				WithField("upload", w.proto.cfg.Upload.ID).
-				WithField("session", w.proto.cfg.Upload.SessionID).
-				Warning("Failed to complete upload")
+			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload",
+				"error", err,
+				"upload", w.proto.cfg.Upload.ID,
+				"session", w.proto.cfg.Upload.SessionID,
+			)
 		}
 	}
 }
@@ -720,7 +722,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 	go func() {
 		defer func() {
 			if err := slice.Close(); err != nil {
-				log.WithError(err).Warningf("Failed to close slice.")
+				slog.WarnContext(w.proto.cancelCtx, "Failed to close slice.", "error", err)
 			}
 		}()
 
@@ -736,11 +738,11 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			<-w.semUploads
 		}()
 
-		log := log.WithFields(log.Fields{
-			"part":    partNumber,
-			"upload":  w.proto.cfg.Upload.ID,
-			"session": w.proto.cfg.Upload.SessionID,
-		})
+		log := slog.With(
+			"part", partNumber,
+			"upload", w.proto.cfg.Upload.ID,
+			"session", w.proto.cfg.Upload.SessionID,
+		)
 
 		var retry retryutils.Retry
 
@@ -753,7 +755,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 		}
 
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
-			log := log.WithField("attempt", i)
+			log := log.With("attempt", i)
 
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)
 			if err == nil {
@@ -761,15 +763,15 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 				return
 			}
 
-			log.WithError(err).Warn("failed to upload part")
+			log.WarnContext(w.proto.cancelCtx, "failed to upload part", "error", err)
 
 			// upload is not found is not a transient error, so abort the operation
 			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) {
-				log.Info("aborting part upload")
+				log.InfoContext(w.proto.cancelCtx, "aborting part upload")
 				activeUpload.setError(err)
 				return
 			}
-			log.Info("will retry part upload")
+			log.InfoContext(w.proto.cancelCtx, "will retry part upload")
 
 			// retry is created on the first upload error
 			if retry == nil {
@@ -793,7 +795,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 
 			select {
 			case <-retry.After():
-				log.WithError(err).Debugf("Back off period for retry has passed. Retrying")
+				log.DebugContext(w.proto.cancelCtx, "Back off period for retry has passed. Retrying", "error", err)
 			case <-w.proto.cancelCtx.Done():
 				return
 			}
@@ -984,8 +986,8 @@ type ProtoReaderStats struct {
 }
 
 // ToFields returns a copy of the stats to be used as log fields
-func (p ProtoReaderStats) ToFields() log.Fields {
-	return log.Fields{
+func (p ProtoReaderStats) ToFields() map[string]any {
+	return map[string]any{
 		"skipped-events":      p.SkippedEvents,
 		"out-of-order-events": p.OutOfOrderEvents,
 		"total-events":        p.TotalEvents,
@@ -1108,7 +1110,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 
 				if n != 0 {
 					// log the number of bytes that were skipped
-					log.WithField("length", n).Debug("skipped dangling data in session recording section")
+					slog.DebugContext(ctx, "skipped dangling data in session recording section", "length", n)
 				}
 
 				// reached the end of the current part, but not necessarily

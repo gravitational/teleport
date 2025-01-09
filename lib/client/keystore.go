@@ -22,7 +22,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	iofs "io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -30,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -83,6 +84,10 @@ type KeyStore interface {
 	// GetSSHCertificates gets all certificates signed for the given user and proxy,
 	// including certificates for trusted clusters.
 	GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error)
+
+	// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+	// used to interact with a YubiKey private key.
+	SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt)
 }
 
 // FSKeyStore is an on-disk implementation of the KeyStore interface.
@@ -90,10 +95,14 @@ type KeyStore interface {
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSKeyStore struct {
 	// log holds the structured logger.
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	// If nil, a default CLI prompt is used.
+	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
 }
 
 // NewFSKeyStore initializes a new FSClientStore.
@@ -102,7 +111,7 @@ type FSKeyStore struct {
 func NewFSKeyStore(dirPath string) *FSKeyStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
-		log:    logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:    slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
 }
@@ -120,6 +129,12 @@ func (fs *FSKeyStore) userTLSKeyPath(idx KeyRingIndex) string {
 // tlsCertPath returns the TLS certificate path given KeyRingIndex.
 func (fs *FSKeyStore) tlsCertPath(idx KeyRingIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// tlsCertPathLegacy returns the legacy TLS certificate path used in Teleport v16 and
+// older given KeyRingIndex.
+func (fs *FSKeyStore) tlsCertPathLegacy(idx KeyRingIndex) string {
+	return keypaths.TLSCertPathLegacy(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // sshDir returns the SSH certificate path for the given KeyRingIndex.
@@ -174,6 +189,12 @@ func (fs *FSKeyStore) kubeCredPath(idx KeyRingIndex, kubename string) string {
 	return keypaths.KubeCredPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (fs *FSKeyStore) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+	fs.CustomHardwareKeyPrompt = prompt
+}
+
 // AddKeyRing adds the given key ring to the store.
 func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	if err := keyRing.KeyRingIndex.Check(); err != nil {
@@ -203,10 +224,8 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	// We only generate PPK files for use by PuTTY when running tsh on Windows.
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
-		// PPKFile can only be generated from an RSA private key. If the key is in a different
-		// format, a BadParameter error is returned and we can skip PPK generation.
-		if err != nil && !trace.IsBadParameter(err) {
-			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
+		if err != nil {
+			fs.log.DebugContext(context.Background(), "Cannot convert private key to PPK-formatted keypair", "error", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {
 				return trace.Wrap(err)
@@ -278,12 +297,12 @@ func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath s
 	return nil
 }
 
-func readTLSCredential(keyPath, certPath string) (TLSCredential, error) {
+func readTLSCredential(keyPath, certPath string, customPrompt keys.HardwareKeyPrompt) (TLSCredential, error) {
 	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
-	key, err := keys.ParsePrivateKey(keyPEM)
+	key, err := keys.ParsePrivateKey(keyPEM, keys.WithCustomPrompt(customPrompt))
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
@@ -334,7 +353,10 @@ func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() e
 		case err == nil:
 			return func() {
 				if err := unlock(); err != nil {
-					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
+					log.ErrorContext(ctx, "failed to unlock TLS credential",
+						"credential_path", path,
+						"error", err,
+					)
 				}
 			}, nil
 		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
@@ -428,7 +450,7 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	// And try to delete kube credentials lockfile in case it exists
 	err := utils.RemoveSecure(fs.kubeCredLockfilePath(idx))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		log.Debugf("Could not remove kube credentials file: %v", err)
+		log.DebugContext(context.Background(), "Could not remove kube credentials file", "error", err)
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -485,6 +507,33 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	return nil
 }
 
+// LegacyCertPathError will be returned when [(*FSKeyStore).GetKeyRing] does not
+// find a user TLS certificate at the expected path used in v17+ but does find
+// one at the legacy path used in Teleport v16-.
+type LegacyCertPathError struct {
+	wrappedError            error
+	expectedPath, foundPath string
+}
+
+func newLegacyCertPathError(wrappedError error, expectedPath, foundPath string) *LegacyCertPathError {
+	return &LegacyCertPathError{
+		wrappedError: wrappedError,
+		expectedPath: expectedPath,
+		foundPath:    foundPath,
+	}
+}
+
+// Error implements the error interface.
+func (e *LegacyCertPathError) Error() string {
+	return fmt.Sprintf(
+		"user TLS certificate was found at unsupported legacy path (expected path: %s, found path: %s)",
+		e.expectedPath, e.foundPath)
+}
+
+func (e *LegacyCertPathError) Unwrap() error {
+	return e.wrappedError
+}
+
 // GetKeyRing returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
 func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
@@ -498,12 +547,18 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx))
+	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx), fs.CustomHardwareKeyPrompt)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			if _, statErr := os.Stat(fs.tlsCertPathLegacy(idx)); statErr == nil {
+				return nil, newLegacyCertPathError(err, fs.tlsCertPath(idx), fs.tlsCertPathLegacy(idx))
+			}
+			return nil, err
+		}
 		return nil, trace.Wrap(err)
 	}
 
-	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx))
+	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), fs.CustomHardwareKeyPrompt)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -526,7 +581,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing
 }
 
 func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, keyRing *KeyRing) error {
-	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyRingIndex, keyRing))
+	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyRingIndex, keyRing, fs.CustomHardwareKeyPrompt))
 }
 
 // GetSSHCertificates gets all certificates signed for the given user and proxy.
@@ -553,7 +608,7 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	return sshCerts, nil
 }
 
-func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
+func getCredentialsByName(credentialDir string, customPrompt keys.HardwareKeyPrompt) (map[string]TLSCredential, error) {
 	files, err := os.ReadDir(credentialDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -563,7 +618,7 @@ func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error
 		if keyName := keypaths.TrimKeyPathSuffix(file.Name()); keyName != file.Name() {
 			keyPath := filepath.Join(credentialDir, file.Name())
 			certPath := filepath.Join(credentialDir, keyName+keypaths.FileExtTLSCert)
-			cred, err := readTLSCredential(keyPath, certPath)
+			cred, err := readTLSCredential(keyPath, certPath, customPrompt)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					// Somehow we have a key with no cert, skip it. This should
@@ -601,7 +656,7 @@ func getKubeCredentialsByName(credentialDir string) (map[string]TLSCredential, e
 type CertOption interface {
 	// updateKeyRing is used by [FSKeyStore] to add the relevant credentials
 	// loaded from disk to [keyRing].
-	updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error
+	updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, customPrompt keys.HardwareKeyPrompt) error
 	// pathsToDelete is used by [FSKeyStore] to get all the paths (files and/or
 	// directories) that should be deleted by [DeleteUserCerts].
 	pathsToDelete(keyDir string, idx KeyRingIndex) []string
@@ -615,7 +670,7 @@ var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
 
-func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
+func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, _ keys.HardwareKeyPrompt) error {
 	certPath := keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 	cert, err := os.ReadFile(certPath)
 	if err != nil {
@@ -639,7 +694,7 @@ func (o WithSSHCerts) deleteFromKeyRing(keyRing *KeyRing) {
 // WithKubeCerts is a CertOption for handling kubernetes certificates.
 type WithKubeCerts struct{}
 
-func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
+func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, _ keys.HardwareKeyPrompt) error {
 	credentialDir := keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 	credsByName, err := getKubeCredentialsByName(credentialDir)
 	if err != nil {
@@ -665,9 +720,9 @@ type WithDBCerts struct {
 	dbName string
 }
 
-func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
+func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, customPrompt keys.HardwareKeyPrompt) error {
 	credentialDir := keypaths.DatabaseCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	credsByName, err := getCredentialsByName(credentialDir)
+	credsByName, err := getCredentialsByName(credentialDir, customPrompt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -697,9 +752,9 @@ type WithAppCerts struct {
 	appName string
 }
 
-func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
+func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, customPrompt keys.HardwareKeyPrompt) error {
 	credentialDir := keypaths.AppCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	credsByName, err := getCredentialsByName(credentialDir)
+	credsByName, err := getCredentialsByName(credentialDir, customPrompt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -865,3 +920,7 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 
 	return sshCerts, nil
 }
+
+// SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
+// Does nothing.
+func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ keys.HardwareKeyPrompt) {}

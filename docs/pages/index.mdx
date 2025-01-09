@@ -60,7 +60,7 @@ Get started with Teleport Access:
 - [Set up passwordless authentication](admin-guides/access-controls/guides/passwordless.mdx)
   to enable users to access resources with hardware keys, including biometric
   credentials like Touch ID and YubiKey Bio.
-- [Integrate your Single Sign-On provider](admin-guides/access-controls/sso.mdx): Allow users
+- [Integrate your Single Sign-On provider](admin-guides/access-controls/sso/sso.mdx): Allow users
   to access infrastructure resources with IdPs like Okta.
 - [Use Teleport as an identity provider](admin-guides/access-controls/idps/saml-guide.mdx) to
   authenticate to external services.
@@ -84,12 +84,12 @@ restrictions and potential security breaches.
 
 Get started with Teleport Identity:
 
-- [Access Requests](admin-guides/access-controls/access-requests.mdx): Temporarily
+- [Access Requests](admin-guides/access-controls/access-requests/access-requests.mdx): Temporarily
   provision minimal privileges to complete a task.
-- [Access Lists](admin-guides/access-controls/access-lists.mdx): Regularly audit and
+- [Access Lists](admin-guides/access-controls/access-lists/access-lists.mdx): Regularly audit and
   control membership to specific roles and traits, which then tie easily back
   into Teleport's existing RBAC system.
-- [Device Trust](admin-guides/access-controls/device-trust.mdx): Require an up-to-date,
+- [Device Trust](admin-guides/access-controls/device-trust/device-trust.mdx): Require an up-to-date,
   registered device for each authentication by giving every device a
   cryptographic identity. 
 - [Session & Identity Locks](admin-guides/access-controls/guides/locking.mdx): Lock
@@ -102,10 +102,20 @@ Get started with Teleport Identity:
 ### Teleport Policy
 
 **Teleport Policy** unifies and controls access policies across all your
-infrastructure. With Teleport Policy’s Access Graph feature, you gain insights into role-based
-access control policies within Teleport and your cloud provider.
+infrastructure. With Teleport Policy’s Access Graph feature, you gain insights
+into role-based access control policies within Teleport, your cloud providers,
+and critical infrastructure.
 
-Get started with [Teleport Policy](admin-guides/teleport-policy/teleport-policy.mdx).
+- Get started with [Teleport
+  Policy](admin-guides/teleport-policy/teleport-policy.mdx).
+- Define [Crown Jewels](admin-guides/teleport-policy/crown-jewels.mdx) so you
+  can track changes to your most sensitive users and resources.
+- Enable [Teleport Policy
+  integrations](admin-guides/teleport-policy/integrations/integrations.mdx) so
+  you can identify [insecure SSH key
+  distributions](admin-guides/teleport-policy/integrations/ssh-keys-scan.mdx), and
+  import RBAC rules from AWS, Entra ID, and other sources to visualize your
+  entire RBAC configuration in on a single screen. 
 
 ## Architecture
 

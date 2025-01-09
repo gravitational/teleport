@@ -39,12 +39,12 @@ type AccessMonitoringRulesService struct {
 }
 
 // NewAccessMonitoringRulesService creates a new AccessMonitoringRulesService.
-func NewAccessMonitoringRulesService(backend backend.Backend) (*AccessMonitoringRulesService, error) {
+func NewAccessMonitoringRulesService(b backend.Backend) (*AccessMonitoringRulesService, error) {
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*accessmonitoringrulesv1.AccessMonitoringRule]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAccessMonitoringRule,
-			BackendPrefix: accessMonitoringRulesPrefix,
+			BackendPrefix: backend.NewKey(accessMonitoringRulesPrefix),
 			MarshalFunc:   services.MarshalAccessMonitoringRule,
 			UnmarshalFunc: services.UnmarshalAccessMonitoringRule,
 			ValidateFunc:  services.ValidateAccessMonitoringRule,
@@ -85,7 +85,7 @@ func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Co
 
 // UpdateAccessMonitoringRule updates an existing AccessMonitoringRule resource.
 func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	updated, err := s.svc.UpdateResource(ctx, amr)
+	updated, err := s.svc.UnconditionalUpdateResource(ctx, amr)
 	return updated, trace.Wrap(err)
 }
 

@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Cluster, LoggedInUser } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 export function useIdentity() {
   const ctx = useAppContext();
 
   ctx.clustersService.useState();
-  ctx.workspacesService.useState();
+  useWorkspaceServiceState();
 
   async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
@@ -67,6 +68,7 @@ export function useIdentity() {
       userName: cluster.loggedInUser?.name,
       uri: cluster.uri,
       connected: cluster.connected,
+      profileStatusError: cluster.profileStatusError,
     }));
 
   return {
@@ -85,4 +87,5 @@ export interface IdentityRootCluster {
   userName: string;
   uri: RootClusterUri;
   connected: boolean;
+  profileStatusError: string;
 }

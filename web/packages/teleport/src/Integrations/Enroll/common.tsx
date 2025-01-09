@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box, Flex, H2 } from 'design';
 import styled from 'styled-components';
+
+import { Box, Flex, H2, ResourceIcon } from 'design';
 import { P } from 'design/Text/Text';
 
 export const IntegrationTile = styled(Flex)<{
@@ -29,28 +29,32 @@ export const IntegrationTile = styled(Flex)<{
   text-decoration: none;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   position: relative;
-  border-radius: 4px;
+  border-radius: ${({ theme }) => theme.radii[2]}px;
+  padding: ${({ theme }) => theme.space[3]}px;
+  gap: ${({ theme }) => theme.space[3]}px;
   height: 170px;
   width: 170px;
   background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
   text-align: center;
-  cursor: pointer;
+  cursor: ${({ disabled, $exists }) =>
+    disabled || $exists ? 'not-allowed' : 'pointer'};
+  transition: background-color 200ms ease;
 
   ${props => {
-    const pointerEvents = props.disabled || props.$exists ? 'none' : 'auto';
     if (props.$exists) {
-      return { pointerEvents };
+      return;
     }
 
     return `
     opacity: ${props.disabled ? '0.45' : '1'};
-    &:hover {
+    &:hover,
+    &:focus-visible {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
-    pointer-events: ${pointerEvents};
     `;
-  }}
+  }};
 `;
 
 export const NoCodeIntegrationDescription = () => (
@@ -62,3 +66,15 @@ export const NoCodeIntegrationDescription = () => (
     </P>
   </Box>
 );
+
+/**
+ * IntegrationIcon wraps ResourceIcon with css required for integration
+ * and plugin tiles.
+ */
+export const IntegrationIcon = styled(ResourceIcon)<{ size?: number }>`
+  display: inline-block;
+  margin: 0 auto;
+  height: 100%;
+  min-width: 0;
+  ${({ size }) => size && `max-width: ${size}px;`}
+`;

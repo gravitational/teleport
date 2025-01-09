@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { IntegrationEnroll } from './IntegrationEnroll';
 

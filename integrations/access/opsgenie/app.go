@@ -308,13 +308,13 @@ func (a *App) getNotifySchedulesAndTeams(ctx context.Context, req types.AccessRe
 	log := logger.Get(ctx)
 
 	scheduleAnnotationKey := types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
-	schedules, err = common.GetServiceNamesFromAnnotations(req, scheduleAnnotationKey)
+	schedules, err = common.GetNamesFromAnnotations(req, scheduleAnnotationKey)
 	if err != nil {
 		log.Debugf("No schedules to notify in %s", scheduleAnnotationKey)
 	}
 
 	teamAnnotationKey := types.TeleportNamespace + types.ReqAnnotationTeamsLabel
-	teams, err = common.GetServiceNamesFromAnnotations(req, teamAnnotationKey)
+	teams, err = common.GetNamesFromAnnotations(req, teamAnnotationKey)
 	if err != nil {
 		log.Debugf("No teams to notify in %s", teamAnnotationKey)
 	}
@@ -328,7 +328,7 @@ func (a *App) getNotifySchedulesAndTeams(ctx context.Context, req types.AccessRe
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
-	return common.GetServiceNamesFromAnnotations(req, annotationKey)
+	return common.GetNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {

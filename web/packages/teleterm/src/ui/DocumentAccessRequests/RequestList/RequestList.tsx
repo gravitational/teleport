@@ -16,27 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
-import { Label, Alert, ButtonBorder, Flex, ButtonPrimary, Box } from 'design';
+import { Alert, Box, ButtonBorder, ButtonPrimary, Flex, Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
-
-import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
+import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 import {
+  formattedName,
   renderIdCell,
   renderStatusCell,
   renderUserCell,
-  formattedName,
   RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
 } from 'shared/components/AccessRequests/Shared/Shared';
-import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
+import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
 
 export function RequestList({
   attempt,
@@ -51,10 +49,14 @@ export function RequestList({
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} />
+        <Alert kind="danger" details={attempt.statusText}>
+          Could not fetch access requests
+        </Alert>
       )}
       {assumeRoleAttempt.status === 'error' && (
-        <Alert kind="danger" children={assumeRoleAttempt.statusText} />
+        <Alert kind="danger" details={assumeRoleAttempt.statusText}>
+          Could not assume the role
+        </Alert>
       )}
       <Flex justifyContent="end" pb={4}>
         <ButtonPrimary
@@ -163,7 +165,7 @@ const renderActionCell = (
           onClick={() => assumeRole(request)}
           width="108px"
         >
-          {flags.isAssumed ? 'assumed' : 'assume roles'}
+          {flags.isAssumed ? 'Assumed' : 'Assume Roles'}
         </ButtonPrimary>
       );
     } else {

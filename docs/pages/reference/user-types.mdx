@@ -50,7 +50,7 @@ authentication method required by the upstream SSO provider. Teleport is not
 aware of the authentication method not the user credentials, it trusts the IdP
 response.
 
-If `teleport.auth_service.authentication.second_factor` is `webauthn`, Teleport
+If `teleport.auth_service.authentication.second_factors` is `["webauthn"]`, Teleport
 might ask for an additional MFA for administrative actions. This protects
 against IdP compromise.
 
@@ -68,7 +68,7 @@ and automatically expire. The expiry is dynamically computed based on the IdP
 answer validity, the max session duration allowed by the user roles, and cannot
 exceed 30 hours. Those users cannot be edited via `tctl`, only deleted.
 
-See the [SSO setup guides](../admin-guides/access-controls/sso.mdx) to learn how to setup an
+See the [SSO setup guides](../admin-guides/access-controls/sso/sso.mdx) to learn how to setup an
 authentication connector and allow user to log in via an IdP.
 
 ### Synced users

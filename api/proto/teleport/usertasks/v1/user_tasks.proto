@@ -37,6 +37,8 @@ message UserTask {
   teleport.header.v1.Metadata metadata = 4;
   // The configured properties of UserTask.
   UserTaskSpec spec = 5;
+  // The current status for this UserTask.
+  UserTaskStatus status = 6;
 }
 
 // UserTaskSpec contains the properties of the UserTask.
@@ -57,25 +59,44 @@ message UserTaskSpec {
   // DiscoverEC2 contains the AWS EC2 instances that failed to auto enroll into the cluster.
   // Present when TaskType is discover-ec2.
   DiscoverEC2 discover_ec2 = 5;
+  // DiscoverEKS contains the AWS EKS clusters that failed to auto enroll into the cluster.
+  // Present when TaskType is discover-eks.
+  DiscoverEKS discover_eks = 6;
+}
+
+// UserTaskStatus contains the current status for the UserTask.
+message UserTaskStatus {
+  // LastStateChange is the timestamp when the UserTask state was last modified.
+  google.protobuf.Timestamp last_state_change = 1;
 }
 
 // DiscoverEC2 contains the instances that failed to auto-enroll into the cluster.
 message DiscoverEC2 {
   // Instances maps an instance id to the result of enrolling that instance into teleport.
   map<string, DiscoverEC2Instance> instances = 1;
+  // AccountID is the AWS Account ID for the instances.
+  string account_id = 2;
+  // Region is the AWS Region where Teleport failed to enroll EC2 instances.
+  string region = 3;
+  // SSMDocument is the Amazon Systems Manager SSM Document name that was used to install teleport on the instance.
+  // In Amazon console, the document is at:
+  // https://REGION.console.aws.amazon.com/systems-manager/documents/SSM_DOCUMENT/description
+  string ssm_document = 4;
+  // InstallerScript is the Teleport installer script that was used to install teleport on the instance.
+  string installer_script = 5;
 }
 
 // DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.
 message DiscoverEC2Instance {
+  // AccountID and Region were moved into the DiscoverEC2 message.
+  reserved 3, 4;
+  reserved "account_id", "region";
+
   // InstanceID is the EC2 Instance ID that uniquely identifies the instance.
   string instance_id = 1;
   // Name is the instance Name.
   // Might be empty, if the instance doesn't have the Name tag.
   string name = 2;
-  // AccountID is the AWS Account ID for this instance.
-  string account_id = 3;
-  // Region is the AWS Region where this issue is happening.
-  string region = 4;
   // InvocationURL is the URL that points to the invocation.
   // Empty if there was an error before installing the
   string invocation_url = 5;
@@ -85,4 +106,28 @@ message DiscoverEC2Instance {
   string discovery_group = 7;
   // SyncTime is the timestamp when the error was produced.
   google.protobuf.Timestamp sync_time = 8;
+}
+
+// DiscoverEKS contains the clusters that failed to auto-enroll into the cluster.
+message DiscoverEKS {
+  // Clusters maps a cluster name to the result of enrolling that cluster into teleport.
+  map<string, DiscoverEKSCluster> clusters = 1;
+  // AccountID is the AWS Account ID for the cluster.
+  string account_id = 2;
+  // Region is the AWS Region where Teleport failed to enroll EKS Clusters.
+  string region = 3;
+  // AppAutoDiscover indicates whether the Kubernetes agent should auto enroll HTTP services as Teleport Apps.
+  bool app_auto_discover = 4;
+}
+
+// DiscoverEKSCluster contains the result of enrolling an AWS EKS Cluster.
+message DiscoverEKSCluster {
+  // Name is the cluster Name.
+  string name = 1;
+  // DiscoveryConfig is the discovery config name that originated this cluster enrollment.
+  string discovery_config = 2;
+  // DiscoveryGroup is the DiscoveryGroup name that originated this task.
+  string discovery_group = 3;
+  // SyncTime is the timestamp when the error was produced.
+  google.protobuf.Timestamp sync_time = 4;
 }

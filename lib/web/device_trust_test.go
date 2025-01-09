@@ -36,85 +36,120 @@ import (
 func TestHandler_DeviceWebConfirm(t *testing.T) {
 	t.Parallel()
 
-	fakeDevices := &fakeDevicesClient{}
-	wPack := newWebPack(
-		t,
-		1, /* numProxies */
-		withDevicesClientOverride(fakeDevices),
-	)
+	tests := []struct {
+		name               string
+		redirectURI        string
+		expectedRedirectTo string
+	}{
+		{
+			name:               "no redirect_uri",
+			redirectURI:        "",
+			expectedRedirectTo: "/web",
+		},
+		{
+			name:               "with redirect_uri",
+			redirectURI:        "https://example.com/web/custom/path",
+			expectedRedirectTo: "/web/custom/path",
+		},
+		{
+			name:               "with app access redirect_uri",
+			redirectURI:        "https://example.com/web/launch/myapp.example.com",
+			expectedRedirectTo: "/web/launch/myapp.example.com",
+		},
+		{
+			name:               "with invalid redirect_uri",
+			redirectURI:        "://invalid",
+			expectedRedirectTo: "/web",
+		},
+		{
+			name:               "with external redirect_uri",
+			redirectURI:        "https://example.com/path",
+			expectedRedirectTo: "/web/path",
+		},
+		{
+			name:               "with empty path redirect_uri",
+			redirectURI:        "https://example.com",
+			expectedRedirectTo: "/web",
+		},
+		{
+			name:               "with relative path",
+			redirectURI:        "/custom/path",
+			expectedRedirectTo: "/web/custom/path",
+		},
+		{
+			name:               "with web prefix already",
+			redirectURI:        "/web/existing/path",
+			expectedRedirectTo: "/web/existing/path",
+		},
+	}
 
-	proxy := wPack.proxies[0]
-	aPack := proxy.authPack(t, "llama", nil /* roles */)
-	webClient := aPack.clt
+	for _, test := range tests {
+		fakeDevices := &fakeDevicesClient{}
+		wPack := newWebPack(
+			t,
+			1, /* numProxies */
+			withDevicesClientOverride(fakeDevices),
+		)
+		proxy := wPack.proxies[0]
+		aPack := proxy.authPack(t, "llama", nil /* roles */)
+		webClient := aPack.clt
 
-	ctx := context.Background()
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
 
-	t.Run("ok", func(t *testing.T) {
-		query := make(url.Values)
-		query.Set("id", "my-token-id")
-		query.Set("token", "my-token-token")
+			query := make(url.Values)
+			query.Set("id", "my-token-id")
+			query.Set("token", "my-token-token")
+			if test.redirectURI != "" {
+				query.Set("redirect_uri", test.redirectURI)
+			}
 
-		// Detect client redirects.
-		var redirected bool
-		httpClient := webClient.HTTPClient()
-		httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			// Ignore any subsequent redirects that may happen.
-			if redirected {
+			var redirected bool
+			var actualRedirectTo string
+			httpClient := webClient.HTTPClient()
+			httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				if !redirected {
+					redirected = true
+					actualRedirectTo = req.URL.Path
+				}
 				return nil
 			}
 
-			redirected = true
-			if !assert.Len(t, via, 1, "CheckRedirect param via has an unexpected length") {
-				return nil
-			}
-			src := via[0]
+			req, err := http.NewRequestWithContext(ctx, "GET", webClient.Endpoint("webapi", "devices", "webconfirm"), nil)
+			require.NoError(t, err, "NewRequestWithContext failed")
+			req.URL.RawQuery = query.Encode()
 
-			// Host didn't change, ie redirect is within the same Proxy.
-			assert.Equal(t, src.URL.Host, req.URL.Host, "CheckRedirect Host mismatch")
-			// Redirect target is as expected.
-			assert.Equal(t, "/web", req.URL.Path, "CheckRedirect dest Path mismatch")
-			// Redirect source is as expected.
-			assert.Regexp(t, "/webapi/devices/webconfirm$", src.URL.Path, "CheckRedirect src Path mismatch")
+			resp, err := httpClient.Do(req)
+			require.NoError(t, err, "GET /webapi/devices/webconfirm failed")
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 
-			return nil
-		}
+			assert.True(t, redirected, "GET /webapi/devices/webconfirm didn't cause a redirect")
+			assert.Equal(t, http.StatusOK, resp.StatusCode, "GET /webapi/devices/webconfirm code mismatch")
+			assert.Equal(t, test.expectedRedirectTo, actualRedirectTo, "Redirect destination mismatch")
 
-		req, err := http.NewRequestWithContext(ctx, "GET", webClient.Endpoint("webapi", "devices", "webconfirm"), nil /* body */)
-		require.NoError(t, err, "NewRequestWithContext failed")
-		req.URL.RawQuery = query.Encode()
-
-		// Request using the httpClient, this shows we don't need the bearer token
-		// logic from webclient.
-		resp, err := httpClient.Do(req)
-		require.NoError(t, err, "GET /webapi/devices/webconfirm failed")
-		// Always drain and close the body.
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-
-		// Verify redirect and response status.
-		assert.True(t, redirected, "GET /webapi/devices/webconfirm didn't cause a redirect")
-		assert.Equal(t, 200, resp.StatusCode, "GET /webapi/devices/webconfirm code mismatch")
-
-		// Verify RPC call.
-		got := fakeDevices.resetConfirmRequests()
-		want := []*devicepb.ConfirmDeviceWebAuthenticationRequest{
-			{
-				ConfirmationToken: &devicepb.DeviceConfirmationToken{
-					Id:    "my-token-id",
-					Token: "my-token-token",
+			got := fakeDevices.resetConfirmRequests()
+			want := []*devicepb.ConfirmDeviceWebAuthenticationRequest{
+				{
+					ConfirmationToken: &devicepb.DeviceConfirmationToken{
+						Id:    "my-token-id",
+						Token: "my-token-token",
+					},
 				},
-			},
-		}
-		// Copy WebSessionID from got to want.
-		if len(got) > 0 {
-			webSessionID := got[0].CurrentWebSessionId
-			assert.NotEmpty(t, webSessionID, "ConfirmDeviceWebAuthentication called with empty WebSessionID")
-			want[0].CurrentWebSessionId = webSessionID
-		}
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("ConfirmDeviceWebAuthentication requests mismatch (-want +got)\n%s", diff)
-		}
-	})
+			}
+
+			if len(got) > 0 {
+				webSessionID := got[0].CurrentWebSessionId
+				assert.NotEmpty(t, webSessionID, "ConfirmDeviceWebAuthentication called with empty WebSessionID")
+				want[0].CurrentWebSessionId = webSessionID
+			}
+
+			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("ConfirmDeviceWebAuthentication requests mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
 }
 
 type fakeDevicesClient struct {

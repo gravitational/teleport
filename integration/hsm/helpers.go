@@ -20,6 +20,7 @@ package hsm
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"path/filepath"
 	"testing"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -47,7 +47,7 @@ import (
 // are not generally thread safe.
 type teleportService struct {
 	name    string
-	log     logrus.FieldLogger
+	log     *slog.Logger
 	config  *servicecfg.Config
 	process *service.TeleportProcess
 
@@ -58,7 +58,7 @@ type teleportService struct {
 func newTeleportService(ctx context.Context, config *servicecfg.Config, name string) (*teleportService, error) {
 	t := &teleportService{
 		name:   name,
-		log:    config.Log.WithField("helper_service", name),
+		log:    config.Logger.With("helper_service", name),
 		config: config,
 		errC:   make(chan struct{}),
 	}
@@ -71,7 +71,7 @@ func newTeleportService(ctx context.Context, config *servicecfg.Config, name str
 	}
 	go func() {
 		defer close(t.errC)
-		t.err = svc.WaitForSignals(ctx, nil)
+		t.err = svc.Wait()
 	}()
 	t.process = svc
 
@@ -98,7 +98,7 @@ func (t *teleportService) waitForShutdown(ctx context.Context) error {
 }
 
 func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error {
-	t.log.Debug("waiting for local additional keys")
+	t.log.DebugContext(ctx, "waiting for local additional keys")
 	authServer := t.process.GetAuthServer()
 	if authServer == nil {
 		return trace.NotFound("%v: attempted to wait for additional keys in a service with no auth", t.name)
@@ -130,7 +130,7 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 			return trace.Wrap(err)
 		}
 		if usableKeysResult.CAHasPreferredKeyType {
-			t.log.Debugf("got local additional keys")
+			t.log.DebugContext(ctx, "got local additional keys")
 			return nil
 		}
 	}
@@ -204,13 +204,13 @@ func (s teleportServices) waitForLocalAdditionalKeys(ctx context.Context) error 
 	return s.forEach(func(t *teleportService) error { return t.waitForLocalAdditionalKeys(ctx) })
 }
 
-func newAuthConfig(t *testing.T, log utils.Logger, clock clockwork.Clock) *servicecfg.Config {
+func newAuthConfig(t *testing.T, log *slog.Logger, clock clockwork.Clock) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
 	config.Auth.StorageConfig.Params["path"] = filepath.Join(config.DataDir, defaults.BackendDir)
 	config.SSH.Enabled = false
 	config.Proxy.Enabled = false
-	config.Log = log
+	config.Logger = log
 	config.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
 	config.PollingPeriod = 2 * time.Second
@@ -244,7 +244,7 @@ func newAuthConfig(t *testing.T, log utils.Logger, clock clockwork.Clock) *servi
 	return config
 }
 
-func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger, clock clockwork.Clock) *servicecfg.Config {
+func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log *slog.Logger, clock clockwork.Clock) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV3
 	config.DataDir = t.TempDir()
@@ -253,7 +253,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger, cloc
 	config.SSH.Enabled = false
 	config.SetToken("foo")
 	config.SetAuthServerAddress(authAddr)
-	config.Log = log
+	config.Logger = log
 	config.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
 	config.PollingPeriod = 2 * time.Second

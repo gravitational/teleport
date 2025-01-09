@@ -20,6 +20,7 @@ import (
 	"net/netip"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -108,6 +109,12 @@ type OIDCConnector interface {
 	GetMaxAge() (time.Duration, bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() *OIDCConnectorMFASettings
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -202,6 +209,9 @@ func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 
 	o2.SetClientSecret("")
 	o2.SetGoogleServiceAccount("")
+	if o2.Spec.MFASettings != nil {
+		o2.Spec.MFASettings.ClientSecret = ""
+	}
 
 	return &o2
 }
@@ -394,7 +404,14 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	if o.Spec.ClientID == "" {
-		return trace.BadParameter("ClientID: missing client id")
+		return trace.BadParameter("OIDC connector is missing required client_id")
+	}
+
+	if o.Spec.ClientSecret == "" {
+		return trace.BadParameter("OIDC connector is missing required client_secret")
+	}
+	if strings.HasPrefix(o.Spec.ClientSecret, "file://") {
+		return trace.BadParameter("the client_secret must be a literal value, file:// URLs are not supported")
 	}
 
 	if len(o.GetClaimsToRoles()) == 0 {
@@ -448,7 +465,17 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("max_age cannot be negative")
 		}
 		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age must be a multiple of seconds")
+			return trace.BadParameter("max_age %q is invalid, cannot have sub-second units", maxAge.String())
+		}
+	}
+
+	if o.Spec.MFASettings != nil {
+		maxAge := o.Spec.MFASettings.MaxAge.Duration()
+		if maxAge < 0 {
+			return trace.BadParameter("max_age cannot be negative")
+		}
+		if maxAge.Round(time.Second) != maxAge {
+			return trace.BadParameter("max_age %q invalid, cannot have sub-second units", maxAge.String())
 		}
 	}
 
@@ -494,6 +521,33 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 		return nil
 	}
 	return o.Spec.ClientRedirectSettings
+}
+
+// GetMFASettings returns the connector's MFA settings.
+func (o *OIDCConnectorV3) GetMFASettings() *OIDCConnectorMFASettings {
+	return o.Spec.MFASettings
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *OIDCConnectorV3) IsMFAEnabled() bool {
+	mfa := o.GetMFASettings()
+	return mfa != nil && mfa.Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *OIDCConnectorV3) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.ClientID = o.Spec.MFASettings.ClientId
+	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
+	o.Spec.ACR = o.Spec.MFASettings.AcrValues
+	o.Spec.Prompt = o.Spec.MFASettings.Prompt
+	o.Spec.MaxAge = &MaxAge{
+		Value: o.Spec.MFASettings.MaxAge,
+	}
+	return nil
 }
 
 // Check returns nil if all parameters are great, err otherwise

@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -301,7 +302,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			botName := t.Name()
+			botName := uuid.NewString()
 			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
 				Metadata: &headerv1.Metadata{
 					Name: botName,
@@ -312,7 +313,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 				},
 			}, srv.Clock().Now(), "")
 			require.NoError(t, err)
-			tok := newBotToken(t, t.Name(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
+			tok := newBotToken(t, uuid.NewString(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))
 
 			result, err := Register(ctx, RegisterParams{

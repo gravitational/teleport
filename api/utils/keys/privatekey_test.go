@@ -36,6 +36,7 @@ import (
 )
 
 func TestMarshalAndParseKey(t *testing.T) {
+	//nolint:forbidigo // Generating a small RSA key allowed for test.
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
 	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

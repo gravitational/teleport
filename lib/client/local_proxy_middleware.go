@@ -21,8 +21,6 @@ package client
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -35,10 +33,8 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -165,7 +161,10 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, erro
 	}
 
 	certTTL := cert.Leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	log.Debugf("Certificate renewed: valid until %s [valid for %v]", cert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
+	log.DebugContext(ctx, "Certificate renewed",
+		"valid_until", cert.Leaf.NotAfter.Format(time.RFC3339),
+		"cert_ttl", certTTL,
+	)
 
 	c.cert = cert
 	return c.cert, nil
@@ -213,7 +212,7 @@ func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
+		log.WarnContext(ctx, "unable to load profile, requesting database certs without access requests", "error", err)
 	} else {
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
@@ -238,7 +237,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", c.RouteToApp.ServiceName)))
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -285,7 +284,7 @@ func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
+		log.WarnContext(ctx, "unable to load profile, requesting app certs without access requests", "error", err)
 	} else {
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
@@ -305,17 +304,7 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		// TODO (Joerger): DELETE IN v17.0.0
-		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.Client.Username, appCertParams.RouteToApp)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", c.RouteToApp.Name)))
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -393,7 +382,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	certKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -407,7 +396,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 	subject.CommonName = host
 
 	certPem, err := certAuthority.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: &certKey.PublicKey,
+		PublicKey: certKey.Public(),
 		Subject:   subject,
 		NotAfter:  certAuthority.Cert.NotAfter,
 		DNSNames:  []string{host},
@@ -460,7 +449,10 @@ func (r *LocalCertGenerator) ensureValidCA(ctx context.Context) error {
 	}
 
 	certTTL := time.Until(caTLSCert.Leaf.NotAfter).Round(time.Minute)
-	log.Debugf("Local CA renewed: valid until %s [valid for %v]", caTLSCert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
+	log.DebugContext(ctx, "Local CA renewed",
+		"valid_until", caTLSCert.Leaf.NotAfter.Format(time.RFC3339),
+		"cert_ttl", certTTL,
+	)
 
 	// Clear cert cache and use CA for hostnames in the CA.
 	r.certsByHost = make(map[string]*tls.Certificate)

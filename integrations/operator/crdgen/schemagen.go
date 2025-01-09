@@ -322,7 +322,7 @@ func handleEmptyJSONTag(schema *Schema, message *Message, field *Field) bool {
 		return false
 	}
 
-	// Handle MaxAge as a special case. It's type is a message that is embedded.
+	// Handle MaxAge as a special case. Its type is a message that is embedded.
 	// Because the message is embedded, MaxAge itself explicitly sets its json
 	// name to an empty string, but the embedded message type has a single field
 	// with a json name, so use that instead.

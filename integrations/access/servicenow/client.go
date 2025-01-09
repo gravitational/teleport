@@ -102,6 +102,9 @@ func NewClient(conf ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
+	client.SetTransport(&http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+	})
 	apiURL, err := url.Parse(conf.APIEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)

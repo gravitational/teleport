@@ -16,19 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fonts } from '../fonts';
+import { Fonts } from '../fonts';
 import { blueGrey } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
 
-export type TextAndBackgroundColors = {
-  text: string;
-  background: string;
-};
-
 type InteractiveColorGroup = {
-  default: TextAndBackgroundColors;
-  hover: TextAndBackgroundColors;
-  active: TextAndBackgroundColors;
+  default: string;
+  hover: string;
+  active: string;
 };
 
 export type ThemeColors = {
@@ -74,12 +69,12 @@ export type ThemeColors = {
       alert: InteractiveColorGroup;
     };
     tonal: {
-      primary: TextAndBackgroundColors[];
-      neutral: TextAndBackgroundColors[];
-      success: TextAndBackgroundColors[];
-      danger: TextAndBackgroundColors[];
-      alert: TextAndBackgroundColors[];
-      informational: TextAndBackgroundColors[];
+      primary: string[];
+      neutral: string[];
+      success: string[];
+      danger: string[];
+      alert: string[];
+      informational: string[];
     };
   };
 
@@ -146,6 +141,7 @@ export type ThemeColors = {
 
   tooltip: {
     background: string;
+    inverseBackground: string;
   };
 
   progressBarColor: string;
@@ -213,6 +209,8 @@ export type ThemeColors = {
     brightBlue: string;
     brightMagenta: string;
     brightCyan: string;
+    searchMatch: string;
+    activeSearchMatch: string;
   };
 
   editor: {
@@ -326,7 +324,7 @@ export type SharedStyles = {
   borders: (string | number)[];
   typography: typeof typography;
   font: string;
-  fonts: typeof fonts;
+  fonts: Fonts;
   fontWeights: typeof fontWeights;
   fontSizes: typeof fontSizes;
   radii: (number | string)[];

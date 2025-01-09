@@ -1,0 +1,25 @@
+# This check runs only on PRs that are in the merge queue.
+#
+# PRs in the merge queue have already been approved but the reviewers check
+# is still required so this workflow allows the required check to succeed,
+# otherwise PRs in the merge queue would be blocked indefinitely.
+#
+# See "Handling skipped but required checks" for more info:
+#
+# https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/troubleshooting-required-status-checks#handling-skipped-but-required-checks
+#
+# Note both workflows must have the same name.
+name: Validate changelog entry
+on:
+  merge_group:
+
+jobs:
+  validate-changelog:
+    name: Validate the changelog entry
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: none
+
+    steps:
+      - run: 'echo "Skipping changelog check in merge queue"'

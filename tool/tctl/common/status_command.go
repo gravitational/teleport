@@ -19,18 +19,32 @@
 package common
 
 import (
+	"cmp"
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"slices"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // StatusCommand implements `tctl token` group of commands.
@@ -42,126 +56,267 @@ type StatusCommand struct {
 }
 
 // Initialize allows StatusCommand to plug itself into the CLI parser.
-func (c *StatusCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *StatusCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	c.status = app.Command("status", "Report cluster status.")
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(ctx, client)
+		commandFunc = c.Status
 	default:
 		return false, nil
 	}
-	return true, trace.Wrap(err)
-}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 
-type caFetchError struct {
-	caType  types.CertAuthType
-	message string
+	return true, trace.Wrap(err)
 }
 
 // Status is called to execute "status" CLI command.
 func (c *StatusCommand) Status(ctx context.Context, client *authclient.Client) error {
-	pingRsp, err := client.Ping(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	serverVersion := pingRsp.ServerVersion
-	clusterName := pingRsp.ClusterName
-
-	var (
-		authorities     []types.CertAuthority
-		authFetchErrors []caFetchError
-	)
-
-	for _, caType := range types.CertAuthTypes {
-		ca, err := client.GetCertAuthorities(ctx, caType, false)
-		if err != nil {
-			// Collect all errors, so they can be displayed to the user.
-			fetchError := caFetchError{
-				caType:  caType,
-				message: err.Error(),
-			}
-			authFetchErrors = append(authFetchErrors, fetchError)
-		} else {
-			authorities = append(authorities, ca...)
-		}
-	}
-
-	// Calculate the CA pins for this cluster. The CA pins are used by the
-	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
+	pingResp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	view := func() string {
-		table := asciitable.MakeHeadlessTable(2)
-		table.AddRow([]string{"Cluster", clusterName})
-		table.AddRow([]string{"Version", serverVersion})
-		for _, ca := range authorities {
-			if ca.GetClusterName() != clusterName {
-				continue
-			}
-			info := fmt.Sprintf("%v CA ", string(ca.GetType()))
-			rotation := ca.GetRotation()
-			standbyPhase := rotation.Phase == types.RotationPhaseStandby || rotation.Phase == ""
-			if standbyPhase && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
-				// There should never be AdditionalTrusted keys present during
-				// the Standby phase unless an auth server has just started up
-				// with a new HSM (or without an HSM and all other auth servers
-				// have HSMs)
-				fmt.Println("WARNING: One or more auth servers has a newly added or removed " +
-					"HSM or KMS configured. You should not route traffic to that server until " +
-					"a CA rotation has been completed.")
-			}
-			if c.config.Debug {
-				table.AddRow([]string{
-					info,
-					fmt.Sprintf("%v, update_servers: %v, complete: %v",
-						rotation.String(),
-						rotation.Schedule.UpdateServers.Format(constants.HumanDateFormatSeconds),
-						rotation.Schedule.Standby.Format(constants.HumanDateFormatSeconds),
-					),
-				})
-			} else {
-				table.AddRow([]string{info, rotation.String()})
-			}
-
-		}
-		for _, ca := range authFetchErrors {
-			info := fmt.Sprintf("%v CA ", string(ca.caType))
-			table.AddRow([]string{info, ca.message})
-		}
-		for _, caPin := range caPins {
-			table.AddRow([]string{"CA pin", caPin})
-		}
-		return table.AsBuffer().String()
+	status, err := newStatusModel(ctx, client, pingResp)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	fmt.Print(view())
-
-	// in debug mode, output mode of remote certificate authorities
-	if c.config.Debug {
-		view := func() string {
-			table := asciitable.MakeHeadlessTable(2)
-			for _, ca := range authorities {
-				if ca.GetClusterName() == clusterName {
-					continue
-				}
-				info := fmt.Sprintf("Remote %v CA %q", string(ca.GetType()), ca.GetClusterName())
-				rotation := ca.GetRotation()
-				table.AddRow([]string{info, rotation.String()})
-			}
-			return "Remote clusters\n\n" + table.AsBuffer().String()
-		}
-		fmt.Print(view())
+	if err := status.renderText(os.Stdout, c.config.Debug); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
+}
+
+type statusModel struct {
+	cluster     *clusterStatusModel
+	authorities []*authorityStatusModel
+}
+
+func newStatusModel(ctx context.Context, client *authclient.Client, pingResp proto.PingResponse) (*statusModel, error) {
+	var authorities []types.CertAuthority
+	for _, caType := range types.CertAuthTypes {
+		cas, err := client.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to fetch CA", "type", caType, "error", err)
+			continue
+		}
+		authorities = append(authorities, cas...)
+	}
+	cluster, err := newClusterStatusModel(pingResp, authorities)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authorityModels := make([]*authorityStatusModel, 0, len(authorities))
+	for _, authority := range authorities {
+		authorityModels = append(authorityModels, newAuthorityStatusModel(authority))
+	}
+	return &statusModel{
+		cluster:     cluster,
+		authorities: authorityModels,
+	}, nil
+}
+
+func (m *statusModel) renderText(w io.Writer, debug bool) error {
+	summaryTable := asciitable.MakeHeadlessTable(2)
+	summaryTable.AddRow([]string{"Cluster:", m.cluster.name})
+	summaryTable.AddRow([]string{"Version:", m.cluster.version})
+	for i, caPin := range m.cluster.caPins {
+		if i == 0 {
+			summaryTable.AddRow([]string{"CA pins:", caPin})
+		} else {
+			summaryTable.AddRow([]string{"", caPin})
+		}
+	}
+	if err := summaryTable.WriteTo(w); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(w, "")
+
+	keysTable := asciitable.MakeTable([]string{"authority", "rotation", "protocol", "status", "algorithm", "storage"})
+	for _, authority := range m.authorities {
+		if !debug && authority.clusterName != m.cluster.name {
+			// Only print remote authorities in debug mode.
+			continue
+		}
+		rows := make([][]string, 0, len(authority.activeKeys)+len(authority.additionalTrustedKeys))
+		for _, key := range authority.activeKeys {
+			rows = append(rows, []string{"", "", key.protocol, "active", key.algo, key.storage})
+		}
+		for _, key := range authority.additionalTrustedKeys {
+			rows = append(rows, []string{"", "", key.protocol, "trusted", key.algo, key.storage})
+		}
+		sortRows(rows)
+		if len(rows) == 0 {
+			rows = [][]string{[]string{"", "", "", "no keys found for authority", "", ""}}
+		}
+		// Each CA gets a row in the table for each key. Only the first row
+		// contains the CA type and the CA rotation status, to reduce clutter
+		// because it's the same for all keys.
+		rows[0][0] = string(authority.authorityType)
+		rows[0][1] = authority.rotationStatus.String()
+		for _, row := range rows {
+			keysTable.AddRow(row)
+		}
+	}
+	return trace.Wrap(keysTable.WriteTo(w))
+}
+
+// sortRows sorts the rows by each column left to right.
+func sortRows(rows [][]string) {
+	slices.SortFunc(rows, func(a, b []string) int {
+		for i := range len(a) {
+			if a[i] != b[i] {
+				return cmp.Compare(a[i], b[i])
+			}
+		}
+		return 0
+	})
+}
+
+type clusterStatusModel struct {
+	name    string
+	version string
+	caPins  []string
+}
+
+func newClusterStatusModel(pingResp proto.PingResponse, authorities []types.CertAuthority) (*clusterStatusModel, error) {
+	var pins []string
+	for _, authority := range authorities {
+		if authority.GetType() != types.HostCA || authority.GetClusterName() != pingResp.ClusterName {
+			continue
+		}
+		for _, keyPair := range authority.GetTrustedTLSKeyPairs() {
+			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err, "parsing host CA TLS certificate")
+			}
+			pin := utils.CalculateSPKI(cert)
+			pins = append(pins, pin)
+		}
+	}
+	return &clusterStatusModel{
+		name:    pingResp.ClusterName,
+		version: pingResp.ServerVersion,
+		caPins:  pins,
+	}, nil
+}
+
+type authorityStatusModel struct {
+	clusterName           string
+	authorityType         types.CertAuthType
+	rotationStatus        types.Rotation
+	activeKeys            []*authorityKeyModel
+	additionalTrustedKeys []*authorityKeyModel
+}
+
+func newAuthorityStatusModel(authority types.CertAuthority) *authorityStatusModel {
+	return &authorityStatusModel{
+		clusterName:           authority.GetClusterName(),
+		authorityType:         authority.GetType(),
+		rotationStatus:        authority.GetRotation(),
+		activeKeys:            newAuthorityKeyModels(authority.GetActiveKeys()),
+		additionalTrustedKeys: newAuthorityKeyModels(authority.GetAdditionalTrustedKeys()),
+	}
+}
+
+type authorityKeyModel struct {
+	protocol string
+	algo     string
+	storage  string
+}
+
+func newAuthorityKeyModels(keySet types.CAKeySet) []*authorityKeyModel {
+	var out []*authorityKeyModel
+	for _, sshKey := range keySet.SSH {
+		out = append(out, newSSHKeyModel(sshKey))
+	}
+	for _, tlsKey := range keySet.TLS {
+		out = append(out, newTLSKeyModel(tlsKey))
+	}
+	for _, jwtKey := range keySet.JWT {
+		out = append(out, newJWTKeyModel(jwtKey))
+	}
+	return out
+}
+
+func newSSHKeyModel(sshKey *types.SSHKeyPair) *authorityKeyModel {
+	algo := "unknown"
+	if pub, _, _, _, err := ssh.ParseAuthorizedKey(sshKey.PublicKey); err == nil {
+		algo = publicKeyAlgorithmName(pub)
+	} else {
+		slog.ErrorContext(context.Background(), "parsing SSH CA public key", "error", err)
+	}
+	return &authorityKeyModel{
+		protocol: "SSH",
+		algo:     algo,
+		storage:  storageName(sshKey.PrivateKeyType),
+	}
+}
+
+func newTLSKeyModel(tlsKey *types.TLSKeyPair) *authorityKeyModel {
+	algo := "unknown"
+	if cert, err := tlsca.ParseCertificatePEM(tlsKey.Cert); err == nil {
+		algo = publicKeyAlgorithmName(cert.PublicKey)
+	} else {
+		slog.ErrorContext(context.Background(), "parsing TLS CA public key", "error", err)
+	}
+	return &authorityKeyModel{
+		protocol: "TLS",
+		algo:     algo,
+		storage:  storageName(tlsKey.KeyType),
+	}
+}
+
+func newJWTKeyModel(jwtKey *types.JWTKeyPair) *authorityKeyModel {
+	algo := "unknown"
+	if pubKey, err := keys.ParsePublicKey(jwtKey.PublicKey); err == nil {
+		algo = publicKeyAlgorithmName(pubKey)
+	} else {
+		slog.ErrorContext(context.Background(), "parsing JWT CA public key", "error", err)
+	}
+	return &authorityKeyModel{
+		protocol: "JWT",
+		algo:     algo,
+		storage:  storageName(jwtKey.PrivateKeyType),
+	}
+}
+
+func publicKeyAlgorithmName(pubKey crypto.PublicKey) string {
+	switch k := pubKey.(type) {
+	case *rsa.PublicKey:
+		return fmt.Sprintf("RSA %d", k.Size()*8)
+	case *ecdsa.PublicKey:
+		return fmt.Sprintf("ECDSA %s", k.Params().Name)
+	case ed25519.PublicKey:
+		return "Ed25519"
+	case ssh.CryptoPublicKey:
+		return publicKeyAlgorithmName(k.CryptoPublicKey())
+	default:
+		return "unknown"
+	}
+}
+
+func storageName(privateKeyType types.PrivateKeyType) string {
+	switch privateKeyType {
+	case types.PrivateKeyType_RAW:
+		return "software"
+	case types.PrivateKeyType_PKCS11:
+		return "PKCS#11 HSM"
+	case types.PrivateKeyType_GCP_KMS:
+		return "GCP KMS"
+	case types.PrivateKeyType_AWS_KMS:
+		return "AWS KMS"
+	default:
+		return privateKeyType.String()
+	}
 }

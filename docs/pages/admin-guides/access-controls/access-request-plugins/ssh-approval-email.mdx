@@ -11,6 +11,34 @@ letting you implement security best practices without compromising productivity.
 
 ![The email Access Request plugin](../../../../img/enterprise/plugins/email.png)
 
+<Details title="This integration is hosted on Teleport Enterprise (Cloud)" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Email integration"!)
+
+![Enroll email plugin](../../../../img/enterprise/plugins/email/enroll-email.png)
+
+Configure and connect email integration by providing the following configuration
+values:
+
+**`Sender`**: Configures the sender address.
+
+**`Fallback Recipient`**: Configures the default recipient for Access Request
+notifications.
+
+**`Email Service`**: Selects the desired email service. Note: only `Mailgun` is
+supported for Teleport Enterprise (Cloud).
+
+![Configure Mailgun integration](../../../../img/enterprise/plugins/email/configure-mailgun.png)
+
+Complete Mailgun integration by providing the following Mailgun API
+configuration values:
+
+**`Domain`**: Configures the Mailgun sending domain.
+
+**`Mailgun Private Key`**: Configures the Mailgun API key.
+
+</Details>
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -202,10 +230,11 @@ recipients that the email plugin will notify when a user requests access to a
 specific role. When the plugin receives an Access Request from the Auth Service,
 it will look up the role being requested and identify the recipients to notify.
 
-Here is an example of a `role_to_recipients` map:
-
 <Tabs>
 <TabItem label="Executable or Docker">
+
+Here is an example of a `role_to_recipients` map. Each value can be a single
+string or an array of strings:
 
 ```toml
 [role_to_recipients]
@@ -217,11 +246,15 @@ Here is an example of a `role_to_recipients` map:
 </TabItem>
 <TabItem label="Helm Chart">
 
+In the Helm chart, the `role_to_recipients` field is called `roleToRecipients`
+and uses the following format, where keys are strings and values are arrays of
+strings:
+
 ```yaml
 roleToRecipients:
   "*": ["security@example.com", "executive-team@example.com"]
-  "dev": "eng@example.com"
-  "dba": "mallory@example.com"
+  "dev": ["eng@example.com"]
+  "dba": ["mallory@example.com"]
 ```
 
 </TabItem>
@@ -229,8 +262,7 @@ roleToRecipients:
 
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
 value configures the recipients the plugin will email when it receives an Access
-Request for that role. The value can be a single string or an array of strings.
-Each string must be an email address.
+Request for that role.  Each string must be an email address.
 
 The `role_to_recipients` map must also include an entry for `"*"`, which the
 plugin looks up if no other entry matches a given role name. In the example
@@ -314,7 +346,7 @@ refresh_identity = true
 
 [mailgun]
 domain = "sandbox123abc.mailgun.org" 
-private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"                                     
+private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"
 
 # As an alternative, you can use SMTP server credentials:
 #
@@ -324,6 +356,7 @@ private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"
 # username = "username@gmail.com"
 # password = ""
 # password_file = "/var/lib/teleport/plugins/email/smtp_password"
+# starttls_policy = "mandatory"
 
 [delivery]
 sender = "noreply@example.com" 
@@ -349,7 +382,8 @@ teleport:
 
 mailgun:
   domain: "sandbox123abc.mailgun.org" 
-  privateKeyFromSecret: "mailgun-private-key"                                     
+  privateKeyFromSecret: "mailgun-private-key"
+
 # As an alternative, you can use SMTP server credentials:
 #
 # smtp:
@@ -357,6 +391,7 @@ mailgun:
 #   port: 587
 #   username: "username@gmail.com"
 #   passwordFromSecret: "smtp-password"
+#   starttls_policy = "mandatory"
 
 delivery:
   sender: "noreply@example.com" 

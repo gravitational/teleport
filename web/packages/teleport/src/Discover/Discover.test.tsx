@@ -16,41 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
-
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import cfg from 'teleport/config';
 import { Discover, DiscoverComponent } from 'teleport/Discover/Discover';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
-import { getOSSFeatures } from 'teleport/features';
-import cfg from 'teleport/config';
-import {
-  APPLICATIONS,
-  KUBERNETES,
-  SERVERS,
-} from 'teleport/Discover/SelectResource/resources';
 import {
   DATABASES,
   DATABASES_UNGUIDED,
   DATABASES_UNGUIDED_DOC,
 } from 'teleport/Discover/SelectResource/databases';
-
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-
+import {
+  APPLICATIONS,
+  KUBERNETES,
+  SERVERS,
+} from 'teleport/Discover/SelectResource/resources';
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { getOSSFeatures } from 'teleport/features';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { ResourceKind } from './Shared';
-import { useDiscover, DiscoverUpdateProps } from './useDiscover';
-
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { DiscoverUpdateProps, useDiscover } from './useDiscover';
 
 beforeEach(() => {
   jest.restoreAllMocks();

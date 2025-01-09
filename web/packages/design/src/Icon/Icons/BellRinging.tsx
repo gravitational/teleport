@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function BellRinging({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const BellRinging = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-bellringing"
       {...otherProps}
+      ref={ref}
     >
       <path d="M17.6535 1.61784C17.3043 1.39503 16.8406 1.49748 16.6178 1.84667C16.395 2.19586 16.4975 2.65955 16.8467 2.88235C18.1822 3.73448 19.2653 4.9284 19.9839 6.34027C20.1717 6.70942 20.6233 6.85638 20.9925 6.66851C21.3616 6.48064 21.5086 6.02908 21.3207 5.65992C20.4808 4.00954 19.2146 2.61393 17.6535 1.61784Z" />
       <path
@@ -66,5 +67,5 @@ export function BellRinging({ size = 24, color, ...otherProps }: IconProps) {
       />
       <path d="M7.38226 1.84667C7.60507 2.19586 7.50261 2.65955 7.15343 2.88235C5.81794 3.73448 4.73476 4.9284 4.01623 6.34027C3.82836 6.70942 3.3768 6.85638 3.00764 6.66851C2.63849 6.48064 2.49153 6.02908 2.6794 5.65992C3.51931 4.00954 4.78548 2.61393 6.34658 1.61784C6.69577 1.39503 7.15946 1.49748 7.38226 1.84667Z" />
     </Icon>
-  );
-}
+  )
+);

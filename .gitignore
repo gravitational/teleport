@@ -12,6 +12,8 @@ default.etcd
 
 # usually release tarballs get in the way
 *.gz
+# ignore all tarballs except the alpine one
+!fixtures/alpine/alpine-minirootfs-*.tar.gz
 *.zip
 
 # editors

@@ -17,7 +17,9 @@
  */
 
 import React from 'react';
-import { Indicator, Box, Alert, Button, Link } from 'design';
+
+import { Alert, Box, Button, Flex, Indicator, Link, Text } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   FeatureBox,
@@ -25,9 +27,9 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 
-import UserList from './UserList';
 import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';
+import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
 
@@ -46,6 +48,7 @@ export function Users(props: State) {
     onStartDelete,
     onStartEdit,
     onStartReset,
+    usersAcl,
     showMauInfo,
     onDismissUsersMauNotice,
     onClose,
@@ -60,22 +63,68 @@ export function Users(props: State) {
     EmailPasswordReset,
     onEmailPasswordResetClose,
   } = props;
+
+  const requiredPermissions = Object.entries(usersAcl)
+    .map(([key, value]) => {
+      if (key === 'edit') {
+        return { value, label: 'update' };
+      }
+      if (key === 'create') {
+        return { value, label: 'create' };
+      }
+    })
+    .filter(Boolean);
+
+  const isMissingPermissions = requiredPermissions.some(v => !v.value);
+
   return (
     <FeatureBox>
-      <FeatureHeader>
+      <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
         {attempt.isSuccess && (
           <>
             {!InviteCollaborators && (
-              <Button
-                intent="primary"
-                fill="border"
-                ml="auto"
-                width="240px"
-                onClick={onStartCreate}
+              <HoverTooltip
+                position="bottom"
+                tipContent={
+                  !isMissingPermissions ? (
+                    ''
+                  ) : (
+                    <Box>
+                      {/* TODO (avatus): extract this into a new "missing permissions" component. This will
+                          require us to change the internals of HoverTooltip to allow more arbitrary styling of the popover.
+                      */}
+                      <Text mb={1}>
+                        You do not have all of the required permissions.
+                      </Text>
+                      <Box mb={1}>
+                        <Text bold>You are missing permissions:</Text>
+                        <Flex gap={2}>
+                          {requiredPermissions
+                            .filter(perm => !perm.value)
+                            .map(perm => (
+                              <Text
+                                key={perm.label}
+                              >{`users.${perm.label}`}</Text>
+                            ))}
+                        </Flex>
+                      </Box>
+                    </Box>
+                  )
+                }
               >
-                Create New User
-              </Button>
+                <Button
+                  intent="primary"
+                  data-testid="create_new_users_button"
+                  fill="border"
+                  disabled={!usersAcl.edit}
+                  ml="auto"
+                  width="240px"
+                  onClick={onStartCreate}
+                >
+                  Create New User
+                </Button>
+              </HoverTooltip>
             )}
             {InviteCollaborators && (
               <Button
@@ -137,6 +186,7 @@ export function Users(props: State) {
       {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}
       {attempt.isSuccess && (
         <UserList
+          usersAcl={usersAcl}
           users={users}
           onEdit={onStartEdit}
           onDelete={onStartDelete}

@@ -19,8 +19,7 @@
 package gitlab
 
 import (
-	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // GitLab Workload Identity
@@ -112,20 +111,28 @@ type IDTokenClaims struct {
 	ProjectVisibility string `json:"project_visibility"`
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitLab {
+	attrs := &workloadidentityv1pb.JoinAttrsGitLab{
+		Sub:                  c.Sub,
+		Ref:                  c.Ref,
+		RefType:              c.RefType,
+		RefProtected:         c.RefProtected == "true",
+		NamespacePath:        c.NamespacePath,
+		ProjectPath:          c.ProjectPath,
+		UserLogin:            c.UserLogin,
+		UserEmail:            c.UserEmail,
+		PipelineId:           c.PipelineID,
+		Environment:          c.Environment,
+		EnvironmentProtected: c.EnvironmentProtected == "true",
+		RunnerId:             int64(c.RunnerID),
+		RunnerEnvironment:    c.RunnerEnvironment,
+		Sha:                  c.SHA,
+		CiConfigRefUri:       c.CIConfigRefURI,
+		CiConfigSha:          c.CIConfigSHA,
 	}
 
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
+	return attrs
 }

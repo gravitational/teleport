@@ -98,7 +98,7 @@ func awsKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		return servicecfg.KeystoreConfig{}, false
 	}
 	return servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
 			AWSAccount: awsKMSAccount,
 			AWSRegion:  awsKMSRegion,
 		},

@@ -16,7 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MfaDevice } from './types';
+import { DeviceType, MfaDevice } from './types';
+
+function getType(deviceTypeFromJsonResponse: string): DeviceType {
+  if (deviceTypeFromJsonResponse === 'TOTP') {
+    return 'totp';
+  }
+  if (deviceTypeFromJsonResponse === 'SSO') {
+    return 'sso';
+  }
+  return 'webauthn';
+}
 
 export default function makeMfaDevice(json): MfaDevice {
   const { id, name, lastUsed, addedAt, residentKey } = json;
@@ -26,11 +36,13 @@ export default function makeMfaDevice(json): MfaDevice {
     description = 'Authenticator App';
   } else if (json.type === 'U2F' || json.type === 'WebAuthn') {
     description = 'Hardware Key';
+  } else if (json.type === 'SSO') {
+    description = 'SSO Provider';
   } else {
     description = 'unknown device';
   }
 
-  const type = json.type === 'TOTP' ? 'totp' : 'webauthn';
+  const type = getType(json.type);
   const usage = residentKey ? 'passwordless' : 'mfa';
 
   return {

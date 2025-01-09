@@ -42,12 +42,12 @@ type KubeWaitingContainerService struct {
 
 // NewKubeWaitingContainerService returns a new Kubernetes waiting
 // container service.
-func NewKubeWaitingContainerService(backend backend.Backend) (*KubeWaitingContainerService, error) {
+func NewKubeWaitingContainerService(b backend.Backend) (*KubeWaitingContainerService, error) {
 	svc, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*kubewaitingcontainerpb.KubernetesWaitingContainer]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindKubeWaitingContainer,
-			BackendPrefix: kubeWaitingContPrefix,
+			BackendPrefix: backend.NewKey(kubeWaitingContPrefix),
 			MarshalFunc:   services.MarshalKubeWaitingContainer,
 			UnmarshalFunc: services.UnmarshalKubeWaitingContainer,
 		})

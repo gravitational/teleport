@@ -23,7 +23,9 @@ import (
 	"io/fs"
 	"os"
 	"os/user"
+	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -97,6 +99,31 @@ type ACLOptions struct {
 	ReaderUser *user.User
 }
 
+// ACLSelector is a target for an ACL entry, pointing at e.g. a single user or
+// group. Only one field may be specified in a given selector and this should be
+// validated with `CheckAndSetDefaults()`.
+type ACLSelector struct {
+	// User is a user specifier. If numeric, it is treated as a UID. Only one
+	// field may be specified per ACLSelector.
+	User string `yaml:"user,omitempty"`
+
+	// Group is a group specifier. If numeric, it is treated as a UID. Only one
+	// field may be specified per ACLSelector.
+	Group string `yaml:"group,omitempty"`
+}
+
+func (s *ACLSelector) CheckAndSetDefaults() error {
+	if s.User != "" && s.Group != "" {
+		return trace.BadParameter("reader: only one of 'user' and 'group' may be set, not both")
+	}
+
+	if s.User == "" && s.Group == "" {
+		return trace.BadParameter("reader: one of 'user' or 'group' must be set")
+	}
+
+	return nil
+}
+
 // openStandard attempts to open the given path for reading and writing with
 // O_CREATE set.
 func openStandard(path string, mode OpenMode) (*os.File, error) {
@@ -131,6 +158,43 @@ func createStandard(path string, isDir bool) error {
 			"path", path,
 			"error", err,
 		)
+	}
+
+	return nil
+}
+
+// TestACL attempts to create a temporary file in the given parent directory and
+// apply an ACL to it. Note that `readers` should be representative of runtime
+// reader configuration as `ConfigureACL()` may attempt to resolve named users,
+// and may fail if resolution fails.
+func TestACL(directory string, readers []*ACLSelector) error {
+	// Note: we need to create the test file in the dest dir to ensure we
+	// actually test the target filesystem.
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	testFile := filepath.Join(directory, id.String())
+	if err := Create(testFile, false, SymlinksInsecure); err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		err := os.Remove(testFile)
+		if err != nil {
+			log.DebugContext(
+				context.TODO(),
+				"Failed to delete ACL test file",
+				"path", testFile,
+			)
+		}
+	}()
+
+	// Configure a dummy ACL that redundantly includes the user as a reader.
+	//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
+	if err := ConfigureACL(testFile, readers); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -58,8 +60,7 @@ import (
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir is the directory where teleport stores its permanent state
-	// (in case of auth server backed by BoltDB) or local state, e.g. keys
+	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
 
 	// Hostname is a node host name
@@ -265,6 +266,10 @@ type Config struct {
 	// AccessGraph represents AccessGraph server config
 	AccessGraph AccessGraphConfig
 
+	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
+	// protocol.
+	DatabaseREPLRegistry dbrepl.REPLRegistry
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -308,6 +313,10 @@ type ConfigTesting struct {
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
 	KubeMultiplexerIgnoreSelfConnections bool
+
+	// HTTPTransport is an optional HTTP round tripper to used in tests
+	// to mock HTTP requests to the third party services like Okta integration
+	HTTPTransport http.RoundTripper
 }
 
 // AccessGraphConfig represents TAG server config
@@ -551,12 +560,13 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
-	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.Auth.StorageConfig.Params = make(backend.Params)
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = types.DefaultAuthPreference()
+	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
@@ -651,6 +661,15 @@ func ValidateConfig(cfg *Config) error {
 
 	if cfg.DataDir == "" {
 		return trace.BadParameter("config: please supply data directory")
+	}
+
+	if cfg.Auth.Enabled {
+		if cfg.Auth.StorageConfig.Params.GetString(defaults.BackendPath) == "" {
+			if cfg.Auth.StorageConfig.Params == nil {
+				cfg.Auth.StorageConfig.Params = make(backend.Params)
+			}
+			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+		}
 	}
 
 	for i := range cfg.Auth.Authorities {

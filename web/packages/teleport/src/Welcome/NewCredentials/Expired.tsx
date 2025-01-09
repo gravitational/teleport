@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
+
 import { H2, P1 } from 'design';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { OnboardCard } from 'teleport/components/Onboard';
 
 export function Expired({ resetMode = false }) {
   const titleCodeTxt = resetMode ? 'Reset' : 'Invitation';

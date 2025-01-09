@@ -31,15 +31,16 @@ import (
 )
 
 // GenSchemaLabels returns Terraform schema for Labels type
-func GenSchemaLabels(ctx context.Context) tfsdk.Attribute {
-	return tfschema.GenSchemaLabels(ctx)
+func GenSchemaLabels(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfschema.GenSchemaLabels(ctx, attr)
 }
 
 // GenSchemaBoolOptionsNullable returns Terraform schema for BoolOption type
-func GenSchemaBoolOptionNullable(_ context.Context) tfsdk.Attribute {
+func GenSchemaBoolOptionNullable(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
-		Optional: true,
-		Type:     types.BoolType,
+		Optional:    true,
+		Type:        types.BoolType,
+		Description: attr.Description,
 	}
 }
 

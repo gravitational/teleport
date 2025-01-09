@@ -20,10 +20,10 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -35,13 +35,13 @@ import (
 // StatusService manages cluster status info.
 type StatusService struct {
 	backend.Backend
-	log logrus.FieldLogger
+	logger *slog.Logger
 }
 
 func NewStatusService(bk backend.Backend) *StatusService {
 	return &StatusService{
 		Backend: bk,
-		log:     logrus.WithField(teleport.ComponentKey, "status"),
+		logger:  slog.With(teleport.ComponentKey, "status"),
 	}
 }
 
@@ -68,7 +68,7 @@ func (s *StatusService) GetClusterAlerts(ctx context.Context, query types.GetClu
 	filtered := alerts[:0]
 	for _, alert := range alerts {
 		if err := alert.CheckAndSetDefaults(); err != nil {
-			s.log.Warnf("Skipping invalid cluster alert: %v", err)
+			s.logger.WarnContext(ctx, "Skipping invalid cluster alert", "error", err)
 		}
 
 		if !query.Match(alert) {
@@ -136,7 +136,10 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 	}
 
 	_, err = s.Backend.Put(ctx, backend.Item{
-		Key:      backend.NewKey(clusterAlertPrefix, alert.Metadata.Name),
+		// Key construction relies on [backend.KeyFromString] for the alert name, because there are existing
+		// alerts that include a / in their name. Without reconstructing the key it would be impossible
+		// for the sanitization layer to analyze the individual components separately.
+		Key:      backend.NewKey(clusterAlertPrefix).AppendKey(backend.KeyFromString(alert.Metadata.Name)),
 		Value:    val,
 		Expires:  alert.Metadata.Expiry(),
 		Revision: rev,
@@ -145,7 +148,10 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 }
 
 func (s *StatusService) DeleteClusterAlert(ctx context.Context, alertID string) error {
-	err := s.Backend.Delete(ctx, backend.NewKey(clusterAlertPrefix, alertID))
+	// Key construction relies on [backend.KeyFromString] for the alert name, because there are existing
+	// alerts that include a / in their name. Without reconstructing the key it would be impossible
+	// for the sanitization layer to analyze the individual components separately.
+	err := s.Backend.Delete(ctx, backend.NewKey(clusterAlertPrefix).AppendKey(backend.KeyFromString(alertID)))
 	if trace.IsNotFound(err) {
 		return trace.NotFound("cluster alert %q not found", alertID)
 	}
@@ -164,7 +170,10 @@ func (s *StatusService) CreateAlertAck(ctx context.Context, ack types.AlertAckno
 	}
 
 	_, err = s.Backend.Create(ctx, backend.Item{
-		Key:     backend.NewKey(alertAckPrefix, ack.AlertID),
+		// Key construction relies on [backend.KeyFromString] for the alert name, because there are existing
+		// alerts that include a / in their name. Without reconstructing the key it would be impossible
+		// for the sanitization layer to analyze the individual components separately.
+		Key:     backend.NewKey(alertAckPrefix).AppendKey(backend.KeyFromString(ack.AlertID)),
 		Value:   val,
 		Expires: ack.Expires,
 	})

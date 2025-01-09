@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -39,9 +38,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 func init() {
@@ -214,7 +215,9 @@ const (
 
 	// hashKeyKey is a name of the hash key
 	hashKeyKey = "HashKey"
+)
 
+const (
 	// keyPrefix is a prefix that is added to every dynamodb key
 	// for backwards compatibility
 	keyPrefix = "teleport"
@@ -269,7 +272,23 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var dynamoOpts []func(*dynamodb.Options)
+	dynamoResolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(dynamoResolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
 	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
@@ -280,20 +299,37 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		})
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
+	dynamoClient := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 
+	streamsResolver, err := endpoint.NewLoggingResolver(
+		dynamodbstreams.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodbstreams.ServiceID,
+			"api_version", dynamodbstreams.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, dynamodbstreams.WithEndpointResolverV2(streamsResolver))
 	b := &Backend{
 		logger:  l,
 		Config:  *cfg,
 		clock:   clockwork.NewRealClock(),
 		buf:     backend.NewCircularBuffer(backend.BufferCapacity(cfg.BufferSize)),
-		svc:     dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
-		streams: dynamodbstreams.NewFromConfig(awsConfig),
+		svc:     dynamoClient,
+		streams: streamsClient,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	l.InfoContext(ctx, "Connection established to DynamoDB state database",
+		"table", cfg.TableName,
+		"region", cfg.Region,
+	)
 
 	go func() {
 		if err := b.asyncPollStreams(ctx); err != nil {
@@ -497,10 +533,10 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
@@ -564,10 +600,10 @@ const (
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return trace.BadParameter("missing parameter endKey")
 	}
 	// keep fetching and deleting until no records left,
@@ -631,10 +667,10 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
-	if len(expected.Key) == 0 {
+	if expected.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if len(replaceWith.Key) == 0 {
+	if replaceWith.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
 	if expected.Key.Compare(replaceWith.Key) != 0 {
@@ -755,7 +791,7 @@ func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 // some backends may ignore expires based on the implementation
 // in case if the lease managed server side
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if len(lease.Key) == 0 {
+	if lease.Key.IsZero() {
 		return trace.BadParameter("lease is missing key")
 	}
 	input := &dynamodb.UpdateItemInput{
@@ -999,12 +1035,12 @@ const (
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
 // with previous implementation of DynamoDB backend
 func prependPrefix(key backend.Key) string {
-	return keyPrefix + string(key)
+	return keyPrefix + key.String()
 }
 
 // trimPrefix removes leading 'teleport' from the key
 func trimPrefix(key string) backend.Key {
-	return backend.Key(strings.TrimPrefix(key, keyPrefix))
+	return backend.KeyFromString(key).TrimPrefix(backend.KeyFromString(keyPrefix))
 }
 
 // create is a helper that writes a key/value pair in Dynamo with a given expiration.
@@ -1111,21 +1147,21 @@ func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) 
 	if err != nil {
 		// we deliberately use a "generic" trace error here, since we don't want
 		// callers to make assumptions about the nature of the failure.
-		return nil, trace.WrapWithMessage(err, "failed to get %q (dynamo error)", string(key))
+		return nil, trace.WrapWithMessage(err, "failed to get %q (dynamo error)", key.String())
 	}
 	if len(out.Item) == 0 {
-		return nil, trace.NotFound("%q is not found", string(key))
+		return nil, trace.NotFound("%q is not found", key.String())
 	}
 	var r record
 	if err := attributevalue.UnmarshalMap(out.Item, &r); err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", string(key))
+		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", key.String())
 	}
 	// Check if key expired, if expired delete it
 	if r.isExpired(b.clock.Now()) {
 		if err := b.deleteKeyIfExpired(ctx, key); err != nil {
 			b.logger.WarnContext(ctx, "Failed deleting expired key", "key", key, "error", err)
 		}
-		return nil, trace.NotFound("%q is not found", key)
+		return nil, trace.NotFound("%q is not found", key.String())
 	}
 	return &r, nil
 }

@@ -31,6 +31,8 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { PortRange } from "./app_pb";
+import { RouteToApp } from "./app_pb";
 /**
  * Request for Relogin.
  *
@@ -93,11 +95,11 @@ export interface VnetCertExpired {
      */
     targetUri: string;
     /**
-     * public_addr is the public address of the app that the user tried to access.
+     * route_to_app is the metadata associated with the app that the user was trying to reach.
      *
-     * @generated from protobuf field: string public_addr = 2;
+     * @generated from protobuf field: teleport.lib.teleterm.v1.RouteToApp route_to_app = 3;
      */
-    publicAddr: string;
+    routeToApp?: RouteToApp;
 }
 /**
  * Response for Relogin.
@@ -159,7 +161,6 @@ export interface CannotProxyGatewayConnection {
 }
 /**
  * CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
- * At the moment this is used solely when refreshing an expired cert.
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.CannotProxyVnetConnection
  */
@@ -169,15 +170,57 @@ export interface CannotProxyVnetConnection {
      */
     targetUri: string;
     /**
-     * @generated from protobuf field: string error = 2;
+     * route_to_app is the metadata associated with the app that the user was trying to reach.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.RouteToApp route_to_app = 4;
+     */
+    routeToApp?: RouteToApp;
+    /**
+     * @generated from protobuf oneof: reason
+     */
+    reason: {
+        oneofKind: "certReissueError";
+        /**
+         * @generated from protobuf field: teleport.lib.teleterm.v1.CertReissueError cert_reissue_error = 5;
+         */
+        certReissueError: CertReissueError;
+    } | {
+        oneofKind: "invalidLocalPort";
+        /**
+         * @generated from protobuf field: teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port = 6;
+         */
+        invalidLocalPort: InvalidLocalPort;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * CertReissueError is sent as reason in CannotProxyVnetConnection when VNet wasn't able to reissue
+ * a cert for a local proxy.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.CertReissueError
+ */
+export interface CertReissueError {
+    /**
+     * @generated from protobuf field: string error = 1;
      */
     error: string;
+}
+/**
+ * InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
+ * because its local port did not match any TCP ports in the spec of the app. The port is included
+ * in route_to_app as target_port.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.InvalidLocalPort
+ */
+export interface InvalidLocalPort {
     /**
-     * public_addr is the public address of the app that the user tried to access.
+     * tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
+     * ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
      *
-     * @generated from protobuf field: string public_addr = 3;
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 1;
      */
-    publicAddr: string;
+    tcpPorts: PortRange[];
 }
 /**
  * Response for SendNotification.
@@ -234,6 +277,33 @@ export interface PromptMFARequest {
      * @generated from protobuf field: string cluster_uri = 5;
      */
     clusterUri: string;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.SSOChallenge sso = 6;
+     */
+    sso?: SSOChallenge;
+}
+/**
+ * SSOChallenge contains SSO challenge details.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.SSOChallenge
+ */
+export interface SSOChallenge {
+    /**
+     * @generated from protobuf field: string connector_id = 1;
+     */
+    connectorId: string;
+    /**
+     * @generated from protobuf field: string connector_type = 2;
+     */
+    connectorType: string;
+    /**
+     * @generated from protobuf field: string display_name = 3;
+     */
+    displayName: string;
+    /**
+     * @generated from protobuf field: string redirect_url = 4;
+     */
+    redirectUrl: string;
 }
 /**
  * Response for PromptMFA.
@@ -245,6 +315,121 @@ export interface PromptMFAResponse {
      * @generated from protobuf field: string totp_code = 1;
      */
     totpCode: string;
+}
+/**
+ * Request for PromptHardwareKeyPIN.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
+ */
+export interface PromptHardwareKeyPINRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+    /**
+     * Specifies if a PIN is optional, allowing the user to set it up if left empty.
+     *
+     * @generated from protobuf field: bool pin_optional = 2;
+     */
+    pinOptional: boolean;
+}
+/**
+ * Response for PromptHardwareKeyPIN.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
+ */
+export interface PromptHardwareKeyPINResponse {
+    /**
+     * pin as inputted by the user in the Electron app.
+     *
+     * @generated from protobuf field: string pin = 1;
+     */
+    pin: string;
+}
+/**
+ * Request for PromptHardwareKeyTouchRequest.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
+ */
+export interface PromptHardwareKeyTouchRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * Response for PromptHardwareKeyTouch.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
+ */
+export interface PromptHardwareKeyTouchResponse {
+}
+/**
+ * Response for PromptHardwareKeyPINChange.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
+ */
+export interface PromptHardwareKeyPINChangeRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * Response for PromptHardwareKeyPINChange.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
+ */
+export interface PromptHardwareKeyPINChangeResponse {
+    /**
+     * New pin set by the user.
+     *
+     * @generated from protobuf field: string pin = 1;
+     */
+    pin: string;
+    /**
+     * PUK is needed to change the PIN.
+     * This is a new PUK if it has not been changed from the default PUK.
+     *
+     * @generated from protobuf field: string puk = 2;
+     */
+    puk: string;
+    /**
+     * puk_changed is true if the user changed the default PUK.
+     *
+     * @generated from protobuf field: bool puk_changed = 3;
+     */
+    pukChanged: boolean;
+}
+/**
+ * Request for ConfirmHardwareKeySlotOverwrite.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
+ */
+export interface ConfirmHardwareKeySlotOverwriteRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+    /**
+     * Message to display in the prompt.
+     *
+     * @generated from protobuf field: string message = 2;
+     */
+    message: string;
+}
+/**
+ * Response for ConfirmHardwareKeySlotOverwrite.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
+ */
+export interface ConfirmHardwareKeySlotOverwriteResponse {
+    /**
+     * If true, the slot will be overridden.
+     *
+     * @generated from protobuf field: bool confirmed = 1;
+     */
+    confirmed: boolean;
 }
 /**
  * Request for GetUsageReportingSettings.
@@ -425,13 +610,12 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
     constructor() {
         super("teleport.lib.teleterm.v1.VnetCertExpired", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "route_to_app", kind: "message", T: () => RouteToApp }
         ]);
     }
     create(value?: PartialMessage<VnetCertExpired>): VnetCertExpired {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
-        message.publicAddr = "";
         if (value !== undefined)
             reflectionMergePartial<VnetCertExpired>(this, message, value);
         return message;
@@ -444,8 +628,8 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
                 case /* string target_uri */ 1:
                     message.targetUri = reader.string();
                     break;
-                case /* string public_addr */ 2:
-                    message.publicAddr = reader.string();
+                case /* teleport.lib.teleterm.v1.RouteToApp route_to_app */ 3:
+                    message.routeToApp = RouteToApp.internalBinaryRead(reader, reader.uint32(), options, message.routeToApp);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -462,9 +646,9 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
         /* string target_uri = 1; */
         if (message.targetUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
-        /* string public_addr = 2; */
-        if (message.publicAddr !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.publicAddr);
+        /* teleport.lib.teleterm.v1.RouteToApp route_to_app = 3; */
+        if (message.routeToApp)
+            RouteToApp.internalBinaryWrite(message.routeToApp, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -628,15 +812,15 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
     constructor() {
         super("teleport.lib.teleterm.v1.CannotProxyVnetConnection", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "route_to_app", kind: "message", T: () => RouteToApp },
+            { no: 5, name: "cert_reissue_error", kind: "message", oneof: "reason", T: () => CertReissueError },
+            { no: 6, name: "invalid_local_port", kind: "message", oneof: "reason", T: () => InvalidLocalPort }
         ]);
     }
     create(value?: PartialMessage<CannotProxyVnetConnection>): CannotProxyVnetConnection {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
-        message.error = "";
-        message.publicAddr = "";
+        message.reason = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<CannotProxyVnetConnection>(this, message, value);
         return message;
@@ -649,11 +833,20 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
                 case /* string target_uri */ 1:
                     message.targetUri = reader.string();
                     break;
-                case /* string error */ 2:
-                    message.error = reader.string();
+                case /* teleport.lib.teleterm.v1.RouteToApp route_to_app */ 4:
+                    message.routeToApp = RouteToApp.internalBinaryRead(reader, reader.uint32(), options, message.routeToApp);
                     break;
-                case /* string public_addr */ 3:
-                    message.publicAddr = reader.string();
+                case /* teleport.lib.teleterm.v1.CertReissueError cert_reissue_error */ 5:
+                    message.reason = {
+                        oneofKind: "certReissueError",
+                        certReissueError: CertReissueError.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).certReissueError)
+                    };
+                    break;
+                case /* teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port */ 6:
+                    message.reason = {
+                        oneofKind: "invalidLocalPort",
+                        invalidLocalPort: InvalidLocalPort.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).invalidLocalPort)
+                    };
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -670,12 +863,15 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
         /* string target_uri = 1; */
         if (message.targetUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
-        /* string error = 2; */
-        if (message.error !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.error);
-        /* string public_addr = 3; */
-        if (message.publicAddr !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.publicAddr);
+        /* teleport.lib.teleterm.v1.RouteToApp route_to_app = 4; */
+        if (message.routeToApp)
+            RouteToApp.internalBinaryWrite(message.routeToApp, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.CertReissueError cert_reissue_error = 5; */
+        if (message.reason.oneofKind === "certReissueError")
+            CertReissueError.internalBinaryWrite(message.reason.certReissueError, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port = 6; */
+        if (message.reason.oneofKind === "invalidLocalPort")
+            InvalidLocalPort.internalBinaryWrite(message.reason.invalidLocalPort, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -686,6 +882,100 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.CannotProxyVnetConnection
  */
 export const CannotProxyVnetConnection = new CannotProxyVnetConnection$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CertReissueError$Type extends MessageType<CertReissueError> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.CertReissueError", [
+            { no: 1, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CertReissueError>): CertReissueError {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<CertReissueError>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CertReissueError): CertReissueError {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string error */ 1:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CertReissueError, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string error = 1; */
+        if (message.error !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.CertReissueError
+ */
+export const CertReissueError = new CertReissueError$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class InvalidLocalPort$Type extends MessageType<InvalidLocalPort> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.InvalidLocalPort", [
+            { no: 1, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
+        ]);
+    }
+    create(value?: PartialMessage<InvalidLocalPort>): InvalidLocalPort {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.tcpPorts = [];
+        if (value !== undefined)
+            reflectionMergePartial<InvalidLocalPort>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InvalidLocalPort): InvalidLocalPort {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports */ 1:
+                    message.tcpPorts.push(PortRange.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: InvalidLocalPort, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 1; */
+        for (let i = 0; i < message.tcpPorts.length; i++)
+            PortRange.internalBinaryWrite(message.tcpPorts[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.InvalidLocalPort
+ */
+export const InvalidLocalPort = new InvalidLocalPort$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SendNotificationResponse$Type extends MessageType<SendNotificationResponse> {
     constructor() {
@@ -806,7 +1096,8 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
             { no: 2, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "totp", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
@@ -836,6 +1127,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                 case /* string cluster_uri */ 5:
                     message.clusterUri = reader.string();
                     break;
+                case /* teleport.lib.teleterm.v1.SSOChallenge sso */ 6:
+                    message.sso = SSOChallenge.internalBinaryRead(reader, reader.uint32(), options, message.sso);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -860,6 +1154,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* string cluster_uri = 5; */
         if (message.clusterUri !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.clusterUri);
+        /* teleport.lib.teleterm.v1.SSOChallenge sso = 6; */
+        if (message.sso)
+            SSOChallenge.internalBinaryWrite(message.sso, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -870,6 +1167,77 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptMFARequest
  */
 export const PromptMFARequest = new PromptMFARequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SSOChallenge$Type extends MessageType<SSOChallenge> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.SSOChallenge", [
+            { no: 1, name: "connector_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "connector_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "display_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "redirect_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SSOChallenge>): SSOChallenge {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.connectorId = "";
+        message.connectorType = "";
+        message.displayName = "";
+        message.redirectUrl = "";
+        if (value !== undefined)
+            reflectionMergePartial<SSOChallenge>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SSOChallenge): SSOChallenge {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string connector_id */ 1:
+                    message.connectorId = reader.string();
+                    break;
+                case /* string connector_type */ 2:
+                    message.connectorType = reader.string();
+                    break;
+                case /* string display_name */ 3:
+                    message.displayName = reader.string();
+                    break;
+                case /* string redirect_url */ 4:
+                    message.redirectUrl = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SSOChallenge, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string connector_id = 1; */
+        if (message.connectorId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.connectorId);
+        /* string connector_type = 2; */
+        if (message.connectorType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.connectorType);
+        /* string display_name = 3; */
+        if (message.displayName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.displayName);
+        /* string redirect_url = 4; */
+        if (message.redirectUrl !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.redirectUrl);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SSOChallenge
+ */
+export const SSOChallenge = new SSOChallenge$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
     constructor() {
@@ -917,6 +1285,392 @@ class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptMFAResponse
  */
 export const PromptMFAResponse = new PromptMFAResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "pin_optional", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PromptHardwareKeyPINRequest>): PromptHardwareKeyPINRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        message.pinOptional = false;
+        if (value !== undefined)
+            reflectionMergePartial<PromptHardwareKeyPINRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyPINRequest): PromptHardwareKeyPINRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                case /* bool pin_optional */ 2:
+                    message.pinOptional = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PromptHardwareKeyPINRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        /* bool pin_optional = 2; */
+        if (message.pinOptional !== false)
+            writer.tag(2, WireType.Varint).bool(message.pinOptional);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
+ */
+export const PromptHardwareKeyPINRequest = new PromptHardwareKeyPINRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PromptHardwareKeyPINResponse$Type extends MessageType<PromptHardwareKeyPINResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse", [
+            { no: 1, name: "pin", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PromptHardwareKeyPINResponse>): PromptHardwareKeyPINResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pin = "";
+        if (value !== undefined)
+            reflectionMergePartial<PromptHardwareKeyPINResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyPINResponse): PromptHardwareKeyPINResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string pin */ 1:
+                    message.pin = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PromptHardwareKeyPINResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string pin = 1; */
+        if (message.pin !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.pin);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
+ */
+export const PromptHardwareKeyPINResponse = new PromptHardwareKeyPINResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTouchRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PromptHardwareKeyTouchRequest>): PromptHardwareKeyTouchRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<PromptHardwareKeyTouchRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyTouchRequest): PromptHardwareKeyTouchRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PromptHardwareKeyTouchRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
+ */
+export const PromptHardwareKeyTouchRequest = new PromptHardwareKeyTouchRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PromptHardwareKeyTouchResponse$Type extends MessageType<PromptHardwareKeyTouchResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse", []);
+    }
+    create(value?: PartialMessage<PromptHardwareKeyTouchResponse>): PromptHardwareKeyTouchResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<PromptHardwareKeyTouchResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyTouchResponse): PromptHardwareKeyTouchResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: PromptHardwareKeyTouchResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
+ */
+export const PromptHardwareKeyTouchResponse = new PromptHardwareKeyTouchResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PromptHardwareKeyPINChangeRequest$Type extends MessageType<PromptHardwareKeyPINChangeRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PromptHardwareKeyPINChangeRequest>): PromptHardwareKeyPINChangeRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<PromptHardwareKeyPINChangeRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyPINChangeRequest): PromptHardwareKeyPINChangeRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PromptHardwareKeyPINChangeRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
+ */
+export const PromptHardwareKeyPINChangeRequest = new PromptHardwareKeyPINChangeRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PromptHardwareKeyPINChangeResponse$Type extends MessageType<PromptHardwareKeyPINChangeResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse", [
+            { no: 1, name: "pin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "puk", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "puk_changed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PromptHardwareKeyPINChangeResponse>): PromptHardwareKeyPINChangeResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pin = "";
+        message.puk = "";
+        message.pukChanged = false;
+        if (value !== undefined)
+            reflectionMergePartial<PromptHardwareKeyPINChangeResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyPINChangeResponse): PromptHardwareKeyPINChangeResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string pin */ 1:
+                    message.pin = reader.string();
+                    break;
+                case /* string puk */ 2:
+                    message.puk = reader.string();
+                    break;
+                case /* bool puk_changed */ 3:
+                    message.pukChanged = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PromptHardwareKeyPINChangeResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string pin = 1; */
+        if (message.pin !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.pin);
+        /* string puk = 2; */
+        if (message.puk !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.puk);
+        /* bool puk_changed = 3; */
+        if (message.pukChanged !== false)
+            writer.tag(3, WireType.Varint).bool(message.pukChanged);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
+ */
+export const PromptHardwareKeyPINChangeResponse = new PromptHardwareKeyPINChangeResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHardwareKeySlotOverwriteRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ConfirmHardwareKeySlotOverwriteRequest>): ConfirmHardwareKeySlotOverwriteRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        message.message = "";
+        if (value !== undefined)
+            reflectionMergePartial<ConfirmHardwareKeySlotOverwriteRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfirmHardwareKeySlotOverwriteRequest): ConfirmHardwareKeySlotOverwriteRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                case /* string message */ 2:
+                    message.message = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConfirmHardwareKeySlotOverwriteRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        /* string message = 2; */
+        if (message.message !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.message);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
+ */
+export const ConfirmHardwareKeySlotOverwriteRequest = new ConfirmHardwareKeySlotOverwriteRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConfirmHardwareKeySlotOverwriteResponse$Type extends MessageType<ConfirmHardwareKeySlotOverwriteResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse", [
+            { no: 1, name: "confirmed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ConfirmHardwareKeySlotOverwriteResponse>): ConfirmHardwareKeySlotOverwriteResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.confirmed = false;
+        if (value !== undefined)
+            reflectionMergePartial<ConfirmHardwareKeySlotOverwriteResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfirmHardwareKeySlotOverwriteResponse): ConfirmHardwareKeySlotOverwriteResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool confirmed */ 1:
+                    message.confirmed = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConfirmHardwareKeySlotOverwriteResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool confirmed = 1; */
+        if (message.confirmed !== false)
+            writer.tag(1, WireType.Varint).bool(message.confirmed);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
+ */
+export const ConfirmHardwareKeySlotOverwriteResponse = new ConfirmHardwareKeySlotOverwriteResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetUsageReportingSettingsRequest$Type extends MessageType<GetUsageReportingSettingsRequest> {
     constructor() {
@@ -1115,6 +1869,10 @@ export const TshdEventsService = new ServiceType("teleport.lib.teleterm.v1.TshdE
     { name: "SendNotification", options: {}, I: SendNotificationRequest, O: SendNotificationResponse },
     { name: "SendPendingHeadlessAuthentication", options: {}, I: SendPendingHeadlessAuthenticationRequest, O: SendPendingHeadlessAuthenticationResponse },
     { name: "PromptMFA", options: {}, I: PromptMFARequest, O: PromptMFAResponse },
+    { name: "PromptHardwareKeyPIN", options: {}, I: PromptHardwareKeyPINRequest, O: PromptHardwareKeyPINResponse },
+    { name: "PromptHardwareKeyTouch", options: {}, I: PromptHardwareKeyTouchRequest, O: PromptHardwareKeyTouchResponse },
+    { name: "PromptHardwareKeyPINChange", options: {}, I: PromptHardwareKeyPINChangeRequest, O: PromptHardwareKeyPINChangeResponse },
+    { name: "ConfirmHardwareKeySlotOverwrite", options: {}, I: ConfirmHardwareKeySlotOverwriteRequest, O: ConfirmHardwareKeySlotOverwriteResponse },
     { name: "GetUsageReportingSettings", options: {}, I: GetUsageReportingSettingsRequest, O: GetUsageReportingSettingsResponse },
     { name: "ReportUnexpectedVnetShutdown", options: {}, I: ReportUnexpectedVnetShutdownRequest, O: ReportUnexpectedVnetShutdownResponse }
 ]);

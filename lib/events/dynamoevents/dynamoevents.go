@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"math"
 	"net/http"
@@ -41,13 +42,14 @@ import (
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	legacydynamo "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/smithy-go"
-	smithyendpoints "github.com/aws/smithy-go/endpoints"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -61,6 +63,7 @@ import (
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 const (
@@ -148,6 +151,12 @@ type Config struct {
 
 	// EnableAutoScaling is used to enable auto scaling policy.
 	EnableAutoScaling bool
+
+	// CredentialsProvider if supplied is used to override the credentials source.
+	CredentialsProvider aws.CredentialsProvider
+
+	// Insecure is an optional switch to opt out of https connections
+	Insecure bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -202,13 +211,17 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
+	if cfg.Endpoint != "" {
+		cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
+	}
+
 	return nil
 }
 
 // Log is a dynamo-db backed storage of events
 type Log struct {
-	// Entry is a log entry
-	*log.Entry
+	// logger is emits log messages
+	logger *slog.Logger
 	// Config is a backend configuration
 	Config
 	svc *dynamodb.Client
@@ -261,10 +274,8 @@ const (
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	l := log.WithFields(log.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentDynamoDB),
-	})
-	l.Info("Initializing event backend.")
+	l := slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB)
+	l.InfoContext(ctx, "Initializing event backend")
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -284,24 +295,36 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
 
-	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if cfg.CredentialsProvider != nil {
+		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
+	}
+
+	resolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
-
-	var dynamoOpts []func(*dynamodb.Options)
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(resolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
 	if cfg.Endpoint != "" {
-		u, err := url.Parse(cfg.Endpoint)
-		if err != nil {
+		if _, err := url.Parse(cfg.Endpoint); err != nil {
 			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
 		}
 
-		dynamoOpts = append(dynamoOpts, dynamodb.WithEndpointResolverV2(&staticResolver{endpoint: u}))
+		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
@@ -313,25 +336,28 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		})
 	}
 
+	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{
-		Entry:  l,
+		logger: l,
 		Config: cfg,
-		svc:    dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
+		svc:    client,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	l.InfoContext(ctx, "Connection established to DynamoDB events database",
+		"table", cfg.Tablename,
+		"region", cfg.Region,
+	)
+
 	return b, nil
-}
-
-type staticResolver struct {
-	endpoint *url.URL
-}
-
-func (s *staticResolver) ResolveEndpoint(ctx context.Context, params dynamodb.EndpointParameters) (smithyendpoints.Endpoint, error) {
-	return smithyendpoints.Endpoint{URI: *s.endpoint}, nil
 }
 
 type tableStatus int
@@ -502,8 +528,7 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
 		return trace.BadParameter(err.Error())
 	}
-	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
-	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	l.logger.InfoContext(ctx, "Uploaded trimmed event to DynamoDB backend.", "event_id", in.GetID(), "event_type", in.GetType())
 	events.MetricStoredTrimmedEvents.Inc()
 	return nil
 }
@@ -520,7 +545,7 @@ func (l *Log) handleConditionError(ctx context.Context, err error, sessionID str
 	if err := l.putAuditEvent(context.WithValue(ctx, conflictHandledContextKey, true), sessionID, in); err != nil {
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}).Debug("Event index overwritten")
+	l.logger.InfoContext(ctx, "Event index overwritten.", "event_id", in.GetID(), "event_type", in.GetType())
 	return nil
 }
 
@@ -578,11 +603,18 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 			// item event index/session id. Since we can't change the session
 			// id, update the event index with a new value and retry the put
 			// item.
-			l.
-				WithError(err).
-				WithFields(log.Fields{"event_type": in.GetType(), "session_id": sessionID, "event_index": in.GetIndex()}).
-				Error("Conflict on event session_id and event_index")
-			return trace.Wrap(l.handleConditionError(ctx, err, sessionID, in))
+			if err2 := l.handleConditionError(ctx, err, sessionID, in); err2 != nil {
+				// Only log about the original conflict if updating
+				// the session information fails.
+				l.logger.ErrorContext(ctx, "Conflict on event session_id and event_index",
+					"error", err,
+					"event_type", in.GetType(),
+					"session_id", sessionID,
+					"event_index", in.GetIndex())
+				return trace.Wrap(err2)
+			}
+
+			return nil
 		}
 
 		return err
@@ -657,6 +689,24 @@ type checkpointKey struct {
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
 	Iterator string `json:"iterator,omitempty"`
+
+	// EventKey is a derived identifier for an event used for resuming
+	// sub-page breaks due to size constraints.
+	EventKey string `json:"event_key,omitempty"`
+}
+
+// legacyCheckpointKey is the old checkpoint key returned by older auth versions. Used to decode
+// checkpoints originating from old auths. Commonly we don't bother supporting pagination/cursors
+// across teleport versions since the benefit of doing so is usually minimal, but this value is used
+// as on-disk state by long running event export operations, and so must be supported.
+//
+// DELETE IN: 19.0.0
+type legacyCheckpointKey struct {
+	// The date that the Dynamo iterator corresponds to.
+	Date string `json:"date,omitempty"`
+
+	// A DynamoDB query iterator. Allows us to resume a partial query.
+	Iterator map[string]*legacydynamo.AttributeValue `json:"iterator,omitempty"`
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
@@ -830,15 +880,15 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
-	logger := l.WithFields(log.Fields{
-		"From":      fromUTC,
-		"To":        toUTC,
-		"Namespace": namespace,
-		"Filter":    filter,
-		"Limit":     limit,
-		"StartKey":  startKey,
-		"Order":     order,
-	})
+	logger := l.logger.With(
+		"from", fromUTC,
+		"to", toUTC,
+		"namespace", namespace,
+		"filter", filter,
+		"limit", limit,
+		"start_key", startKey,
+		"order", order,
+	)
 
 	ef := eventsFetcher{
 		log:        logger,
@@ -908,11 +958,49 @@ func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	if startKey == "" {
 		return checkpoint, nil
 	}
-	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
+	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
 	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+		// attempt to decode as legacy format.
+		if checkpoint, err = getCheckpointFromLegacyStartKey(startKey); err == nil {
+			return checkpoint, nil
+		}
 		return checkpointKey{}, trace.Wrap(err)
 	}
 	return checkpoint, nil
+}
+
+// getCheckpointFromLegacyStartKey is a helper function that decodes a legacy checkpoint key
+// into the new format. The old format used raw dynamo attribute values for the iterator, where
+// the new format uses a json-serialized map with bare values.
+//
+// DELETE IN: 19.0.0
+func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
+	var checkpoint legacyCheckpointKey
+	if startKey == "" {
+		return checkpointKey{}, nil
+	}
+	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
+	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	// decode the dynamo attrs into the go map repr common to the old and new formats.
+	m := make(map[string]any)
+	if err := dynamodbattribute.UnmarshalMap(checkpoint.Iterator, &m); err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	// encode the map into json, making it equivalent to the new format.
+	iterator, err := json.Marshal(m)
+	if err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	return checkpointKey{
+		Date:     checkpoint.Date,
+		Iterator: string(iterator),
+		EventKey: checkpoint.EventKey,
+	}, nil
 }
 
 func getExprFilter(filter searchEventsFilter) *string {
@@ -1122,14 +1210,14 @@ func (l *Log) createTable(ctx context.Context, tableName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Waiting until table %q is created", tableName)
+	l.logger.InfoContext(ctx, "Waiting until table is created", "table", tableName)
 	waiter := dynamodb.NewTableExistsWaiter(l.svc)
 	err = waiter.Wait(ctx,
 		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
 		10*time.Minute,
 	)
 	if err == nil {
-		log.Infof("Table %q has been created", tableName)
+		l.logger.InfoContext(ctx, "Table has been created", "table", tableName)
 	}
 
 	return trace.Wrap(err)
@@ -1249,7 +1337,7 @@ type query interface {
 }
 
 type eventsFetcher struct {
-	log *log.Entry
+	log *slog.Logger
 	api query
 
 	totalSize  int
@@ -1390,12 +1478,12 @@ dateLoop:
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			l.log.WithFields(log.Fields{
-				"duration": time.Since(start),
-				"items":    len(out.Items),
-				"forward":  l.forward,
-				"iterator": l.checkpoint.Iterator,
-			}).Debugf("Query completed.")
+			l.log.DebugContext(ctx, "Query completed.",
+				"duration", time.Since(start),
+				"items", len(out.Items),
+				"forward", l.forward,
+				"iterator", l.checkpoint.Iterator,
+			)
 
 			hasLeft := func() bool {
 				return i+1 != len(l.dates)
@@ -1471,12 +1559,12 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	l.log.WithFields(log.Fields{
-		"duration": time.Since(start),
-		"items":    len(out.Items),
-		"forward":  l.forward,
-		"iterator": l.checkpoint.Iterator,
-	}).Debugf("Query completed.")
+	l.log.DebugContext(ctx, "Query completed.",
+		"duration", time.Since(start),
+		"items", len(out.Items),
+		"forward", l.forward,
+		"iterator", l.checkpoint.Iterator,
+	)
 
 	result, limitReached, err := l.processQueryOutput(out, nil)
 	if err != nil {

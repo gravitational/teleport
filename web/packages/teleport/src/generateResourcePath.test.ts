@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg, { UrlResourcesParams } from './config';
+import cfg, { UrlKubeResourcesParams, UrlResourcesParams } from './config';
 import generateResourcePath from './generateResourcePath';
 
 test('undefined params are set to empty string', () => {
@@ -64,5 +64,21 @@ test('defined params but set to empty values are set to empty string', () => {
     })
   ).toStrictEqual(
     '/v1/webapi/sites/cluster/resources?searchAsRoles=&limit=&startKey=&kinds=&query=&search=&sort=&pinnedOnly=&includedResourceMode='
+  );
+});
+
+test('defined kube related params are set', () => {
+  const params: UrlKubeResourcesParams = {
+    kind: 'namespace',
+    kubeCluster: 'kubecluster',
+    kubeNamespace: 'kubenamespace',
+  };
+  expect(
+    generateResourcePath(cfg.api.kubernetesResourcesPath, {
+      clusterId: 'cluster',
+      ...params,
+    })
+  ).toStrictEqual(
+    '/v1/webapi/sites/cluster/kubernetes/resources?searchAsRoles=&limit=&startKey=&query=&search=&sort=&kubeCluster=kubecluster&kubeNamespace=kubenamespace&kind=namespace'
   );
 });

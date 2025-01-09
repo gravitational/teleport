@@ -17,6 +17,5 @@
  */
 
 // Package local implements services interfaces using abstract
-// key value backend provided by lib/backend, what makes it possible
-// for teleport to run using boltdb or etcd
+// key value backend provided by lib/backend.
 package local

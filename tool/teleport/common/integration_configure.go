@@ -59,6 +59,7 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		TaskRole:        params.TaskRole,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, confReq))
 }
@@ -76,6 +77,7 @@ func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConf
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, clt, confReq))
 }
@@ -97,6 +99,7 @@ func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationCo
 		ClusterName:     params.ClusterName,
 		IntegrationName: params.IntegrationName,
 		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEC2SSM(ctx, awsClt, confReq))
 }
@@ -113,6 +116,7 @@ func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.Integra
 	confReq := awsoidc.AWSAppAccessConfigureRequest{
 		IntegrationRole: params.RoleName,
 		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureAWSAppAccess(ctx, iamClient, confReq))
 }
@@ -130,6 +134,7 @@ func onIntegrationConfEKSIAM(ctx context.Context, params config.IntegrationConfE
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEKSIAM(ctx, iamClient, confReq))
 }
@@ -147,10 +152,12 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 	}
 
 	confReq := awsoidc.IdPIAMConfigureRequest{
-		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
-		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
-		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
-		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		Cluster:                 clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:         clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:         clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
+		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -169,6 +176,7 @@ func onIntegrationConfListDatabasesIAM(ctx context.Context, params config.Integr
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureListDatabasesIAM(ctx, clt, confReq))
 }
@@ -178,6 +186,15 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if params.AccountID != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		err = awsoidc.CheckAccountID(ctx, stsClient, params.AccountID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if params.Bootstrap {
 		err = externalauditstorage.BootstrapInfra(ctx, externalauditstorage.BootstrapInfraParams{
 			Athena: athena.NewFromConfig(cfg),
@@ -219,6 +236,7 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 	confReq := awsoidc.AccessGraphAWSIAMConfigureRequest{
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
 }
@@ -233,7 +251,7 @@ func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.Integratio
 
 	fmt.Println("Teleport is setting up the Azure integration. This may take a few minutes.")
 
-	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName)
+	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName, params.SkipOIDCConfiguration)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -1,20 +1,18 @@
 /*
- * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+Copyright 2024 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package autoupdate
 
@@ -41,7 +39,9 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 		{
 			name: "success tools autoupdate version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				ToolsVersion: "1.2.3-dev",
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3-dev",
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
 				require.NoError(t, err)
@@ -53,26 +53,32 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					Name: types.MetaNameAutoUpdateVersion,
 				},
 				Spec: &autoupdate.AutoUpdateVersionSpec{
-					ToolsVersion: "1.2.3-dev",
+					Tools: &autoupdate.AutoUpdateVersionSpecTools{
+						TargetVersion: "1.2.3-dev",
+					},
 				},
 			},
 		},
 		{
 			name: "invalid empty tools version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				ToolsVersion: "",
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: "",
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
-				require.ErrorContains(t, err, "ToolsVersion is unset")
+				require.ErrorContains(t, err, "target_version\n\tversion is unset")
 			},
 		},
 		{
 			name: "invalid semantic tools version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				ToolsVersion: "17-0-0",
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: "17-0-0",
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
-				require.ErrorContains(t, err, "ToolsVersion is not a valid semantic version")
+				require.ErrorContains(t, err, "target_version\n\tversion \"17-0-0\" is not a valid semantic version")
 			},
 		},
 		{
@@ -80,6 +86,91 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 			spec: nil,
 			assertErr: func(t *testing.T, err error, a ...any) {
 				require.ErrorContains(t, err, "Spec is nil")
+			},
+		},
+		{
+			name: "success agents autoupdate version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "1.2.3-dev.1",
+					TargetVersion: "1.2.3-dev.2",
+					Schedule:      AgentsScheduleImmediate,
+					Mode:          AgentsUpdateModeEnabled,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.NoError(t, err)
+			},
+			want: &autoupdate.AutoUpdateVersion{
+				Kind:    types.KindAutoUpdateVersion,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateVersion,
+				},
+				Spec: &autoupdate.AutoUpdateVersionSpec{
+					Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+						StartVersion:  "1.2.3-dev.1",
+						TargetVersion: "1.2.3-dev.2",
+						Schedule:      AgentsScheduleImmediate,
+						Mode:          AgentsUpdateModeEnabled,
+					},
+				},
+			},
+		},
+		{
+			name: "invalid empty agents start version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "",
+					TargetVersion: "1.2.3",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleImmediate,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "start_version\n\tversion is unset")
+			},
+		},
+		{
+			name: "invalid empty agents target version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "1.2.3-dev",
+					TargetVersion: "",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleImmediate,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "target_version\n\tversion is unset")
+			},
+		},
+		{
+			name: "invalid semantic agents start version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "17-0-0",
+					TargetVersion: "1.2.3",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleImmediate,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "start_version\n\tversion \"17-0-0\" is not a valid semantic version")
+			},
+		},
+		{
+			name: "invalid semantic agents target version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "1.2.3",
+					TargetVersion: "17-0-0",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleImmediate,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "target_version\n\tversion \"17-0-0\" is not a valid semantic version")
 			},
 		},
 	}

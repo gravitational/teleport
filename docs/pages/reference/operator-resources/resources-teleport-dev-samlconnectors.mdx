@@ -1,0 +1,88 @@
+---
+title: TeleportSAMLConnector
+description: Provides a comprehensive list of fields in the TeleportSAMLConnector resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportSAMLConnector`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v2
+
+**apiVersion:** resources.teleport.dev/v2
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|SAMLConnector resource definition v2 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|acs|string|AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).|
+|allow_idp_initiated|boolean|AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.|
+|assertion_key_pair|[object](#specassertion_key_pair)|EncryptionKeyPair is a key pair used for decrypting SAML assertions.|
+|attributes_to_roles|[][object](#specattributes_to_roles-items)|AttributesToRoles is a list of mappings of attribute statements to roles.|
+|audience|string|Audience uniquely identifies our service provider.|
+|cert|string|Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.|
+|client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
+|display|string|Display controls how this connector is displayed.|
+|entity_descriptor|string|EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|
+|entity_descriptor_url|string|EntityDescriptorURL is a URL that supplies a configuration XML.|
+|force_authn|string or integer|ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO. Can be either the string or the integer representation of each option.|
+|issuer|string|Issuer is the identity provider issuer.|
+|mfa|[object](#specmfa)|MFASettings contains settings to enable SSO MFA checks through this auth connector.|
+|provider|string|Provider is the external identity provider.|
+|service_provider_issuer|string|ServiceProviderIssuer is the issuer of the service provider (Teleport).|
+|signing_key_pair|[object](#specsigning_key_pair)|SigningKeyPair is an x509 key pair used to sign AuthnRequest.|
+|single_logout_url|string|SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.|
+|sso|string|SSO is the URL of the identity provider's SSO service.|
+
+### spec.assertion_key_pair
+
+|Field|Type|Description|
+|---|---|---|
+|cert|string|Cert is a PEM-encoded x509 certificate.|
+|private_key|string|PrivateKey is a PEM encoded x509 private key.|
+
+### spec.attributes_to_roles items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|Name is an attribute statement name.|
+|roles|[]string|Roles is a list of static teleport roles to map to.|
+|value|string|Value is an attribute statement value to match.|
+
+### spec.client_redirect_settings
+
+|Field|Type|Description|
+|---|---|---|
+|allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
+|insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
+
+### spec.mfa
+
+|Field|Type|Description|
+|---|---|---|
+|cert|string|Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.|
+|enabled|boolean|Enabled specified whether this SAML connector supports MFA checks. Defaults to false.|
+|entity_descriptor|string|EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl.|
+|entity_descriptor_url|string|EntityDescriptorUrl is a URL that supplies a configuration XML.|
+|force_authn|string or integer|ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions. Can be either the string or the integer representation of each option.|
+|issuer|string|Issuer is the identity provider issuer. Usually set from EntityDescriptor.|
+|sso|string|SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.|
+
+### spec.signing_key_pair
+
+|Field|Type|Description|
+|---|---|---|
+|cert|string|Cert is a PEM-encoded x509 certificate.|
+|private_key|string|PrivateKey is a PEM encoded x509 private key.|
+

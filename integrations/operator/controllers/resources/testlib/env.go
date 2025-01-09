@@ -20,7 +20,8 @@ package testlib
 
 import (
 	"context"
-	"math/rand"
+	"log/slog"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
@@ -88,12 +88,11 @@ func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace)
 	require.NoError(t, err)
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-
 func ValidRandomResourceName(prefix string) string {
-	b := make([]rune, 5)
+	const letters = "abcdefghijklmnopqrstuvwxyz1234567890"
+	b := make([]byte, 5)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letters[rand.N(len(letters))]
 	}
 	return prefix + string(b)
 }
@@ -113,7 +112,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         logrus.StandardLogger(),
+		Logger:      slog.Default(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()

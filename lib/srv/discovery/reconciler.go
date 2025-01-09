@@ -20,12 +20,12 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -46,7 +46,7 @@ type serverInfoUpserter interface {
 
 type labelReconcilerConfig struct {
 	clock       clockwork.Clock
-	log         logrus.FieldLogger
+	log         *slog.Logger
 	accessPoint serverInfoUpserter
 }
 
@@ -58,7 +58,7 @@ func (c *labelReconcilerConfig) checkAndSetDefaults() error {
 		c.clock = clockwork.NewRealClock()
 	}
 	if c.log == nil {
-		c.log = logrus.New()
+		c.log = slog.Default()
 	}
 	return nil
 }
@@ -84,7 +84,7 @@ func newLabelReconciler(cfg *labelReconcilerConfig) (*labelReconciler, error) {
 		discoveredServers: make(map[string]types.ServerInfo),
 		serverInfoQueue:   make([]types.ServerInfo, 0, minBatchSize),
 		lastBatchSize:     minBatchSize,
-		jitter:            retryutils.NewSeventhJitter(),
+		jitter:            retryutils.SeventhJitter,
 	}, nil
 }
 
@@ -124,7 +124,7 @@ func (r *labelReconciler) run(ctx context.Context) {
 
 			for _, si := range batch {
 				if err := r.cfg.accessPoint.UpsertServerInfo(ctx, si); err != nil {
-					r.cfg.log.WithError(err).Error("Failed to upsert server info.")
+					r.cfg.log.ErrorContext(ctx, "Failed to upsert server info", "error", err)
 					// Allow the server info to be queued again.
 					delete(r.discoveredServers, si.GetName())
 				}

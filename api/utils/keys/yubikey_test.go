@@ -45,7 +45,11 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	fmt.Println("This test is interactive, tap your YubiKey when prompted.")
 
 	ctx := context.Background()
-	t.Cleanup(func() { resetYubikey(t) })
+
+	y, err := keys.FindYubiKey(0, nil)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { resetYubikey(t, y) })
 
 	for _, policy := range []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKey,
@@ -56,8 +60,8 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 		for _, customSlot := range []bool{true, false} {
 			t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
 				t.Run(fmt.Sprintf("custom slot:%v", customSlot), func(t *testing.T) {
-					resetYubikey(t)
-					setupPINPrompt(t)
+					resetYubikey(t, y)
+					setupPINPrompt(t, y)
 
 					var slot keys.PIVSlot = ""
 					if customSlot {
@@ -65,7 +69,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					}
 
 					// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
-					priv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot)
+					priv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot, nil)
 					require.NoError(t, err)
 
 					// test HardwareSigner methods
@@ -78,7 +82,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.NoError(t, err)
 
 					// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
-					retrievePriv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot)
+					retrievePriv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot, nil)
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 
@@ -100,7 +104,11 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	t.Cleanup(func() { resetYubikey(t) })
+
+	y, err := keys.FindYubiKey(0, nil)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { resetYubikey(t, y) })
 
 	// Use a custom slot.
 	pivSlot, err := keys.GetDefaultKeySlot(keys.PrivateKeyPolicyHardwareKeyTouch)
@@ -109,21 +117,19 @@ func TestOverwritePrompt(t *testing.T) {
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */)
+		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-		_, err = keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */)
+		_, err = keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
 		require.NoError(t, err)
 	}
 
 	t.Run("invalid metadata cert", func(t *testing.T) {
-		resetYubikey(t)
+		resetYubikey(t, y)
 
 		// Set a non-teleport certificate in the slot.
-		y, err := keys.FindYubiKey(0)
-		require.NoError(t, err)
 		err = y.SetMetadataCertificate(pivSlot, pkix.Name{Organization: []string{"not-teleport"}})
 		require.NoError(t, err)
 
@@ -131,10 +137,10 @@ func TestOverwritePrompt(t *testing.T) {
 	})
 
 	t.Run("invalid key policies", func(t *testing.T) {
-		resetYubikey(t)
+		resetYubikey(t, y)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()))
+		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()), nil)
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
@@ -142,17 +148,13 @@ func TestOverwritePrompt(t *testing.T) {
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
-func resetYubikey(t *testing.T) {
+func resetYubikey(t *testing.T, y *keys.YubiKey) {
 	t.Helper()
-	y, err := keys.FindYubiKey(0)
-	require.NoError(t, err)
 	require.NoError(t, y.Reset())
 }
 
-func setupPINPrompt(t *testing.T) {
+func setupPINPrompt(t *testing.T, y *keys.YubiKey) {
 	t.Helper()
-	y, err := keys.FindYubiKey(0)
-	require.NoError(t, err)
 
 	// Set pin for tests.
 	const testPIN = "123123"

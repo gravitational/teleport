@@ -24,13 +24,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -45,7 +45,7 @@ import (
 const copyingGoroutines = 2
 
 type sftpSubsys struct {
-	log *logrus.Entry
+	logger *slog.Logger
 
 	fileTransferReq *srv.FileTransferRequest
 	sftpCmd         *exec.Cmd
@@ -55,9 +55,7 @@ type sftpSubsys struct {
 
 func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: teleport.ComponentSubsystemSFTP,
-		}),
+		logger:          slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP),
 		fileTransferReq: fileTransferReq,
 	}, nil
 }
@@ -78,7 +76,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				Time: time.Now(),
 			},
 			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
-			ServerMetadata: serverCtx.GetServerMetadata(),
+			ServerMetadata: serverCtx.GetServer().TargetMetadata(),
 			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
 		})
 		return srv.ErrNodeFileCopyingNotPermitted
@@ -125,7 +123,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	s.sftpCmd.Stdout = os.Stdout
 	s.sftpCmd.Stderr = os.Stderr
 
-	s.log.Debug("starting SFTP process")
+	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
@@ -169,7 +167,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := serverCtx.GetServerMetadata()
+		serverMeta := serverCtx.GetServer().TargetMetadata()
 		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
@@ -184,26 +182,41 @@ func (s *sftpSubsys) Start(ctx context.Context,
 			eventStr, err := r.ReadString(0x0)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					s.log.WithError(err).Warn("Failed to read SFTP event.")
+					s.logger.WarnContext(ctx, "Failed to read SFTP event", "error", err)
 				}
 				return
 			}
 
-			var sftpEvent apievents.SFTP
-			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &sftpEvent)
+			var oneOfEvent apievents.OneOf
+			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &oneOfEvent)
 			if err != nil {
-				s.log.WithError(err).Warn("Failed to unmarshal SFTP event.")
+				s.logger.WarnContext(ctx, "Failed to unmarshal SFTP event", "error", err)
+				continue
+			}
+			event, err := apievents.FromOneOf(oneOfEvent)
+			if err != nil {
+				s.logger.WarnContext(ctx, "Failed to convert SFTP event from OneOf", "error", err)
 				continue
 			}
 
-			sftpEvent.Metadata.ClusterName = serverCtx.ClusterName
-			sftpEvent.ServerMetadata = serverMeta
-			sftpEvent.SessionMetadata = sessionMeta
-			sftpEvent.UserMetadata = userMeta
-			sftpEvent.ConnectionMetadata = connectionMeta
+			event.SetClusterName(serverCtx.ClusterName)
+			switch e := event.(type) {
+			case *apievents.SFTP:
+				e.ServerMetadata = serverMeta
+				e.SessionMetadata = sessionMeta
+				e.UserMetadata = userMeta
+				e.ConnectionMetadata = connectionMeta
+			case *apievents.SFTPSummary:
+				e.ServerMetadata = serverMeta
+				e.SessionMetadata = sessionMeta
+				e.UserMetadata = userMeta
+				e.ConnectionMetadata = connectionMeta
+			default:
+				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process", "error", err, "event_type", event.GetType())
+			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, &sftpEvent); err != nil {
-				log.WithError(err).Warn("Failed to emit SFTP event.")
+			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
+				s.logger.WarnContext(ctx, "Failed to emit SFTP event", "error", err)
 			}
 		}
 	}()
@@ -212,10 +225,11 @@ func (s *sftpSubsys) Start(ctx context.Context,
 }
 
 func (s *sftpSubsys) Wait() error {
+	ctx := context.Background()
 	waitErr := s.sftpCmd.Wait()
-	s.log.Debug("SFTP process finished")
+	s.logger.DebugContext(ctx, "SFTP process finished")
 
-	s.serverCtx.SendExecResult(srv.ExecResult{
+	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
 		Command: s.sftpCmd.String(),
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
 	})
@@ -224,7 +238,7 @@ func (s *sftpSubsys) Wait() error {
 	for i := 0; i < copyingGoroutines; i++ {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
-			s.log.WithError(err).Warn("Connection problem.")
+			s.logger.WarnContext(ctx, "Connection problem", "error", err)
 			errs = append(errs, err)
 		}
 	}

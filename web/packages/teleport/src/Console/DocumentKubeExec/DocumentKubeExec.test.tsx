@@ -15,29 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 
 import '@testing-library/jest-dom';
-
-import ThemeProvider from 'design/ThemeProvider';
 import 'jest-canvas-mock';
-import { darkTheme } from 'design/theme';
 
-import { act } from 'design/utils/testing';
+import { act, render } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
 import ConsoleCtx from 'teleport/Console/consoleContext';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import Tty from 'teleport/lib/term/tty';
-
-import useKubeExecSession, { Status } from './useKubeExecSession';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import type { Session } from 'teleport/services/session';
 
 import DocumentKubeExec from './DocumentKubeExec';
-
-import type { Session } from 'teleport/services/session';
+import useKubeExecSession, { Status } from './useKubeExecSession';
 
 jest.mock('./useKubeExecSession');
 
@@ -65,13 +58,11 @@ describe('DocumentKubeExec', () => {
     const { ctx, consoleCtx } = getContexts();
 
     render(
-      <ThemeProvider theme={darkTheme}>
-        <ContextProvider ctx={ctx}>
-          <TestLayout ctx={consoleCtx}>
-            <DocumentKubeExec doc={baseDoc} visible={true} />
-          </TestLayout>
-        </ContextProvider>
-      </ThemeProvider>
+      <ContextProvider ctx={ctx}>
+        <TestLayout ctx={consoleCtx}>
+          <DocumentKubeExec doc={baseDoc} visible={true} />
+        </TestLayout>
+      </ContextProvider>
     );
   };
 

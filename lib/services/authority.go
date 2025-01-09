@@ -325,7 +325,7 @@ func (c HostCertParams) Check() error {
 type UserCertParams struct {
 	// CASigner is the signer that will sign the public key of the user with the CA private key
 	CASigner ssh.Signer
-	// PublicUserKey is the public key of the user
+	// PublicUserKey is the public key of the user in SSH authorized_keys format.
 	PublicUserKey []byte
 	// TTL defines how long a certificate is valid for
 	TTL time.Duration
@@ -396,6 +396,12 @@ type UserCertParams struct {
 	// DeviceCredentialID is the identifier for the credential used by the device
 	// to authenticate itself.
 	DeviceCredentialID string
+	// GitHubUserID indicates the GitHub user ID identified by the GitHub
+	// connector.
+	GitHubUserID string
+	// GitHubUserID indicates the GitHub username identified by the GitHub
+	// connector.
+	GitHubUsername string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

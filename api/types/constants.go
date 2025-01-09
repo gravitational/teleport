@@ -21,6 +21,11 @@ import (
 )
 
 const (
+	// The `Kind*` constants in this const block identify resource kinds used for
+	// storage an/or and access control. Please keep these in sync with the
+	// `ResourceKind` enum in
+	// `web/packages/teleport/src/services/resources/types.ts`.
+
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
@@ -40,6 +45,8 @@ const (
 	PackageNameOSS = "teleport"
 	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
+	// PackageNameEntFIPS is the teleport package name for the Enterprise with FIPS enabled version.
+	PackageNameEntFIPS = "teleport-ent-fips"
 
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
@@ -116,7 +123,10 @@ const (
 	// KindSession is a recorded SSH session.
 	KindSession = "session"
 
-	// KindSSHSession is an active SSH session.
+	// KindSSHSession represents an active SSH session in early versions of Teleport
+	// prior to the introduction of moderated sessions. Note that ssh_session is not
+	// a "real" resource, and it is never used as the "session kind" value in the
+	// session_tracker resource.
 	KindSSHSession = "ssh_session"
 
 	// KindWebSession is a web session resource
@@ -326,11 +336,17 @@ const (
 	// KindAutoUpdateVersion is the resource with autoupdate versions.
 	KindAutoUpdateVersion = "autoupdate_version"
 
+	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
+	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
+
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
 
 	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
 	MetaNameAutoUpdateVersion = "autoupdate-version"
+
+	// MetaNameAutoUpdateAgentRollout is the name of the autoupdate agent rollout resource.
+	MetaNameAutoUpdateAgentRollout = "autoupdate-agent-rollout"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
@@ -417,6 +433,9 @@ const (
 
 	// KindWindowsDesktop is a Windows desktop host.
 	KindWindowsDesktop = "windows_desktop"
+
+	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
+	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
 
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
@@ -546,6 +565,10 @@ const (
 	// a managed device.
 	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
 
+	// KindProvisioningPrincipalState is a resource that tracks provisioning of a user or access
+	// list in a downstream SCIM server
+	KindProvisioningPrincipalState = "provisioning_principal_state"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
 
@@ -554,6 +577,38 @@ const (
 
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
+
+	// KindIdentityCenter is an umbrella kind, representing all KindIdentityCenter*
+	// resource kinds in RBAC checks. This is to simplify Role condition statements
+	// so that they don't have to individually specify all of the Identity Center
+	// resource kinds.
+	KindIdentityCenter = "aws_identity_center"
+
+	// KindIdentityCenterAccount describes an Identity-Center managed AWS Account
+	KindIdentityCenterAccount = "aws_ic_account"
+
+	// KindIdentityCenterPermissionSet describes an AWS Identity Center Permission Set
+	KindIdentityCenterPermissionSet = "aws_ic_permission_set"
+
+	// KindIdentityCenterPermissionSet describes an AWS Principal Assignment, representing
+	// a collection Account Assignments assigned to a Teleport User or AccessList
+	KindIdentityCenterPrincipalAssignment = "aws_ic_principal_assignment"
+
+	// KindIdentityCenterAccountAssignment describes an AWS Account and Permission Set
+	// pair that can be requested by a Teleport User.
+	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
+
+	// KindContact is a resource that holds contact information
+	// for Teleport Enterprise customers.
+	KindContact = "contact"
+
+	// KindWorkloadIdentity is the WorkloadIdentity resource.
+	KindWorkloadIdentity = "workload_identity"
+
+	// KindGitServer represents a Git server that can proxy git commands.
+	KindGitServer = "git_server"
+	// SubKindGitHub specifies the GitHub subkind of a Git server.
+	SubKindGitHub = "github"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
@@ -583,7 +638,7 @@ const (
 )
 
 // PackageNameKinds is the list of valid teleport package names.
-var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -993,6 +1048,16 @@ const (
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
 
+	// TeleportInternalDiscoveryIntegrationName is the label used to store the name of the integration
+	// whose credentials were used to discover the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryIntegrationName = TeleportInternalLabelPrefix + "discovery-integration-name"
+
+	// TeleportInternalDiscoveryConfigName is the label used to store the name of the discovery config
+	// whose matchers originated the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryConfigName = TeleportInternalLabelPrefix + "discovery-config-name"
+
 	// TeleportDowngradedLabel identifies resources that have been automatically
 	// downgraded before being returned to clients on older versions that do not
 	// support one or more features enabled in that resource.
@@ -1028,6 +1093,11 @@ const (
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 
+	// UnstableProxyPeerQUICLabel is the internal-use label for proxy heartbeats
+	// that's used to signal that the proxy supports receiving proxy peering
+	// connections over QUIC. The value should be "yes".
+	UnstableProxyPeerQUICLabel = TeleportInternalLabelPrefix + "proxy-peer-quic"
+
 	// OktaAppNameLabel is the individual app name label.
 	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"
 
@@ -1061,6 +1131,9 @@ const (
 
 	// EntraSAMAccountNameLabel is the label for user's on-premises sAMAccountName.
 	EntraSAMAccountNameLabel = TeleportInternalLabelPrefix + "entra-sam-account-name"
+
+	// GitHubOrgLabel is the label for GitHub organization.
+	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
 )
 
 const (
@@ -1231,9 +1304,18 @@ var RequestableResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
 	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
+	KindIdentityCenterAccountAssignment,
 }
 
-// KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
+// The list below needs to be kept in sync with `kubernetesResourceKindOptions`
+// in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
+// this comment separate to prevent it from being included in the official
+// package docs.)
+
+// KubernetesResourcesKinds lists the supported Kubernetes resource kinds. This
+// is for the latest version of Role resources; roles whose version is set to
+// v6 or prior only support [KindKubePod].
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
@@ -1280,6 +1362,11 @@ const (
 	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
 	KubeVerbPortForward = "portforward"
 )
+
+// The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
+// in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
+// this comment separate to prevent it from being included in the official
+// package docs.)
 
 // KubernetesVerbs lists the supported Kubernetes verbs.
 var KubernetesVerbs = []string{
@@ -1404,4 +1491,10 @@ const (
 	// DatadogCredentialApplicationKey indicates that the credential is used as
 	// a Datadog Application key.
 	DatadogCredentialApplicationKey = "datadog-application-key"
+)
+
+const (
+	// GitHubOrgServerDomain is the sub domain used in the hostname of a
+	// types.Server to indicate the GitHub organization of a Git server.
+	GitHubOrgServerDomain = "github-org"
 )

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function VolumeUp({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const VolumeUp = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-volumeup"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -66,5 +67,5 @@ export function VolumeUp({ size = 24, color, ...otherProps }: IconProps) {
       <path d="M17.5043 9.45476C17.8151 9.18099 18.2891 9.21104 18.5628 9.52188C19.166 10.2067 19.4987 11.0879 19.4987 12.0004C19.4987 12.9129 19.166 13.7941 18.5628 14.4789C18.2891 14.7898 17.8151 14.8198 17.5043 14.546C17.1935 14.2723 17.1634 13.7984 17.4372 13.4875C17.799 13.0766 17.9987 12.5479 17.9987 12.0004C17.9987 11.4529 17.799 10.9242 17.4372 10.5133C17.1634 10.2024 17.1935 9.72853 17.5043 9.45476Z" />
       <path d="M21.3405 7.00001C21.0644 6.69127 20.5902 6.66485 20.2815 6.94099C19.9728 7.21713 19.9463 7.69127 20.2225 8.00001C21.2064 9.10005 21.7503 10.5241 21.7503 12C21.7503 13.4759 21.2064 14.9 20.2225 16C19.9463 16.3087 19.9728 16.7829 20.2815 17.059C20.5902 17.3352 21.0644 17.3087 21.3405 17C22.5704 15.625 23.2503 13.8448 23.2503 12C23.2503 10.1552 22.5704 8.37506 21.3405 7.00001Z" />
     </Icon>
-  );
-}
+  )
+);

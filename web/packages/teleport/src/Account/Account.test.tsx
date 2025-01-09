@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, waitFor } from 'design/utils/testing';
 import { within } from '@testing-library/react';
-
 import userEvent from '@testing-library/user-event';
 
-import { ContextProvider } from 'teleport';
-import TeleportContext from 'teleport/teleportContext';
+import { render, screen, waitFor } from 'design/utils/testing';
 
+import { ContextProvider } from 'teleport';
 import { AccountPage as Account } from 'teleport/Account/Account';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { PasswordState } from 'teleport/services/user';
 import auth from 'teleport/services/auth/auth';
 import MfaService, { MfaDevice } from 'teleport/services/mfa';
+import { PasswordState } from 'teleport/services/user';
+import TeleportContext from 'teleport/teleportContext';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
@@ -189,6 +188,14 @@ test('password change', async () => {
   const ctx = createTeleportContext();
   ctx.storeUser.setState({ passwordState: PasswordState.PASSWORD_STATE_UNSET });
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    totpChallenge: true,
+  });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+  jest
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   jest.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
 
   await renderComponent(ctx);
@@ -198,6 +205,9 @@ test('password change', async () => {
 
   // Change the password
   await user.click(screen.getByRole('button', { name: 'Change Password' }));
+  await waitFor(async () => {
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+  });
   await user.type(screen.getByLabelText('Current Password'), 'old-password');
   await user.type(screen.getByLabelText('New Password'), 'asdfasdfasdfasdf');
   await user.type(
@@ -231,8 +241,8 @@ test('loading state', async () => {
   expect(
     within(screen.getByTestId('mfa-list')).getByTestId('indicator-wrapper')
   ).toBeVisible();
-  expect(screen.getByText(/add a passkey/i)).toBeDisabled();
-  expect(screen.getByText(/add mfa/i)).toBeDisabled();
+  expect(screen.getByText(/add a passkey/i)).toBeVisible();
+  expect(screen.getByText(/add mfa/i)).toBeVisible();
   expect(
     screen.queryByTestId('passwordless-state-pill')
   ).not.toBeInTheDocument();
@@ -243,6 +253,12 @@ test('adding an MFA device', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testPasskey]);
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    totpChallenge: true,
+    ssoChallenge: null,
+  });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
@@ -250,16 +266,22 @@ test('adding an MFA device', async () => {
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   cfg.auth.second_factor = 'on';
 
   await renderComponent(ctx);
   await user.click(screen.getByRole('button', { name: 'Add MFA' }));
-  await user.click(screen.getByRole('button', { name: 'Verify my identity' }));
-  await user.click(
-    screen.getByRole('button', { name: 'Create an MFA method' })
-  );
+  await waitFor(async () => {
+    await user.click(
+      screen.getByRole('button', { name: 'Verify my identity' })
+    );
+  });
+  await waitFor(async () => {
+    await user.click(
+      screen.getByRole('button', { name: 'Create an MFA method' })
+    );
+  });
   await user.type(screen.getByLabelText('MFA Method Name'), 'new-mfa');
 
   // The final assertion can be accidentally made irrelevant if the button name
@@ -271,7 +293,7 @@ test('adding an MFA device', async () => {
     addRequest: {
       deviceName: 'new-mfa',
       deviceUsage: 'mfa',
-      tokenId: 'webauthn-privilege-token',
+      tokenId: 'privilege-token',
     },
   });
   expect(
@@ -283,6 +305,12 @@ test('adding a passkey', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    totpChallenge: true,
+    ssoChallenge: null,
+  });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
@@ -290,14 +318,18 @@ test('adding a passkey', async () => {
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   cfg.auth.second_factor = 'on';
   cfg.auth.allowPasswordless = true;
 
   await renderComponent(ctx);
   await user.click(screen.getByRole('button', { name: 'Add a Passkey' }));
-  await user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+  await waitFor(async () => {
+    await user.click(
+      screen.getByRole('button', { name: 'Verify my identity' })
+    );
+  });
   await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
   await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
 
@@ -310,7 +342,7 @@ test('adding a passkey', async () => {
     addRequest: {
       deviceName: 'new-passkey',
       deviceUsage: 'passwordless',
-      tokenId: 'webauthn-privilege-token',
+      tokenId: 'privilege-token',
     },
   });
   expect(
@@ -322,9 +354,15 @@ test('removing an MFA method', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    totpChallenge: true,
+    ssoChallenge: null,
+  });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   jest
     .spyOn(MfaService.prototype, 'removeDevice')
     .mockResolvedValueOnce(undefined);
@@ -342,7 +380,7 @@ test('removing an MFA method', async () => {
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
-    'webauthn-privilege-token',
+    'privilege-token',
     'touch_id'
   );
   expect(screen.queryByTestId('delete-step')).not.toBeInTheDocument();

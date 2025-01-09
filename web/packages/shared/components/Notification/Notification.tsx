@@ -18,15 +18,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Box, ButtonIcon, Flex, Text } from 'design';
-import { Cross } from 'design/Icon';
 
-import * as Icon from 'design/Icon';
-import { IconProps } from 'design/Icon/Icon';
-import { Theme } from 'design/theme/themes/types';
-import { borderColor } from 'design/system';
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import { ActionButton } from 'design/Alert';
 import { BoxProps } from 'design/Box';
+import { Cross } from 'design/Icon';
+import * as Icon from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
+import { borderColor } from 'design/system';
+import { Theme } from 'design/theme/themes/types';
 
 import type {
   NotificationItem,
@@ -41,26 +41,12 @@ interface NotificationProps extends BoxProps {
   onRemove(): void;
 
   /**
-   * @deprecated It does nothing, the icon is determined based on severity and
-   * can be overridden using `item.content.icon` instead. This field is here
-   * only temporarily, so that Enterprise build doesn't break.
-   * TODO(bl-nero): Delete this field once Enterprise stops referencing it.
-   */
-  Icon?: React.ElementType;
-
-  /**
-   * @deprecated It does nothing, the color is determined based on severity.
-   * This field is here only temporarily, so that Enterprise build doesn't
-   * break.  TODO(bl-nero): Delete this field once Enterprise stops referencing
-   * it.
-   */
-  getColor?: (theme) => string;
-
-  /**
    * If defined, determines whether the notification is auto-dismissed after 5
    * seconds. If undefined, the decision is based on the notification severity:
    * only 'success', 'info', and 'neutral' notifications are removable by
    * default.
+   *
+   * @deprecated: Define isAutoRemovable on item.content instead.
    */
   isAutoRemovable?: boolean;
 }
@@ -71,6 +57,7 @@ export function Notification(props: NotificationProps) {
   const {
     item,
     onRemove,
+    // TODO(ravicious): Remove isAutoRemovable in favor of item.content.isAutoRemovable.
     isAutoRemovable: isAutoRemovableProp,
     ...styleProps
   } = props;
@@ -81,6 +68,7 @@ export function Notification(props: NotificationProps) {
   const theme = useTheme();
 
   const isAutoRemovable =
+    getContentIsAutoRemovable(item.content) ??
     isAutoRemovableProp ??
     ['success', 'info', 'neutral'].includes(item.severity);
   useEffect(() => {
@@ -193,6 +181,11 @@ const toObjectContent = (
 ): NotificationItemObjectContent =>
   typeof content === 'string' ? { title: content } : content;
 
+const getContentIsAutoRemovable = (
+  content: NotificationItemContent
+): boolean | undefined =>
+  typeof content === 'string' ? undefined : content.isAutoRemovable;
+
 const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
   switch (severity) {
     case 'neutral':
@@ -202,23 +195,23 @@ const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
       };
     case 'error':
       return {
-        borderColor: theme.colors.interactive.solid.danger.default.background,
-        iconColor: theme.colors.interactive.solid.danger.default.background,
+        borderColor: theme.colors.interactive.solid.danger.default,
+        iconColor: theme.colors.interactive.solid.danger.default,
       };
     case 'warn':
       return {
-        borderColor: theme.colors.interactive.solid.alert.default.background,
-        iconColor: theme.colors.interactive.solid.alert.default.background,
+        borderColor: theme.colors.interactive.solid.alert.default,
+        iconColor: theme.colors.interactive.solid.alert.default,
       };
     case 'info':
       return {
-        borderColor: theme.colors.interactive.solid.accent.default.background,
-        iconColor: theme.colors.interactive.solid.accent.default.background,
+        borderColor: theme.colors.interactive.solid.accent.default,
+        iconColor: theme.colors.interactive.solid.accent.default,
       };
     case 'success':
       return {
-        borderColor: theme.colors.interactive.solid.success.default.background,
-        iconColor: theme.colors.interactive.solid.success.default.background,
+        borderColor: theme.colors.interactive.solid.success.default,
+        iconColor: theme.colors.interactive.solid.success.default,
       };
     default:
       severity satisfies never;
@@ -243,6 +236,8 @@ const NotificationBody = ({
   const longerTextCss = isExpanded ? textCss : shortTextCss;
   const hasListOrDescription = !!content.list || !!content.description;
 
+  const { action } = content;
+
   return (
     <>
       {/* Note: an empty <Text/> element would still generate a flex gap, so we
@@ -253,9 +248,20 @@ const NotificationBody = ({
           {content.description}
         </Text>
       )}
-      {content.action && (
+      {action && (
         <Box alignSelf="flex-start">
-          <ActionButton intent="neutral" action={content.action} />
+          <ActionButton
+            intent="neutral"
+            action={{
+              href: action.href,
+              content: action.content,
+              onClick: event => {
+                // Prevents toggling the isExpanded flag.
+                event.stopPropagation();
+                action.onClick?.(event);
+              },
+            }}
+          />
         </Box>
       )}
     </>

@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Meta, StoryObj } from '@storybook/react';
-
 import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
@@ -26,25 +24,21 @@ import { gap, GapProps } from 'design/system';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
-
-import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
+import { kubes } from 'teleport/Kubes/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
-
+import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
 import makeApp from 'teleport/services/apps/makeApps';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
-import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
 
 import {
   makeUnifiedResourceViewItemApp,
   makeUnifiedResourceViewItemDatabase,
+  makeUnifiedResourceViewItemDesktop,
   makeUnifiedResourceViewItemKube,
   makeUnifiedResourceViewItemNode,
-  makeUnifiedResourceViewItemDesktop,
 } from '../shared/viewItemsFactory';
-
 import { PinningSupport } from '../types';
-
 import { ResourceCard } from './ResourceCard';
 
 const additionalResources = [

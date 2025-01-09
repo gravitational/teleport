@@ -19,20 +19,21 @@
 package aws
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 
 	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
@@ -44,9 +45,9 @@ type ResourceTag interface {
 	//  here and use a type switch for now.
 	rdsTypesV2.Tag |
 		ec2TypesV2.Tag |
+		redshifttypes.Tag |
 		*ec2.Tag |
 		*rds.Tag |
-		*redshift.Tag |
 		*elasticache.Tag |
 		*memorydb.Tag |
 		*redshiftserverless.Tag |
@@ -67,7 +68,7 @@ func TagsToLabels[Tag ResourceTag](tags []Tag) map[string]string {
 		if types.IsValidLabelKey(key) {
 			labels[key] = value
 		} else {
-			logrus.Debugf("Skipping AWS resource tag %q, not a valid label key.", key)
+			slog.DebugContext(context.Background(), "Skipping AWS resource tag with invalid label key", "key", key)
 		}
 	}
 	return labels
@@ -79,8 +80,6 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *ec2.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *redshift.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *elasticache.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *memorydb.Tag:
@@ -90,6 +89,8 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 	case rdsTypesV2.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case ec2TypesV2.Tag:
+		return aws.StringValue(v.Key), aws.StringValue(v.Value)
+	case redshifttypes.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *opensearchservice.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)

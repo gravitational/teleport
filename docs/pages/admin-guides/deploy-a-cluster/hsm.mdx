@@ -188,33 +188,42 @@ to use.
    DEBU[0000] preflight complete                            cert= config= key= pid=73502 seccomp=false serial= syslog=false timeout=0s version=3.0.3
    DEBU[0000] takeoff                                       TLS=false listen="localhost:12345" pid=73502
    ```
-1. Use `yubihsm-shell` to create a new authentication key to be used by
-   Teleport with the necessary capabilities.
+
+1. Use `yubihsm-shell` to create a new
+   [authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
+   to be used by Teleport with the necessary
+   [capabilities](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#capability).
 
    YubiHSM2 comes with a factory default authentication key at slot 1 with password
-   `password`. You should replace and delete it as recommended by Yubico.
+   `password`. We recommend replacing this or changing the password as soon as
+   possible.
 
    When creating the authentication key to be used by Teleport, the password
-   must have at least 8 characters. The example `hunter22` is used here.
+   must have at least 8 characters.
 
    ```text
    $ yubihsm-shell
    Using default connector URL: http://localhost:12345
    yubihsm> connect
    Session keepalive set up to run every 15 seconds
-   yubihsm> session open 1 password
+   yubihsm> session open 1
+   Enter password:
    Created session 0
 
-   # Create an Authenticate Key for Teleport
-   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep hunter22
+   # Create an Authentication Key for Teleport
+   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
+   Enter password:
    Stored Authentication key 0x85cf
 
    # Make sure you can open a session with the new authentication key and password
-   yubihsm> session open 0x85cf hunter22
+   yubihsm> session open 0x85cf
+   Enter password:
    Created session 1
 
-   # Delete the factory default authentication key
-   yubihsm> delete 0 1 authentication-key
+   # Change the password for the factory default authentication key.
+   # Remember to securely store this password somewhere.
+   yubihsm> change authkey 0 1 authentication-key
+   Enter password:
    ```
 
    Take note of the slot number of the new authentication key.
@@ -293,8 +302,8 @@ auth_service:
       # slot_number should always be set to 0 for YubiHSM2
       slot_number: 0
       # pin should be the (hex) slot number of your authentication key,
-      # concatenated with the password
-      pin: "85cfhunter22"
+      # concatenated with your chosen password
+      pin: "85cfpassword"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
 ```
@@ -333,6 +342,10 @@ All CAs listed in the output of `tctl status` must be rotated.
 
 ## Step 5/5. Confirm that Teleport is using your HSM
 
-You are all set! Check the teleport logs for `Creating new HSM key pair` to
-confirm that the feature is working. You can also check that keys were created
-in your HSM using your HSM's admin tool.
+You are all set! You can confirm that HSM keys are being used a few different
+ways:
+
+1. `tctl status` will show `PKCS#11 HSM` as the `storage` method for all
+   Certificate Authority keys.
+1. Teleport Auth service logs will contain `Creating new HSM key pair`.
+1. Your HSM's admin tool should show the newly created keys.

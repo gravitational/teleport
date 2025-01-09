@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createBrowserHistory } from 'history';
-
+import { createBrowserHistory, type History } from 'history';
 import { matchPath } from 'react-router';
 
 import cfg from 'teleport/config';
-
-import type { History } from 'history';
 
 let _inst: History = null;
 
@@ -81,6 +78,7 @@ const history = {
     this._pageRefresh(url);
   },
 
+  // TODO (avatus): make this return a path only if a full URI is present
   getRedirectParam() {
     return getUrlParameter('redirect_uri', this.original().location.search);
   },

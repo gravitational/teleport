@@ -384,7 +384,7 @@ func (l *Backend) Clock() clockwork.Clock {
 
 // Create creates item if it does not exist
 func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	if len(i.Key) == 0 {
+	if i.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter key")
 	}
 
@@ -398,12 +398,12 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, i.Key.String(), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		rows, err := tx.QueryContext(ctx, "SELECT key, value, expires, modified FROM kv WHERE key = ? AND expires <= ? LIMIT 1", string(i.Key), created)
+		rows, err := tx.QueryContext(ctx, "SELECT key, value, expires, modified FROM kv WHERE key = ? AND expires <= ? LIMIT 1", i.Key.String(), created)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -416,7 +416,7 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 			}
 		}
 
-		if _, err := tx.ExecContext(ctx, "INSERT INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)", string(i.Key), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)", i.Key.String(), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -431,10 +431,10 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
-	if len(expected.Key) == 0 {
+	if expected.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if len(replaceWith.Key) == 0 {
+	if replaceWith.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
 	if expected.Key.Compare(replaceWith.Key) != 0 {
@@ -450,17 +450,17 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		}
 		defer q.Close()
 
-		row := q.QueryRowContext(ctx, string(expected.Key), now)
+		row := q.QueryRowContext(ctx, expected.Key.String(), now)
 		var value []byte
 		if err := row.Scan(&value); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return trace.CompareFailed("key %v is not found", string(expected.Key))
+				return trace.CompareFailed("key %q is not found", expected.Key.String())
 			}
 			return trace.Wrap(err)
 		}
 
 		if !bytes.Equal(value, expected.Value) {
-			return trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
+			return trace.CompareFailed("current value does not match expected for %v", expected.Key)
 		}
 
 		created := l.clock.Now().UTC()
@@ -470,7 +470,7 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		}
 		defer stmt.Close()
 
-		_, err = stmt.ExecContext(ctx, replaceWith.Value, expires(replaceWith.Expires), id(created), replaceWith.Revision, string(replaceWith.Key))
+		_, err = stmt.ExecContext(ctx, replaceWith.Value, expires(replaceWith.Expires), id(created), replaceWith.Revision, replaceWith.Key.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -481,7 +481,7 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value, replaceWith.Revision); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, replaceWith.Key.String(), id(created), expires(replaceWith.Expires), replaceWith.Value, replaceWith.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -502,7 +502,7 @@ func id(t time.Time) int64 {
 // Put puts value into backend (creates if it does not
 // exist, updates it otherwise)
 func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	if i.Key == nil {
+	if i.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter key")
 	}
 
@@ -527,7 +527,7 @@ func (l *Backend) putInTransaction(ctx context.Context, i backend.Item, tx *sql.
 		}
 		defer stmt.Close()
 
-		if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
+		if _, err := stmt.ExecContext(ctx, types.OpPut, created, i.Key.String(), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -537,7 +537,7 @@ func (l *Backend) putInTransaction(ctx context.Context, i backend.Item, tx *sql.
 	}
 	defer stmt.Close()
 
-	if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
+	if _, err := stmt.ExecContext(ctx, i.Key.String(), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -545,7 +545,7 @@ func (l *Backend) putInTransaction(ctx context.Context, i backend.Item, tx *sql.
 
 // Update updates value in the backend
 func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	if i.Key == nil {
+	if i.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter key")
 	}
 
@@ -558,7 +558,7 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 		}
 		defer stmt.Close()
 
-		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(created), i.Revision, string(i.Key), created)
+		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(created), i.Revision, i.Key.String(), created)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -567,7 +567,7 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 			return trace.Wrap(err)
 		}
 		if rows == 0 {
-			return trace.NotFound("key %v is not found", string(i.Key))
+			return trace.NotFound("key %q is not found", i.Key.String())
 		}
 		if !l.EventsOff {
 			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
@@ -576,7 +576,7 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, i.Key.String(), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -591,7 +591,7 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 
 // Get returns a single item or not found error
 func (l *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
-	if len(key) == 0 {
+	if key.IsZero() {
 		return nil, trace.BadParameter("missing parameter key")
 	}
 	var item backend.Item
@@ -617,11 +617,11 @@ func (l *Backend) getInTransaction(ctx context.Context, key backend.Key, tx *sql
 	}
 	defer q.Close()
 
-	row := q.QueryRowContext(ctx, string(key), l.clock.Now().UTC())
+	row := q.QueryRowContext(ctx, key.String(), l.clock.Now().UTC())
 	var expires sql.NullTime
 	if err := row.Scan(&item.Key, &item.Value, &expires, &item.Revision); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return trace.NotFound("key %v is not found", string(key))
+			return trace.NotFound("key %q is not found", key.String())
 		}
 		return trace.Wrap(err)
 	}
@@ -631,10 +631,10 @@ func (l *Backend) getInTransaction(ctx context.Context, key backend.Key, tx *sql
 
 // GetRange returns query range
 func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
@@ -650,7 +650,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 		}
 		defer q.Close()
 
-		rows, err := q.QueryContext(ctx, string(startKey), string(endKey), l.clock.Now().UTC(), limit)
+		rows, err := q.QueryContext(ctx, startKey.String(), endKey.String(), l.clock.Now().UTC(), limit)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -681,7 +681,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 
 // KeepAlive updates TTL on the lease
 func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if len(lease.Key) == 0 {
+	if lease.Key.IsZero() {
 		return trace.BadParameter("lease key is not specified")
 	}
 	now := l.clock.Now().UTC()
@@ -700,7 +700,7 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(item.Key), id(created), expires.UTC(), item.Value, item.Revision); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, item.Key.String(), id(created), expires.UTC(), item.Value, item.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -710,7 +710,7 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		}
 		defer stmt.Close()
 
-		result, err := stmt.ExecContext(ctx, expires.UTC(), id(now), backend.CreateRevision(), string(lease.Key))
+		result, err := stmt.ExecContext(ctx, expires.UTC(), id(now), backend.CreateRevision(), lease.Key.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -719,7 +719,7 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 			return trace.Wrap(err)
 		}
 		if rows == 0 {
-			return trace.NotFound("key %v is not found", string(lease.Key))
+			return trace.NotFound("key %q is not found", lease.Key.String())
 		}
 		return nil
 	})
@@ -732,7 +732,7 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key backend.Key, tx *
 	}
 	defer stmt.Close()
 
-	result, err := stmt.ExecContext(ctx, string(key))
+	result, err := stmt.ExecContext(ctx, key.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -741,7 +741,7 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key backend.Key, tx *
 		return trace.Wrap(err)
 	}
 	if rows == 0 {
-		return trace.NotFound("key %v is not found", string(key))
+		return trace.NotFound("key %q is not found", key.String())
 	}
 	if !l.EventsOff {
 		created := l.clock.Now().UTC()
@@ -751,7 +751,7 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key backend.Key, tx *
 		}
 		defer stmt.Close()
 
-		if _, err := stmt.ExecContext(ctx, types.OpDelete, created, string(key), created.UnixNano()); err != nil {
+		if _, err := stmt.ExecContext(ctx, types.OpDelete, created, key.String(), created.UnixNano()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -761,7 +761,7 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key backend.Key, tx *
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
 func (l *Backend) Delete(ctx context.Context, key backend.Key) error {
-	if len(key) == 0 {
+	if key.IsZero() {
 		return trace.BadParameter("missing parameter key")
 	}
 	return l.inTransaction(ctx, func(tx *sql.Tx) error {
@@ -772,10 +772,10 @@ func (l *Backend) Delete(ctx context.Context, key backend.Key) error {
 // DeleteRange deletes range of items with keys between startKey and endKey
 // Note that elements deleted by range do not produce any events
 func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return trace.BadParameter("missing parameter endKey")
 	}
 	return l.inTransaction(ctx, func(tx *sql.Tx) error {
@@ -786,14 +786,14 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 		}
 		defer q.Close()
 
-		rows, err := q.QueryContext(ctx, string(startKey), string(endKey))
+		rows, err := q.QueryContext(ctx, startKey.String(), endKey.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer rows.Close()
 		var keys []backend.Key
 		for rows.Next() {
-			var key []byte
+			var key backend.Key
 			if err := rows.Scan(&key); err != nil {
 				return trace.Wrap(err)
 			}
@@ -811,7 +811,7 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 }
 
 func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	if i.Key == nil || i.Revision == "" {
+	if i.Key.IsZero() || i.Revision == "" {
 		return nil, trace.Wrap(backend.ErrIncorrectRevision)
 	}
 
@@ -828,7 +828,7 @@ func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 		}
 		defer stmt.Close()
 
-		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(now), rev, string(i.Key), i.Revision, now)
+		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(now), rev, i.Key.String(), i.Revision, now)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -846,7 +846,7 @@ func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, now, string(i.Key), id(now), expires(i.Expires), i.Value, rev); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, now, i.Key.String(), id(now), expires(i.Expires), i.Value, rev); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -861,7 +861,7 @@ func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 }
 
 func (l *Backend) ConditionalDelete(ctx context.Context, key backend.Key, revision string) error {
-	if len(key) == 0 || revision == "" {
+	if key.IsZero() || revision == "" {
 		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
 
@@ -877,7 +877,7 @@ func (l *Backend) ConditionalDelete(ctx context.Context, key backend.Key, revisi
 		}
 		defer stmt.Close()
 
-		result, err := stmt.ExecContext(ctx, string(key), revision, now)
+		result, err := stmt.ExecContext(ctx, key.String(), revision, now)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -896,7 +896,7 @@ func (l *Backend) ConditionalDelete(ctx context.Context, key backend.Key, revisi
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpDelete, created, string(key), created.UnixNano(), revision); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpDelete, created, key.String(), created.UnixNano(), revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}

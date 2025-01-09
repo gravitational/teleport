@@ -23,12 +23,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -95,7 +95,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 	resp, err := c.client.Get(ctx, c.client.Endpoint(types.EnterpriseReleaseEndpoint), nil)
 	if err != nil {
-		log.WithError(err).Error("failed to retrieve releases from release server")
+		slog.ErrorContext(ctx, "failed to retrieve releases from release server", "error", err)
 		return nil, trace.Wrap(err)
 	}
 

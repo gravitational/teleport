@@ -1,0 +1,73 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.quicpeering.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/quicpeering/v1alpha;quicpeeringv1alpha";
+
+// Sent from a proxy to a peer proxy in a fresh QUIC stream to dial a Teleport
+// resource through a QUIC proxy peering connection. The message is sent in
+// protobuf binary format, prefixed by its length encoded as a little endian
+// 32-bit unsigned integer.
+message DialRequest {
+  // The target agent for the connection attempt; should be "<host id>.<cluster name>".
+  string target_host_id = 1;
+  // The type of the connection as defined by api/types.TunnelType ("node",
+  // "app", "kube"...).
+  string connection_type = 2;
+
+  // The source of the connection, the network address of the user for whom the
+  // connection is being tunneled, as seen from the proxy sending the request.
+  Addr source = 3;
+  // The destination of the connection, used as a weak hint and as something to
+  // put in the "local address" of the connection object handled by the agent.
+  Addr destination = 4;
+
+  // The time of the client, must be provided and within 5 minutes of the local
+  // server time for 0-RTT requests.
+  google.protobuf.Timestamp timestamp = 5;
+  // A random id for each dial request, must be provided and unique among dial
+  // requests recently received by the server.
+  fixed64 nonce = 6;
+
+  // The ping flag should be set if the request is actually for a reachability
+  // and authentication check. If set, all other fields are functionally
+  // ignored, although nonce and timestamp should still be set so they can be
+  // logged.
+  bool ping = 7;
+}
+
+// A stringy Go net.Addr. Can be converted to and from a lib/utils.NetAddr.
+message Addr {
+  // Likely always "tcp".
+  string network = 1;
+  // Depending on the network, likely "<ip address>:<port>".
+  string addr = 2;
+}
+
+// Sent from the server to the client as a response to a DialRequest. The
+// message is likewise sent in protobuf binary format, prefixed by its length
+// encoded as a little endian uint32.
+message DialResponse {
+  // The success or failure of the dial. If the dial is successful, the stream
+  // will continue with the data of the connection.
+  google.rpc.Status status = 1;
+}

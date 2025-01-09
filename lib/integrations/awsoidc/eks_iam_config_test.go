@@ -19,6 +19,7 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -27,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestEKSIAMConfigReqDefaults(t *testing.T) {
@@ -42,6 +45,7 @@ func TestEKSIAMConfigReqDefaults(t *testing.T) {
 				AccountID:       "123456789012",
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
+				AutoConfirm:     true,
 			},
 			errCheck: require.NoError,
 			expected: EKSIAMConfigureRequest{
@@ -49,6 +53,7 @@ func TestEKSIAMConfigReqDefaults(t *testing.T) {
 				Region:                   "us-east-1",
 				IntegrationRole:          "integrationRole",
 				IntegrationRoleEKSPolicy: "EKSAccess",
+				AutoConfirm:              true,
 			},
 		},
 		{
@@ -94,7 +99,7 @@ func TestEKSIAMConfigReqDefaults(t *testing.T) {
 	}
 }
 
-func TestEKSAMConfig(t *testing.T) {
+func TestEKSIAMConfig(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tt := range []struct {
@@ -110,6 +115,7 @@ func TestEKSAMConfig(t *testing.T) {
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
 				AccountID:       "123456789012",
+				AutoConfirm:     true,
 			},
 			mockAccountID:     "123456789012",
 			mockExistingRoles: []string{"integrationRole"},
@@ -123,6 +129,7 @@ func TestEKSAMConfig(t *testing.T) {
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
 				AccountID:       "123456789012",
+				AutoConfirm:     true,
 			},
 			errCheck: notFoundCheck,
 		},
@@ -140,7 +147,7 @@ func TestEKSAMConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockEKSIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -150,8 +157,30 @@ func TestEKSAMConfig(t *testing.T) {
 	}
 }
 
+func TestEKSIAMConfigOutput(t *testing.T) {
+	var buf bytes.Buffer
+	req := EKSIAMConfigureRequest{
+		Region:          "us-east-1",
+		IntegrationRole: "integrationRole",
+		AccountID:       "123456789012",
+		AutoConfirm:     true,
+		stdout:          &buf,
+	}
+	clt := &mockEKSIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
+		existingRoles:        []string{req.IntegrationRole},
+	}
+
+	ctx := context.Background()
+	require.NoError(t, ConfigureEKSIAM(ctx, clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockEKSIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 

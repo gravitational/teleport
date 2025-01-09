@@ -36,6 +36,10 @@ const (
 	APIEndpointDefaultURL = "https://api.datadoghq.com"
 	// APIVersion specifies the api version.
 	APIVersion = "api/v2"
+	// APIUnstable specifies the unstable api endpoint.
+	//
+	// TODO: Remove once on-call API is merged into official API.
+	APIUnstable = "api/unstable"
 	// SeverityDefault specifies the default incident severity.
 	SeverityDefault = "SEV-3"
 )

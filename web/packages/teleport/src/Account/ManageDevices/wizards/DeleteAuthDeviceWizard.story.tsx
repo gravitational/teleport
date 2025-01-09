@@ -16,14 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import Dialog from 'design/Dialog';
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { ContextProvider } from 'teleport/index';
-
-import { MfaDevice } from 'teleport/services/mfa';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  MFA_OPTION_SSO_DEFAULT,
+  MFA_OPTION_TOTP,
+  MFA_OPTION_WEBAUTHN,
+  MfaDevice,
+} from 'teleport/services/mfa';
 
 import {
   DeleteAuthDeviceWizardStepProps,
@@ -100,12 +104,17 @@ const stepProps: DeleteAuthDeviceWizardStepProps = {
   flowLength: 2,
   refCallback: () => {},
 
-  // Other props
-  devices: [dummyHardwareDevice, dummyPasskey],
+  // Reauth props
+  reauthState: {
+    mfaOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP, MFA_OPTION_SSO_DEFAULT],
+    submitWithMfa: async () => null,
+    submitAttempt: makeEmptyAttempt(),
+    clearSubmitAttempt: () => {},
+  } as ReauthState,
+
+  // Delete props
   deviceToDelete: dummyPasskey,
   privilegeToken: 'privilege-token',
-  auth2faType: 'optional',
-  onAuthenticated: () => {},
   onClose: () => {},
   onSuccess: () => {},
 };

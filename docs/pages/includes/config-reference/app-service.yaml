@@ -22,6 +22,8 @@ app_service:
       # Optional: For access to cloud provider APIs, specify the cloud
       # provider. Allowed values are "AWS", "Azure", and "GCP".
       cloud: ""
+      # Optional: Free-form description of the application.
+      description: "Kubernetes Dashboard to development cluster"
       # URI of Application. For TCP applications
       # use tcp, ex: tcp://localhost:5432.
       uri: "http://10.0.1.27:8000"

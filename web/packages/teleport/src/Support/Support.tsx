@@ -16,18 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Box, Card, Flex, Text } from 'design';
-import * as Icons from 'design/Icon';
-
 import styled from 'styled-components';
 
-import { FeatureBox } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
-import cfg from 'teleport/config';
+import { Box, Flex, H2, H3, Text } from 'design';
+import * as Icons from 'design/Icon';
+import { MultiRowBox, Row } from 'design/MultiRowBox';
+
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
+import cfg from 'teleport/config';
+import { useNoMinWidth } from 'teleport/Main';
 import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
@@ -53,99 +59,226 @@ export const Support = ({
   authVersion,
   publicURL,
   isEnterprise,
+  licenseExpiryDateText,
   tunnelPublicAddress,
   isCloud,
   children,
   showPremiumSupportCTA,
 }: Props) => {
+  useNoMinWidth();
   const docs = getDocUrls(authVersion, isEnterprise);
 
   return (
-    <FeatureBox pt="4">
-      <Card px={5} pt={1} pb={6}>
-        <Flex justifyContent="space-between" flexWrap="wrap">
-          <Box>
-            <Header title="Support" icon={<Icons.Headset />} />
-            {isEnterprise && !showPremiumSupportCTA && (
+    <FeatureBox maxWidth="2000px">
+      <FeatureHeader>
+        <FeatureHeaderTitle>Help & Support</FeatureHeaderTitle>
+      </FeatureHeader>
+      <StyledMultiRowBox mb={3}>
+        <StyledRow>
+          <Flex alignItems="center" justifyContent="start">
+            <IconBox>
+              <Icons.Cluster />
+            </IconBox>
+            <H2>Cluster Information</H2>
+          </Flex>
+        </StyledRow>
+        <StyledRow
+          css={`
+            padding-left: ${props => props.theme.space[6]}px;
+          `}
+        >
+          <DataItem title="Cluster Name" data={clusterId} />
+          <DataItem title="Teleport Version" data={authVersion} />
+          <DataItem title="Public Address" data={publicURL} />
+          {tunnelPublicAddress && (
+            <DataItem title="Public SSH Tunnel" data={tunnelPublicAddress} />
+          )}
+          {isEnterprise && !cfg.isCloud && licenseExpiryDateText && (
+            <DataItem title="License Expiry" data={licenseExpiryDateText} />
+          )}
+          {isCloud && (
+            <Flex mt="5">
+              <Icons.Info mr="2" />
+              <Text>
+                Looking for{' '}
+                <Text
+                  fontWeight={'bold'}
+                  css={`
+                    display: inline;
+                  `}
+                >
+                  Scheduled Upgrades?
+                </Text>{' '}
+                It is now in{' '}
+                <Link to={cfg.getManageClusterRoute(clusterId)}>
+                  Cluster Management
+                </Link>{' '}
+                page.
+              </Text>
+            </Flex>
+          )}
+        </StyledRow>
+      </StyledMultiRowBox>
+      <MobileSeparator />
+      <StyledMultiRowBox mb={3}>
+        <StyledRow>
+          <SupportContentFlex
+            alignItems="center"
+            justifyContent="space-between"
+          >
+            <Flex alignItems="center">
+              <IconBox>
+                <Icons.Question />
+              </IconBox>
+              <H2>Support and Resource Pages</H2>
+            </Flex>
+            <SupportButtonBox>
+              {showPremiumSupportCTA && (
+                <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
+                  Unlock Premium Support w/Enterprise
+                </ButtonLockedFeature>
+              )}
+            </SupportButtonBox>
+          </SupportContentFlex>
+        </StyledRow>
+        <StyledRow
+          css={`
+            padding-left: ${props => props.theme.space[6]}px;
+          `}
+        >
+          <SupportLinksFlex>
+            <Box>
+              <H3 ml={2} mb={1}>
+                Support
+              </H3>
+              {isEnterprise && !showPremiumSupportCTA && (
+                <ExternalSupportLink
+                  title="Create a Support Ticket"
+                  url="https://support.goteleport.com"
+                />
+              )}
               <ExternalSupportLink
-                title="Create a Support Ticket"
-                url="https://support.goteleport.com"
+                title="Ask the Community Questions"
+                url="https://github.com/gravitational/teleport/discussions"
               />
-            )}
-            <ExternalSupportLink
-              title="Ask the Community Questions"
-              url="https://github.com/gravitational/teleport/discussions"
-            />
-            <ExternalSupportLink
-              title="Request a New Feature"
-              url="https://github.com/gravitational/teleport/issues/new/choose"
-            />
-            <ExternalSupportLink
-              title="Send Product Feedback"
-              url="mailto:support@goteleport.com"
-            />
-            {showPremiumSupportCTA && (
-              <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
-                Unlock Premium Support w/Enterprise
-              </ButtonLockedFeature>
-            )}
-          </Box>
-          <Box>
-            <Header title="Resources" icon={<Icons.BookOpenText />} />
-            <ExternalSupportLink title="Get Started" url={docs.getStarted} />
-            <ExternalSupportLink title="tsh User Guide" url={docs.tshGuide} />
-            <ExternalSupportLink title="Admin Guides" url={docs.adminGuide} />
-            <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
-            <ExternalSupportLink title="FAQ" url={docs.faq} />
-          </Box>
-          <Box>
-            <Header title="Troubleshooting" icon={<Icons.Graph />} />
-            <ExternalSupportLink
-              title="Monitoring & Debugging"
-              url={docs.troubleshooting}
-            />
-          </Box>
-          <Box>
-            <Header title="Updates" icon={<Icons.NotificationsActive />} />
-            <ExternalSupportLink
-              title="Product Changelog"
-              url={docs.changeLog}
-            />
-            <ExternalSupportLink
-              title="Teleport Blog"
-              url="https://goteleport.com/blog/"
-            />
-          </Box>
-        </Flex>
-      </Card>
-      <DataContainer title="Cluster Information">
-        <DataItem title="Cluster Name" data={clusterId} />
-        <DataItem title="Teleport Version" data={authVersion} />
-        <DataItem title="Public Address" data={publicURL} />
-        {tunnelPublicAddress && (
-          <DataItem title="Public SSH Tunnel" data={tunnelPublicAddress} />
-        )}
-      </DataContainer>
-
+              <ExternalSupportLink
+                title="Request a New Feature"
+                url="https://github.com/gravitational/teleport/issues/new/choose"
+              />
+              <ExternalSupportLink
+                title="Send Product Feedback"
+                url="mailto:support@goteleport.com"
+              />
+            </Box>
+            <Box>
+              <H3 ml={2} mb={1}>
+                Resources
+              </H3>
+              <ExternalSupportLink
+                title="Get Started Guide"
+                url={docs.getStarted}
+              />
+              <ExternalSupportLink title="tsh User Guide" url={docs.tshGuide} />
+              <ExternalSupportLink title="Admin Guides" url={docs.adminGuide} />
+              <ExternalSupportLink
+                title="Troubleshooting Guide"
+                url={docs.troubleshooting}
+              />
+              <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
+              <ExternalSupportLink title="FAQ" url={docs.faq} />
+            </Box>
+            <Box>
+              <H3 ml={2} mb={1}>
+                Updates
+              </H3>
+              <ExternalSupportLink
+                title="Product Changelog"
+                url={docs.changeLog}
+              />
+              <ExternalSupportLink
+                title="Teleport Blog"
+                url="https://goteleport.com/blog/"
+              />
+            </Box>
+          </SupportLinksFlex>
+        </StyledRow>
+      </StyledMultiRowBox>
       {children}
     </FeatureBox>
   );
 };
 
-export const DataContainer: React.FC<PropsWithChildren<{ title: string }>> = ({
-  title,
-  children,
-}) => (
-  <StyledDataContainer mt={4} borderRadius={3} px={5} py={4}>
-    <Text as="h5" mb={4} fontWeight="bold" caps>
-      {title}
-    </Text>
-    {children}
-  </StyledDataContainer>
-);
+export const StyledMultiRowBox = styled(MultiRowBox)`
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    border: none;
+  }
+`;
 
-const StyledDataContainer = styled(Box)`
-  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+export const StyledRow = styled(Row)`
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    border: none !important;
+    padding-left: 0;
+    padding-bottom: 0;
+  }
+`;
+
+export const MobileSeparator = styled.div`
+  width: 100vw;
+  margin-left: -${props => props.theme.space[6]}px;
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    border-bottom: ${props =>
+      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
+  }
+`;
+
+export const IconBox = styled(Box)`
+  line-height: 0;
+  padding: ${props => props.theme.space[2]}px;
+  border-radius: ${props => props.theme.radii[3]}px;
+  margin-right: ${props => props.theme.space[3]}px;
+  background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    background: transparent;
+    margin-right: ${props => props.theme.space[1]}px;
+  }
+`;
+
+const SupportContentFlex = styled(Flex)`
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+`;
+
+const SupportButtonBox = styled(Box)`
+  width: 320px;
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    margin-left: ${props => props.theme.space[6]}px;
+    margin-top: ${props => props.theme.space[2]}px;
+  }
+`;
+
+const SupportLinksFlex = styled(Flex)`
+  justify-content: space-between;
+  flex-wrap: wrap;
+  max-width: 70%;
+  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
+    max-width: 100%;
+  }
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    flex-direction: column;
+    gap: ${props => props.theme.space[3]}px;
+    margin-bottom: ${props => props.theme.space[3]}px;
+  }
+`;
+
+const DataItemFlex = styled(Flex)`
+  margin-bottom: ${props => props.theme.space[3]}px;
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+    flex-direction: column;
+    padding-left: ${props => props.theme.space[2]}px;
+  }
 `;
 
 /**
@@ -230,38 +363,26 @@ const StyledSupportLink = styled.a.attrs({
   padding: 4px 8px;
   transition: all 0.3s;
 
-  ${props => props.theme.typography.body3}
+  ${props => props.theme.typography.body2}
   &:hover, &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
-const StyledHeader = styled(Flex)`
-  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[2]};
-`;
-
 export const DataItem = ({ title = '', data = null }) => (
-  <Flex mb={3}>
-    <Text typography="body3" bold style={{ width: '130px' }}>
+  <DataItemFlex>
+    <Text typography="body2" bold style={{ width: '136px' }}>
       {title}:
     </Text>
-    <Text typography="body3">{data}</Text>
-  </Flex>
-);
-
-const Header = ({ title = '', icon = null }) => (
-  <StyledHeader alignItems="center" mb={3} width={210} mt={4} pb={2}>
-    {icon}
-    <Text as="h5" ml={2} caps>
-      {title}
-    </Text>
-  </StyledHeader>
+    <Text typography="body2">{data}</Text>
+  </DataItemFlex>
 );
 
 export type Props = {
   clusterId: string;
   authVersion: string;
   publicURL: string;
+  licenseExpiryDateText?: string;
   isEnterprise: boolean;
   isCloud: boolean;
   tunnelPublicAddress?: string;

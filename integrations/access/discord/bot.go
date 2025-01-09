@@ -231,3 +231,8 @@ func (b DiscordBot) FetchRecipient(ctx context.Context, name string) (*common.Re
 		Data: nil,
 	}, nil
 }
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b DiscordBot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
+}

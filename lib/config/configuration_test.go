@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -322,7 +322,7 @@ func TestConfigReading(t *testing.T) {
 				},
 			},
 			Storage: backend.Config{
-				Type: "bolt",
+				Type: "sqlite",
 			},
 			DataDir: "/path/to/data",
 			CAPin:   apiutils.Strings([]string{"rsa256:123", "rsa256:456"}),
@@ -1539,7 +1539,7 @@ func makeConfigFixture() string {
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
 	conf.Logger.Format = LogFormat{Output: "text"}
-	conf.Storage.Type = "bolt"
+	conf.Storage.Type = "sqlite"
 	conf.CAPin = []string{"rsa256:123", "rsa256:456"}
 
 	// auth service:
@@ -1827,8 +1827,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: false,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -1855,8 +1854,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -1978,11 +1976,6 @@ func TestLicenseFile(t *testing.T) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 
-	// the license file should be empty by default, as we can only fill
-	// in the default (<datadir>/license.pem) after we know what the
-	// data dir is supposed to be
-	require.Empty(t, cfg.Auth.LicenseFile)
-
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
 			fc := new(FileConfig)
@@ -1994,6 +1987,12 @@ func TestLicenseFile(t *testing.T) {
 			require.Equal(t, tc.result, cfg.Auth.LicenseFile)
 		})
 	}
+}
+
+func TestLicenseFileNoConfig(t *testing.T) {
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, Configure(new(CommandLineFlags), cfg, false /* legacy app flags */))
+	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 }
 
 // TestFIPS makes sure configuration is correctly updated/enforced when in
@@ -2177,8 +2176,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2206,8 +2204,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2389,8 +2386,8 @@ func TestWindowsDesktopService(t *testing.T) {
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
-		inComment      string
-		outError       bool
+		name           string
+		outErr         require.ErrorAssertionFunc
 	}{
 		{
 			inConfigString: `
@@ -2405,8 +2402,8 @@ app_service:
   - labels:
       '*': '*'
 `,
-			inComment: "config is valid",
-			outError:  false,
+			name:   "app and wildcard resources",
+			outErr: require.NoError,
 		},
 		{
 			inConfigString: `
@@ -2417,8 +2414,8 @@ app_service:
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: "config is missing name",
-			outError:  true,
+			name:   "config is missing name",
+			outErr: require.Error,
 		},
 		{
 			inConfigString: `
@@ -2429,8 +2426,8 @@ app_service:
       name: foo
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: "config is valid",
-			outError:  false,
+			name:   "app",
+			outErr: require.NoError,
 		},
 		{
 			inConfigString: `
@@ -2441,8 +2438,8 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
 `,
-			inComment: "config is missing internal address",
-			outError:  true,
+			name:   "config is missing internal address",
+			outErr: require.Error,
 		},
 		{
 			inConfigString: `
@@ -2459,19 +2456,62 @@ app_service:
     aws:
       assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
 `,
-			inComment: "assume_role_arn is not supported",
-			outError:  true,
+			name:   "assume_role_arn is not supported",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - port: 1234
+      - port: 30000
+        end_port: 30768
+`,
+			name:   "TCP app with ports",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - end_port: 30000
+`,
+			name:   "TCP app with only end port",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - port: 78787
+`,
+			name:   "TCP app with port bigger than 65535",
+			outErr: require.Error,
 		},
 	}
 
 	for _, tt := range tests {
-		clf := CommandLineFlags{
-			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
-		}
-		cfg := servicecfg.MakeDefaultConfig()
+		t.Run(tt.name, func(t *testing.T) {
+			clf := CommandLineFlags{
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+			}
+			cfg := servicecfg.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg, false)
-		require.Equal(t, err != nil, tt.outError, tt.inComment)
+			err := Configure(&clf, cfg, false)
+			tt.outErr(t, err)
+		})
 	}
 }
 
@@ -2998,7 +3038,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 
 func TestTLSCert(t *testing.T) {
 	tmpDir := t.TempDir()
-	tmpCA := path.Join(tmpDir, "ca.pem")
+	tmpCA := filepath.Join(tmpDir, "ca.pem")
 
 	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
 	require.NoError(t, err)
@@ -3674,9 +3714,9 @@ func TestAuthHostedPlugins(t *testing.T) {
 			applyErr: require.NoError,
 			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
-				require.NotNil(t, p.OAuthProviders.Slack)
-				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
-				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+				require.NotNil(t, p.OAuthProviders.SlackCredentials)
+				require.Equal(t, "foo", p.OAuthProviders.SlackCredentials.ClientID)
+				require.Equal(t, "bar", p.OAuthProviders.SlackCredentials.ClientSecret)
 			},
 		},
 	}
@@ -4119,8 +4159,7 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 			},
 		},
@@ -4167,8 +4206,7 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 			},
 		},
@@ -4350,6 +4388,53 @@ func TestDiscoveryConfig(t *testing.T) {
 				},
 				ProjectIDs: []string{"p1", "p2"},
 			}},
+		},
+		{
+			desc:          "GCP section is filled with wildcard project ids",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"*"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"gke"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				ProjectIDs: []string{"*"},
+			}},
+		},
+		{
+			desc:          "GCP section mixes wildcard and specific project ids",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"p1", "*"},
+					},
+				}
+			},
 		},
 		{
 			desc:          "GCP section is filled with installer",
@@ -5046,6 +5131,96 @@ debug_service:
 			conf := servicecfg.MakeDefaultConfig()
 			require.NoError(t, Configure(tc.commandLineFlags, conf, false))
 			require.Equal(t, tc.expectDebugServiceEnabled, conf.DebugService.Enabled)
+		})
+	}
+}
+
+func TestSignatureAlgorithmSuite(t *testing.T) {
+	for desc, tc := range map[string]struct {
+		fips            bool
+		hsm             bool
+		cloud           bool
+		configuredSuite types.SignatureAlgorithmSuite
+		expectErr       string
+	}{
+		"empty": {},
+		"hsm with no configured suite": {
+			hsm: true,
+		},
+		"hsm with balanced-v1": {
+			hsm:             true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			expectErr:       `configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS`,
+		},
+		"hsm with hsm-v1": {
+			hsm:             true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+		},
+		"hsm with fips-v1": {
+			hsm:             true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+		},
+		"hsm with legacy": {
+			hsm:             true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		},
+		"fips with no configured suite": {
+			fips: true,
+		},
+		"fips with balanced-v1": {
+			fips:            true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			expectErr:       `non-FIPS compliant authentication setting: "signature_algorithm_suite" must be "fips-v1" or "legacy"`,
+		},
+		"fips with fips-v1": {
+			fips:            true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+		},
+		"fips with legacy": {
+			fips:            true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		},
+		"cloud with no configured suite": {
+			cloud: true,
+		},
+		"cloud with balanced-v1": {
+			cloud:           true,
+			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			expectErr:       `configured "signature_algorithm_suite" is unsupported in Teleport Cloud`,
+		},
+	} {
+		t.Run(desc, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+			clf := &CommandLineFlags{
+				FIPS: tc.fips,
+			}
+			cfg := servicecfg.MakeDefaultConfig()
+			if tc.fips {
+				servicecfg.ApplyFIPSDefaults(cfg)
+			}
+			if tc.hsm {
+				cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+				}
+			} else {
+				cfg.Auth.KeyStore = servicecfg.KeystoreConfig{}
+			}
+			if tc.configuredSuite != types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
+				cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
+				cfg.Auth.Preference.SetSignatureAlgorithmSuite(tc.configuredSuite)
+			}
+			err := Configure(clf, cfg, false)
+			if tc.expectErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expectErr)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-
 import { SearchPanel } from 'shared/components/Search';
 
 import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';
 import { RoleResource } from 'teleport/services/resources';
+import { Access } from 'teleport/services/user';
 
 export function RoleList({
   onEdit,
@@ -31,13 +30,19 @@ export function RoleList({
   onSearchChange,
   search,
   serversidePagination,
+  rolesAcl,
 }: {
   onEdit(id: string): void;
   onDelete(id: string): void;
   onSearchChange(search: string): void;
   search: string;
   serversidePagination: SeversidePagination<RoleResource>;
+  rolesAcl: Access;
 }) {
+  const canView = rolesAcl.list && rolesAcl.read;
+  const canEdit = rolesAcl.edit;
+  const canDelete = rolesAcl.remove;
+
   return (
     <Table
       data={serversidePagination.fetchedData.agents}
@@ -68,6 +73,9 @@ export function RoleList({
           altKey: 'options-btn',
           render: (role: RoleResource) => (
             <ActionCell
+              canView={canView}
+              canDelete={canDelete}
+              canEdit={canEdit}
               onEdit={() => onEdit(role.id)}
               onDelete={() => onDelete(role.id)}
             />
@@ -80,12 +88,27 @@ export function RoleList({
   );
 }
 
-const ActionCell = (props: { onEdit(): void; onDelete(): void }) => {
+const ActionCell = (props: {
+  canView: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  onEdit(): void;
+  onDelete(): void;
+}) => {
+  if (!(props.canView || props.canDelete)) {
+    return <Cell align="right" />;
+  }
   return (
     <Cell align="right">
       <MenuButton>
-        <MenuItem onClick={props.onEdit}>Edit...</MenuItem>
-        <MenuItem onClick={props.onDelete}>Delete...</MenuItem>
+        {props.canView && (
+          <MenuItem onClick={props.onEdit}>
+            {props.canEdit ? 'Edit' : 'View Details'}
+          </MenuItem>
+        )}
+        {props.canDelete && (
+          <MenuItem onClick={props.onDelete}>Delete</MenuItem>
+        )}
       </MenuButton>
     </Cell>
   );

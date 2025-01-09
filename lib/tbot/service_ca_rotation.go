@@ -147,7 +147,7 @@ func (s *caRotationService) Run(ctx context.Context) error {
 		f:              s.reloadBroadcaster.broadcast,
 		debouncePeriod: time.Second * 10,
 	}
-	jitter := retryutils.NewJitter()
+	jitter := retryutils.DefaultJitter
 
 	for {
 		err := s.watchCARotations(ctx, rd.attempt)
@@ -222,7 +222,7 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 
 			// We need to debounce here, as multiple events will be received if
 			// the user is rotating multiple CAs at once.
-			s.log.InfoContext(ctx, "CA Rotation step detected; queueing renewa.")
+			s.log.InfoContext(ctx, "CA Rotation step detected; queueing renewal")
 			queueReload()
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {

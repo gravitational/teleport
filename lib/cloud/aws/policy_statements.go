@@ -161,7 +161,7 @@ func StatementForAWSAppAccess() *Statement {
 			"sts:AssumeRole",
 		},
 		Resources: allResources,
-		Conditions: map[string]map[string]SliceOrString{
+		Conditions: map[string]StringOrMap{
 			"StringEquals": {
 				"iam:ResourceTag/" + requiredTag: SliceOrString{"true"},
 			},
@@ -198,7 +198,7 @@ func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, aud
 		Principals: map[string]SliceOrString{
 			"Federated": []string{federatedARN},
 		},
-		Conditions: map[string]map[string]SliceOrString{
+		Conditions: map[string]StringOrMap{
 			"StringEquals": {
 				federatedAudience: audiences,
 			},
@@ -406,6 +406,9 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
 			"s3:GetBucketTagging",
+			"s3:GetBucketPolicyStatus",
+			"s3:GetBucketAcl",
+
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",
@@ -429,6 +432,52 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetSAMLProvider",
 			"iam:ListOpenIDConnectProviders",
 			"iam:GetOpenIDConnectProvider",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSIdentityCenterAccess returns AWS IAM policy statement that grants
+// permissions required for Teleport identity center client.
+// TODO(sshah): make the roles more granular by restricting resources scoped to
+// particular AWS identity center region+arn.
+func StatementForAWSIdentityCenterAccess() *Statement {
+	return &Statement{
+		StatementID: "TeleportIdentityCenterClient",
+		Effect:      EffectAllow,
+		Actions: []string{
+			// ListAccounts
+			"organizations:ListAccounts",
+			"organizations:ListAccountsForParent",
+
+			// ListGroupsAndMembers
+			"identitystore:ListUsers",
+			"identitystore:ListGroups",
+			"identitystore:ListGroupMemberships",
+
+			// ListPermissionSetsAndAssignments
+			"sso:DescribeInstance",
+			"sso:DescribePermissionSet",
+			"sso:ListPermissionSets",
+			"sso:ListAccountAssignmentsForPrincipal",
+			"sso:ListPermissionSetsProvisionedToAccount",
+
+			// CreateAndDeleteAccountAssignment
+			"sso:CreateAccountAssignment",
+			"sso:DescribeAccountAssignmentCreationStatus",
+			"sso:DeleteAccountAssignment",
+			"sso:DescribeAccountAssignmentDeletionStatus",
+			"iam:AttachRolePolicy",
+			"iam:CreateRole",
+			"iam:GetRole",
+			"iam:ListAttachedRolePolicies",
+			"iam:ListRolePolicies",
+
+			// AllowAccountAssignmentOnOwner
+			"iam:GetSAMLProvider",
+
+			// ListProvisionedRoles
+			"iam:ListRoles",
 		},
 		Resources: allResources,
 	}

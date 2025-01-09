@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode } from 'react';
-
+import { ReactNode } from 'react';
 import styled from 'styled-components';
 
 import { Box } from 'design';
@@ -39,7 +38,7 @@ type MultiRowBoxProps = {
  */
 export const MultiRowBox = styled(Box)`
   border: ${props =>
-    `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2].background}`};
+    `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
   border-radius: ${props => props.theme.radii[2]}px;
 `;
 
@@ -48,7 +47,7 @@ export const Row = styled(Box)`
   padding: ${props => props.theme.space[4]}px;
   &:not(:last-child) {
     border-bottom: ${props =>
-      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2].background}`};
+      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
   }
 `;
 

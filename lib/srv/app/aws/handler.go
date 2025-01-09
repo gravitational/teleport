@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -54,7 +54,7 @@ type signerHandler struct {
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
 	// Log is a logger for the handler.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
@@ -78,7 +78,7 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		cfg.RoundTripper = tr
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(teleport.ComponentKey, "aws:signer")
+		cfg.Log = slog.With(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -115,7 +115,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 
 // formatForwardResponseError converts an error to a status code and writes the code to a response.
 func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.WithError(err).Debugf("Failed to process request.")
+	s.Log.DebugContext(r.Context(), "Failed to process request", "error", err)
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -217,7 +217,7 @@ func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Requ
 	}
 	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
+		s.Log.WarnContext(req.Context(), "Failed to emit audit event.", "error", auditErr)
 	}
 }
 

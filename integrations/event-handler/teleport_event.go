@@ -37,10 +37,8 @@ const (
 type TeleportEvent struct {
 	// event is the event
 	Event []byte
-	// cursor is the event ID (real/generated when empty)
+	// ID is the event ID (real/generated when empty)
 	ID string
-	// cursor is the current cursor value
-	Cursor string
 	// Type is an event type
 	Type string
 	// Time is an event timestamp
@@ -64,19 +62,26 @@ type TeleportEvent struct {
 	}
 }
 
+// LegacyTeleportEvent extends TeleportEvent with cursor and window values (used by the
+// legacy event watcher to manage its cursor values).
+type LegacyTeleportEvent struct {
+	*TeleportEvent
+	Cursor string
+	Window time.Time
+}
+
 // NewTeleportEvent creates TeleportEvent using AuditEvent as a source
-func NewTeleportEvent(e *auditlogpb.EventUnstructured, cursor string) (*TeleportEvent, error) {
+func NewTeleportEvent(e *auditlogpb.EventUnstructured) (*TeleportEvent, error) {
 	payload, err := e.Unstructured.MarshalJSON()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	evt := &TeleportEvent{
-		Cursor: cursor,
-		Type:   e.GetType(),
-		Time:   e.Time.AsTime(),
-		Index:  e.GetIndex(),
-		ID:     e.Id,
-		Event:  payload,
+		Type:  e.GetType(),
+		Time:  e.Time.AsTime(),
+		Index: e.GetIndex(),
+		ID:    e.Id,
+		Event: payload,
 	}
 
 	switch e.GetType() {
@@ -90,6 +95,19 @@ func NewTeleportEvent(e *auditlogpb.EventUnstructured, cursor string) (*Teleport
 	}
 
 	return evt, nil
+}
+
+func NewLegacyTeleportEvent(e *auditlogpb.EventUnstructured, cursor string, window time.Time) (*LegacyTeleportEvent, error) {
+	evt, err := NewTeleportEvent(e)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &LegacyTeleportEvent{
+		TeleportEvent: evt,
+		Cursor:        cursor,
+		Window:        window,
+	}, nil
 }
 
 // setSessionID sets session id for session end event

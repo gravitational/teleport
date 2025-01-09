@@ -413,8 +413,9 @@ func TestAutoRotation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := clockwork.NewFakeClock()
+	testSrv := newTestTLSServer(t, withClock(clock))
+
 	var ok bool
 
 	// create proxy client
@@ -514,8 +515,8 @@ func TestAutoFallback(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := clockwork.NewFakeClock()
+	testSrv := newTestTLSServer(t, withClock(clock))
 
 	var ok bool
 
@@ -1246,36 +1247,60 @@ func TestRemoteUser(t *testing.T) {
 	certPool, err := testSrv.CertPool()
 	require.NoError(t, err)
 
-	remoteClient, err := remoteServer.NewRemoteClient(
-		TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
+	remoteClient, err := remoteServer.NewRemoteClient(TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
 	require.NoError(t, err)
 
 	// User is not authorized to perform any actions
-	// as local cluster does not trust the remote cluster yet
+	// as local cluster does not trust the remote cluster yet.
 	_, err = remoteClient.GetDomainName(ctx)
-	require.True(t, trace.IsConnectionProblem(err))
+	require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got %v", err)
 
-	// Establish trust, the request will still fail, there is
-	// no role mapping set up
+	// Establish trust, the request will still fail, since there is
+	// no role mapping set up yet.
 	err = testSrv.AuthServer.Trust(ctx, remoteServer, nil)
 	require.NoError(t, err)
 
-	// Create fresh client now trust is established
-	remoteClient, err = remoteServer.NewRemoteClient(
-		TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
+	// Create a fresh client now that trust is established.
+	remoteClient, err = remoteServer.NewRemoteClient(TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
 	require.NoError(t, err)
-	_, err = remoteClient.GetDomainName(ctx)
-	require.True(t, trace.IsAccessDenied(err))
 
-	// Establish trust and map remote role to local admin role
+	// Validate that the client is not permitted to perform RPCs without a role map.
+	// The requests are attempted several times since it may take some time
+	// for the trust relationship to be established and CAs to be propagated.
+	_, err = remoteClient.GetDomainName(ctx)
+	assert.Error(t, err)
+	if !trace.IsAccessDenied(err) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err = remoteClient.GetDomainName(ctx)
+			assert.True(t, trace.IsAccessDenied(err), "expected an access denied error, got %v", err)
+		}, 15*time.Second, 100*time.Millisecond)
+	}
+
+	// Establish trust and map the remote role to the local admin role.
 	_, localRole, err := CreateUserAndRole(testSrv.Auth(), "local-user", []string{"local-role"}, nil)
 	require.NoError(t, err)
 
 	err = testSrv.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
 	require.NoError(t, err)
 
+	// Validate that the client is now permitted to perform RPCs now that
+	// the role map was created. The requests are attempted several times since it
+	// may take some time for the trust relationship to be updated and CAs to be propagated.
 	_, err = remoteClient.GetDomainName(ctx)
-	require.NoError(t, err)
+	if err == nil {
+		return
+	}
+
+	// The only acceptable error here is AccessDenied caused by the role map
+	// not being propagated yet. Any other errors should fail the test.
+	if !trace.IsAccessDenied(err) {
+		require.NoError(t, err)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = remoteClient.GetDomainName(ctx)
+		assert.NoError(t, err)
+	}, 15*time.Second, 100*time.Millisecond)
 }
 
 // TestNopUser tests user with no permissions except
@@ -1360,7 +1385,7 @@ func TestGetCurrentUser(t *testing.T) {
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1401,7 +1426,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "local", gotAP.GetType())
-	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
+	require.Equal(t, []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP}, gotAP.GetSecondFactors())
 	require.True(t, gotAP.GetDisconnectExpiredCert())
 	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
@@ -4393,6 +4418,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-creator",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4421,6 +4450,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-creator",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
@@ -4544,6 +4577,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-upserter",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4572,6 +4609,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
@@ -4603,6 +4644,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "**************",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
@@ -4957,6 +5002,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 type testTLSServerOptions struct {
 	cacheEnabled bool
 	accessGraph  *AccessGraphConfig
+	clock        clockwork.Clock
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -4973,6 +5019,12 @@ func withAccessGraphConfig(cfg AccessGraphConfig) testTLSServerOption {
 	}
 }
 
+func withClock(clock clockwork.Clock) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.clock = clock
+	}
+}
+
 // newTestTLSServer is a helper that returns a *TestTLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
@@ -4983,9 +5035,12 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer 
 	for _, opt := range opts {
 		opt(&options)
 	}
+	if options.clock == nil {
+		options.clock = clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
+	}
 	as, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:          t.TempDir(),
-		Clock:        clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Clock:        options.clock,
 		CacheEnabled: options.cacheEnabled,
 	})
 	require.NoError(t, err)

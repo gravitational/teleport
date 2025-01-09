@@ -16,36 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import FieldInput from 'shared/components/FieldInput';
-import styled from 'styled-components';
-import React, { forwardRef } from 'react';
-import { FieldInputProps } from 'shared/components/FieldInput';
+import { forwardRef } from 'react';
 
-export const ConfigFieldInput = styled(FieldInput)`
-  input {
-    background: inherit;
-    font-size: 14px;
-    height: 34px;
-  }
-`;
+import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
 
-const ConfigFieldInputWithoutStepper = styled(ConfigFieldInput)`
-  input {
-    ::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-
-    ::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-  }
-`;
+export const ConfigFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
+  (props, ref) => <FieldInput size="small" ref={ref} {...props} />
+);
 
 export const PortFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
   (props, ref) => (
-    <ConfigFieldInputWithoutStepper
+    <ConfigFieldInput
       type="number"
       min={1}
       max={65535}

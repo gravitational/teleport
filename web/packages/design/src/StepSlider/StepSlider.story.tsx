@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import styled from 'styled-components';
 
-import { Box, ButtonLink, ButtonPrimary, Text, Card, H1 } from 'design';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-
-import { H2 } from 'design';
+import { Box, ButtonLink, ButtonPrimary, Card, H1, H2, Text } from 'design';
 
 import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';
 
@@ -327,3 +324,21 @@ function Body2({
     </Box>
   );
 }
+
+const OnboardCard = styled(Card)<{ center?: boolean }>`
+  width: 600px;
+  padding: ${props => props.theme.space[4]}px;
+  text-align: ${props => (props.center ? 'center' : 'left')};
+  margin: ${props => props.theme.space[3]}px auto
+    ${props => props.theme.space[3]}px auto;
+  overflow-y: auto;
+
+  @media screen and (max-width: 800px) {
+    width: auto;
+    margin: 20px;
+  }
+
+  @media screen and (max-height: 760px) {
+    height: calc(100vh - 250px);
+  }
+`;

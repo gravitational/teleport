@@ -36,6 +36,7 @@ import (
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
@@ -360,8 +361,12 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				tc: &TeleportClient{
 					localAgent: agent,
 					Config: Config{
-						SiteName: "test",
-						Tracer:   tracing.NoopTracer("test"),
+						WebProxyAddr: "proxy.example.com",
+						SiteName:     "test",
+						Tracer:       tracing.NoopTracer("test"),
+						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
+							return test.prompt
+						},
 					},
 					lastPing: &webclient.PingResponse{
 						Auth: webclient.AuthenticationSettings{
@@ -424,7 +429,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 
 			ctx := context.Background()
 
-			keyRing, mfaRequired, err := clt.IssueUserCertsWithMFA(ctx, test.params, test.prompt)
+			keyRing, mfaRequired, err := clt.IssueUserCertsWithMFA(ctx, test.params)
 			test.assertion(t, keyRing, mfaRequired, err)
 		})
 	}

@@ -113,8 +113,17 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	}
 	// db clients should trust the Database Server CA when establishing
 	// connection to a database, so return that CA's certs in the response.
-	dbServerCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
+	//
+	// The only exception is the SQL Server with PKINIT integration, where the
+	// `kinit` command line needs our client CA to trust the user certificates
+	// we pass.
+	returnedCAType := types.DatabaseCA
+	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
+		returnedCAType = types.DatabaseClientCA
+	}
+
+	returnedCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       returnedCAType,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
@@ -122,7 +131,7 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	}
 	return &proto.DatabaseCertResponse{
 		Cert:    cert,
-		CACerts: services.GetTLSCerts(dbServerCA),
+		CACerts: services.GetTLSCerts(returnedCA),
 	}, nil
 }
 
@@ -207,7 +216,7 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
+	a.logger.DebugContext(ctx, "Signing database CSR for cluster", "cluster", req.ClusterName)
 
 	clusterName, err := a.GetClusterName()
 	if err != nil {
@@ -339,7 +348,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 		return nil, trace.Wrap(err)
 	}
 
-	subject, issuer := getSnowflakeJWTParams(req.AccountName, req.UserName, pubKey)
+	subject, issuer := getSnowflakeJWTParams(ctx, req.AccountName, req.UserName, pubKey)
 
 	_, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
@@ -362,7 +371,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	}, nil
 }
 
-func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (string, string) {
+func getSnowflakeJWTParams(ctx context.Context, accountName, userName string, publicKey []byte) (string, string) {
 	// Use only the first part of the account name to generate JWT
 	// Based on:
 	// https://github.com/snowflakedb/snowflake-connector-python/blob/f2f7e6f35a162484328399c8a50a5015825a5573/src/snowflake/connector/auth_keypair.py#L83
@@ -374,7 +383,10 @@ func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (stri
 	accnToken, _, _ := strings.Cut(accountName, accNameSeparator)
 	accnTokenCap := strings.ToUpper(accnToken)
 	userNameCap := strings.ToUpper(userName)
-	log.Debugf("Signing database JWT token for %s %s", accnTokenCap, userNameCap)
+	logger.DebugContext(ctx, "Signing database JWT token",
+		"account_name", accnTokenCap,
+		"user_name", userNameCap,
+	)
 
 	subject := fmt.Sprintf("%s.%s", accnTokenCap, userNameCap)
 

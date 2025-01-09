@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -36,14 +36,14 @@ import (
 // AccessService manages roles
 type AccessService struct {
 	backend.Backend
-	log *logrus.Entry
+	logger *slog.Logger
 }
 
 // NewAccessService returns new access service instance
 func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{
 		Backend: backend,
-		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "AccessService"}),
+		logger:  slog.With(teleport.ComponentKey, "AccessService"),
 	}
 }
 
@@ -112,7 +112,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				return true, nil
 			}
 
-			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -124,7 +124,10 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				services.WithRevision(item.Revision),
 			)
 			if err != nil {
-				s.log.Warnf("Failed to unmarshal role at %q: %v", item.Key, err)
+				s.logger.WarnContext(ctx, "Failed to unmarshal role",
+					"key", item.Key,
+					"error", err,
+				)
 				continue
 			}
 
@@ -373,8 +376,12 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 
 		newRemoteLocksToStore := make(map[string]backend.Item, len(newRemoteLocks))
 		for _, lock := range newRemoteLocks {
+			key := backend.NewKey(locksPrefix)
 			if !strings.HasPrefix(lock.GetName(), clusterName) {
+				key = key.AppendKey(backend.NewKey(clusterName, lock.GetName()))
 				lock.SetName(clusterName + "/" + lock.GetName())
+			} else {
+				key = key.AppendKey(backend.NewKey(lock.GetName()))
 			}
 			rev := lock.GetRevision()
 			value, err := services.MarshalLock(lock)
@@ -382,7 +389,7 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:      backend.NewKey(locksPrefix, lock.GetName()),
+				Key:      key,
 				Value:    value,
 				Expires:  lock.Expiry(),
 				Revision: rev,

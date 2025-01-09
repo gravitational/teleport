@@ -16,21 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Box } from 'design';
-import { AWSIcon } from 'design/SVGIcon';
 
-import cfg from 'teleport/config';
+import { Flex, Text } from 'design';
+
 import {
   BadgeTitle,
   ToolTipNoPermBadge,
 } from 'teleport/components/ToolTipNoPermBadge';
+import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
-
-import { IntegrationTile } from './common';
+import { IntegrationIcon, IntegrationTile } from './common';
 
 export function IntegrationTiles({
   hasIntegrationAccess = true,
@@ -39,7 +36,8 @@ export function IntegrationTiles({
   hasIntegrationAccess?: boolean;
   hasExternalAuditStorage?: boolean;
 }) {
-  const externalAuditStorageEnabled = cfg.externalAuditStorage;
+  const externalAuditStorageEnabled =
+    cfg.entitlements.ExternalAuditStorage.enabled;
   const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
 
   return (
@@ -54,14 +52,12 @@ export function IntegrationTiles({
         }
         data-testid="tile-aws-oidc"
       >
-        <Box mt={3} mb={2}>
-          <AWSIcon size={80} />
-        </Box>
-        <Text>
-          Amazon Web Services
-          <br />
-          OIDC
-        </Text>
+        <Flex flexBasis={100}>
+          <IntegrationIcon name="aws" size={80} />
+        </Flex>
+        <Flex>
+          <Text>AWS OIDC Identity Provider</Text>
+        </Flex>
         {!hasIntegrationAccess && (
           <ToolTipNoPermBadge
             children={
@@ -87,10 +83,12 @@ export function IntegrationTiles({
           }
           data-testid="tile-external-audit-storage"
         >
-          <Box mt={3} mb={2}>
-            <AWSIcon size={80} />
-          </Box>
-          <Text>AWS External Audit Storage</Text>
+          <Flex flexBasis={100}>
+            <IntegrationIcon name="aws" size={80} />
+          </Flex>
+          <Flex>
+            <Text>AWS External Audit Storage</Text>
+          </Flex>
           {renderExternalAuditStorageBadge(
             hasExternalAuditStorage,
             externalAuditStorageEnabled
@@ -127,17 +125,4 @@ function renderExternalAuditStorageBadge(
       />
     );
   }
-
-  return (
-    <ToolTipBadge
-      badgeTitle="New"
-      children={
-        <div>
-          Connect your own AWS account to store Audit logs and Session
-          recordings using Athena and S3.
-        </div>
-      }
-      color="success.main"
-    />
-  );
 }

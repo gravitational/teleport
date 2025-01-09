@@ -12,7 +12,7 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/architecture/introduction
+* Architecture: https://goteleport.com/docs/reference/architecture/architecture
 * Getting Started: https://goteleport.com/docs/getting-started/
 
 <div align="center">
@@ -69,7 +69,7 @@ Teleport focuses on best practices for infrastructure security:
 - No need to manage shared secrets such as SSH keys or Kubernetes tokens: it uses certificate-based auth with certificate expiration for all protocols.
 - Two-factor authentication (2FA) for everything.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
+- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Microsoft Entra ID.
 - Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
 
 Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully compatible with OpenSSH_, `sshd` servers, and `ssh` clients, Kubernetes clusters and more.
@@ -87,7 +87,7 @@ Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully c
 ## Installing and Running
 
 To set up a single-instance Teleport cluster, follow our [getting started
-guide](https://goteleport.com/docs/get-started). You can then register your
+guide](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo/). You can then register your
 servers, Kubernetes clusters, and other infrastructure with your Teleport
 cluster.
 
@@ -115,8 +115,7 @@ To run a full test suite locally, see [the test dependencies list](BUILD_macos.m
 ## Building Teleport
 
 The `teleport` repository contains the Teleport daemon binary (written in Go)
-and a web UI written in Javascript (a git submodule located in the `webassets/`
-directory).
+and a web UI written in TypeScript.
 
 If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
@@ -182,18 +181,6 @@ To perform a build
 make full
 ```
 
-To build `tsh` with Apple TouchID support enabled:
-
-> **Important**
->
->`tsh` binaries with Touch ID support are only functional using binaries signed
-with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
-maintainer, ask the team for access.
-
-```shell
-make build/tsh TOUCHID=yes
-```
-
 `tsh` dynamically links against libfido2 by default, to support development
 environments, as long as the library itself can be found:
 
@@ -214,6 +201,9 @@ make build/tsh FIDO2=static  # static linking, for an easy setup use `make enter
                              # or `build.assets/macos/build-fido2-macos.sh`.
 make build/tsh FIDO2=off     # doesn't link libfido2 in any way
 ```
+
+`tsh` builds with Touch ID support require access to an Apple Developer account.
+If you are a Teleport maintainer, ask the team for access.
 
 #### Build output and run locally
 
@@ -413,4 +403,4 @@ The remainder of the source code in this repository is available under the
 from source must comply with the terms of this license.
 
 Teleport Community Edition builds distributed on http://goteleport.com/download
-are available under a [modified Apache 2.0 license](./LICENSE-community).
+are available under a [modified Apache 2.0 license](./build.assets/LICENSE-community).

@@ -19,6 +19,7 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -27,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
@@ -34,6 +37,7 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 		return AWSAppAccessConfigureRequest{
 			IntegrationRole: "integrationrole",
 			AccountID:       "123456789012",
+			AutoConfirm:     true,
 		}
 	}
 
@@ -51,6 +55,7 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 				AccountID:                         "123456789012",
 				IntegrationRole:                   "integrationrole",
 				IntegrationRoleAWSAppAccessPolicy: "AWSAppAccess",
+				AutoConfirm:                       true,
 			},
 		},
 		{
@@ -72,6 +77,7 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 			expected: AWSAppAccessConfigureRequest{
 				IntegrationRole:                   "integrationrole",
 				IntegrationRoleAWSAppAccessPolicy: "AWSAppAccess",
+				AutoConfirm:                       true,
 			},
 			errCheck: require.NoError,
 		},
@@ -95,6 +101,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 		return AWSAppAccessConfigureRequest{
 			IntegrationRole: "integrationrole",
 			AccountID:       "123456789012",
+			AutoConfirm:     true,
 		}
 	}
 
@@ -129,7 +136,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			awsClient := &mockAWSAppAccessConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -139,8 +146,29 @@ func TestAWSAppAccessConfig(t *testing.T) {
 	}
 }
 
+func TestAWSAppAccessConfigOutput(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	req := AWSAppAccessConfigureRequest{
+		IntegrationRole: "integrationrole",
+		AccountID:       "123456789012",
+		AutoConfirm:     true,
+		stdout:          &buf,
+	}
+	awsClient := &mockAWSAppAccessConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
+		existingRoles:        []string{req.IntegrationRole},
+	}
+
+	require.NoError(t, ConfigureAWSAppAccess(ctx, awsClient, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockAWSAppAccessConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 

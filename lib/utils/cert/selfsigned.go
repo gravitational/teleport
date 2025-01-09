@@ -84,7 +84,7 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 		Subject:               entity,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		ExtKeyUsage:           eku,
 		BasicConstraintsValid: true,
 		IsCA:                  true,

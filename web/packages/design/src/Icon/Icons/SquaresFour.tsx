@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function SquaresFour({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const SquaresFour = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-squaresfour"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -79,5 +80,5 @@ export function SquaresFour({ size = 24, color, ...otherProps }: IconProps) {
         d="M14.25 12.75C13.4216 12.75 12.75 13.4216 12.75 14.25V18.75C12.75 19.5784 13.4216 20.25 14.25 20.25H18.75C19.5784 20.25 20.25 19.5784 20.25 18.75V14.25C20.25 13.4216 19.5784 12.75 18.75 12.75H14.25ZM14.25 14.25H18.75V18.75H14.25V14.25Z"
       />
     </Icon>
-  );
-}
+  )
+);

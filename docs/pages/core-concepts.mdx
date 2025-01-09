@@ -39,7 +39,7 @@ Read our guides to how [authorization](reference/architecture/authorization.mdx)
 ### Teleport Proxy Service
 
 The **Teleport Proxy Service** allows for secure access to resources in your
-infrastructure from the public internet without the need for a VPN. 
+infrastructure from the public internet without the need for a VPN.
 
 It establishes reverse tunnels to the **Teleport Auth Service** and **Teleport
 Services**, which can run in private networks. This means that, in the Proxy
@@ -47,7 +47,7 @@ Service's minimal configuration, you can expose only port `443` to the internet
 and run the rest of your infrastructure in private networks.
 
 You can also configure clients to bypass Proxy Service instances and connect to
-resources with Teleport-issued certificates directly. 
+resources with Teleport-issued certificates directly.
 
 Read our guide to [how the Teleport Proxy Service
 works](reference/architecture/proxy.mdx).
@@ -73,7 +73,7 @@ Service](./enroll-resources/application-access/introduction.mdx).
 ### Teleport Database Service
 
 Proxies TCP traffic in the native protocols of popular databases, including
-PostgreSQL and MySQL. 
+PostgreSQL and MySQL.
 
 Read more about the [Teleport Database
 Service](./enroll-resources/database-access/database-access.mdx).
@@ -92,7 +92,7 @@ Proxies HTTP traffic to the Kubernetes API server.
 Read more about the [Teleport Kubernetes
 Service](./enroll-resources/kubernetes-access/introduction.mdx)
 
-### Teleport SSH Service 
+### Teleport SSH Service
 
 An SSH server implementation that allows users to execute commands on remote
 machines while taking advantage of Teleport's built-in access controls,
@@ -104,7 +104,7 @@ Read more about the [Teleport SSH Service](./enroll-resources/server-access/intr
 
 Allows machines and services—called bot users—to communicate securely with
 resources in your infrastructure by automatically provisioning and renewing
-credentials. 
+credentials.
 
 Bot users can connect to resources in your infrastructure without relying
 on static credentials (e.g., certificates and private keys) that become more
@@ -131,7 +131,7 @@ on GitHub.
 
 You can find a detailed comparison of the features available in each Teleport
 edition in [Frequently Asked
-Questions](./faq.mdx#how-is-open-source-different-from-enterprise).
+Questions](./faq.mdx#how-is-teleports-community-edition-different-from-enterprise).
 
 ### Teleport Enterprise Cloud
 
@@ -193,29 +193,29 @@ Ultimately, a Teleport user is the subject of a certificate issued by the
 **Teleport Auth Service**. The Auth Service verifies that a client or service
 attempting to connect has a valid Teleport-issued certificate. It then uses the
 subject of the certificate—including its username and Teleport roles—to
-authorize the user.  
+authorize the user.
 
 Read more about [local users](reference/access-controls/authentication.mdx) and how [SSO
-authentication works in Teleport](admin-guides/access-controls/sso.mdx).
+authentication works in Teleport](admin-guides/access-controls/sso/sso.mdx).
 
 ### Authentication connector
 
 An authentication connector is a **configuration resource** that allows users to
-authenticate to Teleport via a Single Sign-On (SSO) solution. 
+authenticate to Teleport via a Single Sign-On (SSO) solution.
 
 See our guide to [Authentication Options](reference/access-controls/authentication.mdx).
 
 ### Trusted clusters
 
-Teleport allows you to configure a **trusted cluster relationship** between a 
-**root cluster** and one or more **leaf clusters** that trust the root cluster 
-certificate authority. The trust relationship between the root and leaf clusters 
-enables users authenticated in the root cluster to access resources 
+Teleport allows you to configure a **trusted cluster relationship** between a
+**root cluster** and one or more **leaf clusters** that trust the root cluster
+certificate authority. The trust relationship between the root and leaf clusters
+enables users authenticated in the root cluster to access resources
 in leaf cluster. The root and leaf cluster operate independently with their own
 users, roles, and resources, but the trust relationship allows users with certain roles
 in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 
 For more information about how to configure a trust relationship between clusters,
-see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx). 
-For an overview of the architecture used in a trusted cluster relationship, see 
+see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx).
+For an overview of the architecture used in a trusted cluster relationship, see
 [Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).

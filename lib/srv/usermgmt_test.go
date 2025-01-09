@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 )
 
@@ -183,6 +184,10 @@ func (*testHostUserBackend) CheckSudoers(contents []byte) error {
 	return errors.New("invalid")
 }
 
+func (*testHostUserBackend) RemoveExpirations(user string) error {
+	return nil
+}
+
 // WriteSudoersFile implements HostUsersBackend
 func (tm *testHostUserBackend) WriteSudoersFile(user string, entries []byte) error {
 	entry := strings.TrimSpace(string(entries))
@@ -220,8 +225,8 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	// https://glucn.com/posts/2019-05-20-golang-an-interface-holding-a-nil-value-is-not-nil
 	require.NotEqual(t, nil, closer, "user closer was nil")
 
-	// temproary users must always include the teleport-service group
-	require.Equal(t, []string{
+	// temporary users must always include the teleport-service group
+	require.ElementsMatch(t, []string{
 		"hello", "sudo", types.TeleportDropGroup,
 	}, backend.users["bob"])
 
@@ -253,9 +258,11 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 	sudoers := HostSudoersManagement{
 		backend: backend,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	closer, err := users.UpsertUser("bob", services.HostUsersInfo{
@@ -278,6 +285,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		users := HostUserManagement{
 			backend: backend,
 			storage: pres,
+			log:     utils.NewSlogLoggerForTests(),
 		}
 		// test user already exists but teleport-service group has not yet
 		// been created
@@ -318,6 +326,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users := HostUserManagement{
 		backend:   mgmt,
 		storage:   pres,
+		log:       utils.NewSlogLoggerForTests(),
 		userGrace: 0,
 	}
 
@@ -343,6 +352,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users = HostUserManagement{
 		backend: newTestUserMgmt(),
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
 	require.NoError(t, users.DeleteAllUsers())
@@ -435,7 +445,7 @@ func Test_UpdateUserGroups_Keep(t *testing.T) {
 	// Do not convert the managed user to static.
 	userinfo.Mode = services.HostUserModeStatic
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, staticConversionErr)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportKeepGroup), backend.users["alice"])
@@ -491,7 +501,7 @@ func Test_UpdateUserGroups_Drop(t *testing.T) {
 	// Do not convert the managed user to static.
 	userinfo.Mode = services.HostUserModeStatic
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, staticConversionErr)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportDropGroup), backend.users["alice"])
@@ -543,7 +553,7 @@ func Test_UpdateUserGroups_Static(t *testing.T) {
 	// Do not convert to KEEP.
 	userinfo.Mode = services.HostUserModeKeep
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, staticConversionErr)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(slices.Clone(allGroups[2:]), types.TeleportStaticGroup), backend.users["alice"])
@@ -551,7 +561,7 @@ func Test_UpdateUserGroups_Static(t *testing.T) {
 	// Do not convert to INSECURE_DROP.
 	userinfo.Mode = services.HostUserModeDrop
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, staticConversionErr)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(slices.Clone(allGroups[2:]), types.TeleportStaticGroup), backend.users["alice"])
@@ -702,6 +712,7 @@ func initBackend(t *testing.T, groups []string) (HostUserManagement, *testHostUs
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	for _, group := range groups {
@@ -719,6 +730,7 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	existingGroups := []string{"alice", "simon"}
@@ -758,4 +770,338 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 	assert.Contains(t, err.Error(), "conflicts with an existing group")
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
+}
+
+func TestHostUsersResolveGroups(t *testing.T) {
+	cases := []struct {
+		name string
+
+		hostUser *HostUser
+		ui       services.HostUsersInfo
+
+		expectGroups []string
+		expectErr    error
+	}{
+		{
+			name: "create drop user",
+
+			hostUser: nil,
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeDrop,
+				Groups: []string{"foo", "bar"},
+			},
+
+			expectGroups: []string{"foo", "bar", types.TeleportDropGroup},
+		},
+		{
+			name: "create keep user",
+
+			hostUser: nil,
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeKeep,
+				Groups: []string{"foo", "bar"},
+			},
+
+			expectGroups: []string{"foo", "bar", types.TeleportKeepGroup},
+		},
+		{
+			name: "create static user",
+
+			hostUser: nil,
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeStatic,
+				Groups: []string{"foo", "bar"},
+			},
+
+			expectGroups: []string{"foo", "bar", types.TeleportStaticGroup},
+		},
+		{
+			name: "update drop user",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeDrop,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportDropGroup},
+		},
+		{
+			name: "update keep user",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportKeepGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeKeep,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportKeepGroup},
+		},
+		{
+			name: "update static user",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                     {},
+					"bar":                     {},
+					types.TeleportStaticGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeStatic,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportStaticGroup},
+		},
+		{
+			name: "convert drop to keep",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeKeep,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportKeepGroup},
+		},
+		{
+			name: "convert keep to drop",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportKeepGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeDrop,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportDropGroup},
+		},
+		{
+			name: "don't convert drop to static",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeStatic,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: nil,
+			expectErr:    staticConversionErr,
+		},
+		{
+			name: "don't convert keep to static",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportKeepGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeStatic,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: nil,
+			expectErr:    staticConversionErr,
+		},
+		{
+			name: "don't convert static to keep",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                     {},
+					"bar":                     {},
+					types.TeleportStaticGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeKeep,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: nil,
+			expectErr:    staticConversionErr,
+		},
+		{
+			name: "don't convert static to drop",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                     {},
+					"bar":                     {},
+					types.TeleportStaticGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeDrop,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: nil,
+			expectErr:    staticConversionErr,
+		},
+		{
+			name: "don't update unmanaged user in drop mode",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:          services.HostUserModeDrop,
+				TakeOwnership: true,                                            // this flag should be a no-op for DROP, so we include it to ensure that behavior
+				Groups:        []string{"baz", "qux", types.TeleportDropGroup}, // similarly including TeleportDropGroup to ensure no-op
+			},
+
+			expectGroups: nil,
+			expectErr:    unmanagedUserErr,
+		},
+		{
+			name: "don't update unmanaged user in keep mode",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeKeep,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: nil,
+			expectErr:    unmanagedUserErr,
+		},
+		{
+			name: "don't update unmanaged user in static mode",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeStatic,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: nil,
+			expectErr:    unmanagedUserErr,
+		},
+		{
+			name: "take over unmanaged user in keep mode when migrating",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeKeep,
+				Groups: []string{"baz", "qux", types.TeleportKeepGroup},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportKeepGroup},
+		},
+		{
+			name: "take over unmanaged user in static mode when migrating",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:          services.HostUserModeStatic,
+				Groups:        []string{"baz", "qux"},
+				TakeOwnership: true,
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportStaticGroup},
+		},
+		{
+			name: "ignore explicitly configured teleport system groups",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeDrop,
+				Groups: []string{"baz", types.TeleportStaticGroup, types.TeleportKeepGroup, types.TeleportDropGroup},
+			},
+
+			expectGroups: []string{"baz", types.TeleportDropGroup},
+		},
+		{
+			name: "return no groups if no change is necessary",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   services.HostUserModeDrop,
+				Groups: []string{"foo", "bar", types.TeleportDropGroup},
+			},
+
+			expectGroups: nil,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			log := utils.NewSlogLoggerForTests()
+			groups, err := ResolveGroups(log, c.hostUser, c.ui)
+			if c.expectErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, c.expectErr)
+			}
+
+			if c.expectGroups == nil {
+				assert.Equal(t, c.expectGroups, groups)
+			} else {
+				assert.ElementsMatch(t, c.expectGroups, groups)
+			}
+		})
+	}
 }

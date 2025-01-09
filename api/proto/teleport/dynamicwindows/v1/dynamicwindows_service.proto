@@ -1,0 +1,90 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.dynamicwindows.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1;dynamicwindowsv1";
+
+// DynamicWindowsService provides methods to access dynamic Windows desktops.
+service DynamicWindowsService {
+  // GetDynamicWindowsDesktops returns all registered dynamic Windows desktops.
+  rpc ListDynamicWindowsDesktops(ListDynamicWindowsDesktopsRequest) returns (ListDynamicWindowsDesktopsResponse);
+  // GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
+  rpc GetDynamicWindowsDesktop(GetDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
+  // CreateDynamicWindowsDesktop registers a new dynamic Windows desktop.
+  rpc CreateDynamicWindowsDesktop(CreateDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
+  // UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
+  rpc UpdateDynamicWindowsDesktop(UpdateDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
+  // UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
+  rpc UpsertDynamicWindowsDesktop(UpsertDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
+  // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
+  rpc DeleteDynamicWindowsDesktop(DeleteDynamicWindowsDesktopRequest) returns (google.protobuf.Empty);
+}
+
+// ListDynamicWindowsDesktopsRequest is request to fetch single page of dynamic Windows desktops
+message ListDynamicWindowsDesktopsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListDynamicWindowsDesktopsRequest is single page of dynamic Windows desktops
+message ListDynamicWindowsDesktopsResponse {
+  // The page of DynamicWindowsDesktops that matched the request.
+  repeated types.DynamicWindowsDesktopV1 desktops = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// GetDynamicWindowsDesktopRequest is a request for a specific dynamic Windows desktop.
+message GetDynamicWindowsDesktopRequest {
+  // name is the name of the dynamic Windows desktop to be requested.
+  string name = 1;
+}
+
+// CreateDynamicWindowsDesktopRequest is used for creating new dynamic Windows desktops.
+message CreateDynamicWindowsDesktopRequest {
+  // desktop to be created
+  types.DynamicWindowsDesktopV1 desktop = 1;
+}
+
+// UpdateDynamicWindowsDesktopRequest is used for updating existing dynamic Windows desktops.
+message UpdateDynamicWindowsDesktopRequest {
+  // desktop to be updated
+  types.DynamicWindowsDesktopV1 desktop = 1;
+}
+
+// UpsertDynamicWindowsDesktopRequest is used for upserting dynamic Windows desktops.
+message UpsertDynamicWindowsDesktopRequest {
+  // desktop to be upserted
+  types.DynamicWindowsDesktopV1 desktop = 1;
+}
+
+// DeleteDynamicWindowsDesktopRequest is a request to delete a Windows desktop host.
+message DeleteDynamicWindowsDesktopRequest {
+  // name is the name of the Windows desktop host.
+  string name = 1;
+}

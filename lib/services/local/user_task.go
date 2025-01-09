@@ -38,12 +38,12 @@ type UserTasksService struct {
 const userTasksKey = "user_tasks"
 
 // NewUserTasksService creates a new UserTasksService.
-func NewUserTasksService(backend backend.Backend) (*UserTasksService, error) {
+func NewUserTasksService(b backend.Backend) (*UserTasksService, error) {
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*usertasksv1.UserTask]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindUserTask,
-			BackendPrefix: userTasksKey,
+			BackendPrefix: backend.NewKey(userTasksKey),
 			MarshalFunc:   services.MarshalProtoResource[*usertasksv1.UserTask],
 			UnmarshalFunc: services.UnmarshalProtoResource[*usertasksv1.UserTask],
 		})
@@ -55,6 +55,13 @@ func NewUserTasksService(backend backend.Backend) (*UserTasksService, error) {
 
 func (s *UserTasksService) ListUserTasks(ctx context.Context, pagesize int64, lastKey string) ([]*usertasksv1.UserTask, string, error) {
 	r, nextToken, err := s.service.ListResources(ctx, int(pagesize), lastKey)
+	return r, nextToken, trace.Wrap(err)
+}
+
+func (s *UserTasksService) ListUserTasksByIntegration(ctx context.Context, pagesize int64, lastKey string, integration string) ([]*usertasksv1.UserTask, string, error) {
+	r, nextToken, err := s.service.ListResourcesWithFilter(ctx, int(pagesize), lastKey, func(ut *usertasksv1.UserTask) bool {
+		return ut.GetSpec().GetIntegration() == integration
+	})
 	return r, nextToken, trace.Wrap(err)
 }
 

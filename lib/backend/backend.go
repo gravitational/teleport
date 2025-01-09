@@ -167,7 +167,7 @@ func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit i
 // impl for a given backend may be used.
 func StreamRange(ctx context.Context, bk Backend, startKey, endKey Key, pageSize int) stream.Stream[Item] {
 	return stream.PageFunc[Item](func() ([]Item, error) {
-		if startKey == nil {
+		if startKey.components == nil {
 			return nil, io.EOF
 		}
 		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
@@ -175,7 +175,7 @@ func StreamRange(ctx context.Context, bk Backend, startKey, endKey Key, pageSize
 			return nil, trace.Wrap(err)
 		}
 		if len(rslt.Items) < pageSize {
-			startKey = nil
+			startKey = Key{}
 		} else {
 			startKey = nextKey(rslt.Items[pageSize-1].Key)
 		}
@@ -268,9 +268,9 @@ func (e Event) String() string {
 }
 
 // Config is used for 'storage' config section. It's a combination of
-// values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
+// values for various backends: 'etcd', 'filesystem', 'dynamodb', etc.
 type Config struct {
-	// Type can be "bolt" or "etcd" or "dynamodb"
+	// Type indicates which backend to use (etcd, dynamodb, etc)
 	Type string `yaml:"type,omitempty"`
 
 	// Params is a generic key/value property bag which allows arbitrary
@@ -301,20 +301,20 @@ const NoLimit = 0
 // If used with a key prefix, this will return
 // the end of the range for that key prefix.
 func nextKey(key Key) Key {
-	end := make([]byte, len(key))
-	copy(end, key)
+	end := make([]byte, len(key.s))
+	copy(end, key.s)
 	for i := len(end) - 1; i >= 0; i-- {
 		if end[i] < 0xff {
 			end[i] = end[i] + 1
 			end = end[:i+1]
-			return end
+			return KeyFromString(string(end))
 		}
 	}
 	// next key does not exist (e.g., 0xffff);
-	return noEnd
+	return Key{noEnd: true}
 }
 
-var noEnd = Key{0}
+var noEnd = []byte{0}
 
 // RangeEnd returns end of the range for given key.
 func RangeEnd(key Key) Key {
@@ -337,8 +337,14 @@ type KeyedItem interface {
 // For items that implement HostID, the next key will also
 // have the HostID part.
 func NextPaginationKey(ki KeyedItem) string {
-	key := GetPaginationKey(ki)
-	return string(nextKey(Key(key)))
+	var key Key
+	if h, ok := ki.(HostID); ok {
+		key = internalKey(h.GetHostID(), h.GetName())
+	} else {
+		key = NewKey(ki.GetName())
+	}
+
+	return nextKey(key).String()
 }
 
 // GetPaginationKey returns the pagination key given item.
@@ -346,7 +352,7 @@ func NextPaginationKey(ki KeyedItem) string {
 // have the HostID part.
 func GetPaginationKey(ki KeyedItem) string {
 	if h, ok := ki.(HostID); ok {
-		return string(internalKey(h.GetHostID(), h.GetName()))
+		return internalKey(h.GetHostID(), h.GetName()).String()
 	}
 
 	return ki.GetName()

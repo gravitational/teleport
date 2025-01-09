@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
-
+import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Props, Support } from './Support';
@@ -31,7 +30,9 @@ export default {
 
 const Provider = ({ children }) => (
   <ContextProvider ctx={ctx}>
-    <MemoryRouter>{children}</MemoryRouter>
+    <ContentMinWidth>
+      <MemoryRouter>{children}</MemoryRouter>
+    </ContentMinWidth>
   </ContextProvider>
 );
 
@@ -49,7 +50,7 @@ export const SupportOSSWithCTA = () => (
 
 export const SupportCloud = () => (
   <Provider>
-    <Support {...props} isCloud={true} />;
+    <Support {...props} isCloud={true} />
   </Provider>
 );
 
@@ -81,4 +82,5 @@ const props: Props = {
   isCloud: false,
   tunnelPublicAddress: null,
   showPremiumSupportCTA: false,
+  licenseExpiryDateText: '2027-05-09 06:52:58',
 };

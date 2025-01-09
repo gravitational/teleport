@@ -81,6 +81,12 @@ func (v *VariableDuration) Dec() {
 	v.counter.Add(-1)
 }
 
+// Add adds to the counter. Can be used with a negative value to reduce the
+// counter.
+func (v *VariableDuration) Add(n int) {
+	v.counter.Add(int64(n))
+}
+
 // Count loads the current counter value.
 func (c *VariableDuration) Count() int64 {
 	return c.counter.Load()

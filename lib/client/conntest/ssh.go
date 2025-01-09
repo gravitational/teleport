@@ -33,10 +33,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 )
 
@@ -106,11 +108,17 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): support configurable keyRing algorithms.
-	keyRing, err := client.GenerateRSAKeyRing()
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(s.cfg.UserClient),
+		cryptosuites.UserSSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyRing := client.NewKeyRing(privateKey, privateKey)
 
 	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 	if err != nil {

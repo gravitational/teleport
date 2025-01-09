@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -35,12 +36,13 @@ import (
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/parquet-go/parquet-go"
-	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -101,7 +103,7 @@ type querierConfig struct {
 
 	clock  clockwork.Clock
 	awsCfg *aws.Config
-	logger log.FieldLogger
+	logger *slog.Logger
 
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
@@ -128,9 +130,8 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.logger == nil {
-		cfg.logger = log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentAthena,
-		})
+		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
+
 	}
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()
@@ -149,8 +150,12 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &querier{
-		athenaClient:  athena.NewFromConfig(*cfg.awsCfg),
-		s3Getter:      s3.NewFromConfig(*cfg.awsCfg),
+		athenaClient: athena.NewFromConfig(*cfg.awsCfg, func(o *athena.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		}),
+		s3Getter: s3.NewFromConfig(*cfg.awsCfg, func(o *s3.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		}),
 		querierConfig: cfg,
 	}, nil
 }
@@ -254,23 +259,24 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 		cursor.pos++
 		event, err := auditEventFromParquet(e)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"error": err,
-				"date":  date,
-				"chunk": req.Chunk,
-				"pos":   cursor.pos,
-			}).Warn("skipping export of audit event due to failed decoding")
+			q.logger.WarnContext(ctx, "skipping export of audit event due to failed decoding",
+				"error", err,
+				"date", date,
+				"chunk", req.Chunk,
+				"pos", cursor.pos,
+			)
 			return nil, false
 		}
 
 		unstructuredEvent, err := apievents.ToUnstructured(event)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"error": err,
-				"date":  date,
-				"chunk": req.Chunk,
-				"pos":   cursor.pos,
-			}).Warn("skipping export of audit event due to failed conversion to unstructured event")
+			q.logger.WarnContext(ctx, "skipping export of audit event due to failed conversion to unstructured event",
+				"error", err,
+				"date", date,
+				"chunk", req.Chunk,
+				"pos", cursor.pos,
+			)
+
 			return nil, false
 		}
 
@@ -337,17 +343,17 @@ func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 		if err != nil {
 			var nsk *s3types.NoSuchKey
 			if continuationToken == nil && errors.As(err, &nsk) {
-				log.WithFields(log.Fields{
-					"date":  date,
-					"error": err,
-				}).Debug("no event chunks found for date")
+				q.logger.DebugContext(ctx, "no event chunks found for date",
+					"date", date,
+					"error", err,
+				)
 				// no pages available
 				return nil, io.EOF
 			}
-			log.WithFields(log.Fields{
-				"error": err,
-				"date":  date,
-			}).Error("failed to list event chunk objects in S3")
+			q.logger.ErrorContext(ctx, "failed to list event chunk objects in S3",
+				"error", err,
+				"date", date,
+			)
 			return nil, trace.Wrap(err)
 		}
 
@@ -359,19 +365,19 @@ func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 			fullKey := aws.ToString(obj.Key)
 
 			if !strings.HasSuffix(fullKey, ".parquet") {
-				log.WithFields(log.Fields{
-					"key":  fullKey,
-					"date": date,
-				}).Debug("skipping non-parquet s3 file")
+				q.logger.DebugContext(ctx, "skipping non-parquet s3 file",
+					"key", fullKey,
+					"date", date,
+				)
 				continue
 			}
 
 			chunkID := strings.TrimSuffix(strings.TrimPrefix(fullKey, prefix), ".parquet")
 			if chunkID == "" {
-				log.WithFields(log.Fields{
-					"key":  fullKey,
-					"date": date,
-				}).Warn("skipping empty parquet file name")
+				q.logger.WarnContext(ctx, "skipping empty parquet file name",
+					"key", fullKey,
+					"date", date,
+				)
 				continue
 			}
 
@@ -421,17 +427,18 @@ func (q *querier) readEventChunk(ctx context.Context, date, chunk string) ([]byt
 	if err != nil {
 		var nsk *s3types.NoSuchKey
 		if errors.As(err, &nsk) {
-			log.WithFields(log.Fields{
-				"date":  date,
-				"chunk": chunk,
-				"error": err,
-			}).Debug("event chunk not found")
+			q.logger.DebugContext(ctx, "event chunk not found",
+				"date", date,
+				"chunk", chunk,
+				"error", err,
+			)
 			return nil, trace.NotFound("event chunk %q not found", chunk)
 		}
-		log.WithFields(log.Fields{
-			"error": err,
-			"date":  date,
-		}).Error("failed to get event chunk")
+		q.logger.ErrorContext(ctx, "failed to get event chunk",
+			"error", err,
+			"date", date,
+		)
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -474,10 +481,10 @@ func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEv
 	for _, dateToMod := range prepareTimeRangesForCostOptimizedSearch(req.fromUTC, req.toUTC, req.order) {
 		if req.order == types.EventOrderAscending {
 			toUTC = dateToMod.UTC()
-			q.logger.Debugf("Doing cost optimized query by modifying to date (original %s, updated %s)", req.toUTC, toUTC)
+			q.logger.DebugContext(ctx, "Doing cost optimized query by modifying to date", "requested_dated", req.toUTC, "modified_date", toUTC)
 		} else {
 			fromUTC = dateToMod.UTC()
-			q.logger.Debugf("Doing cost optimized query by modifying from date (original %s, updated %s)", req.fromUTC, fromUTC)
+			q.logger.DebugContext(ctx, "Doing cost optimized query by modifying from date", "requested_date", req.fromUTC, "modified_date", fromUTC)
 
 		}
 		events, keyset, err = q.searchEvents(ctx, searchEventsRequest{
@@ -630,12 +637,12 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 
 	startTime := time.Now()
 	defer func() {
-		q.logger.WithFields(log.Fields{
-			"query":    query,
-			"params":   params,
-			"startKey": req.startKey,
-			"duration": time.Since(startTime),
-		}).Debug("Executed events query on Athena")
+		q.logger.DebugContext(ctx, "Executed events query on Athena",
+			"query", query,
+			"params", params,
+			"start_key", req.startKey,
+			"duration", time.Since(startTime),
+		)
 	}()
 	queryId, err := q.startQueryExecution(ctx, query, params)
 	if err != nil {
@@ -895,7 +902,7 @@ type responseBuilder struct {
 	// totalSize is used to track size of output
 	totalSize int
 
-	logger log.FieldLogger
+	logger *slog.Logger
 }
 
 func (r *responseBuilder) endKeyset() (*keyset, error) {
@@ -1002,11 +1009,11 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 			// event that can possibly exceed the maximum size should implement
 			// TrimToMaxSize (until we can one day implement an API for storing
 			// and retrieving large events).
-			rb.logger.WithFields(log.Fields{
-				"event_type": event.GetType(),
-				"event_id":   event.GetID(),
-				"event_size": len(eventData),
-			}).Error("Failed to query event exceeding maximum response size.")
+			rb.logger.ErrorContext(context.Background(), "Failed to query event exceeding maximum response size.",
+				"event_type", event.GetType(),
+				"event_id", event.GetID(),
+				"event_size", len(eventData),
+			)
 			return true, trace.Errorf(
 				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
 				event.GetType(), event.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse))

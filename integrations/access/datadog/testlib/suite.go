@@ -38,6 +38,10 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
+const (
+	ApprovalTeamName = "teleport-approval"
+)
+
 // DatadogBaseSuite is the Datadog Incident Management plugin test suite.
 // It implements the testify.TestingSuite interface.
 type DatadogBaseSuite struct {
@@ -484,7 +488,7 @@ func (s *DatadogSuiteEnterprise) TestApprovalByReview() {
 	content = note.Data.Attributes.Content.Content
 	assert.Contains(t, content, integration.Reviewer2UserName+" reviewed the request", "note must contain a review author")
 
-	// Validate the alert got resolved, and a final note was added describing the resolution.
+	// Validate the incident got resolved, and a final note was added describing the resolution.
 	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return data.ReviewsCount == 2 && data.ResolutionTag != plugindata.Unresolved
 	})
@@ -551,7 +555,7 @@ func (s *DatadogSuiteEnterprise) TestDenialByReview() {
 	content = note.Data.Attributes.Content.Content
 	assert.Contains(t, content, integration.Reviewer2UserName+" reviewed the request", "note must contain a review author")
 
-	// Validate the alert got resolved, and a final note was added describing the resolution.
+	// Validate the incident got resolved, and a final note was added describing the resolution.
 	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return data.ReviewsCount == 2 && data.ResolutionTag != plugindata.Unresolved
 	})
@@ -568,4 +572,87 @@ func (s *DatadogSuiteEnterprise) TestDenialByReview() {
 	incidentUpdate, err := s.fakeDatadog.CheckIncidentUpdate(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "resolved", incidentUpdate.Data.Attributes.Fields.State.Value)
+}
+
+// TestAutoApprovalWhenNotOnCall tests that access requests are not automatically
+// approved when the user is not on-call.
+func (s *DatadogSuiteEnterprise) TestAutoApprovalWhenNotOnCall() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	// Test setup: store an on-call team matching the annotation, but with a different
+	// user than the requesting user.
+	s.fakeDatadog.StoreOncallTeams(ApprovalTeamName, []string{"not-on-call@example.com"})
+
+	// Test setup: store an on-call team with the requesting user, but with a team
+	// that does not match the annotation.
+	s.fakeDatadog.StoreOncallTeams("dev-team", []string{integration.RequesterOSSUserName})
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel,
+		[]string{ApprovalTeamName},
+	)
+
+	s.startApp()
+
+	// Test setup: we create an access request and wait for its incident.
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, []string{
+		integration.Reviewer1UserName,
+	})
+
+	// Validate the incident has been created in Datadog and its ID is stored in
+	// the plugin_data.
+	_ = s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+
+	_, err := s.fakeDatadog.CheckNewIncident(ctx)
+	require.NoError(t, err, "no new incidents stored")
+
+	// Fetch updated access request
+	req, err = s.Ruler().GetAccessRequest(ctx, req.GetName())
+	require.NoError(t, err)
+
+	require.Empty(t, req.GetReviews(), "no review should be submitted automatically")
+}
+
+// TestAutoApprovalWhenOnCall tests that access requests are automatically
+// approved when the user is on-call.
+func (s *DatadogSuiteEnterprise) TestAutoApprovalWhenOnCall() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	// Test setup: store an on-call team with the requesting user in it.
+	s.fakeDatadog.StoreOncallTeams(ApprovalTeamName, []string{integration.RequesterOSSUserName})
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel,
+		[]string{ApprovalTeamName},
+	)
+
+	s.startApp()
+
+	// Test setup: we create an access request and wait for its incident.
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, []string{
+		integration.Reviewer1UserName,
+	})
+
+	// Validate the incident has been created in Datadog and its ID is stored in
+	// the plugin_data.
+	_ = s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+
+	_, err := s.fakeDatadog.CheckNewIncident(ctx)
+	require.NoError(t, err, "no new incidents stored")
+
+	// Fetch updated access request
+	req, err = s.Ruler().GetAccessRequest(ctx, req.GetName())
+	require.NoError(t, err)
+
+	reviews := req.GetReviews()
+	require.Len(t, reviews, 1, "a review should be submitted automatically")
+	require.Equal(t, types.RequestState_APPROVED, reviews[0].ProposedState)
 }

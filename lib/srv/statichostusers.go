@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
@@ -32,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const staticHostUserWatcherTimeout = 30 * time.Second
@@ -52,6 +52,7 @@ type StaticHostUserHandler struct {
 	users          HostUsers
 	sudoers        HostSudoers
 	retry          *retryutils.Linear
+	clock          clockwork.Clock
 }
 
 // StaticHostUserHandlerConfig configures a StaticHostUserHandler.
@@ -68,6 +69,8 @@ type StaticHostUserHandlerConfig struct {
 	Users HostUsers
 	// Sudoers is a host sudoers backend.
 	Sudoers HostSudoers
+
+	clock clockwork.Clock
 }
 
 // NewStaticHostUserHandler creates a new StaticHostUserHandler.
@@ -81,11 +84,15 @@ func NewStaticHostUserHandler(cfg StaticHostUserHandlerConfig) (*StaticHostUserH
 	if cfg.Server == nil {
 		return nil, trace.BadParameter("missing Server")
 	}
+	if cfg.clock == nil {
+		cfg.clock = clockwork.NewRealClock()
+	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(defaults.MaxWatcherBackoff / 10),
+		First:  retryutils.FullJitter(defaults.MaxWatcherBackoff / 10),
 		Step:   defaults.MaxWatcherBackoff / 5,
 		Max:    defaults.MaxWatcherBackoff,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
+		Clock:  cfg.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,6 +104,7 @@ func NewStaticHostUserHandler(cfg StaticHostUserHandlerConfig) (*StaticHostUserH
 		users:          cfg.Users,
 		sudoers:        cfg.Sudoers,
 		retry:          retry,
+		clock:          cfg.clock,
 	}, nil
 }
 
@@ -136,13 +144,15 @@ func (s *StaticHostUserHandler) run(ctx context.Context) error {
 	}
 	defer watcher.Close()
 
+	watcherTimer := s.clock.NewTimer(staticHostUserWatcherTimeout)
+	defer watcherTimer.Stop()
 	select {
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
 			return trace.Errorf("missing init event from watcher")
 		}
 		s.retry.Reset()
-	case <-time.After(staticHostUserWatcherTimeout):
+	case <-watcherTimer.Chan():
 		return trace.LimitExceeded("timed out waiting for static host user watcher to initialize")
 	case <-ctx.Done():
 		return nil

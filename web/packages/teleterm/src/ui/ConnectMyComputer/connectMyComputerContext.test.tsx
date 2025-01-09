@@ -18,21 +18,23 @@
 
 import { EventEmitter } from 'node:events';
 
-import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
+
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
+import Logger, { NullService } from 'teleterm/logger';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
-import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 import {
+  makeAcl,
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-import Logger, { NullService } from 'teleterm/logger';
+import type { Cluster } from 'teleterm/services/tshd/types';
+import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import type { IAppContext } from 'teleterm/ui/types';
 
 import {
   AgentCompatibilityError,
@@ -41,9 +43,6 @@ import {
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
-import type { IAppContext } from 'teleterm/ui/types';
-import type { Cluster } from 'teleterm/services/tshd/types';
-
 beforeAll(() => {
   Logger.init(new NullService());
 });
@@ -51,7 +50,7 @@ beforeAll(() => {
 function getMocks() {
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({
-      acl: {
+      acl: makeAcl({
         tokens: {
           create: true,
           edit: false,
@@ -60,7 +59,7 @@ function getMocks() {
           read: false,
           delete: false,
         },
-      },
+      }),
     }),
   });
   const appContext = new MockAppContext({
@@ -90,13 +89,11 @@ function renderUseConnectMyComputerContextHook(
   return renderHook(() => useConnectMyComputerContext(), {
     wrapper: ({ children }) => (
       <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <resourcesContext.ResourcesContextProvider>
-            <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-              {children}
-            </ConnectMyComputerContextProvider>
-          </resourcesContext.ResourcesContextProvider>
-        </WorkspaceContextProvider>
+        <resourcesContext.ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            {children}
+          </ConnectMyComputerContextProvider>
+        </resourcesContext.ResourcesContextProvider>
       </MockAppContextProvider>
     ),
   });
@@ -322,15 +319,13 @@ describe('canUse', () => {
       const { result } = renderHook(() => useConnectMyComputerContext(), {
         wrapper: ({ children }) => (
           <MockAppContextProvider appContext={appContext}>
-            <WorkspaceContextProvider value={null}>
-              <resourcesContext.ResourcesContextProvider>
-                <ConnectMyComputerContextProvider
-                  rootClusterUri={rootCluster.uri}
-                >
-                  {children}
-                </ConnectMyComputerContextProvider>
-              </resourcesContext.ResourcesContextProvider>
-            </WorkspaceContextProvider>
+            <resourcesContext.ResourcesContextProvider>
+              <ConnectMyComputerContextProvider
+                rootClusterUri={rootCluster.uri}
+              >
+                {children}
+              </ConnectMyComputerContextProvider>
+            </resourcesContext.ResourcesContextProvider>
           </MockAppContextProvider>
         ),
       });

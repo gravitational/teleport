@@ -17,25 +17,25 @@
  */
 
 import { useState } from 'react';
+import styled from 'styled-components';
 
 import {
-  Flex,
-  Text,
+  Alert,
   Box,
   ButtonIcon,
-  ButtonText,
   ButtonPrimary,
   ButtonSecondary,
-  Alert,
+  ButtonText,
+  Flex,
+  Text,
 } from 'design';
-import styled from 'styled-components';
-import { HoverTooltip } from 'shared/components/ToolTip';
 import { Cross } from 'design/Icon';
-import Validation from 'shared/components/Validation';
+import { HoverTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useTeleport } from 'teleport';
@@ -353,8 +353,7 @@ export const UpsertJoinTokenDialog = ({
 };
 
 export const RuleBox = styled(Box)`
-  border-color: ${props =>
-    props.theme.colors.interactive.tonal.neutral[0].background};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   border-width: 2px;
   border-style: solid;
   border-radius: ${props => props.theme.radii[2]}px;

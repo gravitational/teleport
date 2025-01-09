@@ -24,15 +24,15 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -294,6 +294,11 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			},
 			VpcId: aws.String("vpc-asd"),
 		},
+		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
+			{VpcSecurityGroupId: aws.String("")},
+			{VpcSecurityGroupId: aws.String("sg-1")},
+			{VpcSecurityGroupId: aws.String("sg-2")},
+		},
 	}
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "instance-1",
@@ -324,6 +329,10 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 					"subnet-1234567890abcdef0",
 					"subnet-1234567890abcdef1",
 					"subnet-1234567890abcdef2",
+				},
+				SecurityGroups: []string{
+					"sg-1",
+					"sg-2",
 				},
 				VPCID: "vpc-asd",
 			},
@@ -563,6 +572,11 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 		Endpoint:                         aws.String("localhost"),
 		ReaderEndpoint:                   aws.String("reader.host"),
 		Port:                             aws.Int32(3306),
+		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
+			{VpcSecurityGroupId: aws.String("")},
+			{VpcSecurityGroupId: aws.String("sg-1")},
+			{VpcSecurityGroupId: aws.String("sg-2")},
+		},
 		CustomEndpoints: []string{
 			"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
 			"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
@@ -580,6 +594,10 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			ClusterID:  "cluster-1",
 			ResourceID: "resource-1",
 			IAMAuth:    true,
+			SecurityGroups: []string{
+				"sg-1",
+				"sg-2",
+			},
 		},
 	}
 
@@ -664,7 +682,11 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 					ResourceID: "resource-1",
 					IAMAuth:    true,
 					Subnets:    []string{"subnet-123", "subnet-456"},
-					VPCID:      "vpc-123",
+					SecurityGroups: []string{
+						"sg-1",
+						"sg-2",
+					},
+					VPCID: "vpc-123",
 				},
 			},
 		})
@@ -1160,14 +1182,14 @@ func TestAzureTagsToLabels(t *testing.T) {
 // TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
 func TestDatabaseFromRedshiftCluster(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		cluster := &redshift.Cluster{
+		cluster := &redshifttypes.Cluster{
 			ClusterIdentifier:   aws.String("mycluster"),
 			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
-			Endpoint: &redshift.Endpoint{
+			Endpoint: &redshifttypes.Endpoint{
 				Address: aws.String("localhost"),
-				Port:    aws.Int64(5439),
+				Port:    aws.Int32(5439),
 			},
-			Tags: []*redshift.Tag{
+			Tags: []redshifttypes.Tag{
 				{
 					Key:   aws.String("key"),
 					Value: aws.String("val"),
@@ -1209,14 +1231,14 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("success with name override via"+overrideLabel, func(t *testing.T) {
-			cluster := &redshift.Cluster{
+			cluster := &redshifttypes.Cluster{
 				ClusterIdentifier:   aws.String("mycluster"),
 				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
-				Endpoint: &redshift.Endpoint{
+				Endpoint: &redshifttypes.Endpoint{
 					Address: aws.String("localhost"),
-					Port:    aws.Int64(5439),
+					Port:    aws.Int32(5439),
 				},
-				Tags: []*redshift.Tag{
+				Tags: []redshifttypes.Tag{
 					{
 						Key:   aws.String("key"),
 						Value: aws.String("val"),
@@ -1262,7 +1284,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 		})
 
 		t.Run("missing endpoint", func(t *testing.T) {
-			_, err := NewDatabaseFromRedshiftCluster(&redshift.Cluster{
+			_, err := NewDatabaseFromRedshiftCluster(&redshifttypes.Cluster{
 				ClusterIdentifier: aws.String("still-creating"),
 			})
 			require.Error(t, err)

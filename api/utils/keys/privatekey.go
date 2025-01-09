@@ -173,15 +173,8 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *PrivateKey) PPKFile() ([]byte, error) {
-	rsaKey, ok := k.Signer.(*rsa.PrivateKey)
-	if !ok {
-		return nil, trace.BadParameter("only RSA keys are supported for PPK files, found private key of type %T", k.Signer)
-	}
-	ppkFile, err := ppk.ConvertToPPK(rsaKey, k.MarshalSSHPublicKey())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ppkFile, nil
+	ppkFile, err := ppk.ConvertToPPK(k.Signer, k.sshPub)
+	return ppkFile, trace.Wrap(err)
 }
 
 // SoftwarePrivateKeyPEM returns the PEM encoding of the private key. If the key
@@ -212,8 +205,32 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 	return priv, nil
 }
 
+// ParsePrivateKeyOptions contains config options for ParsePrivateKey.
+type ParsePrivateKeyOptions struct {
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	// If empty, a default CLI prompt is used.
+	CustomHardwareKeyPrompt HardwareKeyPrompt
+}
+
+// ParsePrivateKeyOpt applies configuration options.
+type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
+
+// WithCustomPrompt sets a custom hardware key prompt.
+func WithCustomPrompt(prompt HardwareKeyPrompt) ParsePrivateKeyOpt {
+	return func(o *ParsePrivateKeyOptions) {
+		o.CustomHardwareKeyPrompt = prompt
+	}
+}
+
 // ParsePrivateKey returns the PrivateKey for the given key PEM block.
-func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
+// Allows passing a custom hardware key prompt.
+func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, error) {
+	var appliedOpts ParsePrivateKeyOptions
+	for _, o := range opts {
+		o(&appliedOpts)
+	}
+
 	block, _ := pem.Decode(keyPEM)
 	if block == nil {
 		return nil, trace.BadParameter("expected PEM encoded private key")
@@ -221,7 +238,7 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
-		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
+		priv, err := parseYubiKeyPrivateKeyData(block.Bytes, appliedOpts.CustomHardwareKeyPrompt)
 		return priv, trace.Wrap(err, "parsing YubiKey private key")
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
@@ -299,7 +316,7 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 }
 
 // LoadKeyPair returns the PrivateKey for the given private and public key files.
-func LoadKeyPair(privFile, sshPubFile string) (*PrivateKey, error) {
+func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
 	privPEM, err := os.ReadFile(privFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -310,7 +327,7 @@ func LoadKeyPair(privFile, sshPubFile string) (*PrivateKey, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := ParseKeyPair(privPEM, marshaledSSHPub)
+	priv, err := ParseKeyPair(privPEM, marshaledSSHPub, customPrompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -318,8 +335,8 @@ func LoadKeyPair(privFile, sshPubFile string) (*PrivateKey, error) {
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshaledSSHPub []byte) (*PrivateKey, error) {
-	priv, err := ParsePrivateKey(privPEM)
+func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+	priv, err := ParsePrivateKey(privPEM, WithCustomPrompt(customPrompt))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -420,4 +437,16 @@ func X509Certificate(certPEMBlock []byte) (*x509.Certificate, [][]byte, error) {
 		return nil, rawCerts, trace.Wrap(err, "failed to parse certificate")
 	}
 	return x509Cert, rawCerts, nil
+}
+
+// MarshalSoftwarePrivateKeyPKCS8DER marshals the provided private key as PKCS#8 DER.
+func MarshalSoftwarePrivateKeyPKCS8DER(signer crypto.Signer) ([]byte, error) {
+	switch k := signer.(type) {
+	case *PrivateKey:
+		return MarshalSoftwarePrivateKeyPKCS8DER(k.Signer)
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		return x509.MarshalPKCS8PrivateKey(k)
+	default:
+		return nil, trace.BadParameter("unsupported key type: %T", signer)
+	}
 }

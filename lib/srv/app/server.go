@@ -23,12 +23,12 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -132,7 +133,7 @@ func (c *Config) CheckAndSetDefaults() error {
 // proxy and forwards th to internal applications.
 type Server struct {
 	c   *Config
-	log *logrus.Entry
+	log *slog.Logger
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
@@ -151,7 +152,7 @@ type Server struct {
 	reconcileCh chan struct{}
 
 	// watcher monitors changes to application resources.
-	watcher *services.AppWatcher
+	watcher *services.GenericWatcher[types.Application, readonly.Application]
 }
 
 // monitoredApps is a collection of applications from different sources
@@ -197,11 +198,8 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}()
 
 	s := &Server{
-		c: c,
-		// TODO(greedy52) replace with slog from Config.Logger.
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: teleport.ComponentApp,
-		}),
+		c:             c,
+		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
@@ -231,7 +229,7 @@ func (s *Server) startApp(ctx context.Context, app types.Application) error {
 	if err := s.startHeartbeat(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Started %v.", app)
+	s.log.DebugContext(ctx, "App started.", "app", app)
 	return nil
 }
 
@@ -241,7 +239,7 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Stopped app %q.", name)
+	s.log.DebugContext(ctx, "App stopped.", "app", name)
 	return nil
 }
 
@@ -365,7 +363,7 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 func (s *Server) getRotationState() types.Rotation {
 	rotation, err := s.c.GetRotation(types.RoleApp)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
+		s.log.WarnContext(s.closeContext, "Failed to get rotation state.", "error", err)
 	}
 	if rotation != nil {
 		return *rotation
@@ -488,21 +486,21 @@ func (s *Server) close(ctx context.Context) error {
 		}
 
 		if heartbeat != nil {
-			log := s.log.WithField("app", name)
-			log.Debug("Stopping app")
+			log := s.log.With("app", name)
+			log.DebugContext(ctx, "Stopping app")
 			if err := heartbeat.Close(); err != nil {
-				log.WithError(err).Warn("Failed to stop app.")
+				log.WarnContext(ctx, "Failed to stop app.", "error", err)
 			} else {
-				log.Debug("Stopped app")
+				log.DebugContext(ctx, "Stopped app")
 			}
 
 			if shouldDeleteApps {
 				g.Go(func() error {
-					log.Debug("Deleting app")
+					log.DebugContext(ctx, "Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
-						log.WithError(err).Warn("Failed to delete app.")
+						log.WarnContext(ctx, "Failed to delete app.", "error", err)
 					} else {
-						log.Debug("Deleted app")
+						log.DebugContext(ctx, "Deleted app")
 					}
 					return nil
 				})
@@ -512,7 +510,7 @@ func (s *Server) close(ctx context.Context) error {
 	s.mu.RUnlock()
 
 	if err := g.Wait(); err != nil {
-		s.log.WithError(err).Warn("Deleting all apps failed")
+		s.log.WarnContext(ctx, "Deleting all apps failed", "error", err)
 	}
 
 	s.mu.Lock()

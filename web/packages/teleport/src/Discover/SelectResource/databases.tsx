@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DbProtocol } from 'shared/services/databases';
-
 import { Platform } from 'design/platform';
+import { DbProtocol } from 'shared/services/databases';
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
-
-import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
+import { DatabaseEngine, DatabaseLocation, ResourceSpec } from './types';
 
 const baseDatabaseKeywords = ['db', 'database', 'databases'];
 const awsKeywords = [...baseDatabaseKeywords, 'aws', 'amazon web services'];
@@ -36,10 +34,6 @@ const selfhostedKeywords = [
 ];
 const azureKeywords = [...baseDatabaseKeywords, 'microsoft azure'];
 
-function getDbAccessDocLink(guide: string) {
-  return `https://goteleport.com/docs/database-access/guides/${guide}`;
-}
-
 // DATABASES_UNGUIDED_DOC are documentations that is not specific
 // to one type of database.
 export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
@@ -49,7 +43,8 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...awsKeywords, 'rds', 'proxy', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('rds-proxy-postgres'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres',
     // TODO(lisa): add a new usage event
     event: DiscoverEventResource.DatabaseDocRdsProxy,
   },
@@ -59,7 +54,8 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...awsKeywords, 'rds', 'proxy', 'sql server', 'sqlserver'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('rds-proxy-sqlserver'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver',
     // TODO(lisa): add a new usage event
     event: DiscoverEventResource.DatabaseDocRdsProxy,
   },
@@ -69,7 +65,8 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...awsKeywords, 'rds', 'proxy', 'mariadb', 'mysql'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('rds-proxy-mysql'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql',
     // TODO(lisa): add a new usage event
     event: DiscoverEventResource.DatabaseDocRdsProxy,
   },
@@ -79,7 +76,8 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'high availability', 'ha'],
     kind: ResourceKind.Database,
     icon: 'database',
-    unguidedLink: getDbAccessDocLink('ha'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/guides/ha',
     event: DiscoverEventResource.DatabaseDocHighAvailability,
   },
   {
@@ -88,7 +86,8 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'dynamic registration'],
     kind: ResourceKind.Database,
     icon: 'database',
-    unguidedLink: getDbAccessDocLink('dynamic-registration'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration',
     event: DiscoverEventResource.DatabaseDocDynamicRegistration,
   },
 ];
@@ -100,7 +99,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'dynamodb'],
     kind: ResourceKind.Database,
     icon: 'dynamo',
-    unguidedLink: getDbAccessDocLink('aws-dynamodb'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/aws-dynamodb',
     event: DiscoverEventResource.DatabaseDynamoDb,
   },
   {
@@ -109,7 +109,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'elasticache', 'memorydb', 'redis'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('redis-aws'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/redis-aws',
     event: DiscoverEventResource.DatabaseRedisElasticache,
   },
   {
@@ -121,7 +122,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'keyspaces', 'apache', 'cassandra'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('aws-cassandra-keyspaces'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces',
     event: DiscoverEventResource.DatabaseCassandraKeyspaces,
   },
   {
@@ -130,7 +132,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'redshift', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
-    unguidedLink: getDbAccessDocLink('postgres-redshift'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/postgres-redshift',
     event: DiscoverEventResource.DatabasePostgresRedshift,
   },
   {
@@ -139,7 +142,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'redshift', 'serverless', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
-    unguidedLink: getDbAccessDocLink('redshift-serverless'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/redshift-serverless',
     event: DiscoverEventResource.DatabasePostgresRedshiftServerless,
   },
   {
@@ -148,7 +152,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...azureKeywords, 'cache', 'redis'],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-redis'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-redis',
     event: DiscoverEventResource.DatabaseRedisAzureCache,
   },
   {
@@ -160,7 +165,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...azureKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql',
     event: DiscoverEventResource.DatabasePostgresAzure,
   },
   {
@@ -169,7 +175,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...azureKeywords, 'mysql'],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql',
     event: DiscoverEventResource.DatabaseMysqlAzure,
   },
   {
@@ -188,18 +195,20 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     ],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-sql-server-ad'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad',
     event: DiscoverEventResource.DatabaseSqlServerAzure,
     platform: Platform.Windows,
   },
   {
     dbMeta: {
-      location: DatabaseLocation.Microsoft,
+      location: DatabaseLocation.Aws,
       engine: DatabaseEngine.SqlServer,
     },
-    name: 'SQL Server',
+    name: 'RDS SQL Server',
     keywords: [
-      ...baseDatabaseKeywords,
+      ...awsKeywords,
+      'rds',
       'microsoft',
       'active directory',
       'ad',
@@ -208,8 +217,9 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       'preview',
     ],
     kind: ResourceKind.Database,
-    icon: 'windows',
-    unguidedLink: getDbAccessDocLink('sql-server-ad'),
+    icon: 'aws',
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/sql-server-ad',
     event: DiscoverEventResource.DatabaseSqlServerMicrosoft,
     platform: Platform.Windows,
   },
@@ -219,7 +229,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...gcpKeywords, 'mysql'],
     kind: ResourceKind.Database,
     icon: 'googlecloud',
-    unguidedLink: getDbAccessDocLink('mysql-cloudsql'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql',
     event: DiscoverEventResource.DatabaseMysqlGcp,
   },
   {
@@ -228,7 +239,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...gcpKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'googlecloud',
-    unguidedLink: getDbAccessDocLink('postgres-cloudsql'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-google-cloud-databases/postgres-cloudsql',
     event: DiscoverEventResource.DatabasePostgresGcp,
   },
   {
@@ -240,7 +252,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'mongodb atlas'],
     kind: ResourceKind.Database,
     icon: 'mongo',
-    unguidedLink: getDbAccessDocLink('mongodb-atlas'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-managed-databases/mongodb-atlas',
     event: DiscoverEventResource.DatabaseMongodbAtlas,
   },
   {
@@ -252,19 +265,21 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'cassandra scylladb'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('cassandra-self-hosted'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/cassandra-self-hosted',
     event: DiscoverEventResource.DatabaseCassandraSelfHosted,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.CoackroachDb,
+      engine: DatabaseEngine.CockroachDb,
     },
     name: 'CockroachDB',
     keywords: [...selfhostedKeywords, 'cockroachdb'],
     kind: ResourceKind.Database,
     icon: 'cockroach',
-    unguidedLink: getDbAccessDocLink('cockroachdb-self-hosted'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted',
     event: DiscoverEventResource.DatabaseCockroachDbSelfHosted,
   },
   {
@@ -276,7 +291,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'elasticsearch', 'es'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('elastic'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/elastic',
     event: DiscoverEventResource.DatabaseElasticSearchSelfHosted,
   },
   {
@@ -288,7 +304,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'mongodb'],
     kind: ResourceKind.Database,
     icon: 'mongo',
-    unguidedLink: getDbAccessDocLink('mongodb-self-hosted'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted',
     event: DiscoverEventResource.DatabaseMongodbSelfHosted,
   },
   {
@@ -300,7 +317,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'redis'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('redis'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/redis',
     event: DiscoverEventResource.DatabaseRedisSelfHosted,
   },
   {
@@ -312,7 +330,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'redis cluster'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('redis-cluster'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster',
     event: DiscoverEventResource.DatabaseRedisClusterSelfHosted,
   },
   {
@@ -324,7 +343,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'snowflake preview'],
     kind: ResourceKind.Database,
     icon: 'snowflake',
-    unguidedLink: getDbAccessDocLink('snowflake'),
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-managed-databases/snowflake',
     event: DiscoverEventResource.DatabaseSnowflake,
   },
 ];
@@ -346,8 +366,8 @@ export const DATABASES: ResourceSpec[] = [
       location: DatabaseLocation.Aws,
       engine: DatabaseEngine.AuroraPostgres,
     },
-    name: 'Aurora PostgreSQL',
-    keywords: [...awsKeywords, 'aurora postgresql'],
+    name: 'RDS Aurora PostgreSQL',
+    keywords: [...awsKeywords, 'rds aurora postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabasePostgresRds,
@@ -365,8 +385,8 @@ export const DATABASES: ResourceSpec[] = [
       location: DatabaseLocation.Aws,
       engine: DatabaseEngine.AuroraMysql,
     },
-    name: 'Aurora MySQL/MariaDB',
-    keywords: [...awsKeywords, 'aurora mysql mariadb'],
+    name: 'RDS Aurora MySQL',
+    keywords: [...awsKeywords, 'rds aurora mysql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabaseMysqlRds,
@@ -398,12 +418,33 @@ export const DATABASES: ResourceSpec[] = [
 export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
   switch (engine) {
     case DatabaseEngine.Postgres:
+    case DatabaseEngine.AuroraPostgres:
+    case DatabaseEngine.Redshift:
       return 'postgres';
     case DatabaseEngine.MySql:
+    case DatabaseEngine.AuroraMysql:
       return 'mysql';
+    case DatabaseEngine.MongoDb:
+      return 'mongodb';
+    case DatabaseEngine.Redis:
+      return 'redis';
+    case DatabaseEngine.CockroachDb:
+      return 'cockroachdb';
+    case DatabaseEngine.SqlServer:
+      return 'sqlserver';
+    case DatabaseEngine.Snowflake:
+      return 'snowflake';
+    case DatabaseEngine.Cassandra:
+      return 'cassandra';
+    case DatabaseEngine.ElasticSearch:
+      return 'elasticsearch';
+    case DatabaseEngine.DynamoDb:
+      return 'dynamodb';
+    case DatabaseEngine.Doc:
+      return '' as any;
+    default:
+      engine satisfies never;
   }
-
-  return '' as any;
 }
 
 export function getDefaultDatabasePort(engine: DatabaseEngine): string {

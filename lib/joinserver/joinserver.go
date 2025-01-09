@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client"
@@ -52,6 +51,10 @@ type joinServiceClient interface {
 		ctx context.Context,
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
+	) (*proto.Certs, error)
+	RegisterUsingToken(
+		ctx context.Context,
+		req *types.RegisterUsingTokenRequest,
 	) (*proto.Certs, error)
 }
 
@@ -106,7 +109,7 @@ func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_Reg
 		if peerInfo, ok := peer.FromContext(srv.Context()); ok {
 			nodeAddr = peerInfo.Addr.String()
 		}
-		logrus.Warnf("IAM join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
+		slog.WarnContext(srv.Context(), "IAM join attempt timed out, agent is misbehaving or did not close the connection after encountering an error", "agent_addr", nodeAddr)
 		// Returning here should cancel any blocked Send or Recv operations.
 		return trace.LimitExceeded("RegisterUsingIAMMethod timed out after %s, terminating the stream on the server", iamJoinRequestTimeout)
 	}
@@ -177,7 +180,7 @@ func (s *JoinServiceGRPCServer) RegisterUsingAzureMethod(srv proto.JoinService_R
 		if peerInfo, ok := peer.FromContext(srv.Context()); ok {
 			nodeAddr = peerInfo.Addr.String()
 		}
-		logrus.Warnf("Azure join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
+		slog.WarnContext(srv.Context(), "Azure join attempt timed out, agent is misbehaving or did not close the connection after encountering an error", "agent_addr", nodeAddr)
 		// Returning here should cancel any blocked Send or Recv operations.
 		return trace.LimitExceeded("RegisterUsingAzureMethod timed out after %s, terminating the stream on the server", azureJoinRequestTimeout)
 	}
@@ -210,6 +213,10 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest) {
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
+		// No authenticated user, we don't want to trust the values provided in
+		// the request unless it's coming from a proxy.
+		req.BotInstanceID = ""
+		req.BotGeneration = 0
 		return
 	}
 
@@ -223,10 +230,10 @@ func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest)
 	if ident.BotInstanceID != "" {
 		// Trust the instance ID from the incoming identity: bots will
 		// attempt to provide it on renewal, assuming it's still valid.
-		logrus.WithFields(logrus.Fields{
-			"bot_name":        ident.BotName,
-			"bot_instance_id": ident.BotInstanceID,
-		}).Info("bot is rejoining")
+		slog.InfoContext(ctx, "bot is rejoining",
+			"bot_name", ident.BotName,
+			"bot_instance_id", ident.BotInstanceID,
+		)
 		req.BotInstanceID = ident.BotInstanceID
 	} else {
 		// Clear any other value from the request: the value must come from a
@@ -375,4 +382,20 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 			Certs: certs,
 		},
 	}))
+}
+
+// RegisterUsingToken allows nodes and proxies to join the cluster using
+// legacy join methods which do not yet have their own RPC.
+// On the Auth server, this method will call the auth.Server's
+// RegisterUsingToken method. When running on the Proxy, this method will
+// forward the request to the Auth server's JoinServiceServer.
+func (s *JoinServiceGRPCServer) RegisterUsingToken(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	if err := setClientRemoteAddr(ctx, req); err != nil {
+		return nil, trace.Wrap(err, "setting client address")
+	}
+	setBotParameters(ctx, req)
+
+	return s.joinServiceClient.RegisterUsingToken(ctx, req)
 }

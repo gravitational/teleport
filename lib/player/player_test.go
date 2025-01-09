@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -169,7 +170,7 @@ func TestClose(t *testing.T) {
 	_, ok := <-p.C()
 	require.False(t, ok, "player channel should have been closed")
 	require.NoError(t, p.Err())
-	require.Equal(t, int64(1000), p.LastPlayed())
+	require.Equal(t, time.Second, p.LastPlayed())
 }
 
 func TestSeekForward(t *testing.T) {
@@ -319,6 +320,34 @@ func TestUseDatabaseTranslator(t *testing.T) {
 		require.Equal(t, queryEventCount+2, count)
 		require.NoError(t, p.Err())
 	})
+}
+
+func TestSkipIdlePeriods(t *testing.T) {
+	eventCount := 3
+	delayMilliseconds := 60000
+	clk := clockwork.NewFakeClock()
+	p, err := player.New(&player.Config{
+		Clock:        clk,
+		SessionID:    "test-session",
+		SkipIdleTime: true,
+		Streamer:     &simpleStreamer{count: int64(eventCount), delay: int64(delayMilliseconds)},
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Play())
+
+	for i := range eventCount {
+		// Consume events in an eventually loop to avoid firing the clock
+		// events before the timer is set.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			clk.Advance(player.MaxIdleTime)
+			select {
+			case evt := <-p.C():
+				assert.Equal(t, int64(i), evt.GetIndex())
+			default:
+				assert.Fail(t, "expected to receive event after short period, but got nothing")
+			}
+		}, 3*time.Second, 100*time.Millisecond)
+	}
 }
 
 // simpleStreamer streams a fake session that contains

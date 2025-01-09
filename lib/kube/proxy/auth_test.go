@@ -140,7 +140,6 @@ func TestGetKubeCreds(t *testing.T) {
 	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
 	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
 
-	logger := utils.NewLoggerForTests()
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
 	dir := t.TempDir()
@@ -215,8 +214,9 @@ current-context: foo
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 					kubeClusterVersion: &apimachineryversion.Info{
-						Major: "1",
-						Minor: "20",
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					rbacSupportedTypes: rbacSupportedTypes,
 				},
@@ -228,8 +228,9 @@ current-context: foo
 						clientRestCfg:   &rest.Config{},
 					},
 					kubeClusterVersion: &apimachineryversion.Info{
-						Major: "1",
-						Minor: "20",
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -242,8 +243,9 @@ current-context: foo
 						clientRestCfg:   &rest.Config{},
 					},
 					kubeClusterVersion: &apimachineryversion.Info{
-						Major: "1",
-						Minor: "20",
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -271,8 +273,9 @@ current-context: foo
 						clientRestCfg:   &rest.Config{},
 					},
 					kubeClusterVersion: &apimachineryversion.Info{
-						Major: "1",
-						Minor: "20",
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, teleClusterName),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -293,8 +296,9 @@ current-context: foo
 						clientRestCfg:   &rest.Config{},
 					},
 					kubeClusterVersion: &apimachineryversion.Info{
-						Major: "1",
-						Minor: "20",
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -307,8 +311,9 @@ current-context: foo
 						clientRestCfg:   &rest.Config{},
 					},
 					kubeClusterVersion: &apimachineryversion.Info{
-						Major: "1",
-						Minor: "20",
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -321,8 +326,9 @@ current-context: foo
 						clientRestCfg:   &rest.Config{},
 					},
 					kubeClusterVersion: &apimachineryversion.Info{
-						Major: "1",
-						Minor: "20",
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -344,7 +350,7 @@ current-context: foo
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
 				},
-				log: logger,
+				log: utils.NewSlogLoggerForTests(),
 			}
 			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)

@@ -39,14 +39,12 @@ type SPIFFEFederationService struct {
 }
 
 // NewSPIFFEFederationService creates a new SPIFFEFederationService.
-func NewSPIFFEFederationService(
-	backend backend.Backend,
-) (*SPIFFEFederationService, error) {
+func NewSPIFFEFederationService(b backend.Backend) (*SPIFFEFederationService, error) {
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*machineidv1.SPIFFEFederation]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindSPIFFEFederation,
-			BackendPrefix: spiffeFederationPrefix,
+			BackendPrefix: backend.NewKey(spiffeFederationPrefix),
 			MarshalFunc:   services.MarshalSPIFFEFederation,
 			UnmarshalFunc: services.UnmarshalSPIFFEFederation,
 			ValidateFunc:  services.ValidateSPIFFEFederation,

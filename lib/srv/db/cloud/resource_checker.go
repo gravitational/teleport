@@ -20,13 +20,14 @@ package cloud
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -40,14 +41,16 @@ type DiscoveryResourceChecker interface {
 
 // DiscoveryResourceCheckerConfig is the config for DiscoveryResourceChecker.
 type DiscoveryResourceCheckerConfig struct {
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// ResourceMatchers is a list of database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// Context is the database server close context.
 	Context context.Context
-	// Log is used for logging.
-	Log logrus.FieldLogger
+	// Logger is used for logging.
+	Logger *slog.Logger
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -59,11 +62,14 @@ func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
 		}
 		c.Clients = cloudClients
 	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentDatabase)
 	}
 	return nil
 }

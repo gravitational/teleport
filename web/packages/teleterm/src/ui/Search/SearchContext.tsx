@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
-  useContext,
-  useState,
-  FC,
-  useCallback,
+import {
   createContext,
-  useRef,
+  FC,
   MutableRefObject,
   PropsWithChildren,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
 } from 'react';
 
-import { SearchFilter } from 'teleterm/ui/Search/searchResult';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import {
   Document,
   DocumentClusterQueryParams,
+  useWorkspaceServiceState,
 } from 'teleterm/ui/services/workspacesService';
 
 import { actionPicker, SearchPicker } from './pickers/pickers';
@@ -130,7 +130,7 @@ export const SearchContextProvider: FC<PropsWithChildren> = props => {
     );
   }
 
-  appContext.workspacesService.useState();
+  useWorkspaceServiceState();
   const activeDocument = appContext.workspacesService
     .getActiveWorkspaceDocumentService()
     ?.getActive();

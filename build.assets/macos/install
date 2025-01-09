@@ -38,6 +38,28 @@ cp -f teleport tbot fdpass-teleport $BINDIR/ || exit 1
 cp -rf tsh.app/ "$APPS_DIR"/tsh.app/ || exit 1
 cp -rf tctl.app/ "$APPS_DIR"/tctl.app/ || exit 1
 
+
+# If tsh exists and is not a link, make a backup.
+if [ -f "$BINDIR/tsh" ] && [ ! -L "$BINDIR/tsh" ]; then
+rm -f "$BINDIR/tsh.bak"
+mv "$BINDIR/tsh" "$BINDIR/tsh.bak"
+fi
+
+# Link package to $BINDIR.
+rm -f "$BINDIR/tsh"  # in case link exists
+ln -s "$APPS_DIR/tsh.app/Contents/MacOS/tsh" "$BINDIR/tsh"
+
+# If tctl exists and is not a link, make a backup.
+if [ -f "$BINDIR/tctl" ] && [ ! -L "$BINDIR/tctl" ]; then
+rm -f "$BINDIR/tctl.bak"
+mv "$BINDIR/tctl" "$BINDIR/tctl.bak"
+fi
+
+# Link package to $BINDIR.
+rm -f "$BINDIR/tctl"  # in case link exists
+ln -s "$APPS_DIR/tctl.app/Contents/MacOS/tctl" "$BINDIR/tctl"
+
+
 echo "Teleport binaries have been copied to $BINDIR"
 echo ""
 echo "Thanks for installing Teleport."

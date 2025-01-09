@@ -21,6 +21,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/url"
 	"slices"
 	"sort"
@@ -29,7 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -84,25 +84,71 @@ type Statement struct {
 	// Condition:
 	//    StringEquals:
 	//        "proxy.example.com:aud": "discover.teleport"
-	Conditions map[string]map[string]SliceOrString `json:"Condition,omitempty"`
+	Conditions Conditions `json:"Condition,omitempty"`
 	// StatementID is an optional identifier for the statement.
 	StatementID string `json:"Sid,omitempty"`
 }
 
+// Conditions is a list of conditions that must be satisfied for an action to be allowed.
+type Conditions map[string]StringOrMap
+
+// Equals returns true if conditions are equal.
+func (a Conditions) Equals(b Conditions) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for conditionKindA, conditionOpA := range a {
+		conditionOpB := b[conditionKindA]
+		if !conditionOpA.Equals(conditionOpB) {
+			return false
+		}
+	}
+	return true
+}
+
 // ensureResource ensures that the statement contains the specified resource.
 //
-// Returns true if the resource was already a part of the statement.
+// Returns true if the resource was added to the statement or false if the
+// resource was already part of the statement.
 func (s *Statement) ensureResource(resource string) bool {
 	if slices.Contains(s.Resources, resource) {
-		return true
+		return false
 	}
 	s.Resources = append(s.Resources, resource)
-	return false
+	return true
 }
-func (s *Statement) ensureResources(resources []string) {
+func (s *Statement) ensureResources(resources []string) bool {
+	var updated bool
 	for _, resource := range resources {
-		s.ensureResource(resource)
+		updated = s.ensureResource(resource) || updated
 	}
+	return updated
+}
+
+// ensurePrincipal ensures that the statement contains the specified principal.
+//
+// Returns true if the principal was already a part of the statement.
+func (s *Statement) ensurePrincipal(kind string, value string) bool {
+	if len(s.Principals) == 0 {
+		s.Principals = make(StringOrMap)
+	}
+	values := s.Principals[kind]
+	if slices.Contains(values, value) {
+		return false
+	}
+	values = append(values, value)
+	s.Principals[kind] = values
+	return true
+}
+
+func (s *Statement) ensurePrincipals(principals StringOrMap) bool {
+	var updated bool
+	for kind, values := range principals {
+		for _, v := range values {
+			updated = s.ensurePrincipal(kind, v) || updated
+		}
+	}
+	return updated
 }
 
 // EqualStatement returns whether the receive statement is the same.
@@ -115,39 +161,17 @@ func (s *Statement) EqualStatement(other *Statement) bool {
 		return false
 	}
 
-	if len(s.Principals) != len(other.Principals) {
+	if !s.Principals.Equals(other.Principals) {
 		return false
-	}
-
-	for principalKind, principalList := range s.Principals {
-		expectedPrincipalList := other.Principals[principalKind]
-		if !slices.Equal(principalList, expectedPrincipalList) {
-			return false
-		}
 	}
 
 	if !slices.Equal(s.Resources, other.Resources) {
 		return false
 	}
 
-	if len(s.Conditions) != len(other.Conditions) {
+	if !s.Conditions.Equals(other.Conditions) {
 		return false
 	}
-	for conditionKind, conditionOp := range s.Conditions {
-		expectedConditionOp := other.Conditions[conditionKind]
-
-		if len(conditionOp) != len(expectedConditionOp) {
-			return false
-		}
-
-		for conditionOpKind, conditionOpList := range conditionOp {
-			expectedConditionOpList := expectedConditionOp[conditionOpKind]
-			if !slices.Equal(conditionOpList, expectedConditionOpList) {
-				return false
-			}
-		}
-	}
-
 	return true
 }
 
@@ -174,30 +198,35 @@ func NewPolicyDocument(statements ...*Statement) *PolicyDocument {
 	}
 }
 
-// Ensure ensures that the policy document contains the specified resource
-// action.
+// EnsureResourceAction ensures that the policy document contains the specified
+// resource action.
 //
-// Returns true if the resource action was already a part of the policy and
-// false otherwise.
-func (p *PolicyDocument) Ensure(effect, action, resource string) bool {
-	if existingStatement := p.findStatement(effect, action); existingStatement != nil {
+// Returns true if the resource action was added to the policy and false if it
+// was already part of the policy.
+func (p *PolicyDocument) EnsureResourceAction(effect, action, resource string, conditions Conditions) bool {
+	if existingStatement := p.findStatement(effect, action, conditions); existingStatement != nil {
 		return existingStatement.ensureResource(resource)
 	}
 
 	// No statement yet for this resource action, add it.
 	p.Statements = append(p.Statements, &Statement{
-		Effect:    effect,
-		Actions:   []string{action},
-		Resources: []string{resource},
+		Effect:     effect,
+		Actions:    []string{action},
+		Resources:  []string{resource},
+		Conditions: conditions,
 	})
-	return false
+	return true
 }
 
 // Delete deletes the specified resource action from the policy.
-func (p *PolicyDocument) Delete(effect, action, resource string) {
+func (p *PolicyDocument) DeleteResourceAction(effect, action, resource string, conditions Conditions) {
 	var statements []*Statement
 	for _, s := range p.Statements {
 		if s.Effect != effect {
+			statements = append(statements, s)
+			continue
+		}
+		if !s.Conditions.Equals(conditions) {
 			statements = append(statements, s)
 			continue
 		}
@@ -225,7 +254,8 @@ func (p *PolicyDocument) Delete(effect, action, resource string) {
 //
 // The main benefit of using this function (versus appending to p.Statements
 // directly) is to avoid duplications.
-func (p *PolicyDocument) EnsureStatements(statements ...*Statement) {
+func (p *PolicyDocument) EnsureStatements(statements ...*Statement) bool {
+	var updated bool
 	for _, statement := range statements {
 		if statement == nil {
 			continue
@@ -234,8 +264,9 @@ func (p *PolicyDocument) EnsureStatements(statements ...*Statement) {
 		// Try to find an existing statement by the action, and add the resources there.
 		var newActions []string
 		for _, action := range statement.Actions {
-			if existingStatement := p.findStatement(statement.Effect, action); existingStatement != nil {
-				existingStatement.ensureResources(statement.Resources)
+			if existingStatement := p.findStatement(statement.Effect, action, statement.Conditions); existingStatement != nil {
+				updated = existingStatement.ensureResources(statement.Resources) || updated
+				updated = existingStatement.ensurePrincipals(statement.Principals) || updated
 			} else {
 				newActions = append(newActions, action)
 			}
@@ -244,12 +275,21 @@ func (p *PolicyDocument) EnsureStatements(statements ...*Statement) {
 		// Add the leftover actions as a new statement.
 		if len(newActions) > 0 {
 			p.Statements = append(p.Statements, &Statement{
-				Effect:    statement.Effect,
-				Actions:   newActions,
-				Resources: statement.Resources,
+				Effect:     statement.Effect,
+				Actions:    newActions,
+				Resources:  statement.Resources,
+				Conditions: statement.Conditions,
+				Principals: statement.Principals,
 			})
+			updated = true
 		}
 	}
+	return updated
+}
+
+// IsEmpty returns whether the policy document is empty.
+func (p *PolicyDocument) IsEmpty() bool {
+	return len(p.Statements) == 0
 }
 
 // Marshal formats the PolicyDocument in a "friendly" format, which can be
@@ -264,27 +304,30 @@ func (p *PolicyDocument) Marshal() (string, error) {
 }
 
 // ForEach loops through each action and resource of each statement.
-func (p *PolicyDocument) ForEach(fn func(effect, action, resource string)) {
+func (p *PolicyDocument) ForEach(fn func(effect, action, resource string, conditions Conditions)) {
 	for _, statement := range p.Statements {
 		for _, action := range statement.Actions {
 			for _, resource := range statement.Resources {
-				fn(statement.Effect, action, resource)
+				fn(statement.Effect, action, resource, statement.Conditions)
 			}
 		}
 	}
 }
 
-func (p *PolicyDocument) findStatement(effect, action string) *Statement {
+func (p *PolicyDocument) findStatement(effect, action string, conditions Conditions) *Statement {
 	for _, s := range p.Statements {
 		if s.Effect != effect {
 			continue
 		}
-		if slices.Contains(s.Actions, action) {
-			return s
+		if !slices.Contains(s.Actions, action) {
+			continue
 		}
+		if !s.Conditions.Equals(conditions) {
+			continue
+		}
+		return s
 	}
 	return nil
-
 }
 
 // SliceOrString defines a type that can be either a single string or a slice.
@@ -336,6 +379,21 @@ func (s SliceOrString) MarshalJSON() ([]byte, error) {
 // For special use cases, like public/anonynous access, a "*" can be used:
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html#principal-anonymous
 type StringOrMap map[string]SliceOrString
+
+// Equals returns true if this StringOrMap is equal to another StringOrMap.
+func (s StringOrMap) Equals(other StringOrMap) bool {
+	if len(s) != len(other) {
+		return false
+	}
+
+	for key, list := range s {
+		otherList := other[key]
+		if !slices.Equal(list, otherList) {
+			return false
+		}
+	}
+	return true
+}
 
 // UnmarshalJSON implements json.Unmarshaller.
 // If it contains a string and not a map, it will create a map with a single entry:
@@ -459,7 +517,10 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			return "", trace.Wrap(err)
 		}
 
-		log.Debugf("Created new policy %q with ARN %q", policy.Name, policyARN)
+		slog.DebugContext(ctx, "Created new policy",
+			"policy_name", policy.Name,
+			"policy_arn", policyARN,
+		)
 		return policyARN, nil
 	}
 
@@ -485,7 +546,10 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			return "", trace.Wrap(err)
 		}
 
-		log.Debugf("Max policy versions reached for policy %q, deleted policy version %q", policyARN, policyVersionID)
+		slog.DebugContext(ctx, "Max policy versions reached for policy, deleted non-default policy version",
+			"policy_arn", policyARN,
+			"policy_version", policyVersionID,
+		)
 	}
 
 	// Create new policy version.
@@ -494,7 +558,10 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	log.Debugf("Created new policy version %q for %q", versionID, policyARN)
+	slog.DebugContext(ctx, "Created new policy version",
+		"policy_version", versionID,
+		"policy_arn", policyARN,
+	)
 	return policyARN, nil
 }
 

@@ -197,6 +197,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AccessListMemberUpdateEvent:                 &apievents.AccessListMemberUpdate{},
 	AccessListMemberDeleteEvent:                 &apievents.AccessListMemberDelete{},
 	AccessListMemberDeleteAllForAccessListEvent: &apievents.AccessListMemberDeleteAllForAccessList{},
+	UserLoginAccessListInvalidEvent:             &apievents.UserLoginAccessListInvalid{},
 	SecReportsAuditQueryRunEvent:                &apievents.AuditQueryRun{},
 	SecReportsReportRunEvent:                    &apievents.SecurityReportRun{},
 	ExternalAuditStorageEnableEvent:             &apievents.ExternalAuditStorageEnable{},
@@ -232,6 +233,22 @@ var eventsMap = map[string]apievents.AuditEvent{
 	CrownJewelCreateEvent:                       &apievents.CrownJewelCreate{},
 	CrownJewelUpdateEvent:                       &apievents.CrownJewelUpdate{},
 	CrownJewelDeleteEvent:                       &apievents.CrownJewelDelete{},
+	UserTaskCreateEvent:                         &apievents.UserTaskCreate{},
+	UserTaskUpdateEvent:                         &apievents.UserTaskUpdate{},
+	UserTaskDeleteEvent:                         &apievents.UserTaskDelete{},
+	SFTPSummaryEvent:                            &apievents.SFTPSummary{},
+	AutoUpdateConfigCreateEvent:                 &apievents.AutoUpdateConfigCreate{},
+	AutoUpdateConfigUpdateEvent:                 &apievents.AutoUpdateConfigUpdate{},
+	AutoUpdateConfigDeleteEvent:                 &apievents.AutoUpdateConfigDelete{},
+	AutoUpdateVersionCreateEvent:                &apievents.AutoUpdateVersionCreate{},
+	AutoUpdateVersionUpdateEvent:                &apievents.AutoUpdateVersionUpdate{},
+	AutoUpdateVersionDeleteEvent:                &apievents.AutoUpdateVersionDelete{},
+	ContactCreateEvent:                          &apievents.ContactCreate{},
+	ContactDeleteEvent:                          &apievents.ContactDelete{},
+	WorkloadIdentityCreateEvent:                 &apievents.WorkloadIdentityCreate{},
+	WorkloadIdentityUpdateEvent:                 &apievents.WorkloadIdentityUpdate{},
+	WorkloadIdentityDeleteEvent:                 &apievents.WorkloadIdentityDelete{},
+	AccessRequestExpireEvent:                    &apievents.AccessRequestExpire{},
 }
 
 // TestJSON tests JSON marshal events
@@ -624,7 +641,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "rejected subsystem",
-			json: `{"ei":0,"cluster_name":"test","addr.local":"127.0.0.1:57518","addr.remote":"127.0.0.1:3022","code":"T3001E","event":"subsystem","exitError":"some error","login":"alice","name":"proxy","time":"2020-04-15T20:28:18Z","uid":"3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc","user":"alice@example.com"}`,
+			json: `{"ei":0,"cluster_name":"test","addr.local":"127.0.0.1:57518","addr.remote":"127.0.0.1:3022","code":"T3001E","event":"subsystem","exitError":"some error","forwarded_by":"abc","login":"alice","name":"proxy","server_id":"123","time":"2020-04-15T20:28:18Z","uid":"3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc","user":"alice@example.com"}`,
 			event: apievents.Subsystem{
 				Metadata: apievents.Metadata{
 					ID:          "3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc",
@@ -640,6 +657,10 @@ func TestJSON(t *testing.T) {
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					LocalAddr:  "127.0.0.1:57518",
 					RemoteAddr: "127.0.0.1:3022",
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerID:    "123",
+					ForwardedBy: "abc",
 				},
 				Name:  "proxy",
 				Error: "some error",

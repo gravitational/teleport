@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -108,7 +109,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 		ServiceWrapperConfig[*testResource153]{
 			Backend:       memBackend,
 			ResourceKind:  "generic resource",
-			BackendPrefix: backendPrefix,
+			BackendPrefix: backend.NewKey(backendPrefix),
 			MarshalFunc:   marshalResource153,
 			UnmarshalFunc: unmarshalResource153,
 		})
@@ -179,7 +180,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	// Update a resource.
 	r1.Metadata.Labels = map[string]string{"newlabel": "newvalue"}
-	r1, err = service.UpdateResource(ctx, r1)
+	r1, err = service.UnconditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
@@ -197,7 +198,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource153("doesnotexist")
-	_, err = service.UpdateResource(ctx, doesNotExist)
+	_, err = service.UnconditionalUpdateResource(ctx, doesNotExist)
 	require.True(t, trace.IsNotFound(err))
 
 	// Delete a resource.
@@ -244,7 +245,7 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	const initialBackendPrefix = "initial_prefix"
+	initialBackendPrefix := backend.NewKey("initial_prefix")
 	const additionalBackendPrefix = "additional_prefix"
 
 	service, err := NewServiceWrapper[*testResource153](
@@ -262,5 +263,5 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 
 	// Verify that withPrefix appends the additional prefix.
 	serviceWithPrefix := service.WithPrefix(additionalBackendPrefix)
-	require.Equal(t, "initial_prefix/additional_prefix", serviceWithPrefix.service.backendPrefix)
+	require.Equal(t, backend.NewKey("initial_prefix", "additional_prefix").String(), serviceWithPrefix.service.backendPrefix.String())
 }

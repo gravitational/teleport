@@ -24,8 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // EICESendSSHPublicKeyClient describes the required methods to send an SSH Public Key to
@@ -62,6 +60,9 @@ type SendSSHPublicKeyToEC2Request struct {
 
 	// EC2SSHLoginUser is the OS user to use when the user wants SSH access.
 	EC2SSHLoginUser string
+
+	// PublicKey is the SSH public key to send.
+	PublicKey ssh.PublicKey
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -74,55 +75,37 @@ func (r *SendSSHPublicKeyToEC2Request) CheckAndSetDefaults() error {
 		return trace.BadParameter("ec2 ssh login user is required")
 	}
 
+	if r.PublicKey == nil {
+		return trace.BadParameter("SSH public key is required")
+	}
+
 	return nil
 }
 
 // SendSSHPublicKeyToEC2 sends an SSH Public Key to a target EC2 Instance.
 // This key will be removed by AWS after 60 seconds and can only be used to authenticate the EC2SSHLoginUser.
 // An [ssh.Signer] is then returned and can be used to access the host.
-func SendSSHPublicKeyToEC2(ctx context.Context, clt EICESendSSHPublicKeyClient, req SendSSHPublicKeyToEC2Request) (ssh.Signer, error) {
+func SendSSHPublicKeyToEC2(ctx context.Context, clt EICESendSSHPublicKeyClient, req SendSSHPublicKeyToEC2Request) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-
-	sshSigner, err := sendSSHPublicKey(ctx, clt, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := sendSSHPublicKey(ctx, clt, req); err != nil {
+		return trace.Wrap(err)
 	}
-
-	return sshSigner, nil
+	return nil
 }
 
 // sendSSHPublicKey creates a new Private Key and uploads the Public to the ec2 instance.
 // This key will be removed by AWS after 60 seconds and can only be used to authenticate the EC2SSHLoginUser.
 // More information: https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
-func sendSSHPublicKey(ctx context.Context, clt EICESendSSHPublicKeyClient, req SendSSHPublicKeyToEC2Request) (ssh.Signer, error) {
-	pubKey, privKey, err := native.GenerateEICEKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	publicKey, err := ssh.NewPublicKey(pubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pubKeySSH := string(ssh.MarshalAuthorizedKey(publicKey))
-	_, err = clt.SendSSHPublicKey(ctx,
+func sendSSHPublicKey(ctx context.Context, clt EICESendSSHPublicKeyClient, req SendSSHPublicKeyToEC2Request) error {
+	pubKeySSH := string(ssh.MarshalAuthorizedKey(req.PublicKey))
+	_, err := clt.SendSSHPublicKey(ctx,
 		&ec2instanceconnect.SendSSHPublicKeyInput{
 			InstanceId:     &req.InstanceID,
 			InstanceOSUser: &req.EC2SSHLoginUser,
 			SSHPublicKey:   &pubKeySSH,
 		},
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshSigner, err := ssh.NewSignerFromKey(privKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sshSigner, nil
+	return trace.Wrap(err)
 }

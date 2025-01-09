@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func stringPointer(s string) *string {
@@ -140,6 +141,7 @@ func TestListDatabases(t *testing.T) {
 
 		t.Run("without vpc filter", func(t *testing.T) {
 			t.Parallel()
+			logger := utils.NewSlogLoggerForTests().With("test", t.Name())
 			// First page must return pageSize number of DBs
 			req := ListDatabasesRequest{
 				Region:    "us-east-1",
@@ -149,14 +151,14 @@ func TestListDatabases(t *testing.T) {
 				NextToken: "",
 			}
 			for i := 0; i < totalDBs/int(listDatabasesPageSize); i++ {
-				resp, err := ListDatabases(ctx, mockListClient, req)
+				resp, err := ListDatabases(ctx, mockListClient, logger, req)
 				require.NoError(t, err)
 				require.Len(t, resp.Databases, int(listDatabasesPageSize))
 				require.NotEmpty(t, resp.NextToken)
 				req.NextToken = resp.NextToken
 			}
 			// Last page must return remaining databases and an empty token.
-			resp, err := ListDatabases(ctx, mockListClient, req)
+			resp, err := ListDatabases(ctx, mockListClient, logger, req)
 			require.NoError(t, err)
 			require.Len(t, resp.Databases, totalDBs%int(listDatabasesPageSize))
 			require.Empty(t, resp.NextToken)
@@ -164,10 +166,11 @@ func TestListDatabases(t *testing.T) {
 
 		t.Run("with vpc filter", func(t *testing.T) {
 			t.Parallel()
+			logger := utils.NewSlogLoggerForTests().With("test", t.Name())
 			// First page must return at least pageSize number of DBs
 			var gotDatabases []types.Database
 			wantVPC := "vpc-2"
-			resp, err := ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+			resp, err := ListDatabases(ctx, mockListClient, logger, ListDatabasesRequest{
 				Region:    "us-east-1",
 				RDSType:   "instance",
 				Engines:   []string{"postgres"},
@@ -188,7 +191,7 @@ func TestListDatabases(t *testing.T) {
 			gotDatabases = append(gotDatabases, resp.Databases...)
 
 			// Second page must return pageSize number of DBs
-			resp, err = ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+			resp, err = ListDatabases(ctx, mockListClient, logger, ListDatabasesRequest{
 				Region:    "us-east-1",
 				RDSType:   "instance",
 				Engines:   []string{"postgres"},
@@ -202,7 +205,7 @@ func TestListDatabases(t *testing.T) {
 			gotDatabases = append(gotDatabases, resp.Databases...)
 
 			// Third page must return only the remaining DBs and an empty nextToken
-			resp, err = ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+			resp, err = ListDatabases(ctx, mockListClient, logger, ListDatabasesRequest{
 				Region:    "us-east-1",
 				RDSType:   "instance",
 				Engines:   []string{"postgres"},
@@ -318,6 +321,11 @@ func TestListDatabases(t *testing.T) {
 						Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-b")}},
 						VpcId:   aws.String("vpc-2"),
 					},
+					VpcSecurityGroups: []rdsTypes.VpcSecurityGroupMembership{
+						{VpcSecurityGroupId: aws.String("")},
+						{VpcSecurityGroupId: aws.String("sg-1")},
+						{VpcSecurityGroupId: aws.String("sg-2")},
+					},
 					Endpoint: &rdsTypes.Endpoint{
 						Address: stringPointer("endpoint.amazonaws.com"),
 						Port:    aws.Int32(5432),
@@ -353,6 +361,10 @@ func TestListDatabases(t *testing.T) {
 								ResourceID: "db-123",
 								VPCID:      "vpc-2",
 								Subnets:    []string{"subnet-b"},
+								SecurityGroups: []string{
+									"sg-1",
+									"sg-2",
+								},
 							},
 						},
 					},
@@ -574,23 +586,77 @@ func TestListDatabases(t *testing.T) {
 		},
 
 		{
-			name: "cluster exists but no instance exists, returns an error",
+			name: "listing clusters returns all valid clusters and ignores the others",
 			req: ListDatabasesRequest{
 				Region:    "us-east-1",
 				RDSType:   "cluster",
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			mockClusters: []rdsTypes.DBCluster{{
-				Status:              stringPointer("available"),
+			mockInstances: []rdsTypes.DBInstance{{
 				DBClusterIdentifier: stringPointer("my-dbc"),
-				DbClusterResourceId: stringPointer("db-123"),
-				Engine:              stringPointer("aurora-postgresql"),
-				Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
-				Port:                &clusterPort,
-				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+					Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-999")}},
+					VpcId:   aws.String("vpc-999"),
+				},
 			}},
-			errCheck: trace.IsBadParameter,
+			mockClusters: []rdsTypes.DBCluster{
+				{
+					Status:              stringPointer("available"),
+					DBClusterIdentifier: stringPointer("my-empty-cluster"),
+					DbClusterResourceId: stringPointer("db-456"),
+					Engine:              stringPointer("aurora-mysql"),
+					Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+					Port:                &clusterPort,
+					DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				},
+				{
+					Status:              stringPointer("available"),
+					DBClusterIdentifier: stringPointer("my-dbc"),
+					DbClusterResourceId: stringPointer("db-123"),
+					Engine:              stringPointer("aurora-postgresql"),
+					Endpoint:            stringPointer("aurora-instance-2.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+					Port:                &clusterPort,
+					DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				},
+			},
+			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
+				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
+				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
+				expectedDB, err := types.NewDatabaseV3(
+					types.Metadata{
+						Name:        "my-dbc",
+						Description: "Aurora cluster in ",
+						Labels: map[string]string{
+							"account-id":         "123456789012",
+							"endpoint-type":      "primary",
+							"engine":             "aurora-postgresql",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"vpc-id":             "vpc-999",
+							"teleport.dev/cloud": "AWS",
+						},
+					},
+					types.DatabaseSpecV3{
+						Protocol: "postgres",
+						URI:      "aurora-instance-2.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+						AWS: types.AWS{
+							AccountID: "123456789012",
+							RDS: types.RDS{
+								ClusterID:  "my-dbc",
+								InstanceID: "aurora-instance-2",
+								ResourceID: "db-123",
+								Subnets:    []string{"subnet-999"},
+								VPCID:      "vpc-999",
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
+			},
+			errCheck: noErrorFunc,
 		},
 		{
 			name: "no region",
@@ -628,7 +694,8 @@ func TestListDatabases(t *testing.T) {
 				dbInstances: tt.mockInstances,
 				dbClusters:  tt.mockClusters,
 			}
-			resp, err := ListDatabases(ctx, mockListClient, tt.req)
+			logger := utils.NewSlogLoggerForTests().With("test", t.Name())
+			resp, err := ListDatabases(ctx, mockListClient, logger, tt.req)
 			require.True(t, tt.errCheck(err), "unexpected err: %v", err)
 			if err != nil {
 				return

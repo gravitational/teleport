@@ -112,7 +112,7 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -143,7 +143,7 @@ func (s *Service) emitCreateAuditEvent(ctx context.Context, req *crownjewelv1.Cr
 		},
 		CrownJewelQuery: req.GetSpec().GetQuery(),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit crown jewel create event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit crown jewel create event.", "error", auditErr)
 	}
 }
 
@@ -186,7 +186,6 @@ func (s *Service) GetCrownJewel(ctx context.Context, req *crownjewelv1.GetCrownJ
 	}
 
 	return rsp, nil
-
 }
 
 // UpdateCrownJewel updates crown jewel resource.
@@ -200,7 +199,7 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -237,7 +236,7 @@ func (s *Service) emitUpdateAuditEvent(ctx context.Context, old, new *crownjewel
 		CurrentCrownJewelQuery: old.GetSpec().GetQuery(),
 		UpdatedCrownJewelQuery: new.GetSpec().GetQuery(),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit crown jewel update event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit crown jewel update event.", "error", auditErr)
 	}
 }
 
@@ -252,7 +251,7 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -274,7 +273,6 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 	}
 
 	return rsp, nil
-
 }
 
 func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
@@ -296,7 +294,7 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -315,7 +313,7 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 			UpdatedBy: authCtx.Identity.GetIdentity().Username,
 		},
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit crown jewel delete event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit crown jewel delete event.", "error", auditErr)
 	}
 
 	if err != nil {

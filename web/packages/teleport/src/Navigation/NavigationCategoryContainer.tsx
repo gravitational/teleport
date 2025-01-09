@@ -16,17 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
+import { useFeatures } from 'teleport/FeaturesContext';
 import {
   MANAGEMENT_NAVIGATION_SECTIONS,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
-import { useFeatures } from 'teleport/FeaturesContext';
+import { NavigationItemSize } from 'teleport/Navigation/common';
 import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationSection } from 'teleport/Navigation/NavigationSection';
-import { NavigationItemSize } from 'teleport/Navigation/common';
 
 interface NavigationCategoryProps {
   category: NavigationCategory;

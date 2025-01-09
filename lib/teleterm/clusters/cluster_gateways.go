@@ -24,9 +24,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -52,6 +54,7 @@ type CreateGatewayParams struct {
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	c.clusterClient.MFAPromptConstructor = params.MFAPromptConstructor
+	c.clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
 
 	switch {
 	case params.TargetURI.IsDB():
@@ -102,7 +105,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Log:                           c.Log,
+		Logger:                        c.Logger,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -142,7 +145,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Log:                           c.Log,
+		Logger:                        c.Logger,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -157,16 +160,20 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 
 func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	appName := params.TargetURI.GetAppName()
-
 	app, err := c.getApp(ctx, params.ClusterClient.AuthClient, appName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: c.clusterClient.SiteName,
+		URI:         app.GetURI(),
+	}
 
 	var cert tls.Certificate
-
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.ReissueAppCert(ctx, params.ClusterClient, app)
+		cert, err = c.ReissueAppCert(ctx, params.ClusterClient, routeToApp)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -180,7 +187,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		Protocol:                      app.GetProtocol(),
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Log:                           c.Log,
+		Logger:                        c.Logger,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -211,9 +218,15 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
+		routeToApp := proto.RouteToApp{
+			Name:        app.GetName(),
+			PublicAddr:  app.GetPublicAddr(),
+			ClusterName: c.clusterClient.SiteName,
+			URI:         app.GetURI(),
+		}
 
 		// The cert is returned from this function and finally set on LocalProxy by the middleware.
-		cert, err := c.ReissueAppCert(ctx, clusterClient, app)
+		cert, err := c.ReissueAppCert(ctx, clusterClient, routeToApp)
 		return cert, trace.Wrap(err)
 	default:
 		return tls.Certificate{}, trace.NotImplemented("ReissueGatewayCerts does not support this gateway kind %v", g.TargetURI().String())

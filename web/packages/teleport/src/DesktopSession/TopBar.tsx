@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { useTheme } from 'styled-components';
-import { Text, TopNav, Flex } from 'design';
-import { Clipboard, FolderShared } from 'design/Icon';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { Flex, Text, TopNav } from 'design';
+import { Clipboard, FolderShared } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+import type { NotificationItem } from 'shared/components/Notification';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
-
-import type { NotificationItem } from 'shared/components/Notification';
 
 export default function TopBar(props: Props) {
   const {
@@ -68,16 +66,11 @@ export default function TopBar(props: Props) {
               canShareDirectory,
               isSharingDirectory
             )}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            position="bottom"
           >
             <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
           </HoverTooltip>
-          <HoverTooltip
-            tipContent={clipboardSharingMessage}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-          >
+          <HoverTooltip tipContent={clipboardSharingMessage} position="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
           </HoverTooltip>
           <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />

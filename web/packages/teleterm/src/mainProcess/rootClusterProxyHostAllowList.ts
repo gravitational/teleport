@@ -20,12 +20,12 @@ import { ipcMain } from 'electron';
 
 import { isAbortError } from 'shared/utils/abortError';
 
-import { proxyHostToBrowserProxyHost } from 'teleterm/services/tshd/cluster';
-import { TshdClient } from 'teleterm/services/tshd';
-import { Logger } from 'teleterm/types';
 import { MainProcessIpc } from 'teleterm/mainProcess/types';
-import * as tshd from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { proxyHostToBrowserProxyHost } from 'teleterm/services/tshd/cluster';
+import * as tshd from 'teleterm/services/tshd/types';
+import { Logger } from 'teleterm/types';
 
 export type RootClusterProxyHostAllowList = Set<string>;
 
@@ -77,22 +77,32 @@ export function manageRootClusterProxyHostAllowList({
 
     allowList.clear();
     for (const rootCluster of rootClusters) {
-      if (!rootCluster.proxyHost) {
-        continue;
+      if (rootCluster.proxyHost) {
+        let browserProxyHost: string;
+        try {
+          browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
+          allowList.add(browserProxyHost);
+        } catch (error) {
+          logger.error(
+            'Ran into an error when converting proxy host to browser proxy host',
+            error
+          );
+        }
       }
 
-      let browserProxyHost: string;
-      try {
-        browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
-      } catch (error) {
-        logger.error(
-          'Ran into an error when converting proxy host to browser proxy host',
-          error
-        );
-        continue;
+      // Allow the SSO host for SSO login/mfa redirects.
+      if (rootCluster.ssoHost) {
+        let browserSsoHost: string;
+        try {
+          browserSsoHost = proxyHostToBrowserProxyHost(rootCluster.ssoHost);
+          allowList.add(browserSsoHost);
+        } catch (error) {
+          logger.error(
+            'Ran into an error when converting sso host to browser sso host',
+            error
+          );
+        }
       }
-
-      allowList.add(browserProxyHost);
     }
   };
 

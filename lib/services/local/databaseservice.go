@@ -44,6 +44,10 @@ func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, ser
 	if err := services.CheckAndSetDefaults(service); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := types.ValidateNamespaceDefault(service.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := service.GetRevision()
 	value, err := services.MarshalDatabaseService(service)
 	if err != nil {

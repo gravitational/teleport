@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -104,6 +105,16 @@ type SAMLConnector interface {
 	GetSingleLogoutURL() string
 	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
 	SetSingleLogoutURL(string)
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() *SAMLConnectorMFASettings
+	// SetMFASettings sets the connector's MFA settings.
+	SetMFASettings(s *SAMLConnectorMFASettings)
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
+	// GetForceAuthn returns ForceAuthn
+	GetForceAuthn() bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -391,6 +402,50 @@ func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
 	o.Spec.SingleLogoutURL = url
 }
 
+// GetMFASettings returns the connector's MFA settings.
+func (o *SAMLConnectorV2) GetMFASettings() *SAMLConnectorMFASettings {
+	return o.Spec.MFASettings
+}
+
+// SetMFASettings sets the connector's MFA settings.
+func (o *SAMLConnectorV2) SetMFASettings(s *SAMLConnectorMFASettings) {
+	o.Spec.MFASettings = s
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *SAMLConnectorV2) IsMFAEnabled() bool {
+	mfa := o.GetMFASettings()
+	return mfa != nil && mfa.Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *SAMLConnectorV2) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
+	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
+	o.Spec.Issuer = o.Spec.MFASettings.Issuer
+	o.Spec.SSO = o.Spec.MFASettings.Sso
+	o.Spec.Cert = o.Spec.MFASettings.Cert
+
+	switch o.Spec.MFASettings.ForceAuthn {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		// Default to YES.
+		o.Spec.ForceAuthn = SAMLForceAuthn_FORCE_AUTHN_YES
+	default:
+		o.Spec.ForceAuthn = o.Spec.MFASettings.ForceAuthn
+	}
+
+	return nil
+}
+
+// GetForceAuthn returns ForceAuthn
+func (o *SAMLConnectorV2) GetForceAuthn() bool {
+	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -422,6 +477,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	// Issuer and SSO can be automatically set later if EntityDescriptor is provided
 	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" && (o.Spec.Issuer == "" || o.Spec.SSO == "") {
 		return trace.BadParameter("no entity_descriptor set, either provide entity_descriptor or entity_descriptor_url in spec")
+	}
+	if o.IsMFAEnabled() && o.Spec.MFASettings.EntityDescriptorUrl == "" && o.Spec.MFASettings.EntityDescriptor == "" && (o.Spec.MFASettings.Issuer == "" || o.Spec.MFASettings.Sso == "") {
+		return trace.BadParameter("no entity_descriptor set for mfa settings, either provide entity_descriptor or entity_descriptor_url in spec")
 	}
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
@@ -465,5 +523,100 @@ func (r *SAMLAuthRequest) Check() error {
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
 	}
+	return nil
+}
+
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalYAML() (interface{}, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	if err := unmarshal(&val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalJSON() ([]byte, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalJSON(data []byte) error {
+	var val any
+	if err := json.Unmarshal(data, &val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+func (s *SAMLForceAuthn) encode() (string, error) {
+	switch *s {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		return "", nil
+	case SAMLForceAuthn_FORCE_AUTHN_NO:
+		return "no", nil
+	case SAMLForceAuthn_FORCE_AUTHN_YES:
+		return "yes", nil
+	default:
+		return "", trace.BadParameter("SAMLForceAuthn invalid value %v", *s)
+	}
+}
+
+func (s *SAMLForceAuthn) decode(val any) error {
+	switch v := val.(type) {
+	case string:
+		// try parsing as a boolean
+		switch strings.ToLower(v) {
+		case "":
+			*s = SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED
+		case "yes", "yeah", "y", "true", "1", "on":
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		case "no", "nope", "n", "false", "0", "off":
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		default:
+			return trace.BadParameter("SAMLForceAuthn invalid value %v", val)
+		}
+	case bool:
+		if v {
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		} else {
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		}
+	case int32:
+		return trace.Wrap(s.setFromEnum(v))
+	case int64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("SAMLForceAuthn invalid type %T", val)
+	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (s *SAMLForceAuthn) setFromEnum(val int32) error {
+	if _, ok := SAMLForceAuthn_name[val]; !ok {
+		return trace.BadParameter("invalid SAMLForceAuthn enum %v", val)
+	}
+	*s = SAMLForceAuthn(val)
 	return nil
 }

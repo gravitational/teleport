@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Config({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Config = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-config"
       {...otherProps}
+      ref={ref}
     >
       <path d="M12.25 8C12.25 7.58579 12.5858 7.25 13 7.25H17C17.4142 7.25 17.75 7.58579 17.75 8C17.75 8.41421 17.4142 8.75 17 8.75H13C12.5858 8.75 12.25 8.41421 12.25 8Z" />
       <path d="M13 11.25C12.5858 11.25 12.25 11.5858 12.25 12C12.25 12.4142 12.5858 12.75 13 12.75H17C17.4142 12.75 17.75 12.4142 17.75 12C17.75 11.5858 17.4142 11.25 17 11.25H13Z" />
@@ -70,5 +71,5 @@ export function Config({ size = 24, color, ...otherProps }: IconProps) {
         d="M2.25 3.9C2.25 3.12257 2.79934 2.25 3.75 2.25H20.25C21.2007 2.25 21.75 3.12257 21.75 3.9V20.1C21.75 20.8774 21.2007 21.75 20.25 21.75H3.75C2.79934 21.75 2.25 20.8774 2.25 20.1V3.9ZM3.79101 3.75C3.77346 3.77438 3.75 3.82494 3.75 3.9V20.1C3.75 20.1751 3.77346 20.2256 3.79101 20.25H20.209C20.2265 20.2256 20.25 20.1751 20.25 20.1V3.9C20.25 3.82494 20.2265 3.77438 20.209 3.75H3.79101Z"
       />
     </Icon>
-  );
-}
+  )
+);

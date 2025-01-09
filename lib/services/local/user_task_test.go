@@ -21,12 +21,13 @@ package local_test
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -45,13 +46,7 @@ func TestCreateUserTask(t *testing.T) {
 	ctx := context.Background()
 	service := getUserTasksService(t)
 
-	obj, err := usertasks.NewUserTask("obj", &usertasksv1.UserTaskSpec{
-		Integration: "my-integration",
-		TaskType:    "discover-ec2",
-		IssueType:   "ssm_agent_not_running",
-		DiscoverEc2: &usertasksv1.DiscoverEC2{},
-	})
-	require.NoError(t, err)
+	obj := getUserTaskObject(t, 0)
 
 	// first attempt should succeed
 	objOut, err := service.CreateUserTask(ctx, obj)
@@ -68,13 +63,7 @@ func TestUpsertUserTask(t *testing.T) {
 
 	ctx := context.Background()
 	service := getUserTasksService(t)
-	obj, err := usertasks.NewUserTask("obj", &usertasksv1.UserTaskSpec{
-		Integration: "my-integration",
-		TaskType:    "discover-ec2",
-		IssueType:   "ssm_agent_not_running",
-		DiscoverEc2: &usertasksv1.DiscoverEC2{},
-	})
-	require.NoError(t, err)
+	obj := getUserTaskObject(t, 0)
 	// the first attempt should succeed
 	objOut, err := service.UpsertUserTask(ctx, obj)
 	require.NoError(t, err)
@@ -139,7 +128,7 @@ func TestUpdateUserTask(t *testing.T) {
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	obj, err := service.GetUserTask(ctx, getUserTaskObject(t, 0).GetMetadata().GetName())
@@ -163,7 +152,7 @@ func TestUpdateUserTaskMissingRevision(t *testing.T) {
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getUserTaskObject(t, 0)
 	obj.Metadata.Expires = expiry
@@ -215,11 +204,24 @@ func TestListUserTask(t *testing.T) {
 
 	ctx := context.Background()
 
+	cmpOpts := []cmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	}
+	sortUserTasksFn := func(a *usertasksv1.UserTask, b *usertasksv1.UserTask) int {
+		return strings.Compare(a.Metadata.GetName(), b.Metadata.GetName())
+	}
 	counts := []int{0, 1, 5, 10}
 	for _, count := range counts {
 		t.Run(fmt.Sprintf("count=%v", count), func(t *testing.T) {
 			service := getUserTasksService(t)
 			prepopulateUserTask(t, service, count)
+
+			expectedElements := make([]*usertasksv1.UserTask, 0, count)
+			for i := 0; i < count; i++ {
+				expectedElements = append(expectedElements, getUserTaskObject(t, i))
+			}
+			slices.SortFunc(expectedElements, sortUserTasksFn)
 
 			t.Run("one page", func(t *testing.T) {
 				// Fetch all objects.
@@ -228,13 +230,8 @@ func TestListUserTask(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := 0; i < count; i++ {
-					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-						protocmp.Transform(),
-					}
-					require.Equal(t, "", cmp.Diff(getUserTaskObject(t, i), elements[i], cmpOpts...))
-				}
+				slices.SortFunc(elements, sortUserTasksFn)
+				require.Equal(t, "", cmp.Diff(expectedElements, elements, cmpOpts...))
 			})
 
 			t.Run("paginated", func(t *testing.T) {
@@ -252,13 +249,9 @@ func TestListUserTask(t *testing.T) {
 					}
 				}
 
-				for i := 0; i < count; i++ {
-					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-						protocmp.Transform(),
-					}
-					require.Equal(t, "", cmp.Diff(getUserTaskObject(t, i), elements[i], cmpOpts...))
-				}
+				require.Len(t, expectedElements, len(elements))
+				slices.SortFunc(elements, sortUserTasksFn)
+				require.Equal(t, "", cmp.Diff(expectedElements, elements, cmpOpts...))
 			})
 		})
 	}
@@ -277,14 +270,26 @@ func getUserTasksService(t *testing.T) services.UserTasks {
 }
 
 func getUserTaskObject(t *testing.T, index int) *usertasksv1.UserTask {
-	name := fmt.Sprintf("obj%v", index)
-	obj, err := usertasks.NewUserTask(name, &usertasksv1.UserTaskSpec{
-		Integration: "my-integration",
+	integrationName := fmt.Sprintf("integration-%d", index)
+
+	obj, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+		Integration: integrationName,
 		TaskType:    "discover-ec2",
-		IssueType:   "ssm_agent_not_running",
-		DiscoverEc2: &usertasksv1.DiscoverEC2{},
+		IssueType:   "ec2-ssm-agent-not-registered",
+		State:       "OPEN",
+		DiscoverEc2: &usertasksv1.DiscoverEC2{
+			AccountId: "123456789012",
+			Region:    "us-east-1",
+			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+				"i-123": {
+					InstanceId:      "i-123",
+					Name:            "my-instance",
+					DiscoveryConfig: "dc01",
+					DiscoveryGroup:  "dg01",
+				},
+			},
+		},
 	})
-	require.NoError(t, err)
 	require.NoError(t, err)
 
 	return obj

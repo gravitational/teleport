@@ -116,6 +116,9 @@ func (cfg *ClientConfig) CheckAndSetDefaults() error {
 // NewClient creates a new Opsgenie client for managing alerts.
 func NewClient(conf ClientConfig) (*Client, error) {
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
+	client.SetTransport(&http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+	})
 	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
 	client.SetBaseURL(conf.APIEndpoint)
 	return &Client{

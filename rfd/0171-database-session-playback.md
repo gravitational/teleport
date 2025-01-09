@@ -100,7 +100,7 @@ message Status {
   // Error includes system error message for the failed attempt
   string Error = 2 [(gogoproto.jsontag) = "error,omitempty"];
 
-  // UserMessage is a user-friendly message for successfull or unsuccessfull auth attempt
+  // UserMessage is a user-friendly message for successful or unsuccessful auth attempt
   string UserMessage = 3 [(gogoproto.jsontag) = "message,omitempty"];
 }
 
@@ -211,7 +211,7 @@ It will present the session recording events in different text formats:
 Example of player visualization:
 
 ```code
-mydatabse=# SELECT id, name FROM events;
+mydatabase=# SELECT id, name FROM events;
 SUCCESS
 (3 rows returned)
 
@@ -247,7 +247,7 @@ executed, following the same format described earlier.
 Example:
 
 ```code
-mydatabse=# SELECT id, name FROM events;
+mydatabase=# SELECT id, name FROM events;
 
 mydatabase=# INSERT INTO events (name) VALUES ('session.query');
 

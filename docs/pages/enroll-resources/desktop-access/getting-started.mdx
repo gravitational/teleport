@@ -62,6 +62,10 @@ interactively and select the Teleport certificate that you exported when prompte
    - Disables Network Level Authentication (NLA) for remote desktop services.
    - Enables RemoteFX compression, if using Teleport version 15 or newer.
 
+  Note: in order for the Windows Local Security Authority (LSA) to load the Teleport DLL,
+  [LSA protection](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection)
+  must be disabled.
+
 {/*lint ignore ordered-list-marker-value*/}
 5. Restart the computer.
 
@@ -231,7 +235,7 @@ To configure a role for desktop access:
 
    Depending on how you configure role-based access controls for Windows, Teleport can create local user logins
    automatically from the `windows_desktop_logins` you specify. For more information about enabling Teleport
-   to create local Windows logins, see [Logins](./rbac.mdx#logins).
+   to create local Windows logins, see [Automatic User Creation](../../reference/agent-services/desktop-access-reference/user-creation.mdx).
 
 1. Apply the new role to your cluster by running the following command:
 

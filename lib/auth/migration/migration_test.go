@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type testMigration struct {
@@ -62,6 +63,7 @@ func (t testMigration) Name() string {
 }
 
 func TestApply(t *testing.T) {
+	log := utils.NewSlogLoggerForTests()
 	cases := []struct {
 		name           string
 		migrations     []migration
@@ -161,7 +163,7 @@ func TestApply(t *testing.T) {
 				require.NoError(t, setCurrentMigration(ctx, b, *test.initialStatus))
 			}
 
-			test.errAssertion(t, Apply(ctx, b, withMigrations(test.migrations)))
+			test.errAssertion(t, Apply(ctx, log, b, withMigrations(test.migrations)))
 
 			current, err := getCurrentMigration(ctx, b)
 			require.NoError(t, err)

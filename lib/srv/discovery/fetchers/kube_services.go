@@ -20,8 +20,9 @@ package fetchers
 
 import (
 	"context"
-	"crypto/tls"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -30,7 +31,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,9 +51,11 @@ type KubeAppsFetcherConfig struct {
 	// Namespaces are the kubernetes namespaces in which to discover services
 	Namespaces []string
 	// Log is a logger to use
-	Log logrus.FieldLogger
+	Logger *slog.Logger
 	// ProtocolChecker inspects port to find your whether they are HTTP/HTTPS or not.
 	ProtocolChecker ProtocolChecker
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	DiscoveryConfigName string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -64,14 +66,14 @@ func (k *KubeAppsFetcherConfig) CheckAndSetDefaults() error {
 	if k.KubernetesClient == nil {
 		return trace.BadParameter("missing parameter KubernetesClient")
 	}
-	if k.Log == nil {
-		return trace.BadParameter("missing parameter Log")
+	if k.Logger == nil {
+		return trace.BadParameter("missing parameter Logger")
 	}
 	if k.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if k.ProtocolChecker == nil {
-		k.ProtocolChecker = NewProtoChecker(false)
+		k.ProtocolChecker = NewProtoChecker()
 	}
 
 	return nil
@@ -100,7 +102,7 @@ func isInternalKubeService(s v1.Service) bool {
 		s.GetNamespace() == metav1.NamespacePublic
 }
 
-func (f *KubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) {
+func (f *KubeAppFetcher) getServices(ctx context.Context, discoveryType string) ([]v1.Service, error) {
 	var result []v1.Service
 	nextToken := ""
 	namespaceFilter := func(ns string) bool {
@@ -123,13 +125,24 @@ func (f *KubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) 
 				// Namespace is not in the list of namespaces to fetch or it's an internal service
 				continue
 			}
+
+			// Skip service if it has type annotation and it's not the expected type.
+			if v, ok := s.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != discoveryType {
+				continue
+			}
+
+			// If the service is marked with the ignore annotation, skip it.
+			if v := s.GetAnnotations()[types.DiscoveryAppIgnore]; v == "true" {
+				continue
+			}
+
 			match, _, err := services.MatchLabels(f.FilterLabels, s.Labels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			} else if match {
 				result = append(result, s)
 			} else {
-				f.Log.WithField("service_name", s.Name).Debug("Service doesn't match labels.")
+				f.Logger.DebugContext(ctx, "Service doesn't match labels", "service", s.Name)
 			}
 		}
 		nextToken = kubeServices.Continue
@@ -148,7 +161,7 @@ const (
 
 // Get fetches Kubernetes apps from the cluster
 func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	kubeServices, err := f.getServices(ctx)
+	kubeServices, err := f.getServices(ctx, types.KubernetesMatchersApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,7 +170,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	// Both services and ports inside services are processed in parallel to minimize time.
 	// We also set limit to prevent potential spike load on a cluster in case there are a lot of services.
 	g, _ := errgroup.WithContext(ctx)
-	g.SetLimit(10)
+	g.SetLimit(20)
 
 	// Convert services to resources
 	var (
@@ -166,23 +179,12 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	)
 	for _, service := range kubeServices {
 		service := service
-
-		// Skip service if it has type annotation and it's not 'app'
-		if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != types.KubernetesMatchersApp {
-			continue
-		}
-
-		// If the service is marked with the ignore annotation, skip it.
-		if v := service.GetAnnotations()[types.DiscoveryAppIgnore]; v == "true" {
-			continue
-		}
-
 		g.Go(func() error {
 			protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 
 			ports, err := getServicePorts(service)
 			if err != nil {
-				f.Log.WithError(err).Errorf("could not get ports for the service %q", service.GetName())
+				f.Logger.ErrorContext(ctx, "could not get ports for the service", "error", err, "service", service.GetName())
 				return nil
 			}
 
@@ -192,7 +194,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				case protoHTTPS, protoHTTP, protoTCP:
 					portProtocols[port] = protocolAnnotation
 				default:
-					if p := autoProtocolDetection(services.GetServiceFQDN(service), port, f.ProtocolChecker); p != protoTCP {
+					if p := autoProtocolDetection(service, port, f.ProtocolChecker); p != protoTCP {
 						portProtocols[port] = p
 					}
 				}
@@ -205,7 +207,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				}
 				newApp, err := services.NewApplicationFromKubeService(service, f.ClusterName, portProtocol, port)
 				if err != nil {
-					f.Log.WithError(err).Warnf("Could not get app from a Kubernetes service %q, port %d", service.GetName(), port.Port)
+					f.Logger.WarnContext(ctx, "Could not get app from a Kubernetes service", "error", err, "service", service.GetName(), "port", port.Port)
 					return nil
 				}
 				newApps = append(newApps, newApp)
@@ -233,6 +235,15 @@ func (f *KubeAppFetcher) Cloud() string {
 	return ""
 }
 
+func (f *KubeAppFetcher) IntegrationName() string {
+	// KubeAppFetcher does not have an integration.
+	return ""
+}
+
+func (f *KubeAppFetcher) GetDiscoveryConfigName() string {
+	return f.DiscoveryConfigName
+}
+
 func (f *KubeAppFetcher) FetcherType() string {
 	return types.KubernetesMatchersApp
 }
@@ -245,10 +256,10 @@ func (f *KubeAppFetcher) String() string {
 // by protocol checker. It is used when no explicit annotation for port's protocol was provided.
 //   - If port's AppProtocol specifies `http` or `https` we return it
 //   - If port's name is `https` or number is 443 we return `https`
+//   - If port's name is `http` or number is 80 or 8080, we return `http`
 //   - If protocol checker is available it will perform HTTP request to the service fqdn trying to find out protocol. If it
 //     gives us result `http` or `https` we return it
-//   - If port's name is `http` or number is 80 or 8080, we return `http`
-func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolChecker) string {
+func autoProtocolDetection(service v1.Service, port v1.ServicePort, pc ProtocolChecker) string {
 	if port.AppProtocol != nil {
 		switch p := strings.ToLower(*port.AppProtocol); p {
 		case protoHTTP, protoHTTPS:
@@ -256,19 +267,23 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 		}
 	}
 
-	if port.Port == 443 || strings.EqualFold(port.Name, protoHTTPS) {
+	if strings.EqualFold(port.Name, protoHTTPS) || strings.EqualFold(port.TargetPort.StrVal, protoHTTPS) ||
+		port.Port == 443 || port.NodePort == 443 || port.TargetPort.IntVal == 443 {
+
 		return protoHTTPS
 	}
 
-	if pc != nil {
-		result := pc.CheckProtocol(fmt.Sprintf("%s:%d", serviceFQDN, port.Port))
-		if result != protoTCP {
-			return result
-		}
+	if strings.EqualFold(port.Name, protoHTTP) || strings.EqualFold(port.TargetPort.StrVal, protoHTTP) ||
+		port.Port == 80 || port.NodePort == 80 || port.TargetPort.IntVal == 80 ||
+		port.Port == 8080 || port.NodePort == 8080 || port.TargetPort.IntVal == 8080 {
+
+		return protoHTTP
 	}
 
-	if port.Port == 80 || port.Port == 8080 || strings.EqualFold(port.Name, protoHTTP) {
-		return protoHTTP
+	if pc != nil {
+		if result := pc.CheckProtocol(service, port); result != protoTCP {
+			return result
+		}
 	}
 
 	return protoTCP
@@ -276,7 +291,7 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 
 // ProtocolChecker is an interface used to check what protocol uri serves
 type ProtocolChecker interface {
-	CheckProtocol(uri string) string
+	CheckProtocol(service v1.Service, port v1.ServicePort) string
 }
 
 func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
@@ -308,38 +323,76 @@ func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
 }
 
 type ProtoChecker struct {
-	InsecureSkipVerify bool
-	client             *http.Client
+	client *http.Client
+
+	// cacheKubernetesServiceProtocol maps a Kubernetes Service Namespace/Name to a tuple containing the Service's ResourceVersion and the Protocol.
+	// When the Kubernetes Service ResourceVersion changes, then we assume the protocol might've changed as well, so the cache is invalidated.
+	// Only protocol checkers that require a network connection are cached.
+	cacheKubernetesServiceProtocol map[kubernetesNameNamespace]appResourceVersionProtocol
+	cacheMU                        sync.RWMutex
 }
 
-func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
+type appResourceVersionProtocol struct {
+	resourceVersion string
+	protocol        string
+}
+
+type kubernetesNameNamespace struct {
+	namespace string
+	name      string
+}
+
+func NewProtoChecker() *ProtoChecker {
 	p := &ProtoChecker{
-		InsecureSkipVerify: insecureSkipVerify,
 		client: &http.Client{
-			Timeout: 5 * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: insecureSkipVerify,
-				},
-			},
+			// This is a best-effort scenario, where teleport tries to guess which protocol is being used.
+			// Ideally it should either be inferred by the Service's ports or explicitly configured by using annotations on the service.
+			Timeout: 500 * time.Millisecond,
 		},
+		cacheKubernetesServiceProtocol: make(map[kubernetesNameNamespace]appResourceVersionProtocol),
 	}
 
 	return p
 }
 
-func (p *ProtoChecker) CheckProtocol(uri string) string {
+func (p *ProtoChecker) CheckProtocol(service v1.Service, port v1.ServicePort) string {
 	if p.client == nil {
 		return protoTCP
 	}
 
-	resp, err := p.client.Head(fmt.Sprintf("https://%s", uri))
-	if err == nil {
-		_ = resp.Body.Close()
-		return protoHTTPS
-	} else if strings.Contains(err.Error(), "server gave HTTP response to HTTPS client") {
-		return protoHTTP
+	key := kubernetesNameNamespace{namespace: service.Namespace, name: service.Name}
+
+	p.cacheMU.RLock()
+	versionProtocol, keyIsCached := p.cacheKubernetesServiceProtocol[key]
+	p.cacheMU.RUnlock()
+
+	if keyIsCached && versionProtocol.resourceVersion == service.ResourceVersion {
+		return versionProtocol.protocol
 	}
 
-	return protoTCP
+	var result string
+
+	uri := fmt.Sprintf("https://%s:%d", services.GetServiceFQDN(service), port.Port)
+	resp, err := p.client.Head(uri)
+	switch {
+	case err == nil:
+		result = protoHTTPS
+		_ = resp.Body.Close()
+
+	case errors.Is(err, http.ErrSchemeMismatch):
+		result = protoHTTP
+
+	default:
+		result = protoTCP
+
+	}
+
+	p.cacheMU.Lock()
+	p.cacheKubernetesServiceProtocol[key] = appResourceVersionProtocol{
+		resourceVersion: service.ResourceVersion,
+		protocol:        result,
+	}
+	p.cacheMU.Unlock()
+
+	return result
 }

@@ -47,6 +47,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -266,11 +267,11 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	closeCtx, cancel := context.WithCancel(ctx)
 
 	leaseCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             utils.SeventhJitter(time.Minute * 2),
+		TTL:             retryutils.SeventhJitter(time.Minute * 2),
 		Context:         closeCtx,
 		Clock:           options.clock,
 		ReloadOnErr:     true,
-		CleanupInterval: utils.SeventhJitter(time.Minute * 2),
+		CleanupInterval: retryutils.SeventhJitter(time.Minute * 2),
 	})
 	if err != nil {
 		cancel()
@@ -288,7 +289,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		ctx:         closeCtx,
 		watchDone:   make(chan struct{}),
 		buf:         buf,
-		leaseBucket: utils.SeventhJitter(options.leaseBucket),
+		leaseBucket: retryutils.SeventhJitter(options.leaseBucket),
 		leaseCache:  leaseCache,
 	}
 
@@ -513,7 +514,7 @@ WatchEvents:
 
 		// pause briefly to prevent excessive watcher creation attempts
 		select {
-		case <-time.After(utils.HalfJitter(time.Millisecond * 1500)):
+		case <-time.After(retryutils.HalfJitter(time.Millisecond * 1500)):
 		case <-b.ctx.Done():
 			break WatchEvents
 		}
@@ -651,10 +652,10 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 
 // GetRange returns query range
 func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey))}
@@ -718,7 +719,7 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 		return nil, trace.Wrap(convertErr(err))
 	}
 	if !re.Succeeded {
-		return nil, trace.AlreadyExists("%q already exists", string(item.Key))
+		return nil, trace.AlreadyExists("%v already exists", item.Key)
 	}
 
 	lease.Revision = toBackendRevision(re.Header.Revision)
@@ -746,7 +747,7 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 		return nil, trace.Wrap(convertErr(err))
 	}
 	if !re.Succeeded {
-		return nil, trace.NotFound("%q is not found", string(item.Key))
+		return nil, trace.NotFound("%q is not found", item.Key.String())
 	}
 
 	lease.Revision = toBackendRevision(re.Header.Revision)
@@ -790,10 +791,10 @@ func (b *EtcdBackend) ConditionalUpdate(ctx context.Context, item backend.Item) 
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
-	if len(expected.Key) == 0 {
+	if expected.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if len(replaceWith.Key) == 0 {
+	if replaceWith.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
 	if expected.Key.Compare(replaceWith.Key) != 0 {
@@ -824,7 +825,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 		return nil, trace.Wrap(err)
 	}
 	if !re.Succeeded {
-		return nil, trace.CompareFailed("key %q did not match expected value", string(expected.Key))
+		return nil, trace.CompareFailed("key %q did not match expected value", expected.Key.String())
 	}
 
 	lease.Revision = toBackendRevision(re.Header.Revision)
@@ -870,7 +871,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	_, err := b.clients.Next().Put(ctx, b.prependPrefix(lease.Key), "", opts...)
 	err = convertErr(err)
 	if trace.IsNotFound(err) {
-		return trace.NotFound("item %q is not found", string(lease.Key))
+		return trace.NotFound("item %q is not found", lease.Key.String())
 	}
 
 	return err
@@ -883,7 +884,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, 
 		return nil, convertErr(err)
 	}
 	if len(re.Kvs) == 0 {
-		return nil, trace.NotFound("item %q is not found", string(key))
+		return nil, trace.NotFound("item %q is not found", key.String())
 	}
 	kv := re.Kvs[0]
 	value, err := unmarshal(kv.Value)
@@ -907,7 +908,7 @@ func (b *EtcdBackend) Delete(ctx context.Context, key backend.Key) error {
 		return trace.Wrap(convertErr(err))
 	}
 	if re.Deleted == 0 {
-		return trace.NotFound("%q is not found", key)
+		return trace.NotFound("%q is not found", key.String())
 	}
 
 	return nil
@@ -940,10 +941,10 @@ func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix backend.Key,
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return trace.BadParameter("missing parameter endKey")
 	}
 	start := b.clock.Now()
@@ -1106,10 +1107,10 @@ func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	}
 }
 
-func (b *EtcdBackend) trimPrefix(in backend.Key) backend.Key {
-	return in.TrimPrefix(backend.Key(b.cfg.Key))
+func (b *EtcdBackend) trimPrefix(in []byte) backend.Key {
+	return backend.KeyFromString(string(in)).TrimPrefix(backend.KeyFromString(b.cfg.Key))
 }
 
 func (b *EtcdBackend) prependPrefix(in backend.Key) string {
-	return b.cfg.Key + string(in)
+	return b.cfg.Key + in.String()
 }

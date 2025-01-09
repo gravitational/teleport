@@ -17,25 +17,25 @@
  */
 
 import { useState } from 'react';
-import styled from 'styled-components';
 import { DayPicker } from 'react-day-picker';
+import styled from 'styled-components';
+
 import 'react-day-picker/dist/style.css';
-import { addMonths, format } from 'date-fns';
 
-import { Flex, Box, LabelInput, ButtonIcon } from 'design';
-import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
-import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
+import { addMonths } from 'date-fns';
+
+import { Box, ButtonIcon, Flex, LabelInput } from 'design';
 import { ButtonSecondary } from 'design/Button';
-
-import Validation from 'shared/components/Validation';
+import { displayShortDate } from 'design/datetime';
+import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
 import FieldSelect from 'shared/components/FieldSelect';
+import Validation from 'shared/components/Validation';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import cfg from 'shared/config';
-
 import { AccessRequest } from 'shared/services/accessRequests';
 
-import { TimeOption } from '../Shared/types';
+import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 
+import { TimeOption } from '../Shared/types';
 import {
   convertStartToTimeOption,
   getMaxAssumableDate,
@@ -118,7 +118,7 @@ export function AssumeStartTime({
 
   const startOrRequestedDate = start || accessRequest.assumeStartTime;
   if (!wantImmediate && startOrRequestedDate) {
-    startDateText = format(startOrRequestedDate, cfg.dateWithFullMonth);
+    startDateText = displayShortDate(startOrRequestedDate);
     startTime = convertStartToTimeOption(
       startOrRequestedDate,
       !start && !!accessRequest.assumeStartTime

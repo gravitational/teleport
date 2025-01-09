@@ -19,7 +19,6 @@
 package dynamo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"slices"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -178,7 +176,7 @@ TxnLoop:
 					First:  time.Millisecond * 16,
 					Driver: retryutils.NewExponentialDriver(time.Millisecond * 16),
 					Max:    time.Millisecond * 1024,
-					Jitter: utils.FullJitter,
+					Jitter: retryutils.FullJitter,
 				})
 
 				if err != nil {
@@ -269,12 +267,12 @@ TxnLoop:
 		return revision, nil
 	}
 
-	var keys [][]byte
+	var keys []string
 	for _, ca := range condacts {
-		keys = append(keys, ca.Key)
+		keys = append(keys, ca.Key.String())
 	}
 
-	b.logger.ErrorContext(ctx, "AtomicWrite failed, dynamodb transaction experienced too many conflicts", "keys", bytes.Join(keys, []byte(",")))
+	b.logger.ErrorContext(ctx, "AtomicWrite failed, dynamodb transaction experienced too many conflicts", "keys", strings.Join(keys, ","))
 
 	return "", trace.Errorf("dynamodb transaction experienced too many conflicts")
 }

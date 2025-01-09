@@ -95,7 +95,7 @@ func (p *PluginDataService) getPluginData(ctx context.Context, filter types.Plug
 	}
 	var matches []types.PluginData
 	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -198,7 +198,7 @@ func (p *PluginDataService) updatePluginData(ctx context.Context, params types.P
 				return trace.Wrap(err)
 			}
 		} else {
-			if _, err := p.CompareAndSwap(ctx, *item, newItem); err != nil {
+			if _, err := p.ConditionalUpdate(ctx, newItem); err != nil {
 				if trace.IsCompareFailed(err) {
 					select {
 					case <-retry.After():

@@ -24,7 +24,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -32,6 +33,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 // pollAWSEC2Instances is a function that returns a function that fetches
@@ -86,16 +88,21 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 					return h.Region == region && h.AccountId == a.AccountID
 				},
 			)
-			ec2Client, err := a.CloudClients.GetAWSEC2Client(ctx, region, a.getAWSOptions()...)
+			ec2Client, err := a.GetEC2Client(ctx, region, a.getAWSV2Options()...)
 			if err != nil {
 				collectHosts(prevIterationEc2, trace.Wrap(err))
 				return nil
 			}
 			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
-			err = ec2Client.DescribeInstancesPagesWithContext(ctx, &ec2.DescribeInstancesInput{
-				MaxResults: aws.Int64(pageSize),
-			}, func(page *ec2.DescribeInstancesOutput, lastPage bool) bool {
+			paginator := ec2.NewDescribeInstancesPaginator(ec2Client, &ec2.DescribeInstancesInput{
+				MaxResults: aws.Int32(int32(pageSize)),
+			})
+			for paginator.HasMorePages() {
+				page, err := paginator.NextPage(ctx)
+				if err != nil {
+					return libcloudaws.ConvertRequestFailureError(err)
+				}
 				lHosts := make([]*accessgraphv1alpha.AWSInstanceV1, 0, len(page.Reservations))
 				for _, reservation := range page.Reservations {
 					for _, instance := range reservation.Instances {
@@ -103,11 +110,6 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 					}
 				}
 				collectHosts(lHosts, nil)
-				return !lastPage
-			})
-
-			if err != nil {
-				collectHosts(prevIterationEc2, trace.Wrap(err))
 			}
 			return nil
 		})
@@ -119,7 +121,7 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 
 // awsInstanceToProtoInstance converts an ec2.Instance to accessgraphv1alpha.AWSInstanceV1
 // representation.
-func awsInstanceToProtoInstance(instance *ec2.Instance, region string, accountID string) *accessgraphv1alpha.AWSInstanceV1 {
+func awsInstanceToProtoInstance(instance ec2types.Instance, region string, accountID string) *accessgraphv1alpha.AWSInstanceV1 {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, tag := range instance.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{

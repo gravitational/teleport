@@ -19,21 +19,24 @@
 package native
 
 import (
-	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"log/slog"
 	"os"
-	"os/exec"
 	"os/user"
+	"strconv"
 	"time"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/yusufpapurcu/wmi"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/windowsexec"
 )
@@ -78,125 +81,110 @@ func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret 
 	return windowsDevice.handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret)
 }
 
-// getDeviceSerial returns the serial number of the device using PowerShell to
-// grab the correct WMI objects. Getting it without calling into PS is possible,
-// but requires interfacing with the ancient Win32 COM APIs.
 func getDeviceSerial() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_BIOS | Select -ExpandProperty SerialNumber",
-	)
 	// ThinkPad P P14s:
 	// PS > Get-WmiObject Win32_BIOS | Select -ExpandProperty SerialNumber
 	// PF47WND6
-	out, err := cmd.Output()
-	if err != nil {
+
+	type Win32_BIOS struct {
+		SerialNumber string
+	}
+
+	var bios []Win32_BIOS
+	query := wmi.CreateQuery(&bios, "")
+	if err := wmi.Query(query, &bios); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(bytes.TrimSpace(out)), nil
+
+	if len(bios) == 0 {
+		return "", trace.BadParameter("could not read serial number from Win32_BIOS")
+	}
+
+	return bios[0].SerialNumber, nil
 }
 
 func getReportedAssetTag() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_SystemEnclosure | Select -ExpandProperty SMBIOSAssetTag",
-	)
 	// ThinkPad P P14s:
 	// PS > Get-WmiObject Win32_SystemEnclosure | Select -ExpandProperty SMBIOSAssetTag
 	// winaia_1337
-	out, err := cmd.Output()
-	if err != nil {
+
+	type Win32_SystemEnclosure struct {
+		SMBIOSAssetTag string
+	}
+
+	var system []Win32_SystemEnclosure
+	query := wmi.CreateQuery(&system, "")
+	if err := wmi.Query(query, &system); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(bytes.TrimSpace(out)), nil
+
+	if len(system) == 0 {
+		return "", trace.BadParameter("could not read asset tag from Win32_SystemEnclosure")
+	}
+
+	return system[0].SMBIOSAssetTag, nil
 }
 
 func getDeviceModel() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_ComputerSystem | Select -ExpandProperty Model",
-	)
 	// ThinkPad P P14s:
 	// PS> Get-WmiObject Win32_ComputerSystem | Select -ExpandProperty Model
 	// 21J50013US
-	out, err := cmd.Output()
-	if err != nil {
+
+	type Win32_ComputerSystem struct {
+		Model string
+	}
+	var cs []Win32_ComputerSystem
+	query := wmi.CreateQuery(&cs, "")
+	if err := wmi.Query(query, &cs); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(bytes.TrimSpace(out)), nil
+
+	if len(cs) == 0 {
+		return "", trace.BadParameter("could not read model from Win32_ComputerSystem")
+	}
+
+	return cs[0].Model, nil
 }
 
 func getDeviceBaseBoardSerial() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_BaseBoard | Select -ExpandProperty SerialNumber",
-	)
 	// ThinkPad P P14s:
 	// PS> Get-WmiObject Win32_BaseBoard | Select -ExpandProperty SerialNumber
 	// L1HF2CM03ZT
-	out, err := cmd.Output()
-	if err != nil {
+
+	type Win32_BaseBoard struct {
+		SerialNumber string
+	}
+	var bb []Win32_BaseBoard
+	query := wmi.CreateQuery(&bb, "")
+	if err := wmi.Query(query, &bb); err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return string(bytes.TrimSpace(out)), nil
-}
-
-func getOSVersion() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty Version",
-	)
-	// ThinkPad P P14s:
-	// PS>  Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty Version
-	// 10.0.22621
-	out, err := cmd.Output()
-	if err != nil {
-		return "", trace.Wrap(err)
+	if len(bb) == 0 {
+		return "", trace.BadParameter("could not read serial from Win32_BaseBoard")
 	}
 
-	return string(bytes.TrimSpace(out)), nil
-}
-
-func getOSBuildNumber() (string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty BuildNumber",
-	)
-	// ThinkPad P P14s:
-	// PS>  Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty BuildNumber
-	// 22621
-	out, err := cmd.Output()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return string(bytes.TrimSpace(out)), nil
+	return bb[0].SerialNumber, nil
 }
 
 func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	log.Debug("TPM: Collecting device data.")
+	ctx := context.Background()
+	logger := slog.With(teleport.ComponentKey, "TPM")
+
+	logger.DebugContext(ctx, "Collecting device data")
 
 	var g errgroup.Group
 	const groupLimit = 4 // arbitrary
 	g.SetLimit(groupLimit)
 
 	// Run exec-ed commands concurrently.
-	var systemSerial, baseBoardSerial, reportedAssetTag, model, osVersion, osBuildNumber string
+	var systemSerial, baseBoardSerial, reportedAssetTag, model string
 	for _, spec := range []struct {
 		fn   func() (string, error)
 		out  *string
 		desc string
 	}{
 		{fn: getDeviceModel, out: &model, desc: "device model"},
-		{fn: getOSVersion, out: &osVersion, desc: "os version"},
-		{fn: getOSBuildNumber, out: &osBuildNumber, desc: "os build number"},
 		{fn: getDeviceSerial, out: &systemSerial, desc: "system serial"},
 		{fn: getDeviceBaseBoardSerial, out: &baseBoardSerial, desc: "base board serial"},
 		{fn: getReportedAssetTag, out: &reportedAssetTag, desc: "reported asset tag"},
@@ -205,7 +193,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		g.Go(func() error {
 			val, err := spec.fn()
 			if err != nil {
-				log.WithError(err).Debugf("TPM: Failed to fetch %v", spec.desc)
+				logger.DebugContext(ctx, "Failed to fetch device details", "details", spec.desc, "error", err)
 				return nil // Swallowed on purpose.
 			}
 
@@ -213,6 +201,8 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 			return nil
 		})
 	}
+
+	ver := windows.RtlGetVersion()
 
 	// We want to fetch as much info as possible, so errors are ignored.
 	_ = g.Wait()
@@ -232,16 +222,14 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		OsType:                devicepb.OSType_OS_TYPE_WINDOWS,
 		SerialNumber:          serial,
 		ModelIdentifier:       model,
-		OsVersion:             osVersion,
-		OsBuild:               osBuildNumber,
+		OsVersion:             fmt.Sprintf("%v.%v.%v", ver.MajorVersion, ver.MinorVersion, ver.BuildNumber),
+		OsBuild:               strconv.FormatInt(int64(ver.BuildNumber), 10),
 		OsUsername:            u.Username,
 		SystemSerialNumber:    systemSerial,
 		BaseBoardSerialNumber: baseBoardSerial,
 		ReportedAssetTag:      reportedAssetTag,
 	}
-	log.WithField(
-		"device_collected_data", dcd,
-	).Debug("TPM: Device data collected.")
+	logger.DebugContext(ctx, "Device data collected", "device_collected_data", dcd)
 	return dcd, nil
 }
 
@@ -285,7 +273,7 @@ func activateCredentialInElevatedChild(
 		params = append(params, "--debug")
 	}
 
-	log.Debug("Starting elevated process.")
+	slog.DebugContext(context.Background(), "Starting elevated process.")
 	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
 	err = windowsexec.RunAsAndWait(
 		exe,
@@ -301,7 +289,7 @@ func activateCredentialInElevatedChild(
 	// it.
 	defer func() {
 		if err := os.Remove(credActivationPath); err != nil {
-			log.WithError(err).Debug("Failed to clean up credential activation result")
+			slog.DebugContext(context.Background(), "Failed to clean up credential activation result", "error", err)
 		}
 	}()
 

@@ -1,0 +1,70 @@
+---
+title: JWT SVIDs
+description: An overview of the JWT SVIDs issued by Teleport Workload Identity
+---
+
+(!/docs/pages/includes/workload-id-preview.mdx!)
+
+One type of credential that can be issued by Teleport Workload Identity is a
+JWT SVID. This is a short-lived JSON Web Token (JWT) that contains the identity
+of the workload and is signed by the Teleport Workload Identity CA.
+
+The ability is issue JWT SVIDs has been available since Teleport 16.4.3.
+
+## Claims
+
+The JWT contains the following claims:
+
+- `sub`: The SPIFFE ID of the workload.
+- `aud`: The audience of the JWT. This indicates the intended recipient and
+  limits the potential for token reuse.
+- `exp`: The expiration time of the JWT. By default, Teleport issues JWT-SVIDs
+  with a 5-minute expiration lifetime.
+- `iat`: The time at which the JWT was issued.
+- `jti`: A unique identifier for this JWT. This allows a JWT-SVID to be
+  correlated with audit logs pertaining to its issuance.
+- `iss`: The issuer of the JWT. This is the host extracted from the public
+  address configured for your Teleport Proxy Service.
+
+The JWT-SVID can be useful in scenarios where X509-SVIDs are not suitable.
+For example, when the workload needs to authenticate to another workload which
+is behind a TLS-terminating load balancer.
+
+## OIDC Compatibility
+
+The JWT SVIDs issued by Teleport Workload Identity are compatible with the
+specification for OIDC ID Tokens. This means that they can be used by workloads
+to authenticate to services that accept OIDC ID tokens as a form of
+authentication.
+
+The OIDC compatibility is powered by two endpoints exposed by the Teleport
+Proxy Service:
+
+- `/workload-identity/.well-known/openid-configuration`: This endpoint exposes
+  the OIDC configuration for the Teleport Workload Identity CA. This includes
+  the issuer URL and the supported signing algorithms.
+- `/workload-identity/jwt-jwks.json`: This endpoint exposes the public signing
+  keys for the Teleport Workload Identity CA.
+
+In order for OIDC federation to function correctly, these two endpoints must be
+accessible from the service that you intend to use the JWT SVIDs to
+authenticate to.
+
+Teleport Workload Identity uses the publicly configured address for your
+Teleport Proxy service as the issuer URL for OIDC configuration.
+
+We have tested Teleport Workload Identity issued JWT-SVIDs with the following
+platforms:
+
+- [AWS](./aws-oidc-federation.mdx)
+- [Google Cloud Platform](./gcp-workload-identity-federation-jwt.mdx)
+- [Azure](./azure-federated-credentials.mdx)
+
+## Next steps
+
+- [Workload Identity Overview](./introduction.mdx): Overview of Teleport
+Workload Identity.
+- [Best Practices](./best-practices.mdx): Best practices for using Workload
+Identity in Production.
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.

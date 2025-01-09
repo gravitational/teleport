@@ -17,37 +17,44 @@
  */
 
 import React from 'react';
-import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
+
+import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
+import {
+  MenuItemSectionLabel,
+  MenuItemSectionSeparator,
+} from 'design/Menu/MenuItem';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
+import {
+  MenuInputType,
+  MenuLogin,
+  MenuLoginProps,
+} from 'shared/components/MenuLogin';
 
 import {
-  connectToServer,
-  connectToDatabase,
-  connectToKube,
-  connectToAppWithVnet,
-  captureAppLaunchInBrowser,
-  setUpAppGateway,
-} from 'teleterm/ui/services/workspacesService';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import {
-  Server,
-  Kube,
-  GatewayProtocol,
-  Database,
-  App,
-  Cluster,
-} from 'teleterm/services/tshd/types';
-
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import {
-  getWebAppLaunchUrl,
-  isWebApp,
+  formatPortRange,
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
+  getWebAppLaunchUrl,
+  isWebApp,
 } from 'teleterm/services/tshd/app';
+import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import {
+  captureAppLaunchInBrowser,
+  connectToAppWithVnet,
+  connectToDatabase,
+  connectToKube,
+  connectToServer,
+  setUpAppGateway,
+} from 'teleterm/ui/services/workspacesService';
+import { IAppContext } from 'teleterm/ui/types';
+import { DatabaseUri, routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
@@ -73,6 +80,7 @@ export function ConnectServerActionButton(props: {
 
   return (
     <MenuLogin
+      inputType={MenuInputType.FILTER}
       textTransform="none"
       getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
       onSelect={(e, login) => connect(login)}
@@ -113,8 +121,8 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const { isSupported: isVnetSupported } = useVnetContext();
   const launchVnet = useVnetLauncher();
 
-  function connectWithVnet(): void {
-    connectToAppWithVnet(appContext, launchVnet, props.app);
+  function connectWithVnet(targetPort?: number): void {
+    connectToAppWithVnet(appContext, launchVnet, props.app, targetPort);
   }
 
   function setUpGateway(): void {
@@ -220,7 +228,7 @@ function AppButton(props: {
   app: App;
   cluster: Cluster;
   rootCluster: Cluster;
-  connectWithVnet(): void;
+  connectWithVnet(targetPort?: number): void;
   setUpGateway(): void;
   onLaunchUrl(): void;
   isVnetSupported: boolean;
@@ -284,14 +292,39 @@ function AppButton(props: {
 
   // TCP app with VNet.
   if (props.isVnetSupported) {
+    let $targetPorts: JSX.Element;
+    if (props.app.tcpPorts.length) {
+      $targetPorts = (
+        <>
+          <MenuItemSectionSeparator />
+          <MenuItemSectionLabel>Available target ports</MenuItemSectionLabel>
+          {props.app.tcpPorts.map((portRange, index) => (
+            <MenuItem
+              // This list can't be dynamically reordered, so index as key is fine. Port ranges are
+              // not guaranteed to be unique, the user might add the same range twice.
+              key={index}
+              title="Start VNet and copy address to clipboard"
+              // In case that portRange represents a range and not a single port, passing the first
+              // port is fine. Otherwise we'd need to somehow offer an input for the user to choose
+              // any port within the range.
+              onClick={() => props.connectWithVnet(portRange.port)}
+            >
+              {formatPortRange(portRange)}
+            </MenuItem>
+          ))}
+        </>
+      );
+    }
+
     return (
       <ButtonWithMenu
         text="Connect"
         textTransform="none"
         size="small"
-        onClick={props.connectWithVnet}
+        onClick={() => props.connectWithVnet()}
       >
-        <MenuItem onClick={props.setUpGateway}>Connect to local port</MenuItem>
+        <MenuItem onClick={props.setUpGateway}>Connect without VNet</MenuItem>
+        {$targetPorts}
       </ButtonWithMenu>
     );
   }

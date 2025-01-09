@@ -30,7 +30,6 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -104,7 +103,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create reset password token event.")
+		a.logger.WarnContext(ctx, "Failed to emit create reset password token event", "error", err)
 	}
 
 	return a.GetUserToken(ctx, token.GetName())
@@ -151,7 +150,7 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	if len(proxies) == 0 {
 		proxyHost, err = s.GetDomainName()
 		if err != nil {
-			log.Errorf("Failed to retrieve cluster name, falling back to hostname: %v.", err)
+			logger.ErrorContext(context.TODO(), "Failed to retrieve cluster name, falling back to hostname", "error", err)
 			proxyHost = authHostname
 		}
 	} else {
@@ -364,7 +363,7 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create recovery token event.")
+		a.logger.WarnContext(ctx, "Failed to emit create recovery token event", "error", err)
 	}
 
 	return newToken, nil
@@ -385,7 +384,7 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	// For a user to add a device, second factor must be enabled.
 	// A nil request will be interpreted as a user who has second factor enabled
 	// but does not have any MFA registered, as can be the case with second factor optional.
-	if authPref.GetSecondFactor() == constants.SecondFactorOff {
+	if !authPref.IsSecondFactorEnabled() {
 		return nil, trace.AccessDenied("second factor must be enabled")
 	}
 
@@ -443,7 +442,7 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create privilege token event.")
+		a.logger.WarnContext(ctx, "Failed to emit create privilege token event", "error", err)
 	}
 
 	convertedToken, ok := token.(*types.UserTokenV3)
@@ -455,10 +454,13 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.
-func (a *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) error {
+func (a *Server) verifyUserToken(ctx context.Context, token types.UserToken, allowedKinds ...string) error {
 	if token.Expiry().Before(a.clock.Now().UTC()) {
 		// Provide obscure message on purpose, while logging the real error server side.
-		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
+		a.logger.DebugContext(ctx, "Expired token",
+			"token", token.GetName(),
+			"token_type", token.GetSubKind(),
+		)
 		return trace.AccessDenied("invalid token")
 	}
 
@@ -468,6 +470,10 @@ func (a *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) 
 		}
 	}
 
-	log.Debugf("Invalid token(%s) type(%s), expected type: %v", token.GetName(), token.GetSubKind(), allowedKinds)
+	a.logger.DebugContext(ctx, "Invalid token",
+		"token", token.GetName(),
+		"token_type", token.GetSubKind(),
+		"expected_type", allowedKinds,
+	)
 	return trace.AccessDenied("invalid token")
 }

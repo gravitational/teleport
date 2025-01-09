@@ -34,12 +34,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserTaskService_CreateUserTask_FullMethodName = "/teleport.usertasks.v1.UserTaskService/CreateUserTask"
-	UserTaskService_UpsertUserTask_FullMethodName = "/teleport.usertasks.v1.UserTaskService/UpsertUserTask"
-	UserTaskService_GetUserTask_FullMethodName    = "/teleport.usertasks.v1.UserTaskService/GetUserTask"
-	UserTaskService_ListUserTasks_FullMethodName  = "/teleport.usertasks.v1.UserTaskService/ListUserTasks"
-	UserTaskService_UpdateUserTask_FullMethodName = "/teleport.usertasks.v1.UserTaskService/UpdateUserTask"
-	UserTaskService_DeleteUserTask_FullMethodName = "/teleport.usertasks.v1.UserTaskService/DeleteUserTask"
+	UserTaskService_CreateUserTask_FullMethodName             = "/teleport.usertasks.v1.UserTaskService/CreateUserTask"
+	UserTaskService_UpsertUserTask_FullMethodName             = "/teleport.usertasks.v1.UserTaskService/UpsertUserTask"
+	UserTaskService_GetUserTask_FullMethodName                = "/teleport.usertasks.v1.UserTaskService/GetUserTask"
+	UserTaskService_ListUserTasks_FullMethodName              = "/teleport.usertasks.v1.UserTaskService/ListUserTasks"
+	UserTaskService_ListUserTasksByIntegration_FullMethodName = "/teleport.usertasks.v1.UserTaskService/ListUserTasksByIntegration"
+	UserTaskService_UpdateUserTask_FullMethodName             = "/teleport.usertasks.v1.UserTaskService/UpdateUserTask"
+	UserTaskService_DeleteUserTask_FullMethodName             = "/teleport.usertasks.v1.UserTaskService/DeleteUserTask"
 )
 
 // UserTaskServiceClient is the client API for UserTaskService service.
@@ -56,6 +57,8 @@ type UserTaskServiceClient interface {
 	GetUserTask(ctx context.Context, in *GetUserTaskRequest, opts ...grpc.CallOption) (*UserTask, error)
 	// ListUserTasks returns a list of UserTasks. It supports pagination and filters.
 	ListUserTasks(ctx context.Context, in *ListUserTasksRequest, opts ...grpc.CallOption) (*ListUserTasksResponse, error)
+	// ListUserTasksByIntegration returns a list of UserTasks filtered by an integration and other optional fields. It supports pagination.
+	ListUserTasksByIntegration(ctx context.Context, in *ListUserTasksByIntegrationRequest, opts ...grpc.CallOption) (*ListUserTasksResponse, error)
 	// UpdateUserTask updates an existing User Task.
 	UpdateUserTask(ctx context.Context, in *UpdateUserTaskRequest, opts ...grpc.CallOption) (*UserTask, error)
 	// DeleteUserTask deletes a User Task.
@@ -110,6 +113,16 @@ func (c *userTaskServiceClient) ListUserTasks(ctx context.Context, in *ListUserT
 	return out, nil
 }
 
+func (c *userTaskServiceClient) ListUserTasksByIntegration(ctx context.Context, in *ListUserTasksByIntegrationRequest, opts ...grpc.CallOption) (*ListUserTasksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserTasksResponse)
+	err := c.cc.Invoke(ctx, UserTaskService_ListUserTasksByIntegration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userTaskServiceClient) UpdateUserTask(ctx context.Context, in *UpdateUserTaskRequest, opts ...grpc.CallOption) (*UserTask, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UserTask)
@@ -144,6 +157,8 @@ type UserTaskServiceServer interface {
 	GetUserTask(context.Context, *GetUserTaskRequest) (*UserTask, error)
 	// ListUserTasks returns a list of UserTasks. It supports pagination and filters.
 	ListUserTasks(context.Context, *ListUserTasksRequest) (*ListUserTasksResponse, error)
+	// ListUserTasksByIntegration returns a list of UserTasks filtered by an integration and other optional fields. It supports pagination.
+	ListUserTasksByIntegration(context.Context, *ListUserTasksByIntegrationRequest) (*ListUserTasksResponse, error)
 	// UpdateUserTask updates an existing User Task.
 	UpdateUserTask(context.Context, *UpdateUserTaskRequest) (*UserTask, error)
 	// DeleteUserTask deletes a User Task.
@@ -169,6 +184,9 @@ func (UnimplementedUserTaskServiceServer) GetUserTask(context.Context, *GetUserT
 }
 func (UnimplementedUserTaskServiceServer) ListUserTasks(context.Context, *ListUserTasksRequest) (*ListUserTasksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUserTasks not implemented")
+}
+func (UnimplementedUserTaskServiceServer) ListUserTasksByIntegration(context.Context, *ListUserTasksByIntegrationRequest) (*ListUserTasksResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserTasksByIntegration not implemented")
 }
 func (UnimplementedUserTaskServiceServer) UpdateUserTask(context.Context, *UpdateUserTaskRequest) (*UserTask, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserTask not implemented")
@@ -269,6 +287,24 @@ func _UserTaskService_ListUserTasks_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserTaskService_ListUserTasksByIntegration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserTasksByIntegrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserTaskServiceServer).ListUserTasksByIntegration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserTaskService_ListUserTasksByIntegration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserTaskServiceServer).ListUserTasksByIntegration(ctx, req.(*ListUserTasksByIntegrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserTaskService_UpdateUserTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateUserTaskRequest)
 	if err := dec(in); err != nil {
@@ -327,6 +363,10 @@ var UserTaskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUserTasks",
 			Handler:    _UserTaskService_ListUserTasks_Handler,
+		},
+		{
+			MethodName: "ListUserTasksByIntegration",
+			Handler:    _UserTaskService_ListUserTasksByIntegration_Handler,
 		},
 		{
 			MethodName: "UpdateUserTask",

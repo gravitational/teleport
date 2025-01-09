@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Text, ButtonIcon, ButtonText } from 'design';
+import { ButtonIcon, ButtonText, Flex, Text } from 'design';
 import { Plus, Trash } from 'design/Icon';
-import { requiredField } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import { NewJoinTokenState, OptionGCP, RuleBox } from './UpsertJoinTokenDialog';
 
@@ -206,7 +205,7 @@ export const JoinTokenGCPForm = ({
             }
             value={rule.locations}
             label="Add Locations"
-            labelTip="Allows regions and/or zones."
+            helperText="Allows regions and/or zones."
           />
           <FieldSelectCreatable
             placeholder="PROJECT_compute@developer.gserviceaccount.com"

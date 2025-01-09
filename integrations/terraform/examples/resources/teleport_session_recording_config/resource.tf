@@ -1,6 +1,7 @@
 # Teleport session recording config
 
 resource "teleport_session_recording_config" "example" {
+  version = "v2"
   metadata = {
     description = "Session recording config"
     labels = {

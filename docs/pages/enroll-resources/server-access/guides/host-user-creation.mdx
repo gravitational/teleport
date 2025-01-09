@@ -36,7 +36,7 @@ end of an SSH session.
 In this section, you will configure Teleport to create local users when a
 Teleport user starts an SSH session.
 
-### Step 1/3. Configure RBAC
+### Step 1/4. Configure RBAC
 
 When a Teleport user accesses an SSH Service instance, Teleport checks each of
 the user's roles that match the instance. If at least one role matches the
@@ -104,9 +104,9 @@ The `create_host_user_mode` field enables host user creation when the value is
 the `app:nginx` label, the Teleport SSH Service creates a host user, adds it to
 the groups listed in `host_groups`, and gives it the sudoer permissions
 specified in the `host_sudoers` field. In this case, the new user receives
-permission to restart the Nginx service as root. The default shell for a created
-user can be configured with `create_host_user_default_shell`. Otherwise the
-host's default shell will be used.
+permission to restart the Nginx service as root. In Teleport 16.4.0 and later,
+the default shell for a created user can be configured with `create_host_user_default_shell`. 
+Otherwise the host's default shell will be used.
 
 {/*TODO (ptgott): We should move the information below into a reference guide*/}
 <Details title="Customizing host user creation">
@@ -181,7 +181,7 @@ $ tctl create -f auto-users.yaml
 1. Follow the instructions in your terminal to visit the Teleport Web UI and
    create the user.
 
-### Step 2/3. [Optional] Configure the UID and GID for the created users
+### Step 2/4. [Optional] Configure the UID and GID for the created users
 
 If the user has the `host_user_uid` and `host_user_gid` traits
 specified, when the host user is being created the UID and GID will be
@@ -216,7 +216,22 @@ If multiple entries are specified in the `host_user_uid` or `host_user_gid` only
 
 </Admonition>
 
-### Step 3/3 Test host user creation
+### Step 3/4. Configure sudoers on your Linux servers
+
+Teleport host user creation leverages the `sudoers.d` directory for new users. 
+For CentOS builds, ensure that the following line is present in your sudoers file. Ignore for any other Linux distros:
+
+```bash
+#includedir /etc/sudoers.d
+```
+
+In the sudoers file, the `#` symbol is typically used to indicate comments. However, 
+in this context, `#includedir` is a directive and not a comment.
+
+For Debian-based systems, you might encounter `@includedir /etc/sudoers.d`, 
+which serves a similar purpose. Ensure that the correct directive is used based on your operating system.
+
+### Step 4/4 Test host user creation
 
 When you connect to a remote Node via `tsh`, and host user creation is enabled, the
 Teleport SSH Service will automatically create a user on the host:
@@ -421,5 +436,7 @@ on the hosts.
 
 ## Next steps
 
-- Configure automatic user provisioning for [Database Access](../../database-access/auto-user-provisioning.mdx).
+- Configure automatic user provisioning for [Database Access](../../database-access/auto-user-provisioning/auto-user-provisioning.mdx).
 - Configure automatic user provisioning for [desktop access](../../../reference/agent-services/desktop-access-reference/user-creation.mdx).
+- Configure automatic user provisioning with [Terraform](../../../reference/terraform-provider/resources/role.mdx).
+Note when using the terraform provider that some values may be different than described in this guide.

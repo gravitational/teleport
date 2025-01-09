@@ -16,27 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { Location } from 'history';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { matchPath, useHistory } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { ChevronRightIcon } from 'design/SVGIcon';
+import { ChevronRight } from 'design/Icon';
 
-import { NavLink } from 'react-router-dom';
-
-import { matchPath, useHistory } from 'react-router';
-
+import { useTeleport } from 'teleport';
+import { useFeatures } from 'teleport/FeaturesContext';
 import {
   commonNavigationItemStyles,
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
-import { useFeatures } from 'teleport/FeaturesContext';
 import { getIcon } from 'teleport/Navigation/utils';
-
-import { useTeleport } from 'teleport';
-
-import type { Location } from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
 
 interface NavigationDropdownProps {
@@ -293,7 +288,7 @@ export function NavigationDropdown(props: NavigationDropdownProps) {
           {props.feature.navigationItem.title}
 
           <DropdownArrow open={open}>
-            <ChevronRightIcon />
+            <ChevronRight />
           </DropdownArrow>
         </LinkContent>
       </Container>

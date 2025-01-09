@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+import styled, { css, useTheme } from 'styled-components';
+
 import {
   Box,
   ButtonPrimary,
@@ -25,8 +28,6 @@ import {
   Indicator,
   Subtitle2,
 } from 'design';
-import React from 'react';
-import styled, { useTheme, css } from 'styled-components';
 
 export interface HeaderProps {
   title: React.ReactNode;
@@ -49,7 +50,7 @@ export function Header({
       {/* lineHeight=0 prevents the icon background from being larger than
           required by the icon itself. */}
       <Box
-        bg={theme.colors.interactive.tonal.neutral[0].background}
+        bg={theme.colors.interactive.tonal.neutral[0]}
         lineHeight={0}
         p={2}
         borderRadius={3}

@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_oidc_connector Terraform data-source
+sidebar_label: oidc_connector
 description: This page describes the supported values of the teleport_oidc_connector data-source of the Teleport Terraform provider.
 ---
 
@@ -30,7 +31,7 @@ Optional:
 - `acr_values` (String) ACR is an Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.
 - `allow_unverified_email` (Boolean) AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a dynamic mapping from claims to roles. (see [below for nested schema](#nested-schema-for-specclaims_to_roles))
-- `client_id` (String) ClientID is the id of the authentication client (Teleport Auth server).
+- `client_id` (String) ClientID is the id of the authentication client (Teleport Auth Service).
 - `client_redirect_settings` (Attributes) ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones. (see [below for nested schema](#nested-schema-for-specclient_redirect_settings))
 - `client_secret` (String, Sensitive) ClientSecret is used to authenticate the client.
 - `display` (String) Display is the friendly name for this provider.
@@ -39,9 +40,10 @@ Optional:
 - `google_service_account_uri` (String) GoogleServiceAccountURI is a path to a google service account uri.
 - `issuer_url` (String) IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
 - `max_age` (String)
+- `mfa` (Attributes) MFASettings contains settings to enable SSO MFA checks through this auth connector. (see [below for nested schema](#nested-schema-for-specmfa))
 - `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
 - `provider` (String) Provider is the external identity provider.
-- `redirect_url` (List of String)
+- `redirect_url` (List of String) RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.
 - `scope` (List of String) Scope specifies additional scopes set by provider.
 - `username_claim` (String) UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
 
@@ -60,6 +62,18 @@ Optional:
 
 - `allowed_https_hostnames` (List of String) a list of hostnames allowed for https client redirect URLs
 - `insecure_allowed_cidr_ranges` (List of String) a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+
+
+### Nested Schema for `spec.mfa`
+
+Optional:
+
+- `acr_values` (String) AcrValues are Authentication Context Class Reference values. The meaning of the ACR value is context-specific and varies for identity providers. Some identity providers support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
+- `client_id` (String) ClientID is the OIDC OAuth app client ID.
+- `client_secret` (String) ClientSecret is the OIDC OAuth app client secret.
+- `enabled` (Boolean) Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.
+- `max_age` (String) MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.
+- `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
 
 
 

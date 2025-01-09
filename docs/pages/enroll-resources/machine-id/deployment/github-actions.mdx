@@ -277,6 +277,13 @@ spec:
     - editor
 ```
 
+<Admonition type="note">
+This example assumes the role is version `v6`. If you are using a `v7`+ role
+you will need to include `verbs: ["get", "list"]` for the `kind: pod` section
+in `kubernetes_resources`. Otherwise the example `kubectl get pods -A` execution
+will be denied.
+</Admonition>
+
 With that privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 

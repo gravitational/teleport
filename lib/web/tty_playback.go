@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -53,6 +54,47 @@ const (
 	actionPause = byte(1)
 )
 
+func (h *Handler) sessionLengthHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+) (interface{}, error) {
+	sID := p.ByName("sid")
+	if sID == "" {
+		return nil, trace.BadParameter("missing session ID in request URL")
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	evts, errs := clt.StreamSessionEvents(ctx, session.ID(sID), 0)
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err)
+		case evt, ok := <-evts:
+			if !ok {
+				return nil, trace.NotFound("could not find end event for session %v", sID)
+			}
+			switch evt := evt.(type) {
+			case *events.SessionEnd:
+				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+			case *events.WindowsDesktopSessionEnd:
+				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+			case *events.DatabaseSessionEnd:
+				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+			}
+		}
+	}
+}
+
 func (h *Handler) ttyPlaybackHandle(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -70,14 +112,14 @@ func (h *Handler) ttyPlaybackHandle(
 		return nil, trace.Wrap(err)
 	}
 
-	h.log.Debug("upgrading to websocket")
+	h.logger.DebugContext(r.Context(), "upgrading to websocket")
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.log.Warn("failed upgrade", err)
+		h.logger.WarnContext(r.Context(), "failed upgrade", "error", err)
 		// if Upgrade fails, it automatically replies with an HTTP error
 		// (this means we don't need to return an error here)
 		return nil, nil
@@ -85,12 +127,13 @@ func (h *Handler) ttyPlaybackHandle(
 
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,
-		Log:       h.log,
+		Log:       h.logger,
 		SessionID: session.ID(sID),
 		Streamer:  clt,
+		Context:   r.Context(),
 	})
 	if err != nil {
-		h.log.Warn("player error", err)
+		h.logger.WarnContext(r.Context(), "player error", "error", err)
 		writeError(ws, err)
 		return nil, nil
 	}
@@ -104,18 +147,18 @@ func (h *Handler) ttyPlaybackHandle(
 			typ, b, err := ws.ReadMessage()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) {
-					log.Warnf("websocket read error: %v", err)
+					h.logger.WarnContext(ctx, "websocket read error", "error", err)
 				}
 				return
 			}
 
 			if typ != websocket.BinaryMessage {
-				log.Debugf("skipping unknown websocket message type %v", typ)
+				h.logger.DebugContext(ctx, "skipping unknown websocket message type", "message_type", logutils.TypeAttr(typ))
 				continue
 			}
 
 			if err := handlePlaybackAction(b, player); err != nil {
-				log.Warnf("skipping bad action: %v", err)
+				h.logger.WarnContext(ctx, "skipping bad action", "error", err)
 				continue
 			}
 		}
@@ -124,12 +167,12 @@ func (h *Handler) ttyPlaybackHandle(
 	go func() {
 		defer cancel()
 		defer func() {
-			h.log.Debug("closing websocket")
+			h.logger.DebugContext(ctx, "closing websocket")
 			if err := ws.WriteMessage(websocket.CloseMessage, nil); err != nil {
-				h.log.Debugf("error sending close message: %v", err)
+				h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
 			}
 			if err := ws.Close(); err != nil {
-				h.log.Debugf("error closing websocket: %v", err)
+				h.logger.DebugContext(ctx, "error closing websocket", "error", err)
 			}
 		}()
 
@@ -167,7 +210,7 @@ func (h *Handler) ttyPlaybackHandle(
 		writeSize := func(size string) error {
 			ts, err := session.UnmarshalTerminalParams(size)
 			if err != nil {
-				h.log.Debugf("Ignoring invalid terminal size %q", size)
+				h.logger.DebugContext(ctx, "Ignoring invalid terminal size", "terminal_size", size)
 				return nil // don't abort playback due to a bad event
 			}
 
@@ -188,7 +231,7 @@ func (h *Handler) ttyPlaybackHandle(
 				if !ok {
 					// send any playback errors to the browser
 					if err := writeError(ws, player.Err()); err != nil {
-						h.log.Warnf("failed to send error message to browser: %v", err)
+						h.logger.WarnContext(ctx, "failed to send error message to browser", "error", err)
 					}
 					return
 				}
@@ -196,13 +239,13 @@ func (h *Handler) ttyPlaybackHandle(
 				switch evt := evt.(type) {
 				case *events.SessionStart:
 					if err := writeSize(evt.TerminalSize); err != nil {
-						h.log.Debugf("Failed to write resize: %v", err)
+						h.logger.DebugContext(ctx, "Failed to write resize", "error", err)
 						return
 					}
 
 				case *events.SessionPrint:
 					if err := writePTY(evt.Data, uint64(evt.DelayMilliseconds)); err != nil {
-						h.log.Debugf("Failed to send PTY data: %v", err)
+						h.logger.DebugContext(ctx, "Failed to send PTY data", "error", err)
 						return
 					}
 
@@ -211,20 +254,20 @@ func (h *Handler) ttyPlaybackHandle(
 					// at the end of the recording is processed and the allow
 					// the progress bar to go to 100%
 					if err := writePTY(nil, uint64(evt.EndTime.Sub(evt.StartTime)/time.Millisecond)); err != nil {
-						h.log.Debugf("Failed to send session end data: %v", err)
+						h.logger.DebugContext(ctx, "Failed to send session end data", "error", err)
 						return
 					}
 
 				case *events.Resize:
 					if err := writeSize(evt.TerminalSize); err != nil {
-						h.log.Debugf("Failed to write resize: %v", err)
+						h.logger.DebugContext(ctx, "Failed to write resize", "error", err)
 						return
 					}
 
 				case *events.SessionLeave: // do nothing
 
 				default:
-					h.log.Debugf("unexpected event type %T", evt)
+					h.logger.DebugContext(ctx, "unexpected event type", "event_type", logutils.TypeAttr(evt))
 				}
 			}
 		}

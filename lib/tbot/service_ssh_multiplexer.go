@@ -273,11 +273,15 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
-	proxyHost, _, err = net.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return nil, nil, "", nil, trace.Wrap(err, "determining proxy web addr")
+	}
+	proxyHost, _, err = net.SplitHostPort(proxyAddr)
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
+
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
@@ -519,6 +523,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 				s.agentMu.Unlock()
 
 				s.log.DebugContext(egCtx, "Serving agent connection")
+				//nolint:staticcheck // SA4023. ServeAgent always returns a non-nil error. This is fine.
 				err := agent.ServeAgent(currentAgent, conn)
 				if err != nil && !utils.IsOKNetworkError(err) {
 					s.log.WarnContext(
@@ -662,7 +667,7 @@ func (s *SSHMultiplexerService) handleConn(
 		host = cleanTargetHost(host, proxyHost, clusterName)
 		target = net.JoinHostPort(host, port)
 	} else {
-		node, err := resolveTargetHostWithClient(ctx, authClient, expanded.Search, expanded.Query)
+		node, err := resolveTargetHostWithClient(ctx, authClient.APIClient, expanded.Search, expanded.Query)
 		if err != nil {
 			return trace.Wrap(err, "resolving target host")
 		}

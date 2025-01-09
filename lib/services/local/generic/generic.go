@@ -52,7 +52,7 @@ type ServiceConfig[T Resource] struct {
 	// PageLimit
 	PageLimit uint
 	// BackendPrefix used when constructing the [backend.Item.Key].
-	BackendPrefix string
+	BackendPrefix backend.Key
 	// MarshlFunc converts the resource to bytes for persistence.
 	MarshalFunc MarshalFunc[T]
 	// UnmarshalFunc converts the bytes read from the backend to the resource.
@@ -81,7 +81,7 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	if c.PageLimit == 0 {
 		c.PageLimit = defaults.DefaultChunkSize
 	}
-	if c.BackendPrefix == "" {
+	if c.BackendPrefix.IsZero() {
 		return trace.BadParameter("backend prefix is missing")
 	}
 	if c.MarshalFunc == nil {
@@ -107,7 +107,7 @@ type Service[T Resource] struct {
 	backend                     backend.Backend
 	resourceKind                string
 	pageLimit                   uint
-	backendPrefix               string
+	backendPrefix               backend.Key
 	marshalFunc                 MarshalFunc[T]
 	unmarshalFunc               UnmarshalFunc[T]
 	validateFunc                func(T) error
@@ -145,7 +145,7 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 		backend:                     s.backend,
 		resourceKind:                s.resourceKind,
 		pageLimit:                   s.pageLimit,
-		backendPrefix:               strings.Join(append([]string{s.backendPrefix}, parts...), string(backend.Separator)),
+		backendPrefix:               s.backendPrefix.AppendKey(backend.NewKey(parts...)),
 		marshalFunc:                 s.marshalFunc,
 		unmarshalFunc:               s.unmarshalFunc,
 		validateFunc:                s.validateFunc,
@@ -156,7 +156,7 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 
 // CountResources will return a count of all resources in the prefix range.
 func (s *Service[T]) CountResources(ctx context.Context) (uint, error) {
-	rangeStart := backend.ExactKey(s.backendPrefix)
+	rangeStart := s.backendPrefix.ExactKey()
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	count := uint(0)
@@ -171,7 +171,7 @@ func (s *Service[T]) CountResources(ctx context.Context) (uint, error) {
 
 // GetResources returns a list of all resources.
 func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
-	rangeStart := backend.ExactKey(s.backendPrefix)
+	rangeStart := s.backendPrefix.ExactKey()
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	// no filter provided get the range directly
@@ -205,8 +205,8 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	return resources, next, trace.Wrap(err)
 }
 func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context, pageSize int, pageToken string) ([]T, *T, string, error) {
-	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
+	rangeStart := s.backendPrefix.AppendKey(backend.KeyFromString(pageToken))
+	rangeEnd := backend.RangeEnd(s.backendPrefix.ExactKey())
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > int(s.pageLimit) {
@@ -240,7 +240,7 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 		next = &out[pageSize]
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
-		nextKey = trimLastKey(lastKey.String(), s.backendPrefix)
+		nextKey = strings.TrimPrefix(lastKey.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
 	}
 
 	return out, next, nextKey, nil
@@ -248,15 +248,13 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 
 // ListResourcesWithFilter returns a paginated list of resources that match the given filter.
 func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
-	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
+	rangeStart := s.backendPrefix.AppendKey(backend.KeyFromString(pageToken))
+	rangeEnd := backend.RangeEnd(s.backendPrefix.ExactKey())
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > int(s.pageLimit) {
 		pageSize = int(s.pageLimit)
 	}
-
-	limit := pageSize + 1
 
 	var resources []T
 	var lastKey backend.Key
@@ -265,7 +263,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		s.backend,
 		rangeStart,
 		rangeEnd,
-		limit,
+		pageSize+1,
 		func(items []backend.Item) (stop bool, err error) {
 			for _, item := range items {
 				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
@@ -275,19 +273,19 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 				if matcher(resource) {
 					lastKey = item.Key
 					resources = append(resources, resource)
-				}
-				if len(resources) == pageSize {
-					break
+					if len(resources) >= pageSize+1 {
+						return true, nil
+					}
 				}
 			}
-			return limit == len(resources), nil
+			return false, nil
 		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	var nextKey string
 	if len(resources) > pageSize {
-		nextKey = trimLastKey(lastKey.String(), s.backendPrefix)
+		nextKey = strings.TrimPrefix(lastKey.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
 		// Truncate the last item that was used to determine next row existence.
 		resources = resources[:pageSize]
 	}
@@ -298,7 +296,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 
 // GetResource returns the specified resource.
 func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, err error) {
-	item, err := s.backend.Get(ctx, s.MakeKey(name))
+	item, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(name)))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -408,7 +406,7 @@ func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) 
 
 // DeleteResource removes the specified resource.
 func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
-	err := s.backend.Delete(ctx, s.MakeKey(name))
+	err := s.backend.Delete(ctx, s.MakeKey(backend.NewKey(name)))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -420,14 +418,14 @@ func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
 
 // DeleteAllResources removes all resources.
 func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
-	startKey := backend.ExactKey(s.backendPrefix)
+	startKey := s.backendPrefix.ExactKey()
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
 func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) (T, error) {
 	var t T
-	existingItem, err := s.backend.Get(ctx, s.MakeKey(name))
+	existingItem, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(name)))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -479,7 +477,7 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      s.MakeKey(name),
+		Key:      s.MakeKey(backend.NewKey(name)),
 		Value:    value,
 		Revision: rev,
 	}
@@ -493,8 +491,8 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 }
 
 // MakeKey will make a key for the service given a name.
-func (s *Service[T]) MakeKey(name string) backend.Key {
-	return backend.NewKey(s.backendPrefix, name)
+func (s *Service[T]) MakeKey(k backend.Key) backend.Key {
+	return s.backendPrefix.AppendKey(k)
 }
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
@@ -510,14 +508,4 @@ func (s *Service[T]) RunWhileLocked(ctx context.Context, lockNameComponents []st
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)
 		}))
-}
-
-func trimLastKey(lastKey, prefix string) string {
-	if !strings.HasSuffix(prefix, string(backend.Separator)) {
-		prefix += string(backend.Separator)
-	}
-	if !strings.HasPrefix(prefix, string(backend.Separator)) {
-		prefix = string(backend.Separator) + prefix
-	}
-	return strings.TrimPrefix(lastKey, prefix)
 }

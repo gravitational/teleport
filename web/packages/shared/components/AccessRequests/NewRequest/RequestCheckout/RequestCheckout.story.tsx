@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { MemoryRouter, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, MemoryRouter } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
-
 import { Option } from 'shared/components/Select';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
-
 import {
   RequestCheckoutWithSlider,
   RequestCheckoutWithSliderProps,
@@ -81,7 +79,7 @@ export const Empty = () => {
     <MemoryRouter>
       <RequestCheckoutWithSlider
         {...baseProps}
-        data={[]}
+        pendingAccessRequests={[]}
         selectedReviewers={selectedReviewers}
         setSelectedReviewers={setSelectedReviewers}
         maxDuration={maxDuration}
@@ -152,6 +150,32 @@ export const FailedResourceRequest = () => (
   </MemoryRouter>
 );
 
+export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment], test-role-2: [pod secret configmap service serviceaccount kube_node persistentvolume persistentvolumeclaim deployment replicaset statefulset daemonset clusterrole kube_role clusterrolebinding rolebinding cronjob job certificatesigningrequest ingress]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
 export const Success = () => (
   <MemoryRouter initialEntries={['']}>
     <RequestCheckoutWithSlider
@@ -164,6 +188,13 @@ export const Success = () => (
 );
 
 const baseProps: RequestCheckoutWithSliderProps = {
+  fetchKubeNamespaces: async () => [
+    'namespace1',
+    'namespace2',
+    'namespace3',
+    'namespace4',
+  ],
+  updateNamespacesForKubeCluster: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
@@ -177,7 +208,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
   ],
   setSelectedReviewers: () => null,
   createRequest: () => null,
-  data: [
+  pendingAccessRequests: [
     {
       kind: 'app',
       name: 'app-name',
@@ -207,6 +238,11 @@ const baseProps: RequestCheckoutWithSliderProps = {
       kind: 'saml_idp_service_provider',
       name: 'app-saml',
       id: 'app-name',
+    },
+    {
+      kind: 'aws_ic_account_assignment',
+      name: 'account1',
+      id: 'admin-on-account1',
     },
   ],
   clearAttempt: () => null,

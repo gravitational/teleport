@@ -72,11 +72,11 @@ const updateClientsJoinWarning = "This agent joined the cluster during the updat
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(process.Config.MaxRetryPeriod / 10),
+		First:  retryutils.HalfJitter(process.Config.MaxRetryPeriod / 10),
 		Step:   process.Config.MaxRetryPeriod / 5,
 		Max:    process.Config.MaxRetryPeriod,
 		Clock:  process.Clock,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -495,12 +495,14 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		process.logger.WarnContext(process.ExitContext(), "Failed to write identity to storage.", "identity", role, "error", err)
 	}
 
-	if err := process.storage.WriteState(role, state.StateV2{
+	err = process.storage.WriteState(role, state.StateV2{
 		Spec: state.StateSpecV2{
 			Rotation:            ca.GetRotation(),
 			InitialLocalVersion: teleport.Version,
 		},
-	}); err != nil {
+	})
+	process.rotationCache.Remove(role)
+	if err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())
 	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
@@ -640,10 +642,10 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	process.logger.InfoContext(process.ExitContext(), "The new service has started successfully. Starting syncing rotation status.", "max_retry_period", maxRetryPeriod)
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  utils.FullJitter(maxRetryPeriod / 16),
+		First:  retryutils.FullJitter(maxRetryPeriod / 16),
 		Driver: retryutils.NewExponentialDriver(maxRetryPeriod / 16),
 		Max:    maxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  process.Clock,
 	})
 	if err != nil {
@@ -704,8 +706,8 @@ func (process *TeleportProcess) syncRotationStateCycle(retry retryutils.Retry) e
 
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.PollingPeriod,
-		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.HalfJitter(process.Config.PollingPeriod),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 
@@ -912,6 +914,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 		}
 		localState.Spec.Rotation = remote
 		err = storage.WriteState(id.Role, localState)
+		process.rotationCache.Remove(id.Role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -982,6 +985,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			// only update local phase, there is no need to reload
 			localState.Spec.Rotation = remote
 			err = storage.WriteState(id.Role, localState)
+			process.rotationCache.Remove(id.Role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1087,77 +1091,13 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	// Set cluster features and return successfully with a working connector.
 	// TODO(michellescripts) remove clone & compatibility check in v18
 	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
-	supportEntitlementsCompatibility(cloned)
+	entitlements.BackfillFeatures(cloned)
 	process.setClusterFeatures(cloned)
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())
 
 	newConn.Client = clt
 	return newConn, nil
-}
-
-// supportEntitlementsCompatibility ensures entitlements are backwards compatible
-// If Entitlements are present, there are no changes
-// If Entitlements are not present, sets the entitlements fields to legacy field values
-// TODO(michellescripts) remove in v18
-func supportEntitlementsCompatibility(features *proto.Features) {
-	if len(features.Entitlements) > 0 {
-		return
-	}
-
-	features.Entitlements = getBaseEntitlements(features.GetEntitlements())
-
-	// Entitlements: All records are {enabled: false}; update to equal legacy feature value
-	features.Entitlements[string(entitlements.ExternalAuditStorage)] = &proto.EntitlementInfo{Enabled: features.GetExternalAuditStorage()}
-	features.Entitlements[string(entitlements.FeatureHiding)] = &proto.EntitlementInfo{Enabled: features.GetFeatureHiding()}
-	features.Entitlements[string(entitlements.Identity)] = &proto.EntitlementInfo{Enabled: features.GetIdentityGovernance()}
-	features.Entitlements[string(entitlements.JoinActiveSessions)] = &proto.EntitlementInfo{Enabled: features.GetJoinActiveSessions()}
-	features.Entitlements[string(entitlements.MobileDeviceManagement)] = &proto.EntitlementInfo{Enabled: features.GetMobileDeviceManagement()}
-	features.Entitlements[string(entitlements.OIDC)] = &proto.EntitlementInfo{Enabled: features.GetOIDC()}
-	features.Entitlements[string(entitlements.Policy)] = &proto.EntitlementInfo{Enabled: features.GetPolicy().GetEnabled()}
-	features.Entitlements[string(entitlements.SAML)] = &proto.EntitlementInfo{Enabled: features.GetSAML()}
-	features.Entitlements[string(entitlements.K8s)] = &proto.EntitlementInfo{Enabled: features.GetKubernetes()}
-	features.Entitlements[string(entitlements.App)] = &proto.EntitlementInfo{Enabled: features.GetApp()}
-	features.Entitlements[string(entitlements.DB)] = &proto.EntitlementInfo{Enabled: features.GetDB()}
-	features.Entitlements[string(entitlements.Desktop)] = &proto.EntitlementInfo{Enabled: features.GetDesktop()}
-	features.Entitlements[string(entitlements.HSM)] = &proto.EntitlementInfo{Enabled: features.GetHSM()}
-
-	// set default Identity fields to legacy feature value
-	features.Entitlements[string(entitlements.AccessLists)] = &proto.EntitlementInfo{Enabled: true, Limit: features.GetAccessList().GetCreateLimit()}
-	features.Entitlements[string(entitlements.AccessMonitoring)] = &proto.EntitlementInfo{Enabled: features.GetAccessMonitoring().GetEnabled(), Limit: features.GetAccessMonitoring().GetMaxReportRangeLimit()}
-	features.Entitlements[string(entitlements.AccessRequests)] = &proto.EntitlementInfo{Enabled: features.GetAccessRequests().MonthlyRequestLimit > 0, Limit: features.GetAccessRequests().GetMonthlyRequestLimit()}
-	features.Entitlements[string(entitlements.DeviceTrust)] = &proto.EntitlementInfo{Enabled: features.GetDeviceTrust().GetEnabled(), Limit: features.GetDeviceTrust().GetDevicesUsageLimit()}
-	// override Identity Package features if Identity is enabled: set true and clear limit
-	if features.GetIdentityGovernance() {
-		features.Entitlements[string(entitlements.AccessLists)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.AccessMonitoring)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.AccessRequests)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.DeviceTrust)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.OktaSCIM)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.OktaUserSync)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.SessionLocks)] = &proto.EntitlementInfo{Enabled: true}
-	}
-}
-
-// getBaseEntitlements takes a cloud entitlement set and returns a modules Entitlement set
-func getBaseEntitlements(protoEntitlements map[string]*proto.EntitlementInfo) map[string]*proto.EntitlementInfo {
-	all := entitlements.AllEntitlements
-	result := make(map[string]*proto.EntitlementInfo, len(all))
-
-	for _, e := range all {
-		al, ok := protoEntitlements[string(e)]
-		if !ok {
-			result[string(e)] = &proto.EntitlementInfo{}
-			continue
-		}
-
-		result[string(e)] = &proto.EntitlementInfo{
-			Enabled: al.Enabled,
-			Limit:   al.Limit,
-		}
-	}
-
-	return result
 }
 
 // newClient attempts to connect to either the proxy server or auth server
@@ -1279,7 +1219,9 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		ClientConfig:          sshConfig,
 		Log:                   process.logger,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
-		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(tlsConfig.RootCAs),
+		GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
+			return getClusterCAs()
+		},
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

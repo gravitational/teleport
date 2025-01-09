@@ -30,7 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
-	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -440,7 +439,7 @@ func testRDS(t *testing.T) {
 	})
 }
 
-func connectAsRDSPostgresAdmin(t *testing.T, ctx context.Context, instanceID string) *pgx.Conn {
+func connectAsRDSPostgresAdmin(t *testing.T, ctx context.Context, instanceID string) *pgConn {
 	t.Helper()
 	info := getRDSAdminInfo(t, ctx, instanceID)
 	const dbName = "postgres"
@@ -464,17 +463,18 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 	const dbName = "mysql"
 	info := getRDSAdminInfo(t, ctx, instanceID)
 
-	opt := func(conn *mysqlclient.Conn) {
+	opt := func(conn *mysqlclient.Conn) error {
 		conn.SetTLSConfig(&tls.Config{
 			ServerName: info.address,
 			RootCAs:    awsCertPool.Clone(),
 		})
+		return nil
 	}
 	endpoint := fmt.Sprintf("%s:%d", info.address, info.port)
 	conn, err := mysqlclient.Connect(endpoint, info.username, info.password, dbName, opt)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = conn.Close()
+		_ = conn.Quit()
 	})
 	return &mySQLConn{conn: conn}
 }
@@ -508,7 +508,7 @@ func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) dbUse
 
 // provisionRDSPostgresAutoUsersAdmin provisions an admin user suitable for auto-user
 // provisioning.
-func provisionRDSPostgresAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pgx.Conn, adminUser string) {
+func provisionRDSPostgresAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pgConn, adminUser string) {
 	t.Helper()
 	// Create the admin user and grant rds_iam so Teleport can auth
 	// with IAM as an existing user.
@@ -599,7 +599,7 @@ const (
 	autoUserWaitStep = 10 * time.Second
 )
 
-func waitForPostgresAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
+func waitForPostgresAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the
@@ -640,7 +640,7 @@ func waitForPostgresAutoUserDeactivate(t *testing.T, ctx context.Context, conn *
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
 }
 
-func waitForPostgresAutoUserDrop(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
+func waitForPostgresAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the

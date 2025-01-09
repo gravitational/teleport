@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -45,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -452,7 +452,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 
-	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
+	mkMySQLLeafDBClient := func(t *testing.T) mysql.TestClientConn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -608,7 +608,7 @@ func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	db.SetShuffleFunc(db.ShuffleSort)
+	db.SetShuffleFunc(dbconnect.ShuffleSort)
 }
 
 // testHARootCluster verifies that proxy falls back to a healthy

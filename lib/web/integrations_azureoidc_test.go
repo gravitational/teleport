@@ -79,14 +79,6 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 				`--auth-connector-name=myconnector`,
 		},
 		{
-			name: "authConnectorName invalid",
-			reqQuery: url.Values{
-				"integrationName":   []string{"myintegration"},
-				"authConnectorName": []string{"myconnector;"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
 			name: "authConnectorName missing",
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},

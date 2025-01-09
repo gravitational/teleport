@@ -16,15 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+
 import { ButtonPrimary } from 'design/Button';
 import { NotificationItem } from 'shared/components/Notification';
 import { throttle } from 'shared/utils/highbar';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
+import { makeDefaultMfaState } from 'teleport/lib/useMfa';
 
-import { State } from './useDesktopSession';
 import { DesktopSession } from './DesktopSession';
+import { State } from './useDesktopSession';
 
 export default {
   title: 'Teleport/DesktopSession',
@@ -81,13 +83,7 @@ const props: State = {
   canvasOnFocusOut: () => {},
   clientOnClipboardData: async () => {},
   setTdpConnection: () => {},
-  webauthn: {
-    errorText: '',
-    requested: false,
-    authenticate: () => {},
-    setState: () => {},
-    addMfaToScpUrls: false,
-  },
+  mfa: makeDefaultMfaState(),
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
   alerts: [],
@@ -265,12 +261,18 @@ export const WebAuthnPrompt = () => (
       writeState: 'granted',
     }}
     wsConnection={{ status: 'open' }}
-    webauthn={{
-      errorText: '',
-      requested: true,
-      authenticate: () => {},
-      setState: () => {},
-      addMfaToScpUrls: false,
+    mfa={{
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+      challenge: {
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
+      },
     }}
   />
 );

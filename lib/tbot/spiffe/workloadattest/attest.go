@@ -27,6 +27,9 @@ import (
 
 // Attestation holds the results of the attestation process carried out on a
 // PID by the attestor.
+//
+// The zero value of this type indicates that no attestation was performed or
+// was successful.
 type Attestation struct {
 	Unix       UnixAttestation
 	Kubernetes KubernetesAttestation
@@ -82,10 +85,12 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 
 func (a *Attestor) Attest(ctx context.Context, pid int) (Attestation, error) {
 	a.log.DebugContext(ctx, "Starting workload attestation", "pid", pid)
-	defer a.log.DebugContext(ctx, "Finished workload attestation complete", "pid", pid)
+	defer a.log.DebugContext(ctx, "Finished workload attestation", "pid", pid)
 
-	att := Attestation{}
-	var err error
+	var (
+		att Attestation
+		err error
+	)
 
 	// We always perform the unix attestation first
 	att.Unix, err = a.unix.Attest(ctx, pid)

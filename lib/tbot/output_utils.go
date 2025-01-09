@@ -24,7 +24,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -75,9 +75,9 @@ type BotConfigWriter struct {
 // WriteFile writes the file to the Destination. Only the basename of the path
 // is used. Specified permissions are ignored.
 func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) error {
-	p := path.Base(name)
+	p := filepath.Base(name)
 	if b.subpath != "" {
-		p = path.Join(b.subpath, p)
+		p = filepath.Join(b.subpath, p)
 	}
 
 	return trace.Wrap(b.dest.Write(b.ctx, p, data))
