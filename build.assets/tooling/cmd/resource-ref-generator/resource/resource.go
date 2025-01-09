@@ -34,8 +34,8 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-// Package is used to look up a Go declaration in a map of declaration names to
-// resource data.
+// PackageInfo is used to look up a Go declaration in a map of declaration names
+// to resource data.
 type PackageInfo struct {
 	DeclName    string
 	PackageName string
