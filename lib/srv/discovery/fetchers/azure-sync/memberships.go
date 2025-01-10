@@ -37,7 +37,7 @@ func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*a
 	errCh := make(chan error, len(principals))
 	for _, principal := range principals {
 		eg.Go(func() error {
-			err := cli.IterateUserMembership(ctx, principal.Id, func(obj *msgraph.DirectoryObject) bool {
+			err := cli.IterateUserMemberships(ctx, principal.Id, func(obj *msgraph.DirectoryObject) bool {
 				principal.MemberOf = append(principal.MemberOf, *obj.ID)
 				return true
 			})
