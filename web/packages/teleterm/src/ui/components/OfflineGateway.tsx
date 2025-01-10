@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, ReactNode, useState } from 'react';
 import { z } from 'zod';
 
 import { ButtonPrimary, Flex, H2, Text } from 'design';
@@ -26,27 +26,29 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 
-import { PortFieldInput } from './FieldInputs';
-
 export function OfflineGateway(props: {
   connectAttempt: Attempt<void>;
-  /** Setting `isSupported` to false hides the port input. */
-  gatewayPort:
-    | { isSupported: true; defaultPort: string }
-    | { isSupported: false };
   reconnect(args: { localPort?: string }): void;
   /** Gateway target displayed in the UI, for example, 'cockroachdb'. */
   targetName: string;
   /** Gateway kind displayed in the UI, for example, 'database'. */
   gatewayKind: string;
-  portFieldLabel?: string;
+  /**
+   * Each callsite is expected to pass its own formSchema that parses form data from controls passed
+   * through renderFormControls. If the callsite doesn't pass any form data, it's expected to use
+   * emptyFormSchema. We cannot do params.formSchema || emptyFormSchema, as that would mess with
+   * type inference.
+   */
+  formSchema: z.ZodType<Partial<Record<FormFieldNames, string>>>;
+  /**
+   * renderFormControls allows each consumer to provide its own form fields with specific HTML form
+   * validation rules. The form fields are read through FormData – names on the inputs must match
+   * names available through the FormFields enum.
+   */
+  renderFormControls?: (isProcessing: boolean) => ReactNode;
 }) {
   const logger = useLogger('OfflineGateway');
   const { reconnect } = props;
-  const portFieldLabel = props.portFieldLabel || 'Port (optional)';
-  const defaultPort = props.gatewayPort.isSupported
-    ? props.gatewayPort.defaultPort
-    : undefined;
 
   const [reconnectRequested, setReconnectRequested] = useState(false);
   const [parseError, setParseError] = useState('');
@@ -62,7 +64,7 @@ export function OfflineGateway(props: {
     setParseError('');
 
     const formData = new FormData(event.currentTarget);
-    const parseResult = schema.safeParse(
+    const parseResult = props.formSchema.safeParse(
       Object.fromEntries(formData.entries())
     );
 
@@ -115,16 +117,11 @@ export function OfflineGateway(props: {
       >
         {shouldShowReconnectControls && (
           <>
-            {props.gatewayPort.isSupported && (
-              <Validation>
-                <PortFieldInput
-                  name={FIELD_NAME_LOCAL_PORT}
-                  label={portFieldLabel}
-                  defaultValue={defaultPort}
-                  mb={0}
-                  readonly={isProcessing}
-                />
-              </Validation>
+            {props.renderFormControls && (
+              // Form controls are expected to use HTML validation instead of our Validation, but
+              // PortFieldInput is written in a way where it expects the context provided by
+              // Validation to be present, no matter whether it's used or not.
+              <Validation>{props.renderFormControls(isProcessing)}</Validation>
             )}
             <ButtonPrimary type="submit" disabled={isProcessing}>
               Reconnect
@@ -136,8 +133,14 @@ export function OfflineGateway(props: {
   );
 }
 
-export const FIELD_NAME_LOCAL_PORT = 'localPort';
+export enum FormFields {
+  LocalPort = 'localPort',
+  TargetSubresourceName = 'targetSubresourceName',
+}
+type FormFieldNames = `${FormFields}`;
 
-export const schema = z.object({
-  [FIELD_NAME_LOCAL_PORT]: z.string(),
-});
+/**
+ * emptyFormSchema is useful in situations where the callsite that uses OfflineGateway has no form
+ * fields to show.
+ */
+export const emptyFormSchema = z.object({});

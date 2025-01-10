@@ -48,7 +48,7 @@ export function useGateway(doc: DocumentGateway) {
 
   const [connectAttempt, createGateway] = useAsync(
     useCallback(
-      async (args: { localPort?: string }) => {
+      async (args: { localPort?: string; targetSubresourceName?: string }) => {
         documentsService.update(doc.uri, { status: 'connecting' });
         let gw: Gateway;
 
@@ -58,7 +58,8 @@ export function useGateway(doc: DocumentGateway) {
               targetUri: doc.targetUri,
               localPort: args.localPort,
               targetUser: doc.targetUser,
-              targetSubresourceName: doc.targetSubresourceName,
+              targetSubresourceName:
+                args.targetSubresourceName || doc.targetSubresourceName,
             })
           );
         } catch (error) {
@@ -67,13 +68,19 @@ export function useGateway(doc: DocumentGateway) {
         }
         documentsService.update(doc.uri, {
           gatewayUri: gw.uri,
-          // Set the port on doc to match the one returned from the daemon. Teleterm doesn't let the
-          // user provide a port for the gateway, so instead we have to let the daemon use a random
-          // one.
+          // Set the port on doc to match the one returned from the daemon. By default,
+          // createGateway is called with an empty localPort, so the daemon creates a listener on a
+          // random port.
           //
           // Setting it here makes it so that on app restart, Teleterm will restart the proxy with the
           // same port number.
+          //
+          // Alternatively, if createGateway was called from OfflineGateway, this will persist in
+          // the doc the local port chosen by the user.
           port: gw.localPort,
+          // targetSubresourceName needs to be updated here in case the createGateway function was
+          // called from OfflineGateway.
+          targetSubresourceName: gw.targetSubresourceName,
           status: 'connected',
         });
         if (isDatabaseUri(doc.targetUri)) {
