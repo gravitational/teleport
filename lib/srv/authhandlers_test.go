@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type mockCAandAuthPrefGetter struct {
@@ -216,11 +216,13 @@ func TestRBAC(t *testing.T) {
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			c, err := keygen.GenerateUserCert(services.UserCertParams{
+			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-				Username:      "testuser",
-				AllowedLogins: []string{"testuser"},
+				Identity: sshca.Identity{
+					Username:      "testuser",
+					AllowedLogins: []string{"testuser"},
+				},
 			})
 			require.NoError(t, err)
 
@@ -388,16 +390,18 @@ func TestRBACJoinMFA(t *testing.T) {
 			require.NoError(t, err)
 
 			keygen := testauthority.New()
-			c, err := keygen.GenerateUserCert(services.UserCertParams{
-				CASigner:      caSigner,
-				PublicUserKey: privateKey.MarshalSSHPublicKey(),
-				Username:      username,
-				AllowedLogins: []string{username},
-				Traits: wrappers.Traits{
-					teleport.TraitInternalPrefix: []string{""},
-				},
-				Roles:             []string{tt.role},
+			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+				CASigner:          caSigner,
+				PublicUserKey:     privateKey.MarshalSSHPublicKey(),
 				CertificateFormat: constants.CertificateFormatStandard,
+				Identity: sshca.Identity{
+					Username:      username,
+					AllowedLogins: []string{username},
+					Traits: wrappers.Traits{
+						teleport.TraitInternalPrefix: []string{""},
+					},
+					Roles: []string{tt.role},
+				},
 			})
 			require.NoError(t, err)
 

@@ -34,7 +34,7 @@ func NewDebugFileSystem(isEnterprise bool) (http.FileSystem, error) {
 	assetsPath := "../../webassets/teleport"
 
 	if isEnterprise {
-		assetsPath = "../../../webassets/teleport"
+		assetsPath = "../../../webassets/e/teleport"
 	}
 
 	// Ensure we have the built assets available before continuing.

@@ -631,6 +631,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	var buf bytes.Buffer
+	var appServerResourceLabels []string
 	// If app install mode is requested but parameters are blank for some reason,
 	// we need to return an error.
 	if settings.appInstallMode {
@@ -639,6 +640,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 		if !appURIPattern.MatchString(settings.appURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
+		}
+
+		suggestedLabels := token.GetSuggestedLabels()
+		appServerResourceLabels, err = scripts.MarshalLabelsYAML(suggestedLabels, 4)
+		if err != nil {
+			return "", trace.Wrap(err)
 		}
 	}
 
@@ -689,6 +696,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"installUpdater":             strconv.FormatBool(settings.installUpdater),
 		"version":                    shsprintf.EscapeDefaultContext(version),
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
+		"appServerResourceLabels":    appServerResourceLabels,
 		"appName":                    shsprintf.EscapeDefaultContext(settings.appName),
 		"appURI":                     shsprintf.EscapeDefaultContext(settings.appURI),
 		"joinMethod":                 shsprintf.EscapeDefaultContext(settings.joinMethod),
