@@ -2853,7 +2853,7 @@ func (a *Server) augmentUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.UserCertParams) {
+func (a *Server) submitCertificateIssuedEvent(req *certRequest, params sshca.UserCertificateRequest) {
 	var database, app, kubernetes, desktop bool
 
 	if req.dbService != "" {
@@ -2896,7 +2896,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.
 		UsageApp:         app,
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
-		PrivateKeyPolicy: string(params.PrivateKeyPolicy),
+		PrivateKeyPolicy: string(params.Identity.PrivateKeyPolicy),
 	})
 }
 
@@ -3099,37 +3099,39 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	params := services.UserCertParams{
-		CASigner:                sshSigner,
-		PublicUserKey:           req.publicKey,
-		Username:                req.user.GetName(),
-		Impersonator:            req.impersonator,
-		AllowedLogins:           allowedLogins,
-		TTL:                     sessionTTL,
-		Roles:                   req.checker.RoleNames(),
-		CertificateFormat:       certificateFormat,
-		PermitPortForwarding:    req.checker.CanPortForward(),
-		PermitAgentForwarding:   req.checker.CanForwardAgents(),
-		PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
-		RouteToCluster:          req.routeToCluster,
-		Traits:                  req.traits,
-		ActiveRequests:          req.activeRequests,
-		MFAVerified:             req.mfaVerified,
-		PreviousIdentityExpires: req.previousIdentityExpires,
-		LoginIP:                 req.loginIP,
-		PinnedIP:                pinnedIP,
-		DisallowReissue:         req.disallowReissue,
-		Renewable:               req.renewable,
-		Generation:              req.generation,
-		BotName:                 req.botName,
-		BotInstanceID:           req.botInstanceID,
-		CertificateExtensions:   req.checker.CertificateExtensions(),
-		AllowedResourceIDs:      requestedResourcesStr,
-		ConnectionDiagnosticID:  req.connectionDiagnosticID,
-		PrivateKeyPolicy:        attestedKeyPolicy,
-		DeviceID:                req.deviceExtensions.DeviceID,
-		DeviceAssetTag:          req.deviceExtensions.AssetTag,
-		DeviceCredentialID:      req.deviceExtensions.CredentialID,
+	params := sshca.UserCertificateRequest{
+		CASigner:          sshSigner,
+		PublicUserKey:     req.publicKey,
+		TTL:               sessionTTL,
+		CertificateFormat: certificateFormat,
+		Identity: sshca.Identity{
+			Username:                req.user.GetName(),
+			Impersonator:            req.impersonator,
+			AllowedLogins:           allowedLogins,
+			Roles:                   req.checker.RoleNames(),
+			PermitPortForwarding:    req.checker.CanPortForward(),
+			PermitAgentForwarding:   req.checker.CanForwardAgents(),
+			PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
+			RouteToCluster:          req.routeToCluster,
+			Traits:                  req.traits,
+			ActiveRequests:          req.activeRequests,
+			MFAVerified:             req.mfaVerified,
+			PreviousIdentityExpires: req.previousIdentityExpires,
+			LoginIP:                 req.loginIP,
+			PinnedIP:                pinnedIP,
+			DisallowReissue:         req.disallowReissue,
+			Renewable:               req.renewable,
+			Generation:              req.generation,
+			BotName:                 req.botName,
+			BotInstanceID:           req.botInstanceID,
+			CertificateExtensions:   req.checker.CertificateExtensions(),
+			AllowedResourceIDs:      requestedResourcesStr,
+			ConnectionDiagnosticID:  req.connectionDiagnosticID,
+			PrivateKeyPolicy:        attestedKeyPolicy,
+			DeviceID:                req.deviceExtensions.DeviceID,
+			DeviceAssetTag:          req.deviceExtensions.AssetTag,
+			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+		},
 	}
 	signedSSHCert, err := a.GenerateUserCert(params)
 	if err != nil {
