@@ -3,7 +3,7 @@
 ## 17.1.5 (1/10/25)
 
 * Fixes an issue causing Azure join method to fail due to throttling. [#50928](https://github.com/gravitational/teleport/pull/50928)
-* Fix Teleport Connect Oracle support. Requires updated Teleport database agents (v17.2.0+). [#50922](https://github.com/gravitational/teleport/pull/50922)
+* Fix Teleport Connect Oracle support. Requires updated Teleport database agents (v17.1.5+). [#50922](https://github.com/gravitational/teleport/pull/50922)
 * Prevent quoting errors in log messages. [#50821](https://github.com/gravitational/teleport/pull/50821)
 * Fixed an issue that could cause teleport event handlers to become stuck in an error loop upon upgrading to v17 (fix requires upgrading auth server). [#50820](https://github.com/gravitational/teleport/pull/50820)
 * Add `user_agent` field to `db.session.start` audit events. [#50806](https://github.com/gravitational/teleport/pull/50806)
