@@ -24,6 +24,7 @@ import { notificationContentFactory } from './Notifications';
 import { agentService } from './services/agents';
 import appService from './services/apps';
 import AuditService from './services/audit';
+import { AuthService } from './services/auth/auth';
 import ClustersService from './services/clusters/clusters';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
@@ -62,6 +63,7 @@ class TeleportContext implements types.Context {
   desktopService = desktopService;
   userGroupService = userGroupService;
   mfaService = new MfaService();
+  authService = new AuthService(this.mfaService);
   notificationService = new NotificationService();
 
   notificationContentFactory = notificationContentFactory;

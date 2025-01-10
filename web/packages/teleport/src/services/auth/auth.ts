@@ -1,24 +1,6 @@
-/**
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import {
+import MfaService, {
   DeviceType,
   DeviceUsage,
   MfaAuthenticateChallenge,
@@ -44,7 +26,14 @@ import {
   UserCredentials,
 } from './types';
 
-const auth = {
+export const auth = {};
+export class AuthService {
+  mfaService: MfaService;
+
+  constructor(mfaService: MfaService) {
+    this.mfaService = mfaService;
+  }
+
   checkWebauthnSupport() {
     if (window.PublicKeyCredential) {
       return Promise.resolve();
@@ -55,9 +44,14 @@ const auth = {
         'this browser does not support Webauthn required for hardware tokens, please try the latest version of Chrome, Firefox or Safari'
       )
     );
-  },
+  }
 
-  checkMfaRequired: checkMfaRequired,
+  async checkMfaRequired(
+    params: IsMfaRequiredRequest,
+    abortSignal?: AbortSignal
+  ): Promise<IsMfaRequiredResponse> {
+    return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+  }
 
   createMfaRegistrationChallenge(
     tokenId: string,
@@ -70,19 +64,14 @@ const auth = {
         deviceUsage,
       })
       .then(parseMfaRegistrationChallengeJson);
-  },
+  }
 
-  /**
-   * Creates an MFA registration challenge and a corresponding client-side
-   * WebAuthn credential.
-   */
   createNewWebAuthnDevice(
     req: CreateNewHardwareDeviceRequest
   ): Promise<Credential> {
-    return auth
-      .checkWebauthnSupport()
+    return this.checkWebauthnSupport()
       .then(() =>
-        auth.createMfaRegistrationChallenge(
+        this.createMfaRegistrationChallenge(
           req.tokenId,
           'webauthn',
           req.deviceUsage
@@ -93,17 +82,8 @@ const auth = {
           publicKey: res.webauthnPublicKey,
         })
       );
-  },
+  }
 
-  createMfaAuthnChallengeWithToken(tokenId: string) {
-    return api
-      .post(cfg.getAuthnChallengeWithTokenUrl(tokenId))
-      .then(parseMfaChallengeJson);
-  },
-
-  // mfaLoginBegin retrieves users mfa challenges for their
-  // registered devices. Empty creds indicates request for passwordless challenges.
-  // Otherwise, non-passwordless challenges requires creds to be verified.
   mfaLoginBegin(creds?: UserCredentials) {
     return api
       .post(cfg.api.mfaLoginBegin, {
@@ -112,7 +92,7 @@ const auth = {
         pass: creds?.password,
       })
       .then(parseMfaChallengeJson);
-  },
+  }
 
   login(userId: string, password: string, otpCode: string) {
     const data = {
@@ -122,12 +102,11 @@ const auth = {
     };
 
     return api.post(cfg.api.webSessionPath, data);
-  },
+  }
 
-  loginWithWebauthn(creds?: UserCredentials) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => auth.mfaLoginBegin(creds))
+  async loginWithWebauthn(creds?: UserCredentials) {
+    return this.checkWebauthnSupport()
+      .then(() => this.mfaLoginBegin(creds))
       .then(res =>
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
@@ -142,22 +121,20 @@ const auth = {
 
         return api.post(cfg.api.mfaLoginFinish, request);
       });
-  },
+  }
 
   fetchPasswordToken(tokenId: string) {
     const path = cfg.getPasswordTokenUrl(tokenId);
     return api.get(path).then(makePasswordToken);
-  },
+  }
 
-  // resetPasswordWithWebauthn either sets a new password and a new webauthn device,
-  // or if passwordless is requested (indicated by empty password param),
-  // skips setting a new password and only sets a passwordless device.
-  resetPasswordWithWebauthn(props: ResetPasswordWithWebauthnReqWithEvent) {
+  async resetPasswordWithWebauthn(
+    props: ResetPasswordWithWebauthnReqWithEvent
+  ) {
     const { req, credential, eventMeta } = props;
     const deviceUsage: DeviceUsage = req.password ? 'mfa' : 'passwordless';
 
-    return auth
-      .checkWebauthnSupport()
+    return this.checkWebauthnSupport()
       .then(() => {
         const request = {
           token: req.tokenId,
@@ -184,7 +161,7 @@ const auth = {
         }
         return makeChangedUserAuthn(j);
       });
-  },
+  }
 
   resetPassword(props: ResetPasswordReqWithEvent) {
     const { req, eventMeta } = props;
@@ -205,7 +182,7 @@ const auth = {
       }
       return makeChangedUserAuthn(j);
     });
-  },
+  }
 
   changePassword({ oldPassword, newPassword, mfaResponse }: ChangePasswordReq) {
     const data = {
@@ -216,11 +193,10 @@ const auth = {
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
-  },
+  }
 
-  headlessSSOGet(transactionId: string) {
-    return auth
-      .checkWebauthnSupport()
+  async headlessSSOGet(transactionId: string) {
+    return this.checkWebauthnSupport()
       .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
       .then((json: any) => {
         json = json || {};
@@ -229,12 +205,11 @@ const auth = {
           clientIpAddress: json.client_ip_address,
         };
       });
-  },
+  }
 
-  headlessSSOAccept(transactionId: string) {
-    return auth
-      .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
+  async headlessSSOAccept(transactionId: string) {
+    return this.getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
+      .then(challenge => this.getMfaChallengeResponse(challenge, 'webauthn'))
       .then(res => {
         const request = {
           action: 'accept',
@@ -243,7 +218,7 @@ const auth = {
 
         return api.put(cfg.getHeadlessSsoPath(transactionId), request);
       });
-  },
+  }
 
   headlessSSOReject(transactionId: string) {
     const request = {
@@ -251,10 +226,8 @@ const auth = {
     };
 
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
-  },
+  }
 
-  // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
-  // is provided and it is found that MFA is not required, returns null instead.
   async getMfaChallenge(
     req: CreateAuthenticateChallengeRequest,
     abortSignal?: AbortSignal
@@ -271,10 +244,8 @@ const auth = {
         abortSignal
       )
       .then(parseMfaChallengeJson);
-  },
+  }
 
-  // getChallengeResponse gets an MFA challenge response for the provided parameters.
-  // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
   async getMfaChallengeResponse(
     challenge: MfaAuthenticateChallenge,
     mfaType?: DeviceType,
@@ -282,9 +253,6 @@ const auth = {
   ): Promise<MfaChallengeResponse | undefined> {
     if (!challenge) return;
 
-    // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
-    // to display a component, similar to the one used in useMfa. For now we just default to
-    // whichever method we can succeed with first.
     if (!mfaType) {
       if (totpCode) {
         mfaType = 'totp';
@@ -296,11 +264,11 @@ const auth = {
     }
 
     if (mfaType === 'webauthn') {
-      return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
+      return this.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
     }
 
     if (mfaType === 'sso') {
-      return auth.getSsoChallengeResponse(challenge.ssoChallenge);
+      return this.getSsoChallengeResponse(challenge.ssoChallenge);
     }
 
     if (mfaType === 'totp') {
@@ -309,14 +277,13 @@ const auth = {
       };
     }
 
-    // No viable challenge, return empty response.
     return;
-  },
+  }
 
   async getWebAuthnChallengeResponse(
     webauthnPublicKey: PublicKeyCredentialRequestOptions
   ): Promise<MfaChallengeResponse> {
-    return auth.checkWebauthnSupport().then(() =>
+    return this.checkWebauthnSupport().then(() =>
       navigator.credentials
         .get({
           publicKey: webauthnPublicKey,
@@ -328,48 +295,39 @@ const auth = {
           return { webauthn_response: resp };
         })
     );
-  },
+  }
 
   createPrivilegeToken(existingMfaResponse?: MfaChallengeResponse) {
     return api.post(cfg.api.createPrivilegeTokenPath, {
       existingMfaResponse,
-      // TODO(Joerger): DELETE IN v19.0.0
-      // Also provide totp/webauthn response in backwards compatible format.
       secondFactorToken: existingMfaResponse?.totp_code,
       webauthnAssertionResponse: existingMfaResponse?.webauthn_response,
     });
-  },
+  }
 
-  // TODO(Joerger): Delete once no longer used by /e
   async getSsoChallengeResponse(
     challenge: SsoChallenge
   ): Promise<MfaChallengeResponse> {
     const abortController = new AbortController();
-
-    auth.openSsoChallengeRedirect(challenge, abortController);
-    return await auth.waitForSsoChallengeResponse(
+    this.openSsoChallengeRedirect(challenge, abortController);
+    return await this.waitForSsoChallengeResponse(
       challenge,
       abortController.signal
     );
-  },
+  }
 
   openSsoChallengeRedirect(
     { redirectUrl }: SsoChallenge,
     abortController?: AbortController
   ) {
-    // try to center the screen
     const width = 1045;
     const height = 550;
     const left = (screen.width - width) / 2;
     const top = (screen.height - height) / 2;
-
-    // these params will open a tiny window.
     const params = `width=${width},height=${height},left=${left},top=${top}`;
     const w = window.open(redirectUrl, '_blank', params);
-
-    // If the redirect URL window is closed prematurely, abort.
     w.onclose = abortController?.abort;
-  },
+  }
 
   async waitForSsoChallengeResponse(
     { channelId, requestId }: SsoChallenge,
@@ -383,38 +341,31 @@ const auth = {
         token: msg.data.mfaToken,
       },
     };
-  },
+  }
 
-  // TODO(Joerger): Delete once no longer used by /e
   createPrivilegeTokenWithWebauthn() {
-    return auth
-      .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(auth.getMfaChallengeResponse)
-      .then(mfaResp => auth.createPrivilegeToken(mfaResp));
-  },
+    return this.getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(this.getMfaChallengeResponse.bind(this))
+      .then(mfaResp => this.createPrivilegeToken(mfaResp));
+  }
 
-  // TODO(Joerger): Delete once no longer used by /e
   createPrivilegeTokenWithTotp(secondFactorToken: string) {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
-  },
+  }
 
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
-  },
+  }
 
-  // TODO(Joerger): Remove once /e is no longer using it.
   async getWebauthnResponse(
     scope: MfaChallengeScope,
     allowReuse?: boolean,
     isMfaRequiredRequest?: IsMfaRequiredRequest,
     abortSignal?: AbortSignal
   ) {
-    // TODO(Joerger): DELETE IN 16.0.0
-    // the create mfa challenge endpoint below supports
-    // MFARequired requests without the extra roundtrip.
     if (isMfaRequiredRequest) {
       try {
-        const isMFARequired = await checkMfaRequired(
+        const isMFARequired = await this.checkMfaRequired(
           isMfaRequiredRequest,
           abortSignal
         );
@@ -426,53 +377,40 @@ const auth = {
           err?.response?.status === 400 &&
           err?.message.includes('missing target for MFA check')
         ) {
-          // checking MFA requirement for admin actions is not supported by old
-          // auth servers, we expect an error instead. In this case, assume MFA is
-          // not required. Callers should fallback to retrying with MFA if needed.
           return;
         }
-
         throw err;
       }
     }
 
-    return auth
-      .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
+    return this.getMfaChallenge(
+      { scope, allowReuse, isMfaRequiredRequest },
+      abortSignal
+    )
+      .then(challenge => this.getMfaChallengeResponse(challenge, 'webauthn'))
       .then(res => res?.webauthn_response);
-  },
+  }
 
   getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
-    // If the client is checking if MFA is required for an admin action,
-    // but we know admin action MFA is not enforced, return early.
     if (!cfg.isAdminActionMfaEnforced()) {
       return;
     }
 
-    return auth
-      .getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-        allowReuse: allowReuse,
-        isMfaRequiredRequest: {
-          admin_action: {},
-        },
-      })
-      .then(auth.getMfaChallengeResponse);
-  },
+    return this.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: allowReuse,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    }).then(this.getMfaChallengeResponse.bind(this));
+  }
 
-  // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
   getWebauthnResponseForAdminAction(allowReuse?: boolean) {
-    return auth.getMfaChallengeResponseForAdminAction(allowReuse);
-  },
-};
-
-function checkMfaRequired(
-  params: IsMfaRequiredRequest,
-  abortSignal?
-): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+    return this.getMfaChallengeResponseForAdminAction(allowReuse);
+  }
 }
 
+// Helper functions
 function base64EncodeUnicode(str: string) {
   return window.btoa(
     encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function (match, p1) {
@@ -487,18 +425,13 @@ function waitForMessage(
   abortSignal: AbortSignal
 ): Promise<MessageEvent> {
   return new Promise((resolve, reject) => {
-    // Create the event listener
     function eventHandler(e: MessageEvent) {
-      // Remove the event listener after it triggers
       channel.removeEventListener('message', eventHandler);
-      // Resolve the promise with the event object
       resolve(e);
     }
 
-    // Add the event listener
     channel.addEventListener('message', eventHandler);
 
-    // Close the event listener early if aborted.
     abortSignal.onabort = e => {
       channel.removeEventListener('message', eventHandler);
       reject(e);
@@ -506,7 +439,9 @@ function waitForMessage(
   });
 }
 
-export default auth;
+export type IsMfaRequiredResponse = {
+  required: boolean;
+};
 
 export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
@@ -515,10 +450,6 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredWindowsDesktop
   | IsMfaRequiredApp
   | IsMfaRequiredAdminAction;
-
-export type IsMfaRequiredResponse = {
-  required: boolean;
-};
 
 export type IsMfaRequiredDatabase = {
   database: {
