@@ -363,7 +363,7 @@ it results in an invalid requester error as shown in the image below.
 
 ![Import certificate](../../../../img/sso/keycloak/invalid_requester.png)
 
-The Keycloak server logs reads the below error:
+The Keycloak server logs include the error below:
 `error=invalid_signature` and `request validation failed: org.keycloak.common.VerificationException: SigAlg was null`.
 
 This occurs when Keycloak receives a SAML request that does not meet its signature validation expectations
