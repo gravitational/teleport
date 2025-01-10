@@ -354,7 +354,7 @@ func (s *Service) updateStatus(ut *usertasksv1.UserTask, existing *usertasksv1.U
 
 	if existing != nil {
 		// Inherit everything from existing UserTask.
-		ut.Status.LastStateChange = cmp.Or(existing.Status.LastStateChange, ut.Status.LastStateChange)
+		ut.Status.LastStateChange = cmp.Or(existing.GetStatus().GetLastStateChange(), ut.Status.LastStateChange)
 
 		// Update specific values.
 		if existing.GetSpec().GetState() != ut.GetSpec().GetState() {
