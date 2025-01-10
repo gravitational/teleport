@@ -42,8 +42,10 @@ message WorkloadIdentity {
 message WorkloadIdentityCondition {
   // The name of the attribute to evaluate the condition against.
   string attribute = 1;
-  // An exact string that the attribute must match.
-  string equals = 2;
+  oneof operator {
+    // An exact string that the attribute must match.
+    string equals = 2;
+  }
 }
 
 // An individual rule that is evaluated during the issuance of a WorkloadIdentity.
