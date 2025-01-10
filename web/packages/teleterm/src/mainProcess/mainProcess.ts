@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChildProcess, fork, spawn, exec } from 'node:child_process';
-import path from 'node:path';
+import { ChildProcess, exec, fork, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { ChannelCredentials } from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import {
   app,
   dialog,
@@ -30,47 +32,51 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
-import { ChannelCredentials } from '@grpc/grpc-js';
 
-import { FileStorage, RuntimeSettings } from 'teleterm/types';
-import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
-import {
-  LoggerColor,
-  KeepLastChunks,
-  createFileLoggerService,
-} from 'teleterm/services/logger';
+import Logger from 'teleterm/logger';
+import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
   ChildProcessAddresses,
   MainProcessIpc,
   RendererIpc,
+  TERMINATE_MESSAGE,
 } from 'teleterm/mainProcess/types';
-import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
-import { RootClusterUri } from 'teleterm/ui/uri';
-import Logger from 'teleterm/logger';
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
+import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
-import { createTshdClient } from 'teleterm/services/tshd/createClient';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import {
+  createFileLoggerService,
+  KeepLastChunks,
+  LoggerColor,
+} from 'teleterm/services/logger';
+import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
+import { staticConfig } from 'teleterm/staticConfig';
+import { FileStorage, RuntimeSettings } from 'teleterm/types';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   ConfigService,
   subscribeToConfigServiceEvents,
 } from '../services/config';
-
-import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
+import { downloadAgent, FileDownloader, verifyAgent } from './agentDownloader';
+import { AgentRunner } from './agentRunner';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
-import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
-import { WindowsManager } from './windowsManager';
-import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
+import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
   createAgentConfigFile,
+  generateAgentConfigPaths,
+  getAgentsDir,
   isAgentConfigFileCreated,
   removeAgentDirectory,
-  generateAgentConfigPaths,
+  type CreateAgentConfigFileArgs,
 } from './createAgentConfigFile';
-import { AgentRunner } from './agentRunner';
+import { ResolveError, resolveNetworkAddress } from './resolveNetworkAddress';
 import { terminateWithTimeout } from './terminateWithTimeout';
-
-import type { CreateAgentConfigFileArgs } from './createAgentConfigFile';
+import { WindowsManager } from './windowsManager';
 
 type Options = {
   settings: RuntimeSettings;
@@ -140,7 +146,11 @@ export default class MainProcess {
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
         this.gracefullyKillTshdProcess();
       }),
-      terminateWithTimeout(this.sharedProcess),
+      terminateWithTimeout(this.sharedProcess, 5_000, process =>
+        // process.kill doesn't allow running a cleanup code in the child process
+        // on Windows
+        process.send(TERMINATE_MESSAGE)
+      ),
       this.agentRunner.killAll(),
     ]);
   }
@@ -168,17 +178,22 @@ export default class MainProcess {
   }
 
   private initTshd() {
-    const { binaryPath, flags, homeDir } = this.settings.tshd;
+    const { binaryPath, homeDir } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
-    this.tshdProcess = spawn(binaryPath, flags, {
-      stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
-      windowsHide: true,
-      env: {
-        ...process.env,
-        TELEPORT_HOME: homeDir,
-      },
-    });
+    this.tshdProcess = spawn(
+      binaryPath,
+      ['daemon', 'start', ...this.getTshdFlags()],
+      {
+        stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
+        windowsHide: true,
+        env: {
+          ...process.env,
+          TELEPORT_HOME: homeDir,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        },
+      }
+    );
 
     this.logProcessExitAndError('tshd', this.tshdProcess);
 
@@ -195,6 +210,32 @@ export default class MainProcess {
       this.tshdProcess,
       this.tshdProcessLastLogs
     );
+  }
+
+  private getTshdFlags(): string[] {
+    const settings = this.settings;
+    const agentsDir = getAgentsDir(settings.userDataDir);
+
+    const flags = [
+      // grpc-js requires us to pass localhost:port for TCP connections,
+      // for tshd we have to specify the protocol as well.
+      `--addr=${settings.tshd.requestedNetworkAddress}`,
+      `--certs-dir=${settings.certsDir}`,
+      `--prehog-addr=${staticConfig.prehogAddress}`,
+      `--kubeconfigs-dir=${settings.kubeConfigsDir}`,
+      `--agents-dir=${agentsDir}`,
+      `--installation-id=${settings.installationId}`,
+      `--add-keys-to-agent=${this.configService.get('sshAgent.addKeysToAgent').value}`,
+    ];
+
+    if (settings.insecure) {
+      flags.unshift('--insecure');
+    }
+    if (settings.debug) {
+      flags.unshift('--debug');
+    }
+
+    return flags;
   }
 
   private initSharedProcess() {
@@ -464,8 +505,11 @@ export default class MainProcess {
       }
     );
 
-    subscribeToTerminalContextMenuEvent();
-    subscribeToTabContextMenuEvent();
+    subscribeToTerminalContextMenuEvent(this.configService);
+    subscribeToTabContextMenuEvent(
+      this.settings.availableShells,
+      this.configService
+    );
     subscribeToConfigServiceEvents(this.configService);
     subscribeToFileStorageEvents(this.appStateFileStorage);
   }
@@ -629,7 +673,12 @@ async function setUpTshdClient({
   tshdAddress: string;
 }): Promise<TshdClient> {
   const creds = await createGrpcCredentials(runtimeSettings);
-  return createTshdClient(tshdAddress, creds);
+  const transport = new GrpcTransport({
+    host: tshdAddress,
+    channelCredentials: creds,
+    interceptors: [loggingInterceptor(new Logger('tshd'))],
+  });
+  return createTshdClient(transport);
 }
 
 async function createGrpcCredentials(

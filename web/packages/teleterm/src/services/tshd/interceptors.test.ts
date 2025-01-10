@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { UnaryCall, MethodInfo } from '@protobuf-ts/runtime-rpc';
+import { MethodInfo, ServiceInfo, UnaryCall } from '@protobuf-ts/runtime-rpc';
 
 import Logger from 'teleterm/logger';
 
@@ -35,9 +35,12 @@ it('do not log sensitive info like password', () => {
 
   interceptor.interceptUnary(
     () => ({ then: () => Promise.resolve({ response: '' }) }) as UnaryCall,
-    { name: 'LogIn' } as MethodInfo,
     {
-      passw: {},
+      name: 'LogIn',
+      service: { typeName: 'FooService' } as ServiceInfo,
+    } as MethodInfo,
+    {
+      password: {},
       userData: {
         login: 'admin',
         password: 'admin',
@@ -46,8 +49,32 @@ it('do not log sensitive info like password', () => {
     {}
   );
 
-  expect(infoLogger).toHaveBeenCalledWith('LogIn request:', {
-    passw: '~FILTERED~',
+  expect(infoLogger).toHaveBeenCalledWith(expect.any(String), {
+    password: '~FILTERED~',
     userData: { login: 'admin', password: '~FILTERED~' },
   });
+});
+
+it('includes service and method name', () => {
+  const infoLogger = jest.fn();
+  Logger.init({
+    createLogger: () => ({
+      info: infoLogger,
+      error: () => {},
+      warn: () => {},
+    }),
+  });
+  const interceptor = loggingInterceptor(new Logger());
+
+  interceptor.interceptUnary(
+    () => ({ then: () => Promise.resolve({ response: '' }) }) as UnaryCall,
+    {
+      name: 'Foo',
+      service: { typeName: 'FooService' } as ServiceInfo,
+    } as MethodInfo,
+    {},
+    {}
+  );
+
+  expect(infoLogger).toHaveBeenCalledWith('send FooService Foo', {});
 });

@@ -20,11 +20,13 @@ package common
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
 	"net"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -59,13 +61,14 @@ func TestWorkloadIdentityIssue(t *testing.T) {
 	}),
 	)
 
-	homeDir, _ := mustLogin(t, s)
+	homeDir, _ := mustLoginLegacy(t, s)
 	temp := t.TempDir()
 	err = Run(
 		ctx,
 		[]string{
 			"svid",
 			"issue",
+			"--insecure",
 			"--output", temp,
 			"--svid-ttl", "10m",
 			"--dns-san", "example.com",
@@ -78,7 +81,7 @@ func TestWorkloadIdentityIssue(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	certPEM, err := os.ReadFile(path.Join(temp, "svid.pem"))
+	certPEM, err := os.ReadFile(filepath.Join(temp, "svid.pem"))
 	require.NoError(t, err)
 	certBlock, _ := pem.Decode(certPEM)
 	cert, err := x509.ParseCertificate(certBlock.Bytes)
@@ -88,14 +91,20 @@ func TestWorkloadIdentityIssue(t *testing.T) {
 	require.Equal(t, net.IP{10, 0, 0, 1}, cert.IPAddresses[0])
 	require.Equal(t, net.IP{10, 1, 0, 1}, cert.IPAddresses[1])
 	require.Equal(t, "spiffe://root/foo/bar", cert.URIs[0].String())
+	// Sanity check we generated an ECDSA public key (test suite uses
+	// balanced-v1 algorithm suite).
+	require.IsType(t, &ecdsa.PublicKey{}, cert.PublicKey)
 
-	keyPEM, err := os.ReadFile(path.Join(temp, "svid_key.pem"))
+	keyPEM, err := os.ReadFile(filepath.Join(temp, "svid_key.pem"))
 	require.NoError(t, err)
 	keyBlock, _ := pem.Decode(keyPEM)
-	_, err = x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
+	privateKey, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
 	require.NoError(t, err)
+	// Sanity check private key matches x509 cert subject.
+	require.Implements(t, (*crypto.Signer)(nil), privateKey)
+	require.Equal(t, cert.PublicKey, privateKey.(crypto.Signer).Public())
 
-	bundlePEM, err := os.ReadFile(path.Join(temp, "svid_bundle.pem"))
+	bundlePEM, err := os.ReadFile(filepath.Join(temp, "svid_bundle.pem"))
 	require.NoError(t, err)
 	bundleBlock, _ := pem.Decode(bundlePEM)
 	_, err = x509.ParseCertificate(bundleBlock.Bytes)

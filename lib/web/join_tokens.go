@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -44,14 +45,17 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
-	"github.com/gravitational/teleport/lib/web/ui"
+	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
 const (
 	stableCloudChannelRepo = "stable/cloud"
+	HeaderTokenName        = "X-Teleport-TokenName"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -91,14 +95,175 @@ func automaticUpgrades(features proto.Features) bool {
 	return features.AutomaticUpgrades && features.Cloud
 }
 
-func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req types.ProvisionTokenSpecV2
-	if err := httplib.ReadJSON(r, &req); err != nil {
+// Currently we aren't paginating this endpoint as we don't
+// expect many tokens to exist at a time. I'm leaving it in a "paginated" form
+// without a nextKey for now so implementing pagination won't change the response shape
+// TODO (avatus) implement pagination
+
+// GetTokensResponse returns a list of JoinTokens.
+type GetTokensResponse struct {
+	Items []webui.JoinToken `json:"items"`
+}
+
+func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, err := clt.GetTokens(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiTokens, err := webui.MakeJoinTokens(tokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return GetTokensResponse{
+		Items: uiTokens,
+	}, nil
+}
+
+func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	token := r.Header.Get(HeaderTokenName)
+	if token == "" {
+		return nil, trace.BadParameter("requires a token to delete")
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.DeleteToken(r.Context(), token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
+type CreateTokenRequest struct {
+	Content string `json:"content"`
+}
+
+func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+	tokenId := r.Header.Get(HeaderTokenName)
+	if tokenId == "" {
+		return nil, trace.BadParameter("requires a token name to edit")
+	}
+
+	var yaml CreateTokenRequest
+	if err := httplib.ReadResourceJSON(r, &yaml); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extractedRes, err := ExtractResourceAndValidate(yaml.Content)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if tokenId != extractedRes.Metadata.Name {
+		return nil, trace.BadParameter("renaming tokens is not supported")
+	}
+
+	token, err := services.UnmarshalProvisionToken(extractedRes.Raw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = clt.UpsertToken(r.Context(), token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiToken, err := webui.MakeJoinToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiToken, trace.Wrap(err)
+
+}
+
+type upsertTokenHandleRequest struct {
+	types.ProvisionTokenSpecV2
+	Name string `json:"name"`
+}
+
+func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	// if using the PUT route, tokenId will be present
+	// in the X-Teleport-TokenName header
+	editing := r.Method == "PUT"
+	tokenId := r.Header.Get(HeaderTokenName)
+	if editing && tokenId == "" {
+		return nil, trace.BadParameter("requires a token name to edit")
+	}
+
+	var req upsertTokenHandleRequest
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if editing && tokenId != req.Name {
+		return nil, trace.BadParameter("renaming tokens is not supported")
+	}
+
+	// set expires time to default node join token TTL
+	expires := time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+	// IAM and GCP tokens should never expire
+	if req.JoinMethod == types.JoinMethodGCP || req.JoinMethod == types.JoinMethodIAM {
+		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	}
+
+	name := req.Name
+	if name == "" {
+		randName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		name = randName
+	}
+
+	token, err := types.NewProvisionTokenFromSpec(name, expires, req.ProvisionTokenSpecV2)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	clt, err := ctx.GetClient()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = clt.UpsertToken(r.Context(), token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiToken, err := webui.MakeJoinToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiToken, nil
+}
+
+// createTokenForDiscoveryHandle creates tokens used during guided discover flows.
+// V2 endpoint processes "suggestedLabels" field.
+func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req types.ProvisionTokenSpecV2
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -179,9 +344,10 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	// We create an ID and return it as part of the Token, so the UI can use this ID to query the Node that joined using this token
 	// WebUI can then query the resources by this id and answer the question:
 	//   - Which Node joined the cluster from this token Y?
-	req.SuggestedLabels = types.Labels{
-		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
+	if req.SuggestedLabels == nil {
+		req.SuggestedLabels = make(types.Labels)
 	}
+	req.SuggestedLabels[types.InternalResourceIDLabel] = apiutils.Strings{uuid.NewString()}
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
@@ -215,11 +381,11 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string, error) {
 	var autoUpgradesVersion string
 	var err error
-	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
+	autoUpgrades := automaticUpgrades(h.GetClusterFeatures())
 	if autoUpgrades {
 		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
-			log.WithError(err).Info("Failed to get auto upgrades version.")
+			h.logger.InfoContext(ctx, "Failed to get auto upgrades version", "error", err)
 			return false, "", trace.Wrap(err)
 		}
 	}
@@ -246,14 +412,14 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
-		log.WithError(err).Info("Failed to return the node install script.")
+		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		log.WithError(err).Info("Failed to return the node install script.")
+		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -266,14 +432,20 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
 	if err != nil {
-		log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
+		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
+			"query_param", "name",
+			"error", err,
+		)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	uri, err := url.QueryUnescape(queryValues.Get("uri"))
 	if err != nil {
-		log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
+		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
+			"query_param", "uri",
+			"error", err,
+		)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -295,14 +467,14 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
-		log.WithError(err).Info("Failed to return the app install script.")
+		h.logger.InfoContext(r.Context(), "Failed to return the app install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		log.WithError(err).Debug("Failed to return the app install script.")
+		h.logger.DebugContext(r.Context(), "Failed to return the app install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -327,14 +499,14 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
-		log.WithError(err).Info("Failed to return the database install script.")
+		h.logger.InfoContext(r.Context(), "Failed to return the database install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		log.WithError(err).Debug("Failed to return the database install script.")
+		h.logger.DebugContext(r.Context(), "Failed to return the database install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -354,12 +526,17 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
 	if err != nil {
-		log.WithField("query-param", discoveryGroupQueryParam).WithError(err).Debug("Failed to return the discovery install script.")
+		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script",
+			"error", err,
+			"query_param", discoveryGroupQueryParam,
+		)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 	if discoveryGroup == "" {
-		log.WithField("query-param", discoveryGroupQueryParam).Debug("Failed to return the discovery install script. Missing required fields.")
+		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script. Missing required fields",
+			"query_param", discoveryGroupQueryParam,
+		)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -374,14 +551,14 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
-		log.WithError(err).Info("Failed to return the discovery install script.")
+		h.logger.InfoContext(r.Context(), "Failed to return the discovery install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		log.WithError(err).Debug("Failed to return the discovery install script.")
+		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -454,6 +631,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	var buf bytes.Buffer
+	var appServerResourceLabels []string
 	// If app install mode is requested but parameters are blank for some reason,
 	// we need to return an error.
 	if settings.appInstallMode {
@@ -462,6 +640,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 		if !appURIPattern.MatchString(settings.appURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
+		}
+
+		suggestedLabels := token.GetSuggestedLabels()
+		appServerResourceLabels, err = scripts.MarshalLabelsYAML(suggestedLabels, 4)
+		if err != nil {
+			return "", trace.Wrap(err)
 		}
 	}
 
@@ -510,16 +694,17 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"packageName":                packageName,
 		"repoChannel":                repoChannel,
 		"installUpdater":             strconv.FormatBool(settings.installUpdater),
-		"version":                    version,
+		"version":                    shsprintf.EscapeDefaultContext(version),
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
-		"appName":                    settings.appName,
-		"appURI":                     settings.appURI,
-		"joinMethod":                 settings.joinMethod,
+		"appServerResourceLabels":    appServerResourceLabels,
+		"appName":                    shsprintf.EscapeDefaultContext(settings.appName),
+		"appURI":                     shsprintf.EscapeDefaultContext(settings.appURI),
+		"joinMethod":                 shsprintf.EscapeDefaultContext(settings.joinMethod),
 		"labels":                     strings.Join(labelsList, ","),
 		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
 		"db_service_resource_labels": dbServiceResourceLabels,
 		"discoveryInstallMode":       settings.discoveryInstallMode,
-		"discoveryGroup":             settings.discoveryGroup,
+		"discoveryGroup":             shsprintf.EscapeDefaultContext(settings.discoveryGroup),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

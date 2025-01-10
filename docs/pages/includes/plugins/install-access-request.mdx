@@ -1,13 +1,12 @@
 <Tabs>
 <TabItem label="Download">
 
-We currently only provide `linux-amd64` binaries. You can also compile these
-plugins from source. You can run the plugin from a remote host or your local
-development machine.
+Access Request Plugins are available as `amd64` and `arm64` Linux binaries for downloading.
+Replace `ARCH` with your required version.
 
 ```code
-$ curl -L -O https://get.gravitational.com/teleport-access-{{ name }}-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-{{ name }}-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ curl -L -O https://cdn.teleport.dev/teleport-access-{{ name }}-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+$ tar -xzf teleport-access-{{ name }}-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
 $ cd teleport-access-{{ name }}
 $ sudo ./install
 ```
@@ -21,9 +20,6 @@ teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=tele
 
 </TabItem>
 <TabItem label="Docker Image">
-
-We currently only provide Docker images for `linux-amd64`. 
-Pull the Docker image for the latest access request plugin by running the following command:
 
 ```code
 $ docker pull public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.plugin.version=)
@@ -44,8 +40,9 @@ To install from source you need `git` and `go` installed. If you do not have Go
 installed, visit the Go [downloads page](https://go.dev/dl/).
 
 ```code
-$ git clone https://github.com/gravitational/teleport-plugins.git
-$ cd teleport-plugins/access/{{ name }}
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
+$ cd teleport/integrations/access/{{ name }}
+$ git checkout (=teleport.plugin.version=)
 $ make
 ```
 
@@ -63,7 +60,7 @@ teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=tele
 
 {/*TODO: Replace this with the following partial once we fix
 gravitational/docs#299:
-docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx*/}
+docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx*/}
 
 Allow Helm to install charts that are hosted in the Teleport Helm repository:
 

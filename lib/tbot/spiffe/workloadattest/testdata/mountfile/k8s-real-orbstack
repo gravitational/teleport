@@ -1,0 +1,24 @@
+705 559 0:163 / / ro,relatime master:126 - overlay overlay rw,lowerdir=/var/lib/docker/overlay2/l/Z45N3JIQYJQ54CBI7H3XMKVR5I:/var/lib/docker/overlay2/l/7KUPS4PU3O5IJL4EIRN7FMAOYD:/var/lib/docker/overlay2/l/ETEFQDOQ5PLMGLRYOA5RFON3OS:/var/lib/docker/overlay2/l/2B54A5B3XLE76YZCPIVK6UA7RI:/var/lib/docker/overlay2/l/KJGEGGJV7KZFUYQL46H7NCKSGR:/var/lib/docker/overlay2/l/UTJK53EUHIMBZO4NRBU7FR4KZ7:/var/lib/docker/overlay2/l/KHWFISJTIZFY3EZO27BU32LI6L:/var/lib/docker/overlay2/l/CD7NUI35TQGZLK6OY625DPG75E:/var/lib/docker/overlay2/l/MTGDF36JSTP6LT4N5SJM7JQVZF:/var/lib/docker/overlay2/l/56576N3DLXLKEFS4BVEDLETXGY:/var/lib/docker/overlay2/l/TEJQCUGT2ZHWVW65FILDOZNO3Y:/var/lib/docker/overlay2/l/ESKTCIGN4JBSHMNLLDE5UWBKGR:/var/lib/docker/overlay2/l/K4SEMZCPJSC5OOK4HNSTJ5EADF:/var/lib/docker/overlay2/l/OFXCSYIR4UIHYMYJQYQNAP2IVZ:/var/lib/docker/overlay2/l/HHM5GPXHH5O7FGYKI3DAF2TIE3:/var/lib/docker/overlay2/l/6EQX2D3HPZETMHLYONEJBT57GT:/var/lib/docker/overlay2/l/IB4VF3AIY6HVGYQ4CLLZD2HEMO:/var/lib/docker/overlay2/l/4SXNG5ILJTM4EGDS2DH2YODOHB:/var/lib/docker/overlay2/l/DA2FKFC5NFV4LTLQ7KXZJ7QH5N:/var/lib/docker/overlay2/l/W54AWW6M7O6OLVIFMHMPXIDZG5,upperdir=/var/lib/docker/overlay2/a5af8a9c1badd3ba20f186c2da75c1bd0a6a832227388d4936ce9e7729fbeec4/diff,workdir=/var/lib/docker/overlay2/a5af8a9c1badd3ba20f186c2da75c1bd0a6a832227388d4936ce9e7729fbeec4/work
+706 705 0:169 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+707 705 0:170 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+708 707 0:171 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+709 705 0:138 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro
+710 709 0:31 /../../pod36827f77-691f-45aa-a470-0989cf3749c4/64dd9bf5199ff782835247cb072e4842dc3d0135ef02f6498cb6bb6f37a320d2 /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw,nsdelegate
+711 707 0:134 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw
+712 707 0:132 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k
+713 707 0:36 /k8s/default/kubelet/pods/36827f77-691f-45aa-a470-0989cf3749c4/containers/teleport/d1a0d450 /dev/termination-log rw,noatime - btrfs /dev/vdb1 rw,nodatasum,nodatacow,ssd,discard,space_cache=v2,subvolid=5,subvol=/
+714 705 0:36 /k8s/default/kubelet/pods/36827f77-691f-45aa-a470-0989cf3749c4/volumes/kubernetes.io~configmap/config /etc/teleport ro,noatime - btrfs /dev/vdb1 rw,nodatasum,nodatacow,ssd,discard,space_cache=v2,subvolid=5,subvol=/
+715 705 0:119 / /etc/teleport-secrets ro,relatime - tmpfs tmpfs rw,size=8121144k
+716 705 0:36 /docker/containers/1927b688b6cc740a4d73f211b67b7573503ff3dd401d3e8d43dd449d032ce8d2/resolv.conf /etc/resolv.conf ro,noatime - btrfs /dev/vdb1 rw,nodatasum,nodatacow,ssd,discard,space_cache=v2,subvolid=5,subvol=/
+717 705 0:36 /docker/containers/1927b688b6cc740a4d73f211b67b7573503ff3dd401d3e8d43dd449d032ce8d2/hostname /etc/hostname ro,noatime - btrfs /dev/vdb1 rw,nodatasum,nodatacow,ssd,discard,space_cache=v2,subvolid=5,subvol=/
+718 705 0:36 /k8s/default/kubelet/pods/36827f77-691f-45aa-a470-0989cf3749c4/etc-hosts /etc/hosts rw,noatime - btrfs /dev/vdb1 rw,nodatasum,nodatacow,ssd,discard,space_cache=v2,subvolid=5,subvol=/
+719 705 0:36 /k8s/default/kubelet/pods/36827f77-691f-45aa-a470-0989cf3749c4/volumes/kubernetes.io~empty-dir/data /var/lib/teleport rw,noatime - btrfs /dev/vdb1 rw,nodatasum,nodatacow,ssd,discard,space_cache=v2,subvolid=5,subvol=/
+720 705 0:114 / /var/run/secrets/kubernetes.io/serviceaccount ro,relatime - tmpfs tmpfs rw,size=8121144k
+535 706 0:169 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw
+541 706 0:169 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw
+553 706 0:169 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw
+554 706 0:169 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw
+556 706 0:169 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime - proc proc rw
+562 706 0:170 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+566 706 0:170 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+567 709 0:167 / /sys/firmware ro,relatime - tmpfs tmpfs ro

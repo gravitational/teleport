@@ -22,105 +22,110 @@ import (
 	"context"
 	"testing"
 
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestURLChecker_AWS(t *testing.T) {
 	t.Parallel()
 
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
 	ctx := context.Background()
 	region := "us-west-2"
 	var testCases types.Databases
 
 	// RDS.
 	rdsInstance := mocks.RDSInstance("rds-instance", region, nil)
-	rdsInstanceDB, err := services.NewDatabaseFromRDSInstance(rdsInstance)
+	rdsInstanceDB, err := common.NewDatabaseFromRDSInstance(rdsInstance)
 	require.NoError(t, err)
 	rdsCluster := mocks.RDSCluster("rds-cluster", region, nil,
 		mocks.WithRDSClusterReader,
 		mocks.WithRDSClusterCustomEndpoint("my-custom"),
 	)
-	rdsClusterDBs, err := services.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
+	rdsClusterDBs, err := common.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
 	require.NoError(t, err)
 	require.Len(t, rdsClusterDBs, 3) // Primary, reader, custom.
 	testCases = append(testCases, append(rdsClusterDBs, rdsInstanceDB)...)
 
 	// RDS Proxy.
 	rdsProxy := mocks.RDSProxy("rds-proxy", region, "some-vpc")
-	rdsProxyDB, err := services.NewDatabaseFromRDSProxy(rdsProxy, nil)
+	rdsProxyDB, err := common.NewDatabaseFromRDSProxy(rdsProxy, nil)
 	require.NoError(t, err)
 	rdsProxyCustomEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, "my-custom", region)
-	rdsProxyCustomEndpointDB, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyCustomEndpoint, nil)
+	rdsProxyCustomEndpointDB, err := common.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyCustomEndpoint, nil)
 	require.NoError(t, err)
 	testCases = append(testCases, rdsProxyDB, rdsProxyCustomEndpointDB)
 
 	// Redshift.
 	redshiftCluster := mocks.RedshiftCluster("redshift-cluster", region, nil)
-	redshiftClusterDB, err := services.NewDatabaseFromRedshiftCluster(redshiftCluster)
+	redshiftClusterDB, err := common.NewDatabaseFromRedshiftCluster(&redshiftCluster)
 	require.NoError(t, err)
 	testCases = append(testCases, redshiftClusterDB)
 
 	// Redshift Serverless.
 	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("redshift-serverless", region)
-	redshiftServerlessDB, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
+	redshiftServerlessDB, err := common.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
 	redshiftServerlessVPCEndpoint := mocks.RedshiftServerlessEndpointAccess(redshiftServerlessWorkgroup, "vpc-endpoint", region)
-	redshiftServerlessVPCEndpointDB, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(redshiftServerlessVPCEndpoint, redshiftServerlessWorkgroup, nil)
+	redshiftServerlessVPCEndpointDB, err := common.NewDatabaseFromRedshiftServerlessVPCEndpoint(redshiftServerlessVPCEndpoint, redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
 	testCases = append(testCases, redshiftServerlessDB, redshiftServerlessVPCEndpointDB)
 
 	// ElastiCache.
 	elastiCacheCluster := mocks.ElastiCacheCluster("elasticache", region, mocks.WithElastiCacheReaderEndpoint)
-	elastiCacheClusterDBs, err := services.NewDatabasesFromElastiCacheNodeGroups(elastiCacheCluster, nil)
+	elastiCacheClusterDBs, err := common.NewDatabasesFromElastiCacheNodeGroups(elastiCacheCluster, nil)
 	require.NoError(t, err)
 	require.Len(t, elastiCacheClusterDBs, 2) // Primary, reader.
 	elastiCacheClusterConfigurationMode := mocks.ElastiCacheCluster("elasticache-configuration", region, mocks.WithElastiCacheConfigurationEndpoint)
-	elastiCacheClusterConfigurationModeDB, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(elastiCacheClusterConfigurationMode, nil)
+	elastiCacheClusterConfigurationModeDB, err := common.NewDatabaseFromElastiCacheConfigurationEndpoint(elastiCacheClusterConfigurationMode, nil)
 	require.NoError(t, err)
 	testCases = append(testCases, append(elastiCacheClusterDBs, elastiCacheClusterConfigurationModeDB)...)
 
 	// MemoryDB.
 	memoryDBCluster := mocks.MemoryDBCluster("memorydb", region)
-	memoryDBClusterDB, err := services.NewDatabaseFromMemoryDBCluster(memoryDBCluster, nil)
+	memoryDBClusterDB, err := common.NewDatabaseFromMemoryDBCluster(memoryDBCluster, nil)
 	require.NoError(t, err)
 	testCases = append(testCases, memoryDBClusterDB)
 
 	// OpenSearch.
 	openSearchDomain := mocks.OpenSearchDomain("opensearch", region, mocks.WithOpenSearchCustomEndpoint("custom.com"))
-	openSearchDBs, err := services.NewDatabasesFromOpenSearchDomain(openSearchDomain, nil)
+	openSearchDBs, err := common.NewDatabasesFromOpenSearchDomain(openSearchDomain, nil)
 	require.NoError(t, err)
 	require.Len(t, openSearchDBs, 2) // Primary, custom.
 	openSearchVPCDomain := mocks.OpenSearchDomain("opensearch-vpc", region, mocks.WithOpenSearchVPCEndpoint("vpc"))
-	openSearchVPCDomainDBs, err := services.NewDatabasesFromOpenSearchDomain(openSearchVPCDomain, nil)
+	openSearchVPCDomainDBs, err := common.NewDatabasesFromOpenSearchDomain(openSearchVPCDomain, nil)
 	require.NoError(t, err)
 	require.Len(t, openSearchVPCDomainDBs, 1)
 	testCases = append(testCases, append(openSearchDBs, openSearchVPCDomainDBs...)...)
+
+	// DocumentDB
+	docdbCluster := mocks.DocumentDBCluster("docdb-cluster", region, nil,
+		mocks.WithDocumentDBClusterReader,
+	)
+	docdbClusterDBs, err := common.NewDatabasesFromDocumentDBCluster(docdbCluster)
+	require.NoError(t, err)
+	require.Len(t, docdbClusterDBs, 2) // Primary, reader.
+	testCases = append(testCases, docdbClusterDBs...)
 
 	// Mock cloud clients.
 	mockClients := &cloud.TestCloudClients{
 		RDS: &mocks.RDSMock{
 			DBInstances:      []*rds.DBInstance{rdsInstance},
-			DBClusters:       []*rds.DBCluster{rdsCluster},
+			DBClusters:       []*rds.DBCluster{rdsCluster, docdbCluster},
 			DBProxies:        []*rds.DBProxy{rdsProxy},
 			DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyCustomEndpoint},
-		},
-		Redshift: &mocks.RedshiftMock{
-			Clusters: []*redshift.Cluster{redshiftCluster},
 		},
 		RedshiftServerless: &mocks.RedshiftServerlessMock{
 			Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
@@ -135,41 +140,50 @@ func TestURLChecker_AWS(t *testing.T) {
 		OpenSearch: &mocks.OpenSearchMock{
 			Domains: []*opensearchservice.DomainStatus{openSearchDomain, openSearchVPCDomain},
 		},
-		STS: &mocks.STSMock{},
+		STS: &mocks.STSClientV1{},
 	}
 	mockClientsUnauth := &cloud.TestCloudClients{
 		RDS:                &mocks.RDSMockUnauth{},
-		Redshift:           &mocks.RedshiftMockUnauth{},
 		RedshiftServerless: &mocks.RedshiftServerlessMock{Unauth: true},
 		ElastiCache:        &mocks.ElastiCacheMock{Unauth: true},
 		MemoryDB:           &mocks.MemoryDBMock{Unauth: true},
 		OpenSearch:         &mocks.OpenSearchMock{Unauth: true},
-		STS:                &mocks.STSMock{},
+		STS:                &mocks.STSClientV1{},
 	}
 
 	// Test both check methods.
 	// Note that "No permissions" logs should only be printed during the second
 	// group ("basic endpoint check").
 	methods := []struct {
-		name    string
-		clients cloud.Clients
+		name              string
+		clients           cloud.Clients
+		awsConfigProvider awsconfig.Provider
+		redshiftClient    redshiftClient
 	}{
 		{
-			name:    "API check",
-			clients: mockClients,
+			name:              "API check",
+			clients:           mockClients,
+			awsConfigProvider: &mocks.AWSConfigProvider{},
+			redshiftClient: &mocks.RedshiftClient{
+				Clusters: []redshifttypes.Cluster{redshiftCluster},
+			},
 		},
 		{
-			name:    "basic endpoint check",
-			clients: mockClientsUnauth,
+			name:              "basic endpoint check",
+			clients:           mockClientsUnauth,
+			awsConfigProvider: &mocks.AWSConfigProvider{},
+			redshiftClient:    &mocks.RedshiftClient{Unauth: true},
 		},
 	}
 
 	for _, method := range methods {
 		t.Run(method.name, func(t *testing.T) {
 			c := newURLChecker(DiscoveryResourceCheckerConfig{
-				Clients: method.clients,
-				Log:     log,
+				Clients:           method.clients,
+				AWSConfigProvider: method.awsConfigProvider,
+				Logger:            utils.NewSlogLoggerForTests(),
 			})
+			c.redshiftClientProviderFn = newFakeRedshiftClientProvider(method.redshiftClient)
 
 			for _, database := range testCases {
 				t.Run(database.GetName(), func(t *testing.T) {

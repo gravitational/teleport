@@ -19,8 +19,9 @@
 package gateway
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -33,9 +34,6 @@ type Gateway interface {
 	Serve() error
 	// Close terminates gateway connection.
 	Close() error
-	// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and
-	// updates the cert of the running local proxy.
-	ReloadCert() error
 
 	URI() uri.ResourceURI
 	TargetURI() uri.ResourceURI
@@ -44,7 +42,7 @@ type Gateway interface {
 	TargetUser() string
 	TargetSubresourceName() string
 	SetTargetSubresourceName(value string)
-	Log() *logrus.Entry
+	Log() *slog.Logger
 	LocalAddress() string
 	LocalPort() string
 	LocalPortInt() int

@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	libauth "github.com/gravitational/teleport/lib/auth"
 )
 
 // AuthHelper is the interface one must implement to run the AccessRequestSuite.
@@ -34,6 +35,7 @@ type AuthHelper interface {
 	ServerAddr() string
 	CredentialsForUser(t *testing.T, ctx context.Context, user types.User) client.Credentials
 	SignIdentityForUser(t *testing.T, ctx context.Context, user types.User) string
+	Auth() *libauth.Server
 }
 
 // NewAccessRequestClient returns a new integration.Client.

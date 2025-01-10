@@ -16,33 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import styled from 'styled-components';
 
-import AppContextProvider from 'teleterm/ui/appContextProvider';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
-  createClusterServiceState,
-  ClustersServiceState,
-} from 'teleterm/ui/services/clusters';
-import { routing } from 'teleterm/ui/uri';
-import {
+  leafClusterUri,
+  makeAcl,
+  makeApp,
+  makeDatabase,
+  makeKube,
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
-  makeDatabase,
-  makeKube,
-  makeApp,
   rootClusterUri,
-  leafClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
-
-import { ResourcesService } from 'teleterm/ui/services/resources';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
-import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
 import * as tsh from 'teleterm/services/tshd/types';
+import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import {
+  ClustersServiceState,
+  createClusterServiceState,
+} from 'teleterm/ui/services/clusters';
+import { ResourcesService } from 'teleterm/ui/services/resources';
+import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { routing } from 'teleterm/ui/uri';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';
@@ -79,6 +82,7 @@ export const OnlineLoadedResources = () => {
           {
             kind: 'server',
             resource: makeServer(),
+            requiresRequest: false,
           },
           {
             kind: 'server',
@@ -87,10 +91,23 @@ export const OnlineLoadedResources = () => {
               hostname: 'bar',
               tunnel: true,
             }),
+            requiresRequest: false,
           },
-          { kind: 'database', resource: makeDatabase() },
-          { kind: 'kube', resource: makeKube() },
-          { kind: 'app', resource: { ...makeApp(), name: 'TCP app' } },
+          {
+            kind: 'database',
+            resource: makeDatabase(),
+            requiresRequest: false,
+          },
+          {
+            kind: 'kube',
+            resource: makeKube(),
+            requiresRequest: false,
+          },
+          {
+            kind: 'app',
+            resource: { ...makeApp(), name: 'TCP app' },
+            requiresRequest: false,
+          },
           {
             kind: 'app',
             resource: {
@@ -98,6 +115,7 @@ export const OnlineLoadedResources = () => {
               name: 'HTTP app',
               endpointUri: 'http://localhost:8080',
             },
+            requiresRequest: false,
           },
           {
             kind: 'app',
@@ -107,10 +125,21 @@ export const OnlineLoadedResources = () => {
               endpointUri: 'https://localhost:8080',
               awsConsole: true,
               awsRoles: [
-                { arn: 'foo', display: 'foo', name: 'foo' },
-                { arn: 'bar', display: 'bar', name: 'bar' },
+                {
+                  arn: 'foo',
+                  display: 'foo',
+                  name: 'foo',
+                  accountId: '123456789012',
+                },
+                {
+                  arn: 'bar',
+                  display: 'bar',
+                  name: 'bar',
+                  accountId: '123456789012',
+                },
               ],
             },
+            requiresRequest: true,
           },
           {
             kind: 'app',
@@ -122,6 +151,7 @@ export const OnlineLoadedResources = () => {
               endpointUri: '',
               samlApp: true,
             },
+            requiresRequest: true,
           },
         ],
         totalCount: 4,
@@ -137,8 +167,8 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        userType: tsh.UserType.LOCAL,
-        acl: {
+        userType: tsh.LoggedInUser_UserType.LOCAL,
+        acl: makeAcl({
           tokens: {
             create: true,
             list: true,
@@ -147,7 +177,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
             read: true,
             use: true,
           },
-        },
+        }),
       }),
     })
   );
@@ -173,8 +203,8 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       makeRootCluster({
         uri: rootClusterDoc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.SSO,
-          acl: {
+          userType: tsh.LoggedInUser_UserType.SSO,
+          acl: makeAcl({
             tokens: {
               create: true,
               list: true,
@@ -183,7 +213,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
               read: true,
               use: true,
             },
-          },
+          }),
         }),
       })
     );
@@ -208,7 +238,7 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        acl: {
+        acl: makeAcl({
           tokens: {
             create: false,
             list: true,
@@ -217,7 +247,7 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
             read: true,
             use: true,
           },
-        },
+        }),
       }),
     })
   );
@@ -312,7 +342,7 @@ function renderState({
   doc: docTypes.DocumentCluster;
   listUnifiedResources?: ResourcesService['listUnifiedResources'];
   platform?: NodeJS.Platform;
-  userType?: tsh.UserType;
+  userType?: tsh.LoggedInUser_UserType;
 }) {
   const appContext = new MockAppContext({ platform });
   appContext.clustersService.state = state;
@@ -324,7 +354,10 @@ function renderState({
       localClusterUri: doc.clusterUri,
       documents: [doc],
       location: doc.uri,
-      accessRequests: undefined,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
     };
   });
 
@@ -335,15 +368,19 @@ function renderState({
 
   return (
     <AppContextProvider value={appContext}>
-      <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-            <Wrapper>
-              <DocumentCluster visible={true} doc={doc} />
-            </Wrapper>
-          </ConnectMyComputerContextProvider>
-        </ResourcesContextProvider>
-      </MockWorkspaceContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <MockWorkspaceContextProvider>
+            <ResourcesContextProvider>
+              <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
+                <Wrapper>
+                  <DocumentCluster visible={true} doc={doc} />
+                </Wrapper>
+              </ConnectMyComputerContextProvider>
+            </ResourcesContextProvider>
+          </MockWorkspaceContextProvider>
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }

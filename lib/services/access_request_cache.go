@@ -20,17 +20,18 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
@@ -43,6 +44,8 @@ const (
 	accessRequestCreated = "Created"
 	// accessRequestState is the name of the sort index used for sorting requests by their current state (pending, approved, etc).
 	accessRequestState = "State"
+	// accessRequestUser is the name of the sort index used for sorting requests by the person who created the request.
+	accessRequestUser = "User"
 )
 
 // AccessRequestCacheConfig holds the configuration parameters for an [AccessRequestCache].
@@ -53,6 +56,8 @@ type AccessRequestCacheConfig struct {
 	Events types.Events
 	// Getter is an access request getter client.
 	Getter AccessRequestGetter
+	// MaxRetryPeriod is the maximum retry period on failed watches.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults valides the config and provides reasonable defaults for optional fields.
@@ -84,8 +89,12 @@ type AccessRequestCache struct {
 	primaryCache *sortcache.SortCache[*types.AccessRequestV3]
 	ttlCache     *utils.FnCache
 	initC        chan struct{}
+	initOnce     sync.Once
 	closeContext context.Context
 	cancel       context.CancelFunc
+	// onInit is a callback used in tests to detect
+	// individual initializations.
+	onInit func()
 }
 
 // NewAccessRequestCache sets up a new [AccessRequestCache] instance based on the supplied
@@ -117,8 +126,9 @@ func NewAccessRequestCache(cfg AccessRequestCacheConfig) (*AccessRequestCache, e
 	}
 
 	if _, err := newResourceWatcher(ctx, c, ResourceWatcherConfig{
-		Component: "access-request-cache",
-		Client:    cfg.Events,
+		Component:      "access-request-cache",
+		Client:         cfg.Events,
+		MaxRetryPeriod: cfg.MaxRetryPeriod,
 	}); err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -186,6 +196,8 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		index = accessRequestCreated
 	case proto.AccessRequestSort_STATE:
 		index = accessRequestState
+	case proto.AccessRequestSort_USER:
+		index = accessRequestUser
 	default:
 		return nil, trace.BadParameter("unsupported access request sort index '%v'", req.Sort)
 	}
@@ -205,7 +217,15 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 
 	// perform the traversal until we've seen all items or fill the page
 	var rsp proto.ListAccessRequestsResponse
+	now := time.Now()
+	var expired int
 	traverse(index, req.StartKey, "", func(r *types.AccessRequestV3) (continueTraversal bool) {
+		if !r.Expiry().IsZero() && now.After(r.Expiry()) {
+			expired++
+			// skip requests that appear expired. some backends can take up to 48 hours to expired items
+			// and access requests showing up past their expiry time is particularly confusing.
+			return true
+		}
 		if !req.Filter.Match(r) || !match(r) {
 			return true
 		}
@@ -213,7 +233,7 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		c := r.Copy()
 		cr, ok := c.(*types.AccessRequestV3)
 		if !ok {
-			log.Warnf("%T.Clone returned unexpected type %T (this is a bug).", r, c)
+			slog.WarnContext(ctx, "clone returned unexpected type (this is a bug)", "expected", logutils.TypeAttr(r), "got", logutils.TypeAttr(c))
 			return true
 		}
 
@@ -227,6 +247,12 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 	if len(rsp.AccessRequests) > limit {
 		rsp.NextKey = cache.KeyOf(index, rsp.AccessRequests[limit])
 		rsp.AccessRequests = rsp.AccessRequests[:limit]
+	}
+
+	if expired > 0 {
+		// this is a debug-level log since some amount of delay between expiry and backend cleanup is expected, but
+		// very large and/or disproportionate numbers of stale access requests might be a symptom of a deeper issue.
+		slog.DebugContext(ctx, "omitting expired access requests from cache read", "count", expired)
 	}
 
 	return &rsp, nil
@@ -250,6 +276,9 @@ func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*t
 			accessRequestState: func(req *types.AccessRequestV3) string {
 				return fmt.Sprintf("%s/%s", req.GetState().String(), req.GetName())
 			},
+			accessRequestUser: func(req *types.AccessRequestV3) string {
+				return fmt.Sprintf("%s/%s", req.GetUser(), req.GetName())
+			},
 		},
 	})
 
@@ -264,7 +293,7 @@ func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*t
 			if evicted := cache.Put(r); evicted != 0 {
 				// this warning, if it appears, means that we configured our indexes incorrectly and one access request is overwriting another.
 				// the most likely explanation is that one of our indexes is missing the request id suffix we typically use.
-				log.Warnf("AccessRequest %q conflicted with %d other requests during cache fetch. This is a bug and may result in requests not appearing in UI/CLI correctly.", r.GetName(), evicted)
+				slog.WarnContext(ctx, "conflict during access request fetch (this is a bug and may result in missing requests)", "id", r.GetName(), "evicted", evicted)
 			}
 		}
 
@@ -330,32 +359,47 @@ func (c *AccessRequestCache) getResourcesAndUpdateCurrent(ctx context.Context) e
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.primaryCache = cache
+	c.initOnce.Do(func() {
+		close(c.initC)
+	})
+	if c.onInit != nil {
+		c.onInit()
+	}
 	return nil
 }
 
-// processEventAndUpdateCurrent is part of the resourceCollector interface and is used to update the
+// SetInitCallback is used in tests that care about cache inits.
+func (c *AccessRequestCache) SetInitCallback(cb func()) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+	c.onInit = cb
+}
+
+// processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
 // primary cache state when modification events occur.
-func (c *AccessRequestCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+func (c *AccessRequestCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
 
-	switch event.Type {
-	case types.OpPut:
-		req, ok := event.Resource.(*types.AccessRequestV3)
-		if !ok {
-			log.Warnf("Unexpected resource type %T in event (expected %T)", event.Resource, req)
-			return
+	for _, event := range events {
+		switch event.Type {
+		case types.OpPut:
+			req, ok := event.Resource.(*types.AccessRequestV3)
+			if !ok {
+				slog.WarnContext(ctx, "unexpected resource type in event", "expected", logutils.TypeAttr(req), "got", logutils.TypeAttr(event.Resource))
+				continue
+			}
+			if evicted := cache.Put(req); evicted > 1 {
+				// this warning, if it appears, means that we configured our indexes incorrectly and one access request is overwriting another.
+				// the most likely explanation is that one of our indexes is missing the request id suffix we typically use.
+				slog.WarnContext(ctx, "request put event resulted in multiple cache evictions (this is a bug)", "id", req.GetName(), "evicted", evicted)
+			}
+		case types.OpDelete:
+			cache.Delete(accessRequestID, event.Resource.GetName())
+		default:
+			slog.WarnContext(ctx, "unexpected event variant", "op", logutils.StringerAttr(event.Type), "resource", logutils.TypeAttr(event.Resource))
 		}
-		if evicted := cache.Put(req); evicted > 1 {
-			// this warning, if it appears, means that we configured our indexes incorrectly and one access request is overwriting another.
-			// the most likely explanation is that one of our indexes is missing the request id suffix we typically use.
-			log.Warnf("Processing of put event for request %q resulted in multiple cache evictions (this is a bug).", req.GetName())
-		}
-	case types.OpDelete:
-		cache.Delete(accessRequestID, event.Resource.GetName())
-	default:
-		log.Warnf("Unexpected event variant: %+v", event)
 	}
 }
 
@@ -370,6 +414,7 @@ func (c *AccessRequestCache) notifyStale() {
 	}
 	c.primaryCache = nil
 	c.initC = make(chan struct{})
+	c.initOnce = sync.Once{}
 }
 
 // initializationChan is part of the resourceCollector interface and gets the channel
@@ -378,6 +423,12 @@ func (c *AccessRequestCache) initializationChan() <-chan struct{} {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 	return c.initC
+}
+
+// InitializationChan is part of the resourceCollector interface and gets the channel
+// used to signal that the accessRequestCache has been initialized.
+func (c *AccessRequestCache) InitializationChan() <-chan struct{} {
+	return c.initializationChan()
 }
 
 // Close terminates the background process that keeps the access request cache up to

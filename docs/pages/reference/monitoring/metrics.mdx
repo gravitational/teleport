@@ -1,0 +1,22 @@
+---
+title: Teleport Metrics
+description: Comprehensive list of all metrics exposed by Teleport.
+---
+
+<Notice scope={["cloud"]} type="tip">
+
+Teleport Cloud does not expose monitoring endpoints for the Auth Service and Proxy Service.
+
+</Notice>
+
+Teleport metrics are intended for performance monitoring. If you'd like to
+monitor Teleport usage, consider utilizing our Event Handler plugin to push Audit Events into your
+preferred logging aggregation system (Elastic, Splunk, Sumo Logic, etc). 
+
+- [Audit Events and Records](audit.mdx)  
+- [Forwarding events with Fluentd](../../admin-guides/management/export-audit-events/fluentd.mdx)  
+- [Monitor Teleport Audit Events with the Elastic Stack](../../admin-guides/management/export-audit-events/elastic-stack.mdx)  
+
+The following metrics are available:
+
+(!docs/pages/includes/metrics.mdx!)

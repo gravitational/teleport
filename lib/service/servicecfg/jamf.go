@@ -18,12 +18,53 @@
 
 package servicecfg
 
-import "github.com/gravitational/teleport/api/types"
+import (
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+)
+
+// JamfCredentials is the credentials for the Jamf MDM service.
+type JamfCredentials struct {
+	// Username is the Jamf API username.
+	// Username and password are used to acquire short-lived Jamf Pro API tokens.
+	// See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
+	// Prefer using client_id and client_secret.
+	// Either username+password or client_id+client_secret are required.
+	Username string
+	// Password is the Jamf API password.
+	// Username and password are used to acquire short-lived Jamf Pro API tokens.
+	// See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
+	// Prefer using client_id and client_secret.
+	// Either username+password or client_id+client_secret are required.
+	Password string
+	// ClientID is the Jamf API client ID.
+	// See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+	// Either username+password or client_id+client_secret are required.
+	ClientID string
+	// ClientSecret is the Jamf API client secret.
+	// See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+	// Either username+password or client_id+client_secret are required
+	ClientSecret string
+}
+
+// ValidateJamfCredentials validates the Jamf credentials.
+func ValidateJamfCredentials(j *JamfCredentials) error {
+	hasUserPass := j.Username != "" && j.Password != ""
+	hasAPICreds := j.ClientID != "" && j.ClientSecret != ""
+	switch {
+	case !hasUserPass && !hasAPICreds:
+		return trace.BadParameter("either username+password or clientID+clientSecret must be provided")
+	}
+	return nil
+}
 
 // JamfConfig is the configuration for the Jamf MDM service.
 type JamfConfig struct {
 	// Spec is the configuration spec.
 	Spec *types.JamfSpecV1
+	// Credentials are the Jamf API credentials.
+	Credentials *JamfCredentials
 	// ExitOnSync controls whether the service performs a single sync operation
 	// before exiting.
 	ExitOnSync bool

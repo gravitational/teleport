@@ -20,6 +20,7 @@ package types
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"time"
 
@@ -444,27 +445,22 @@ func (r *AccessRequestV3) SetName(name string) {
 
 // Expiry gets Expiry
 func (r *AccessRequestV3) Expiry() time.Time {
+	// Fallback on existing expiry in metadata if not set in spec.
+	if r.Spec.ResourceExpiry != nil {
+		return *r.Spec.ResourceExpiry
+	}
 	return r.Metadata.Expiry()
 }
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry.UTC())
+	t := expiry.UTC()
+	r.Spec.ResourceExpiry = &t
 }
 
 // GetMetadata gets Metadata
 func (r *AccessRequestV3) GetMetadata() Metadata {
 	return r.Metadata
-}
-
-// GetResourceID gets ResourceID
-func (r *AccessRequestV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-// SetResourceID sets ResourceID
-func (r *AccessRequestV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
 }
 
 // GetRevision returns the revision
@@ -548,7 +544,11 @@ func (r *AccessRequestV3) GetAllLabels() map[string]string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (r *AccessRequestV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.GetUser())
+	fieldVals = append(fieldVals, r.GetRoles()...)
+	for _, resource := range r.GetRequestedResourceIDs() {
+		fieldVals = append(fieldVals, resource.Name)
+	}
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -603,6 +603,11 @@ func (s AccessReview) GetAccessListTitle() string {
 	return s.AccessList.Title
 }
 
+// IsEqual t is equivalent to the provide AccessReviewThreshold.
+func (t *AccessReviewThreshold) IsEqual(o *AccessReviewThreshold) bool {
+	return deriveTeleportEqualAccessReviewThreshold(t, o)
+}
+
 // AccessRequestUpdate encompasses the parameters of a
 // SetAccessRequestState call.
 type AccessRequestUpdate struct {
@@ -640,6 +645,47 @@ func (u *AccessRequestUpdate) Check() error {
 		return trace.BadParameter("cannot override roles when setting state: %s", u.State)
 	}
 	return nil
+}
+
+// RequestReasonMode can be either "required" or "optional". Empty-string is treated as "optional".
+// If a role has the request reason mode set to "required", then reason is required for all Access
+// Requests requesting roles or resources allowed by this role. It applies only to users who have
+// this role assigned.
+type RequestReasonMode string
+
+const (
+	// RequestReasonModeRequired indicates required mode. See [[RequestReasonMode]] godoc for
+	// more details.
+	RequestReasonModeRequired RequestReasonMode = "required"
+	// RequestReasonModeRequired indicates optional mode. See [[RequestReasonMode]] godoc for
+	// more details.
+	RequestReasonModeOptional RequestReasonMode = "optional"
+)
+
+var allRequestReasonModes = []RequestReasonMode{
+	RequestReasonModeRequired,
+	RequestReasonModeOptional,
+}
+
+// Required checks if this mode is "required". Empty mode is treated as "optional".
+func (m RequestReasonMode) Required() bool {
+	switch m {
+	case RequestReasonModeRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Check validates this mode value. Note that an empty value is considered invalid.
+func (m RequestReasonMode) Check() error {
+	for _, x := range allRequestReasonModes {
+		if m == x {
+			return nil
+		}
+	}
+	return trace.BadParameter("unrecognized request reason mode %q, must be one of: %v",
+		m, allRequestReasonModes)
 }
 
 // RequestStrategy is an indicator of how access requests
@@ -774,8 +820,46 @@ func (f *AccessRequestFilter) FromMap(m map[string]string) error {
 	return nil
 }
 
+func hasReviewed(req AccessRequest, author string) bool {
+	reviews := req.GetReviews()
+	var reviewers []string
+	for _, review := range reviews {
+		reviewers = append(reviewers, review.Author)
+	}
+	return slices.Contains(reviewers, author)
+}
+
 // Match checks if a given access request matches this filter.
 func (f *AccessRequestFilter) Match(req AccessRequest) bool {
+	// only return if the request was made by the api requester
+	if f.Scope == AccessRequestScope_MY_REQUESTS && req.GetUser() != f.Requester {
+		return false
+	}
+	// a user cannot review their own requests
+	if f.Scope == AccessRequestScope_NEEDS_REVIEW {
+		if req.GetUser() == f.Requester {
+			return false
+		}
+		if req.GetState() != RequestState_PENDING {
+			return false
+		}
+		if hasReviewed(req, f.Requester) {
+			return false
+		}
+	}
+	// only match if the api requester has submit a review
+	if f.Scope == AccessRequestScope_REVIEWED {
+		// users cant review their own requests so we can early return
+		if req.GetUser() == f.Requester {
+			return false
+		}
+		if !hasReviewed(req, f.Requester) {
+			return false
+		}
+	}
+	if !req.MatchSearch(f.SearchKeywords) {
+		return false
+	}
 	if f.ID != "" && req.GetName() != f.ID {
 		return false
 	}

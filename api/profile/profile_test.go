@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 )
 
@@ -75,6 +76,10 @@ func TestProfileBasics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, p.Name(), name)
 
+	// Update the dial timeout because when the profile is loaded, an
+	// empty timeout is implicitly set to match the default value.
+	p.SSHDialTimeout = defaults.DefaultIOTimeout
+
 	// load and verify current profile
 	clone, err := profile.FromDir(dir, "")
 	require.NoError(t, err)
@@ -99,8 +104,10 @@ func TestAppPath(t *testing.T) {
 		SiteName:     "example.com",
 	}
 
-	expected := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem")
-	require.Equal(t, expected, p.AppCertPath("banana"))
+	expectCertPath := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana.crt")
+	require.Equal(t, expectCertPath, p.AppCertPath("banana"))
+	expectKeyPath := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana.key")
+	require.Equal(t, expectKeyPath, p.AppKeyPath("banana"))
 }
 
 func TestProfilePath(t *testing.T) {

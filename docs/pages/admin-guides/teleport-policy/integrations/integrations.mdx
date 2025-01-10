@@ -1,0 +1,57 @@
+---
+title: Teleport Policy Integrations
+description: Integrations in Access Graph with Teleport Policy.
+---
+
+Teleport can integrate with identity providers (IdPs) like Okta and AWS OIDC 
+which can then be used with Access Graph, providing a comprehensive, 
+interactive view of how users, roles, and resources are interconnected, 
+enabling administrators to better understand and control access policies.
+
+Read the following guides for information on using Teleport Access Graph to
+visualize role-based access controls from third-party services:
+
+(!toc!)
+
+## Viewing available integrations
+
+The Integrations page shows integrations that can be enabled or are already
+enabled in Access Graph.
+
+![Integrations](../../../../img/access-graph/integrations.png)
+
+Resources imported into Teleport through Teleport-enabled integrations are
+automatically imported into Teleport Policy without any additional
+configuration.
+
+To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:  
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: my-role
+spec:
+  allow:
+    rules:
+    - resources:
+      - access_graph
+      verbs:
+      - list
+      - read
+```
+
+The preset `editor` role has the required permissions by default.
+
+## Set up a new integration
+
+On the left sidebar, click **Policy**. Click the connection icon labeled Integrations: 
+![Connection view](../../../../img/access-graph/connection_view.png) 
+Select the "Set up new integration" button.
+
+Teleport can also import and grant access to resources from Okta organizations,
+such as user profiles, groups and applications. You can view connection data in
+Access Graph. Follow the steps here to add an [Okta
+integration](../../../enroll-resources/application-access/okta/hosted-guide.mdx)
+in your cluster.
+

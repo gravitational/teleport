@@ -8,6 +8,10 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-4"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+{{- if .Values.extraLabels.serviceAccount }}
+  labels:
+  {{- toYaml .Values.extraLabels.serviceAccount | nindent 4 }}
+{{- end }}
 ---
 {{- end }}
 {{- if .Values.rbac.create }}
@@ -20,6 +24,10 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-3"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+{{- if .Values.extraLabels.role }}
+  labels:
+  {{- toYaml .Values.extraLabels.role | nindent 4 }}
+{{- end }}
 rules:
   - apiGroups: [""]
     resources: ["secrets",]
@@ -34,6 +42,10 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-2"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+{{- if .Values.extraLabels.roleBinding }}
+  labels:
+  {{- toYaml .Values.extraLabels.roleBinding | nindent 4 }}
+{{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -53,10 +65,23 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+{{- if .Values.extraLabels.job }}
+  labels:
+  {{- toYaml .Values.extraLabels.job | nindent 4 }}
+{{- end }}
 spec:
   template:
     metadata:
       name: {{ .Release.Name }}-delete-hook
+{{- if .Values.annotations.pod }}
+      annotations:
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        app: {{ .Release.Name }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
     spec:
 {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -92,4 +117,7 @@ spec:
         args: ["kube-state", "delete"]
         {{- if .Values.securityContext }}
         securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
+        {{- if .Values.resources }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
         {{- end }}

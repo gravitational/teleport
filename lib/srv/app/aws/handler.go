@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -54,13 +54,15 @@ type signerHandler struct {
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
 	// Log is a logger for the handler.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
 	*awsutils.SigningService
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
+	// MaxHTTPRequestBodySize is the limit on how big a request body can be.
+	MaxHTTPRequestBodySize int64
 }
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
@@ -76,10 +78,16 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		cfg.RoundTripper = tr
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(teleport.ComponentKey, "aws:signer")
+		cfg.Log = slog.With(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+
+	// Limit HTTP request body size to 70MB, which matches AWS Lambda function
+	// zip file upload limit (50MB) after accounting for base64 encoding bloat.
+	if cfg.MaxHTTPRequestBodySize == 0 {
+		cfg.MaxHTTPRequestBodySize = 70 << 20
 	}
 	return nil
 }
@@ -107,7 +115,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 
 // formatForwardResponseError converts an error to a status code and writes the code to a response.
 func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.WithError(err).Debugf("Failed to process request.")
+	s.Log.DebugContext(r.Context(), "Failed to process request", "error", err)
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -117,6 +125,7 @@ func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *ht
 
 // ServeHTTP handles incoming requests by signing them and then forwarding them to the proper AWS API.
 func (s *signerHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	req.Body = utils.MaxBytesReader(w, req.Body, s.MaxHTTPRequestBodySize)
 	if err := s.serveHTTP(w, req); err != nil {
 		s.formatForwardResponseError(w, req, err)
 		return
@@ -164,6 +173,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 			SessionName:   sessCtx.Identity.Username,
 			AWSRoleArn:    sessCtx.Identity.RouteToApp.AWSRoleARN,
 			AWSExternalID: sessCtx.App.GetAWSExternalID(),
+			Integration:   sessCtx.App.GetIntegration(),
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -207,7 +217,7 @@ func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Requ
 	}
 	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
+		s.Log.WarnContext(req.Context(), "Failed to emit audit event.", "error", auditErr)
 	}
 }
 
@@ -228,7 +238,7 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	}
 	outReq.Body = http.NoBody
 	if r.Body != nil {
-		outReq.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+		outReq.Body = r.Body
 	}
 	// need to rewrite the host header as well. The oxy forwarder will do this for us,
 	// since we use the PassHostHeader(false) option, but if host is a signed header

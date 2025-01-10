@@ -16,31 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
+
 import Box from 'design/Box';
-import * as Icons from 'design/Icon';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
 import Text from 'design/Text';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
-import useTeleport from 'teleport/useTeleport';
-
-import { CtaEvent } from 'teleport/services/userEvent';
-
 import { storageService } from 'teleport/services/storageService';
+import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 import { ButtonLockedFeature } from '../ButtonLockedFeature';
 
 export const ExternalAuditStorageCta = () => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
-  const featureEnabled = !ctx.lockedFeatures.externalCloudAudit;
+  const featureEnabled = cfg.externalAuditStorage;
   const userHasAccess = ctx.getFeatureFlags().enrollIntegrationsOrPlugins;
 
   useEffect(() => {
@@ -49,7 +47,7 @@ export const ExternalAuditStorageCta = () => {
         cfg.isCloud &&
         !storageService.getExternalAuditStorageCtaDisabled()
     );
-  }, [cfg.isCloud]);
+  }, [ctx.hasExternalAuditStorage]);
 
   function handleDismiss() {
     storageService.disableExternalAuditStorageCta();
@@ -61,8 +59,17 @@ export const ExternalAuditStorageCta = () => {
   }
 
   return (
-    <CtaContainer mb="4">
-      <Flex justifyContent="space-between">
+    <CtaContainer mb={3}>
+      <Flex
+        justifyContent="space-between"
+        css={`
+          @media screen and (max-width: ${props =>
+              props.theme.breakpoints.mobile}px) {
+            flex-direction: column;
+            gap: ${props => props.theme.space[3]}px;
+          }
+        `}
+      >
         <Flex mr="4" alignItems="center">
           <Icons.Server size="medium" mr="3" />
           <Box>

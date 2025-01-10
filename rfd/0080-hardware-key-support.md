@@ -472,9 +472,55 @@ Note: Since this prompt requires stdin, it may not work in environments that do 
 
 `tsh db connect` uses raw RSA private key data to form connections. Since this cannot be supported with hardware private keys, users will instead need to use `tsh proxy db` to connect using a local proxy. Teleport Connect already uses `tsh proxy db` and will not be affected, but the WebUI may have an additional challenge to support database connections.
 
+Update: this has been implemented as part of [RFD 90](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md#integrating-with-piv-hardware-private-keys-for-security-improvements).
+
 #### Kubernetes support
 
 Kubernetes integration uses raw RSA private [key data to form connections](https://github.com/gravitational/teleport/blob/master/lib/kube/kubeconfig/kubeconfig.go#L164-L167). It may be possible to create a [custom auth provider plugin](https://pkg.go.dev/k8s.io/client-go@v0.24.3/tools/clientcmd/api#AuthProviderConfig) and supply it to the kubernetes Auth Info. Kubernetes support will be investigated and fixed in a follow up PR after the initial hardware private key implementation.
+
+Update: this has been implemented as part of [RFD 121](https://github.com/gravitational/teleport/blob/master/rfd/0121-kube-mfa-sessions.md).
+
+#### Application Access
+
+Application Access can be supported by expanding the changes outlined in the
+section above for [Web Sessions](#web-sessions) for App Sessions, which are
+essentially just a specific type of Web Session.
+
+When a user creates an App Session with `rpc CreateAppSession`, the Auth
+service will check the user's current certificate to determine whether the App
+Session should be attested as a `web_session`.
+
+Note: This implementation will be reliant on Per-session MFA support, since
+a `web_session` attestation cannot be counted as MFA verification and
+therefore cannot satisfy the private key policies alone. When creating an App
+Session, users will be required to perform an MFA check to mark the App Session
+as MFA verified in addition to the `web_session` attestation. The details for
+Per-session MFA for App Access will be covered in a separate RFD and
+implemented alongside these changes.
+
+##### Protecting attested App Sessions
+
+Similarly to Web Sessions, App Sessions can be managed entirely by the Proxy and
+Auth services. In order to ensure this is the case, `rpc GetAppSession` and
+`rpc ListAppSessions` will be restricted to require `read` or `list` permissions
+for `KindWebSession`. These permissions will only be granted to the Proxy
+Service role.
+
+Additionally `rpc CreateAppSession`, which is called using the user's credentials
+rather than the Proxy Service's credentials, will return the App Session without
+secrets.
+
+```proto
+// CreateAppSessionResponse contains the requested application web session.
+message CreateAppSessionResponse {
+  // Session is the application web session with secrets excluded.
+  types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
+}
+```
+
+Note: Since no current callers of `CreateAppSession` in the teleport code base
+use the secrets returned in `CreateAppSessionResponse`, there should be no
+backwards compatibility issues.
 
 #### Agent key support
 

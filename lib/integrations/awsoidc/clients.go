@@ -31,13 +31,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
+
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 )
 
 // AWSClientRequest contains the required fields to set up an AWS service client.
 type AWSClientRequest struct {
-	// IntegrationName is the integration name that is going to issue an API Call.
-	IntegrationName string
-
 	// Token is the token used to issue the API Call.
 	Token string
 
@@ -53,10 +52,6 @@ type AWSClientRequest struct {
 
 // CheckAndSetDefaults checks if the required fields are present.
 func (req *AWSClientRequest) CheckAndSetDefaults() error {
-	if req.IntegrationName == "" {
-		return trace.BadParameter("integration name is required")
-	}
-
 	if req.Token == "" {
 		return trace.BadParameter("token is required")
 	}
@@ -65,8 +60,10 @@ func (req *AWSClientRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("role arn is required")
 	}
 
-	if req.Region == "" {
-		return trace.BadParameter("region is required")
+	if req.Region != "" {
+		if err := awsutils.IsValidRegion(req.Region); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -171,4 +168,27 @@ type IdentityToken string
 // GetIdentityToken returns the token configured.
 func (j IdentityToken) GetIdentityToken() ([]byte, error) {
 	return []byte(j), nil
+}
+
+// CallerIdentityGetter is a subset of [sts.Client] that can be used to information about the caller identity.
+type CallerIdentityGetter interface {
+	// GetCallerIdentity returns information about the caller identity.
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+// CheckAccountID is a helper func that check if the current caller account ID
+// matches the expected account ID.
+func CheckAccountID(ctx context.Context, clt CallerIdentityGetter, wantAccountID string) error {
+	if wantAccountID == "" {
+		return nil
+	}
+	callerIdentity, err := clt.GetCallerIdentity(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	currentAccountID := aws.ToString(callerIdentity.Account)
+	if wantAccountID != currentAccountID {
+		return trace.BadParameter("expected account ID %s but current account ID is %s", wantAccountID, currentAccountID)
+	}
+	return nil
 }

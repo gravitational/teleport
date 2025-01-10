@@ -1,30 +1,36 @@
-// Copyright 2023 Gravitational, Inc
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{filesystem::FileCacheObject, path::UnixPath};
+use crate::rdpdr::filesystem::cast_length;
 use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
     CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryMoveRequest,
-    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse, CGOSharedDirectoryWriteRequest,
+    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
 };
-use ironrdp_pdu::{cast_length, custom_err, PduResult};
+
+use ironrdp_pdu::pdu_other_err;
+use ironrdp_pdu::PduResult;
 use ironrdp_rdpdr::pdu::efs::{
     self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest, DeviceWriteRequest,
 };
-use std::convert::TryInto;
+
 use std::ffi::CString;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
@@ -134,10 +140,13 @@ impl FileSystemObject {
         if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
-            Err(custom_err!(TdpHandlingError(format!(
-                "failed to extract name from path: {:?}",
-                self.path
-            ))))
+            Err(pdu_other_err!(
+                "",
+                source:TdpHandlingError(format!(
+                    "failed to extract name from path: {:?}",
+                    self.path
+                ))
+            ))
         }
     }
 
@@ -155,10 +164,10 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!(
+            cast_length(
                 "FileSystemObject::into_both_directory",
                 "self.size",
-                self.size
+                self.size,
             )?,
             file_attributes,
             self.name()?,
@@ -179,10 +188,10 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!(
+            cast_length(
                 "FileSystemObject::into_both_directory",
                 "self.size",
-                self.size
+                self.size,
             )?,
             file_attributes,
             self.name()?,
@@ -207,7 +216,7 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!("FileSystemObject::into_directory", "self.size", self.size)?,
+            cast_length("FileSystemObject::into_directory", "self.size", self.size)?,
             file_attributes,
             self.name()?,
         ))
@@ -558,6 +567,41 @@ impl SharedDirectoryListRequest {
     }
 }
 
+/// SharedDirectoryTruncateRequest is sent by the TDP server to the client
+/// to truncate a file at path to end_of_file bytes.
+#[derive(Debug)]
+pub struct SharedDirectoryTruncateRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: UnixPath,
+    pub end_of_file: u32,
+}
+
+impl SharedDirectoryTruncateRequest {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryTruncateRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithData {
+            cgo: CGOSharedDirectoryTruncateRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+                end_of_file: self.end_of_file,
+            },
+            _data: vec![path.into()],
+        })
+    }
+}
+
+/// SharedDirectoryTruncateResponse is sent by the TDP client to the server
+/// to acknowledge a SharedDirectoryTruncateRequest was received and executed.
+#[derive(Debug)]
+#[repr(C)]
+pub struct SharedDirectoryTruncateResponse {
+    pub completion_id: u32,
+    pub err_code: TdpErrCode,
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TdpErrCode {
@@ -578,6 +622,10 @@ pub enum FileType {
     Directory = 1,
 }
 
+/// CGOData is a wrapper around data that needs to be passed to Go.
+///
+/// See [`CGOWithData`] for more information.
+#[allow(dead_code)] // Dead code is required to ensure that the data is available in Go. See [`CGOWithData`].
 enum CGOData {
     CString(CString),
     VecU8(Vec<u8>),
@@ -658,6 +706,7 @@ pub(crate) fn to_windows_time(tdp_time_ms: u64) -> i64 {
 /// A generic error type that can contain any arbitrary error message.
 ///
 /// TODO: This is a temporary solution until we can figure out a better error handling system.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TdpHandlingError(pub String);
 

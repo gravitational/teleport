@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package crdgen
 
 import (
-	"fmt"
 	"os"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -28,12 +27,20 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/pluginpb"
-	"sigs.k8s.io/yaml"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
+func HandleCRDRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsCRD)
+}
+
+func HandleDocsRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsDocsPage)
+}
+
+func handleRequest(req *gogoplugin.CodeGeneratorRequest, out crdFormatFunc) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")
 	}
@@ -51,7 +58,12 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	for _, fileDesc := range gen.AllFiles().File {
 		file := gen.addFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
-			if err := generateSchema(file, "resources.teleport.dev", gen.Response); err != nil {
+			if err := generateSchema(
+				file,
+				"resources.teleport.dev",
+				out,
+				gen.Response,
+			); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -107,11 +119,55 @@ type resource struct {
 	opts []resourceSchemaOption
 }
 
-func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
+var userColumns = []apiextv1.CustomResourceColumnDefinition{
+	{
+		Name:        "Roles",
+		Type:        "string",
+		Description: "List of Teleport roles granted to the user.",
+		Priority:    0,
+		JSONPath:    ".spec.roles",
+	},
+}
+
+var serverColumns = []apiextv1.CustomResourceColumnDefinition{
+	{
+		Name:        "Hostname",
+		Type:        "string",
+		Description: "Server hostname",
+		Priority:    0,
+		JSONPath:    ".spec.hostname",
+	},
+	{
+		Name:        "Address",
+		Type:        "string",
+		Description: "Server address, with SSH port.",
+		Priority:    0,
+		JSONPath:    ".spec.addr",
+	},
+}
+
+var tokenColumns = []apiextv1.CustomResourceColumnDefinition{
+	{
+		Name:        "Join Method",
+		Type:        "string",
+		Description: "Token join method.",
+		Priority:    0,
+		JSONPath:    ".spec.join_method",
+	},
+	{
+		Name:        "System Roles",
+		Type:        "string",
+		Description: "System roles granted by this token.",
+		Priority:    0,
+		JSONPath:    ".spec.roles",
+	},
+}
+
+func generateSchema(file *File, groupName string, format crdFormatFunc, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := NewSchemaGenerator(groupName)
 
 	resources := []resource{
-		{name: "UserV2"},
+		{name: "UserV2", opts: []resourceSchemaOption{withAdditionalColumns(userColumns)}},
 		// Role V5 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
 		// For backward compatibility in v15, it actually creates v5 roles though.
@@ -133,7 +189,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 				withCustomSpecFields([]string{"priority", "traits_expression", "traits_map"}),
 			},
 		},
-		{name: "ProvisionTokenV2"},
+		{name: "ProvisionTokenV2", opts: []resourceSchemaOption{withAdditionalColumns(tokenColumns)}},
 		{name: "OktaImportRuleV1"},
 		{
 			name: "AccessList",
@@ -146,6 +202,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 			opts: []resourceSchemaOption{
 				withVersionInKindOverride(),
 				withNameOverride("OpenSSHServer"),
+				withAdditionalColumns(serverColumns),
 			},
 		},
 		{
@@ -153,6 +210,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 			opts: []resourceSchemaOption{
 				withVersionInKindOverride(),
 				withNameOverride("OpenSSHEICEServer"),
+				withAdditionalColumns(serverColumns),
 			},
 		},
 	}
@@ -173,13 +231,12 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		if err != nil {
 			return trace.Wrap(err, "generating CRD")
 		}
-		data, err := yaml.Marshal(crd)
+		data, filename, err := format(crd, groupName, root.pluralName)
 		if err != nil {
-			return trace.Wrap(err, "marshaling CRD")
+			return trace.Wrap(err)
 		}
-		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
 		content := string(data)
-		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
+		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &filename, Content: &content})
 	}
 
 	return nil

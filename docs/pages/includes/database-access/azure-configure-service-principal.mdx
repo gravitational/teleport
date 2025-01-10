@@ -4,10 +4,10 @@ resources:
 - The Database Service can run on an Azure VM with attached managed identity. This
   is the recommended way of deploying the Database Service in production since
   it eliminates the need to manage Azure credentials.
-- The Database Service can be registered as an Azure AD application (via AD's "App
-  registrations") and configured with its credentials. This is only recommended
-  for development and testing purposes since it requires Azure credentials to
-  be present in the Database Service's environment.
+- The Database Service can be registered as a Microsoft Entra ID application
+  (via "App registrations") and configured with its credentials. This is only
+  recommended for development and testing purposes since it requires Azure
+  credentials to be present in the Database Service's environment.
 
 <Tabs>
 <TabItem label="Using managed identity">
@@ -35,14 +35,15 @@ resources:
 </TabItem>
 <TabItem label="Using app registrations">
   <Admonition type="note">
-    Registering the Database Service as Azure AD application is suitable for
-    test and development scenarios, or if your Database Service does not run on
-    an Azure VM. For production scenarios prefer to use the managed identity
+    Registering the Database Service as a Microsoft Entra ID application is
+    suitable for test and development scenarios, or if your Database Service
+    does not run on an Azure VM. For production scenarios prefer to use the
+    managed identity
     approach.
   </Admonition>
 
-  Go the the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
-  page of your Azure Active Directory and click on *New registration*:
+  Go to the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
+  page of Microsoft Entra ID and click on *New registration*:
 
   ![App registrations](../../../img/azure/app-registrations@2x.png)
 

@@ -22,9 +22,12 @@ import {
   FileStorageEventChannel,
   FileStorageEventType,
 } from '../../mainProcess/types';
-
 import { FileStorage } from './fileStorage';
 
+// TODO(ravicious): The main process should not expose the whole interface of FileStorage to the
+// renderer, only what's absolutely needed by the renderer. FileStorage at the moment includes a
+// bunch of functions that are used only in the main process (and should be used only there).
+// https://github.com/gravitational/teleport/issues/24380
 export function subscribeToFileStorageEvents(configService: FileStorage): void {
   ipcMain.on(
     FileStorageEventChannel,
@@ -40,8 +43,12 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
           return configService.replace(item.json);
         case FileStorageEventType.GetFilePath:
           return configService.getFilePath();
+        case FileStorageEventType.GetFileName:
+          return configService.getFileName();
         case FileStorageEventType.GetFileLoadingError:
           return configService.getFileLoadingError();
+        default:
+          eventType satisfies never;
       }
     }
   );
@@ -72,6 +79,12 @@ export function createFileStorageClient(): FileStorage {
       ipcRenderer.sendSync(
         FileStorageEventChannel,
         FileStorageEventType.GetFilePath,
+        {}
+      ),
+    getFileName: () =>
+      ipcRenderer.sendSync(
+        FileStorageEventChannel,
+        FileStorageEventType.GetFileName,
         {}
       ),
     getFileLoadingError: () =>

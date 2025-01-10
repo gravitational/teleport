@@ -16,34 +16,73 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent } from 'design/utils/testing';
+
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import {
-  IntegrationKind,
-  IntegrationStatusCode,
-  integrationService,
-} from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
 import {
   DiscoverContextState,
   DiscoverProvider,
+  NodeMeta,
 } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import * as discoveryApi from 'teleport/services/discovery/discovery';
+import { DEFAULT_DISCOVERY_GROUP_NON_CLOUD } from 'teleport/services/discovery/discovery';
+import {
+  Ec2InstanceConnectEndpoint,
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 import { Node } from 'teleport/services/nodes';
-
-import { userEventService } from 'teleport/services/userEvent';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+  userEventService,
+} from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { EnrollEc2Instance } from './EnrollEc2Instance';
 
+const defaultIsCloud = cfg.isCloud;
+
 describe('test EnrollEc2Instance.tsx', () => {
-  beforeEach(() => {
+  afterEach(() => {
+    cfg.isCloud = defaultIsCloud;
     jest.restoreAllMocks();
   });
+
+  const selectedRegion = 'us-west-1';
+
+  async function selectARegion({
+    waitForSelfHosted,
+    waitForTable,
+  }: {
+    waitForTable?: boolean;
+    waitForSelfHosted?: boolean;
+  }) {
+    const regionSelectorElement = screen.getByLabelText(/aws region/i);
+    fireEvent.focus(regionSelectorElement);
+    fireEvent.keyDown(regionSelectorElement, { key: 'ArrowDown', keyCode: 40 });
+    fireEvent.click(screen.getByText(selectedRegion));
+
+    if (waitForTable) {
+      return await screen.findAllByText(/My EC2 Box 1/i);
+    }
+
+    if (waitForSelfHosted) {
+      return await screen.findAllByText(/create a join token/i);
+    }
+  }
 
   test('a cloudshell script should be shown if there is an aws permissions error', async () => {
     const { ctx, discoverCtx } = getMockedContexts();
@@ -57,12 +96,7 @@ describe('test EnrollEc2Instance.tsx', () => {
     jest.spyOn(console, 'error').mockImplementation();
 
     renderEc2Instances(ctx, discoverCtx);
-
-    // Selects a region
-    const regionSelectorElement = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(regionSelectorElement);
-    fireEvent.keyDown(regionSelectorElement, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-west-1'));
+    await selectARegion({});
 
     // Wait for results to be listed.
     await screen.findAllByText(
@@ -73,7 +107,7 @@ describe('test EnrollEc2Instance.tsx', () => {
     expect(ctx.nodeService.fetchNodes).not.toHaveBeenCalled();
   });
 
-  test('an instance that is already enrolled should be disabled', async () => {
+  test('single instance, an instance that is already enrolled should be disabled', async () => {
     const { ctx, discoverCtx } = getMockedContexts();
 
     jest
@@ -85,15 +119,7 @@ describe('test EnrollEc2Instance.tsx', () => {
       .mockResolvedValue({ agents: mockFetchedNodes });
 
     renderEc2Instances(ctx, discoverCtx);
-
-    // Selects a region
-    const regionSelectorElement = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(regionSelectorElement);
-    fireEvent.keyDown(regionSelectorElement, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-west-1'));
-
-    // Wait for results to be listed.
-    await screen.findAllByText(/My EC2 Box 1/i);
+    await selectARegion({ waitForTable: true });
 
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledTimes(1);
     expect(ctx.nodeService.fetchNodes).toHaveBeenCalledTimes(1);
@@ -115,7 +141,7 @@ describe('test EnrollEc2Instance.tsx', () => {
     expect(disabledRowElements).toHaveLength(1);
   });
 
-  test('there should be no disabled rows if the fetchNodes response is empty', async () => {
+  test('single instance, there should be no disabled rows if the fetchNodes response is empty', async () => {
     const { ctx, discoverCtx } = getMockedContexts();
 
     jest
@@ -123,15 +149,7 @@ describe('test EnrollEc2Instance.tsx', () => {
       .mockResolvedValue({ instances: mockEc2Instances });
 
     renderEc2Instances(ctx, discoverCtx);
-
-    // Selects a region
-    const regionSelectorElement = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(regionSelectorElement);
-    fireEvent.keyDown(regionSelectorElement, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-west-1'));
-
-    // Wait for results to be listed.
-    await screen.findAllByText(/My EC2 Box 1/i);
+    await selectARegion({ waitForTable: true });
 
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledTimes(1);
     expect(ctx.nodeService.fetchNodes).toHaveBeenCalledTimes(1);
@@ -140,12 +158,337 @@ describe('test EnrollEc2Instance.tsx', () => {
     expect(
       screen.queryAllByTitle(
         'This EC2 instance is already enrolled and is a part of this cluster'
-      )[0]
-    ).toBeUndefined();
+      )
+    ).toHaveLength(0);
+  });
+
+  test('self-hosted, auto discover toggling', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2Instances')
+      .mockResolvedValue({ instances: mockEc2Instances });
+
+    renderEc2Instances(ctx, discoverCtx);
+    await selectARegion({ waitForTable: true });
+
+    // default toggler should not be checked.
+    expect(screen.getByTestId('toggle')).not.toBeChecked();
+    expect(screen.getByText(/next/i, { selector: 'button' })).toBeDisabled();
+
+    // toggle on auto enroll, should render table.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+    expect(screen.getByTestId('toggle')).toBeChecked();
+    expect(screen.getByText(/next/i, { selector: 'button' })).toBeEnabled();
+    expect(screen.queryByText(/My EC2 Box 1/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/create a join token/i)).toBeInTheDocument();
+  });
+
+  test('cloud, auto discover toggling', async () => {
+    cfg.isCloud = true;
+
+    const { ctx, discoverCtx } = getMockedContexts();
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2Instances')
+      .mockResolvedValue({ instances: mockEc2Instances });
+
+    renderEc2Instances(ctx, discoverCtx);
+    await selectARegion({ waitForTable: true });
+
+    // default toggler should be off.
+    expect(screen.getByTestId('toggle')).not.toBeChecked();
+
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+    expect(screen.getByText(/next/i, { selector: 'button' })).toBeEnabled();
+    expect(screen.queryByText(/create a join token/i)).not.toBeInTheDocument();
+  });
+
+  test('self-hosted, auto discover without existing endpoints', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2Instances')
+      .mockResolvedValue({ instances: mockEc2Instances });
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2InstanceConnectEndpoints')
+      .mockResolvedValue({ endpoints: [], dashboardLink: '' });
+
+    const createDiscoveryConfig = jest
+      .spyOn(discoveryApi, 'createDiscoveryConfig')
+      .mockResolvedValue({
+        name: 'discovery-cfg',
+        discoveryGroup: '',
+        aws: [],
+      });
+
+    renderEc2Instances(ctx, discoverCtx);
+    await selectARegion({ waitForTable: true });
+
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+
+    await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
+    expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledWith(
+      discoverCtx.agentMeta.awsIntegration.name,
+      { region: selectedRegion, nextToken: '' }
+    );
+    expect(createDiscoveryConfig.mock.calls[0][1]['discoveryGroup']).toBe(
+      DEFAULT_DISCOVERY_GROUP_NON_CLOUD
+    );
+    expect(discoverCtx.nextStep).toHaveBeenCalledTimes(1);
+  });
+
+  test('self-hosted, auto discover without all existing endpoints, creates node resource', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+    (discoverCtx.agentMeta as NodeMeta).ec2Ices = endpoints;
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2Instances')
+      .mockResolvedValue({ instances: mockEc2Instances });
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2InstanceConnectEndpoints')
+      .mockResolvedValue({ endpoints, dashboardLink: '' });
+
+    jest.spyOn(discoveryApi, 'createDiscoveryConfig').mockResolvedValue({
+      name: 'discovery-cfg',
+      discoveryGroup: '',
+      aws: [],
+    });
+
+    renderEc2Instances(ctx, discoverCtx);
+    await selectARegion({ waitForTable: true });
+
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+
+    await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
+    expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledTimes(1);
+    expect(discoveryApi.createDiscoveryConfig).toHaveBeenCalledTimes(1);
+    expect(discoverCtx.nextStep).not.toHaveBeenCalled();
+    expect(discoverCtx.emitEvent).toHaveBeenCalledWith(
+      { stepStatus: DiscoverEventStatus.Skipped },
+      {
+        eventName: DiscoverEvent.EC2DeployEICE,
+      }
+    );
+
+    await screen.findByText(/created teleport node/i);
+    expect(ctx.nodeService.createNode).toHaveBeenCalledTimes(1);
+  });
+
+  test('cloud, auto discover with all existing created endpoints and no auto discovery config', async () => {
+    cfg.isCloud = true;
+
+    let { ctx, discoverCtx } = getMockedContexts();
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2Instances')
+      .mockResolvedValue({ instances: mockEc2Instances });
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2InstanceConnectEndpoints')
+      .mockResolvedValue({
+        endpoints,
+        dashboardLink: '',
+      });
+
+    const createDiscoveryConfig = jest
+      .spyOn(discoveryApi, 'createDiscoveryConfig')
+      .mockResolvedValue({
+        name: 'discovery-cfg',
+        discoveryGroup: '',
+        aws: [],
+      });
+
+    renderEc2Instances(ctx, discoverCtx);
+    await selectARegion({ waitForTable: true });
+
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+
+    await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
+    expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledWith(
+      discoverCtx.agentMeta.awsIntegration.name,
+      { region: selectedRegion, nextToken: '' }
+    );
+    expect(createDiscoveryConfig.mock.calls[0][1]['discoveryGroup']).toBe(
+      discoveryApi.DISCOVERY_GROUP_CLOUD
+    );
+    expect(discoverCtx.nextStep).not.toHaveBeenCalled();
+    expect(discoverCtx.emitEvent).toHaveBeenCalledWith(
+      { stepStatus: DiscoverEventStatus.Skipped },
+      {
+        eventName: DiscoverEvent.EC2DeployEICE,
+      }
+    );
+  });
+
+  test('cloud, auto discover with all existing created endpoints, with already set discovery config', async () => {
+    cfg.isCloud = true;
+
+    let { ctx, discoverCtx } = getMockedContexts(true /* withAutoDiscovery */);
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2Instances')
+      .mockResolvedValue({ instances: mockEc2Instances });
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2InstanceConnectEndpoints')
+      .mockResolvedValue({
+        endpoints: [
+          {
+            name: 'endpoint-1',
+            state: 'create-complete',
+            dashboardLink: '',
+            subnetId: 'subnet-1',
+            vpcId: 'vpc-1',
+          },
+          {
+            name: 'endpoint-2',
+            state: 'create-complete',
+            dashboardLink: '',
+            subnetId: 'subnet-2',
+            vpcId: 'vpc-2',
+          },
+          {
+            name: 'endpoint-3',
+            state: 'create-complete',
+            dashboardLink: '',
+            subnetId: 'subnet-3',
+            vpcId: 'vpc-3',
+          },
+        ],
+        dashboardLink: '',
+      });
+
+    jest.spyOn(discoveryApi, 'createDiscoveryConfig').mockResolvedValue({
+      name: 'discovery-cfg',
+      discoveryGroup: '',
+      aws: [],
+    });
+
+    jest.spyOn(ctx.nodeService, 'createNode').mockResolvedValue({} as any);
+
+    renderEc2Instances(ctx, discoverCtx);
+    await selectARegion({ waitForTable: true });
+
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+
+    await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
+    expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledWith(
+      discoverCtx.agentMeta.awsIntegration.name,
+      { region: selectedRegion, nextToken: '' }
+    );
+    expect(discoveryApi.createDiscoveryConfig).not.toHaveBeenCalled();
+    expect(discoverCtx.nextStep).not.toHaveBeenCalled();
+    expect(ctx.nodeService.createNode).not.toHaveBeenCalled();
+
+    expect(discoverCtx.emitEvent).toHaveBeenCalledWith(
+      { stepStatus: DiscoverEventStatus.Skipped },
+      {
+        eventName: DiscoverEvent.EC2DeployEICE,
+      }
+    );
+
+    await screen.findByText(/All endpoints required are created/i);
+  });
+
+  test('cloud, with partially created endpoints, with already set discovery config', async () => {
+    cfg.isCloud = true;
+
+    const { ctx, discoverCtx } = getMockedContexts(
+      true /* withAutoDiscovery */
+    );
+
+    jest
+      .spyOn(integrationService, 'fetchAwsEc2Instances')
+      .mockResolvedValue({ instances: mockEc2Instances });
+
+    const fetchEndpoints = jest
+      .spyOn(integrationService, 'fetchAwsEc2InstanceConnectEndpoints')
+      .mockResolvedValueOnce({
+        endpoints: [
+          {
+            name: 'endpoint-1',
+            state: 'create-complete',
+            dashboardLink: '',
+            subnetId: 'subnet-1',
+            vpcId: 'vpc-1',
+          },
+          {
+            name: 'endpoint-2',
+            state: 'create-in-progress', // <-- should trigger polling
+            dashboardLink: '',
+            subnetId: 'subnet-2',
+            vpcId: 'vpc-2',
+          },
+          {
+            name: 'endpoint-3',
+            state: 'create-complete',
+            dashboardLink: '',
+            subnetId: 'subnet-3',
+            vpcId: 'vpc-3',
+          },
+        ],
+        dashboardLink: '',
+      })
+      .mockResolvedValueOnce({
+        endpoints: [
+          {
+            name: 'endpoint-2',
+            state: 'create-complete', // <-- should stop polling
+            dashboardLink: '',
+            subnetId: 'subnet-2',
+            vpcId: 'vpc-2',
+          },
+        ],
+        dashboardLink: '',
+      });
+    jest.spyOn(discoveryApi, 'createDiscoveryConfig').mockResolvedValue({
+      name: 'discovery-cfg',
+      discoveryGroup: '',
+      aws: [],
+    });
+    jest.spyOn(ctx.nodeService, 'createNode').mockResolvedValue({} as any);
+
+    renderEc2Instances(ctx, discoverCtx);
+    await selectARegion({ waitForTable: true });
+
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+    expect(screen.getByTestId('toggle')).toBeChecked();
+
+    // Test it's polling.
+    jest.useFakeTimers();
+    fireEvent.click(screen.getByText(/next/i, { selector: 'button' }));
+    await screen.findByText(/this may take a few minutes/i);
+
+    expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledTimes(1);
+    expect(discoveryApi.createDiscoveryConfig).not.toHaveBeenCalled();
+    expect(ctx.nodeService.createNode).not.toHaveBeenCalled();
+    expect(discoverCtx.nextStep).not.toHaveBeenCalled();
+    expect(discoverCtx.emitEvent).toHaveBeenCalledWith(
+      { stepStatus: DiscoverEventStatus.Skipped },
+      {
+        eventName: DiscoverEvent.EC2DeployEICE,
+      }
+    );
+    expect(fetchEndpoints).toHaveBeenCalledTimes(1);
+    fetchEndpoints.mockClear();
+
+    // advance timer to call the endpoint with completed state
+    await act(async () => jest.advanceTimersByTime(10000));
+    await screen.findByText(/All endpoints required are created/i);
+    expect(fetchEndpoints).toHaveBeenCalledTimes(1);
+
+    jest.useRealTimers();
   });
 });
 
-function getMockedContexts() {
+function getMockedContexts(withAutoDiscovery = false) {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
@@ -154,21 +497,27 @@ function getMockedContexts() {
       agentMatcherLabels: [],
       db: {} as any,
       selectedAwsRdsDb: {} as any,
-      node: {} as any,
+      node: mockFetchedNodes[0],
       awsIntegration: {
         kind: IntegrationKind.AwsOidc,
         name: 'test-oidc',
         resourceType: 'integration',
         spec: {
-          roleArn: 'arn-123',
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
           issuerS3Bucket: '',
           issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       },
+      autoDiscovery: withAutoDiscovery
+        ? {
+            config: { name: '', discoveryGroup: '', aws: [] },
+            requiredVpcsAndSubnets: {},
+          }
+        : undefined,
     },
     currentStep: 0,
-    nextStep: () => null,
+    nextStep: jest.fn(),
     prevStep: () => null,
     onSelectResource: () => null,
     resourceSpec: {} as any,
@@ -178,11 +527,14 @@ function getMockedContexts() {
     setResourceSpec: () => null,
     updateAgentMeta: () => null,
     emitErrorEvent: () => null,
-    emitEvent: () => null,
+    emitEvent: jest.fn(),
     eventState: null,
   };
 
   jest.spyOn(ctx.nodeService, 'fetchNodes').mockResolvedValue({ agents: [] });
+  jest
+    .spyOn(ctx.nodeService, 'createNode')
+    .mockResolvedValue(mockFetchedNodes[0]);
   jest
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
@@ -229,9 +581,9 @@ const mockEc2Instances: Node[] = [
       accountId: 'test-account',
       instanceId: 'instance-ec2-1',
       region: 'us-west-1',
-      vpcId: 'test',
+      vpcId: 'vpc-1',
       integration: 'test',
-      subnetId: 'test',
+      subnetId: 'subnet-1',
     },
   },
   {
@@ -251,9 +603,9 @@ const mockEc2Instances: Node[] = [
       accountId: 'test-account',
       instanceId: 'instance-ec2-2',
       region: 'us-west-1',
-      vpcId: 'test',
+      vpcId: 'vpc-2',
       integration: 'test',
-      subnetId: 'test',
+      subnetId: 'subnet-2',
     },
   },
   {
@@ -273,9 +625,9 @@ const mockEc2Instances: Node[] = [
       accountId: 'test-account',
       instanceId: 'instance-ec2-3',
       region: 'us-west-1',
-      vpcId: 'test',
+      vpcId: 'vpc-1',
       integration: 'test',
-      subnetId: 'test',
+      subnetId: 'subnet-2',
     },
   },
   {
@@ -295,9 +647,9 @@ const mockEc2Instances: Node[] = [
       accountId: 'test-account',
       instanceId: 'instance-ec2-4',
       region: 'us-west-1',
-      vpcId: 'test',
+      vpcId: 'vpc-2',
       integration: 'test',
-      subnetId: 'test',
+      subnetId: 'subnet-2',
     },
   },
   {
@@ -317,9 +669,9 @@ const mockEc2Instances: Node[] = [
       accountId: 'test-account',
       instanceId: 'instance-ec2-5',
       region: 'us-west-1',
-      vpcId: 'test',
+      vpcId: 'vpc-3',
       integration: 'test',
-      subnetId: 'test',
+      subnetId: 'subnet-3',
     },
   },
 ];
@@ -338,5 +690,37 @@ const mockFetchedNodes: Node[] = [
     tunnel: false,
     subKind: 'openssh-ec2-ice',
     sshLogins: ['test'],
+    awsMetadata: {
+      instanceId: 'some-id',
+      accountId: '',
+      region: 'us-east-1',
+      vpcId: '',
+      integration: '',
+      subnetId: '',
+    },
+  },
+];
+
+const endpoints: Ec2InstanceConnectEndpoint[] = [
+  {
+    name: 'endpoint-1',
+    state: 'create-complete',
+    dashboardLink: '',
+    subnetId: 'subnet-1',
+    vpcId: 'vpc-1',
+  },
+  {
+    name: 'endpoint-2',
+    state: 'create-complete',
+    dashboardLink: '',
+    subnetId: 'subnet-2',
+    vpcId: 'vpc-2',
+  },
+  {
+    name: 'endpoint-3',
+    state: 'create-complete',
+    dashboardLink: '',
+    subnetId: 'subnet-3',
+    vpcId: 'vpc-3',
   },
 ];

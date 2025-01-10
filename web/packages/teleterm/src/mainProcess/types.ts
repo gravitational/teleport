@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { FileStorage } from 'teleterm/services/fileStorage';
+import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { Kind } from 'teleterm/ui/services/workspacesService';
-import { FileStorage } from 'teleterm/services/fileStorage';
-
 import { ConfigService } from '../services/config';
+import { Shell } from './shell';
 
 export type RuntimeSettings = {
   /**
@@ -60,14 +60,15 @@ export type RuntimeSettings = {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   logsDir: string;
-  defaultShell: string;
+  /** Identifier of default OS shell. */
+  defaultOsShellId: string;
+  availableShells: Shell[];
   platform: Platform;
   agentBinaryPath: string;
   tshd: {
     requestedNetworkAddress: string;
     binaryPath: string;
     homeDir: string;
-    flags: string[];
   };
   sharedProcess: {
     requestedNetworkAddress: string;
@@ -208,15 +209,12 @@ export interface ClusterContextMenuOptions {
 }
 
 export interface TabContextMenuOptions {
-  documentKind: Kind;
-
+  document: Document;
   onClose(): void;
-
   onCloseOthers(): void;
-
   onCloseToRight(): void;
-
   onDuplicatePty(): void;
+  onReopenPtyInShell(shell: Shell): void;
 }
 
 export const TerminalContextMenuEventChannel =
@@ -230,6 +228,7 @@ export enum TabContextMenuEventType {
   CloseOthers = 'CloseOthers',
   CloseToRight = 'CloseToRight',
   DuplicatePty = 'DuplicatePty',
+  ReopenPtyInShell = 'ReopenPtyInShell',
 }
 
 export enum ConfigServiceEventType {
@@ -244,6 +243,7 @@ export enum FileStorageEventType {
   Write = 'Write',
   Replace = 'Replace',
   GetFilePath = 'GetFilePath',
+  GetFileName = 'GetFileName',
   GetFileLoadingError = 'GetFileLoadingError',
 }
 
@@ -277,3 +277,12 @@ export enum MainProcessIpc {
 export enum WindowsManagerIpc {
   SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
 }
+
+/**
+ * A custom message to gracefully quit a process.
+ * It is sent to the child process with `process.send`.
+ *
+ * We need this because `process.kill('SIGTERM')` doesn't work on Windows,
+ * so we couldn't run any cleanup logic.
+ */
+export const TERMINATE_MESSAGE = 'TERMINATE_MESSAGE';

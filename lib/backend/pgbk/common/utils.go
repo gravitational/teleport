@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,7 +30,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
@@ -63,10 +63,10 @@ func ConnectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn
 
 // TryEnsureDatabase will connect to the "postgres" database and attempt to
 // create the database named in the pool's configuration.
-func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logrus.FieldLogger) {
+func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log *slog.Logger) {
 	pgConn, err := ConnectPostgres(ctx, poolConfig)
 	if err != nil {
-		log.WithError(err).Warn("Failed to connect to the \"postgres\" database.")
+		log.WarnContext(ctx, "Failed to connect to the \"postgres\" database.", "error", err)
 		return
 	}
 
@@ -81,13 +81,13 @@ func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 		// will fail immediately if we can't connect, anyway, so we can log
 		// permission errors at debug level here.
 		if IsCode(err, pgerrcode.InsufficientPrivilege) {
-			log.WithError(err).Debug("Error creating database due to insufficient privileges.")
+			log.DebugContext(ctx, "Error creating database due to insufficient privileges.", "error", err)
 		} else {
-			log.WithError(err).Warn("Error creating database.")
+			log.WarnContext(ctx, "Error creating database.", "error", err)
 		}
 	}
 	if err := pgConn.Close(ctx); err != nil {
-		log.WithError(err).Warn("Error closing connection to the \"postgres\" database.")
+		log.WarnContext(ctx, "Error closing connection to the \"postgres\" database.", "error", err)
 	}
 }
 
@@ -97,7 +97,7 @@ func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 // any data has been sent. It will retry unique constraint violation and
 // exclusion constraint violations, so the closure should not rely on those for
 // normal behavior.
-func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, error)) (T, error) {
+func Retry[T any](ctx context.Context, log *slog.Logger, f func() (T, error)) (T, error) {
 	const idempotent = false
 	v, err := retry(ctx, log, idempotent, f)
 	return v, trace.Wrap(err)
@@ -108,13 +108,13 @@ func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, erro
 // assumes that f is idempotent, so it will retry even in ambiguous situations.
 // It will retry unique constraint violation and exclusion constraint
 // violations, so the closure should not rely on those for normal behavior.
-func RetryIdempotent[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, error)) (T, error) {
+func RetryIdempotent[T any](ctx context.Context, log *slog.Logger, f func() (T, error)) (T, error) {
 	const idempotent = true
 	v, err := retry(ctx, log, idempotent, f)
 	return v, trace.Wrap(err)
 }
 
-func retry[T any](ctx context.Context, log logrus.FieldLogger, isIdempotent bool, f func() (T, error)) (T, error) {
+func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f func() (T, error)) (T, error) {
 	var v T
 	var err error
 	v, err = f()
@@ -131,7 +131,7 @@ func retry[T any](ctx context.Context, log logrus.FieldLogger, isIdempotent bool
 		First:  0,
 		Step:   100 * time.Millisecond,
 		Max:    750 * time.Millisecond,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if retryErr != nil {
 		var zeroT T
@@ -143,18 +143,22 @@ func retry[T any](ctx context.Context, log logrus.FieldLogger, isIdempotent bool
 		_ = errors.As(err, &pgErr)
 
 		if pgErr != nil && isSerializationErrorCode(pgErr.Code) {
-			log.WithError(err).
-				WithField("attempt", i).
-				Debug("Operation failed due to conflicts, retrying quickly.")
+			log.LogAttrs(ctx, slog.LevelDebug,
+				"Operation failed due to conflicts, retrying quickly.",
+				slog.Int("attempt", i),
+				slog.Any("error", err),
+			)
 			retry.Reset()
 			// the very first attempt gets instant retry on serialization failure
 			if i > 1 {
 				retry.Inc()
 			}
 		} else if (isIdempotent && pgErr == nil) || pgconn.SafeToRetry(err) {
-			log.WithError(err).
-				WithField("attempt", i).
-				Debug("Operation failed, retrying.")
+			log.LogAttrs(ctx, slog.LevelDebug,
+				"Operation failed, retrying.",
+				slog.Int("attempt", i),
+				slog.Any("error", err),
+			)
 			retry.Inc()
 		} else {
 			// we either know we shouldn't retry (on a database error), or we
@@ -207,7 +211,7 @@ func isSerializationErrorCode(code string) bool {
 // [pgx.BeginTxFunc].
 func RetryTx(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	db interface {
 		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
 	},
@@ -228,18 +232,63 @@ func IsCode(err error, code string) bool {
 	return pgErr != nil && pgErr.Code == code
 }
 
+// SchemasBuilder returns the desired table schemas based on the postgres connection.
+// This allows adapting the schemas based on the postgres flavor (Postgres,
+// CockroachDB, etc.) or version.
+// Each schema entry is a schema version, each version is applied once.
+// The builder also returns a modifier which is always applied, even if the database
+// has the latest version. This can be used to update dynamic properties such as
+// the retention.
+type SchemasBuilder func(conn *pgx.Conn) (schemas []string, err error)
+
 // SetupAndMigrate sets up the database schema, applying the migrations in the
 // schemas slice in order, starting from the first non-applied one. tableName is
 // the name of a table used to hold schema version numbers.
+//
+// WARNING: Editing schemas is not supported in a transaction in CockroachDB,
+// except for CREATE TABLE and CREATE INDEX.
+// As the current schemas mechanism runs all migrations in a single transaction,
+// the schemas must exclusively contain CREATE TABLE and CREATE INDEX statements,
+// else you will have undefined non-atomic behaviors.
+// See https://www.cockroachlabs.com/docs/stable/online-schema-changes#schema-changes-within-transactions
 func SetupAndMigrate(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	db interface {
 		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
 		Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 	},
 	tableName string,
 	schemas []string,
+) error {
+	staticSchemasBuilder := func(*pgx.Conn) ([]string, error) {
+		return schemas, nil
+	}
+	return SetupAndMigrateDynamic(ctx, log, db, tableName, staticSchemasBuilder)
+}
+
+// SetupAndMigrateDynamic sets up the database schema, applying the migrations in the
+// schemas slice in order, starting from the first non-applied one. The modifier
+// is always applied, even if the schema is already up to date. tableName is
+// the name of a table used to hold schema version numbers. It takes a function
+// dynamically building schemas based on connection properties. If you only need
+// to set up a static schema, call SetupAndMigrate instead.
+//
+// WARNING: Editing schemas is not supported in a transaction in CockroachDB,
+// except for CREATE TABLE and CREATE INDEX.
+// As the current schemas mechanism runs all migrations in a single transaction,
+// the schemasBuilder must exclusively return CREATE TABLE and CREATE INDEX statements,
+// else you will have undefined non-atomic behaviors.
+// See https://www.cockroachlabs.com/docs/stable/online-schema-changes#schema-changes-within-transactions
+func SetupAndMigrateDynamic(
+	ctx context.Context,
+	log *slog.Logger,
+	db interface {
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+		Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	},
+	tableName string,
+	schemasBuilder SchemasBuilder,
 ) error {
 	tableName = pgx.Identifier{tableName}.Sanitize()
 
@@ -259,9 +308,13 @@ func SetupAndMigrate(
 	}); err != nil {
 		// the very first SELECT in the next transaction will fail, we don't
 		// need anything higher than debug here
-		log.WithError(err).Debugf("Failed to confirm the existence of the %v table.", tableName)
+		log.DebugContext(ctx, "Failed to confirm the existence of the configured table.",
+			"table", tableName,
+			"error", err,
+		)
 	}
 
+	var schemas []string
 	const idempotent = true
 	if err := RetryTx(ctx, log, db, pgx.TxOptions{
 		IsoLevel:   pgx.Serializable,
@@ -274,12 +327,21 @@ func SetupAndMigrate(
 			return trace.Wrap(err)
 		}
 
+		// Get schemas and modifier
+		var err error
+		schemas, err = schemasBuilder(tx.Conn())
+		if err != nil {
+			migrateErr = trace.Wrap(err, "building schemas")
+			return nil
+		}
+
 		if int(version) > len(schemas) {
 			migrateErr = trace.BadParameter("unsupported schema version %v", version)
 			// the transaction succeeded, the error is outside of the transaction
 			return nil
 		}
 
+		// Run unapplied migrations
 		if int(version) == len(schemas) {
 			return nil
 		}
@@ -298,6 +360,7 @@ func SetupAndMigrate(
 		}
 
 		return nil
+
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -307,10 +370,10 @@ func SetupAndMigrate(
 	}
 
 	if int(version) != len(schemas) {
-		log.WithFields(logrus.Fields{
-			"previous_version": version,
-			"current_version":  len(schemas),
-		}).Info("Migrated database schema.")
+		log.InfoContext(ctx, "Migrated database schema.",
+			"previous_version", version,
+			"current_version", len(schemas),
+		)
 	}
 
 	return nil

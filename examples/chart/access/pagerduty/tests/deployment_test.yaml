@@ -1,0 +1,11 @@
+suite: Test deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      image:
+        repository: gcr.io/overridden/repository
+        tag: v98.76.54
+    asserts:
+      - matchSnapshot: {}

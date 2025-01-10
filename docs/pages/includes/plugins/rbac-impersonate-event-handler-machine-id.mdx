@@ -1,0 +1,8 @@
+With the role created, you now need to allow the Machine ID bot to produce
+credentials for this role.
+
+This can be done with `tctl`, replacing `my-bot` with the name of your bot:
+
+```code
+$ tctl bots update my-bot --add-roles teleport-event-handler
+```

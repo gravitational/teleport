@@ -379,7 +379,7 @@ func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 		tlsConnChan <- struct {
 			*tls.Conn
 			error
-		}{tlsConn, tlsConn.Handshake()}
+		}{tlsConn, tlsConn.HandshakeContext(ctx)}
 	}()
 
 	// Client
@@ -388,7 +388,7 @@ func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 		tlsConnChan <- struct {
 			*tls.Conn
 			error
-		}{tlsConn, tlsConn.Handshake()}
+		}{tlsConn, tlsConn.HandshakeContext(ctx)}
 	}()
 
 	tlsConnSlice := make([]*tls.Conn, 2)

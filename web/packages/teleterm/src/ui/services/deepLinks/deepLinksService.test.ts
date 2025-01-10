@@ -17,9 +17,9 @@
  */
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { RuntimeSettings } from 'teleterm/types';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { DeepLinksService } from './deepLinksService';
 
@@ -35,7 +35,7 @@ describe('parse errors', () => {
       error: new TypeError('whoops'),
     },
     { status: 'error', reason: 'unknown-protocol', protocol: 'foo:' },
-    { status: 'error', reason: 'unsupported-uri' },
+    { status: 'error', reason: 'unsupported-url' },
   ];
 
   test.each(tests)(
@@ -88,6 +88,7 @@ const successResult: DeepLinkParseResult = {
     port: '1234',
     pathname: '/connect_my_computer',
     username: 'alice',
+    searchParams: {},
   },
 };
 

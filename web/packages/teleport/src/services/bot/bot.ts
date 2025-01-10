@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-
+import api from 'teleport/services/api';
 import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
-import { makeResourceList, Resource } from 'teleport/services/resources';
+import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
 import {
   BotList,
   BotResponse,
-  FlatBot,
-  EditBotRequest,
-  CreateBotRequest,
   CreateBotJoinTokenRequest,
+  CreateBotRequest,
+  EditBotRequest,
+  FlatBot,
 } from './types';
 
 export function createBot(config: CreateBotRequest): Promise<void> {
@@ -71,17 +70,16 @@ export function fetchBots(
   });
 }
 
-export function fetchRoles(
-  signal: AbortSignal,
+export async function fetchRoles(
+  search: string,
   flags: FeatureFlags
-): Promise<Resource<'role'>[]> {
+): Promise<{ startKey: string; items: RoleResource[] }> {
   if (!flags.roles) {
-    return;
+    return { startKey: '', items: [] };
   }
 
-  return api.get(cfg.getRolesUrl(), signal).then(res => {
-    return makeResourceList<'role'>(res);
-  });
+  const resourceSvc = new ResourceService();
+  return resourceSvc.fetchRoles({ limit: 50, search });
 }
 
 export function editBot(

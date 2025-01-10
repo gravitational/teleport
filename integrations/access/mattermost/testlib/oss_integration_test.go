@@ -27,9 +27,11 @@ import (
 )
 
 func TestMattermostPluginOSS(t *testing.T) {
-	mattermostSuite := &MattermostSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	mattermostSuite := &MattermostSuiteOSS{
+		MattermostBaseSuite: MattermostBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, mattermostSuite)

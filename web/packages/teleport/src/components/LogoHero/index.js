@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import LogoHero from './LogoHero';
-export default LogoHero;
+export { LogoHero } from './LogoHero';

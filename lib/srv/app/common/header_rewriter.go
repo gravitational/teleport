@@ -19,7 +19,7 @@
 package common
 
 import (
-	"net/http"
+	"net/http/httputil"
 
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
@@ -44,14 +44,14 @@ func NewHeaderRewriter(delegates ...reverseproxy.Rewriter) *HeaderRewriter {
 
 // Rewrite will delegate to the supplied delegates' rewrite functions and then inject
 // its own headers.
-func (hr *HeaderRewriter) Rewrite(req *http.Request) {
+func (hr *HeaderRewriter) Rewrite(req *httputil.ProxyRequest) {
 	for _, delegate := range hr.delegates {
 		delegate.Rewrite(req)
 	}
 
-	if req.TLS != nil {
-		req.Header.Set(XForwardedSSL, sslOn)
+	if req.Out.TLS != nil {
+		req.Out.Header.Set(XForwardedSSL, sslOn)
 	} else {
-		req.Header.Set(XForwardedSSL, sslOff)
+		req.Out.Header.Set(XForwardedSSL, sslOff)
 	}
 }

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.discoveryconfig.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -30,6 +31,9 @@ message DiscoveryConfig {
 
   // Spec is an DiscoveryConfig specification.
   DiscoveryConfigSpec spec = 2;
+
+  // Status is the resource Status
+  DiscoveryConfigStatus status = 3;
 }
 
 // DiscoveryConfigSpec contains properties required to create matchers to be used by discovery_service.
@@ -49,4 +53,59 @@ message DiscoveryConfigSpec {
   repeated types.KubernetesMatcher kube = 5;
   // AccessGraph is the configurations for syncing Cloud accounts into Access Graph.
   types.AccessGraphSync access_graph = 6;
+}
+
+// DiscoveryConfigStatus holds dynamic information about the discovery configuration
+// running status such as errors, state and count of the resources.
+message DiscoveryConfigStatus {
+  // State reports the Discovery config state.
+  DiscoveryConfigState state = 1;
+  // error_message holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.
+  optional string error_message = 2;
+  // discovered_resources holds the count of the discovered resources in the previous iteration.
+  uint64 discovered_resources = 3;
+  // last_sync_time is the timestamp when the Discovery Config was last sync.
+  google.protobuf.Timestamp last_sync_time = 4;
+
+  reserved 5;
+  reserved "aws_ec2_instances_discovered";
+
+  // IntegrationDiscoveredResources maps an integration to discovered resources summary.
+  map<string, IntegrationDiscoveredSummary> integration_discovered_resources = 6;
+}
+
+// DiscoveryConfigState is the state of the discovery config resource.
+enum DiscoveryConfigState {
+  DISCOVERY_CONFIG_STATE_UNSPECIFIED = 0;
+  // DISCOVERY_CONFIG_STATE_RUNNING is used when the operation doesn't report
+  // incidents.
+  DISCOVERY_CONFIG_STATE_RUNNING = 1;
+  // DISCOVERY_CONFIG_STATE_ERROR is used when the operation reports
+  // incidents.
+  DISCOVERY_CONFIG_STATE_ERROR = 2;
+  // DISCOVERY_CONFIG_STATE_SYNCING is used when the discovery process has started but didn't finished yet.
+  DISCOVERY_CONFIG_STATE_SYNCING = 3;
+}
+
+// IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.
+message IntegrationDiscoveredSummary {
+  // AWSEC2 contains the summary for the AWS EC2 discovered instances.
+  ResourcesDiscoveredSummary aws_ec2 = 1;
+
+  // AWSRDS contains the summary for the AWS RDS discovered databases.
+  ResourcesDiscoveredSummary aws_rds = 2;
+
+  // AWSEKS contains the summary for the AWS EKS discovered clusters.
+  ResourcesDiscoveredSummary aws_eks = 3;
+}
+
+// ResourcesDiscoveredSummary represents the AWS resources that were discovered.
+message ResourcesDiscoveredSummary {
+  // Found holds the count of resources found.
+  // After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.
+  uint64 found = 1;
+  // Enrolled holds the count of the resources that were successfully enrolled.
+  uint64 enrolled = 2;
+  // Failed holds the count of the resources that failed to enroll.
+  uint64 failed = 3;
 }

@@ -323,6 +323,10 @@ const (
 	// Only a subset of services are monitored. See [lib/service.metricsServicesRunningMap]
 	// Eg, discovery_service
 	TagServiceName = "service_name"
+
+	// TagAutomaticUpdates is a prometheus label to indicate whether the instance
+	// is enrolled in automatic updates.
+	TagAutomaticUpdates = "automatic_updates"
 )
 
 const (

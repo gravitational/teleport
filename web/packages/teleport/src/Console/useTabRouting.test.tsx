@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
+
 import renderHook from 'design/utils/renderHook';
 
-import useTabRouting from './useTabRouting';
 import ConsoleContext from './consoleContext';
+import useTabRouting from './useTabRouting';
 
 test('handling of index route', async () => {
   const ctx = new ConsoleContext();
@@ -65,6 +65,30 @@ test('handling of join ssh session route', async () => {
   expect(docs).toHaveLength(2);
 });
 
+test('handling of init kubeExec session route', async () => {
+  const ctx = new ConsoleContext();
+  const wrapper = makeWrapper(
+    '/web/cluster/localhost/console/kube/exec/kubeCluster/'
+  );
+  const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
+  const docs = ctx.getDocuments();
+  expect(docs[1].kind).toBe('kubeExec');
+  expect(docs[1].id).toBe(current.activeDocId);
+  expect(docs).toHaveLength(2);
+});
+
+test('handling of init kubeExec session route with container', async () => {
+  const ctx = new ConsoleContext();
+  const wrapper = makeWrapper(
+    '/web/cluster/localhost/console/kube/exec/kubeCluster/'
+  );
+  const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
+  const docs = ctx.getDocuments();
+  expect(docs[1].kind).toBe('kubeExec');
+  expect(docs[1].id).toBe(current.activeDocId);
+  expect(docs).toHaveLength(2);
+});
+
 test('active document id', async () => {
   const ctx = new ConsoleContext();
   const doc = ctx.addSshDocument({
@@ -75,6 +99,21 @@ test('active document id', async () => {
 
   const countBefore = ctx.getDocuments();
   const wrapper = makeWrapper('/web/cluster/two/console/node/server-123/root');
+  const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
+  const countAfter = ctx.getDocuments();
+  expect(doc.id).toBe(current.activeDocId);
+  expect(countAfter).toBe(countBefore);
+});
+
+test('active document id, document url with query parameters', async () => {
+  const ctx = new ConsoleContext();
+  const doc = ctx.addKubeExecDocument({
+    clusterId: 'cluster1',
+    kubeId: 'kube1',
+  });
+
+  const countBefore = ctx.getDocuments();
+  const wrapper = makeWrapper('/web/cluster/cluster1/console/kube/exec/kube1/');
   const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
   const countAfter = ctx.getDocuments();
   expect(doc.id).toBe(current.activeDocId);

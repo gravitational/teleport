@@ -72,6 +72,7 @@ detail about what is needed to complete a particular item.
 - [ ] Create backend service
 - [ ] Add resource client to `api` client
 - [ ] Implement gRPC service
+- [ ] Add resource parser to event stream mechanism
 - [ ] Add resource support to tctl (get, create, edit)
 - [ ] Optional: Add resource to cache
 - [ ] Add support for bootstrapping the resource
@@ -82,11 +83,11 @@ detail about what is needed to complete a particular item.
 
 A resource MUST include a kind, version, `teleport.header.v1.Metadata`, a `spec` and a `status` message. While the kind and version may seem like they would be easy to derive from the message definition itself, they need to be defined so that anything processing a generic resource can identify which resource is being processed. For example, `tctl` interacts with resources in their in raw yaml text form and leverages `services.UnknownResource` to identify the resource and act appropriately.
 
-All properties defined in the `spec` of a resource MUST only be modifed by the
+All properties defined in the `spec` of a resource MUST only be modified by the
 owner/creator of the resource. For example, if a resource is created via
 `tctl create`, then any fields within the `spec` MUST not be altered dynamically
 by the Teleport process. When Teleport automatically modifies the `spec` during
-runtime it causes drift between what is in the Teleport backend and the state stored by external IaC tools. If a resource has properties that are required to be modified dynamically by Teleport, a separate `status` field should be added to the resource to contain them. These fields will be ignored by IaC tools during their reconcilliation.
+runtime it causes drift between what is in the Teleport backend and the state stored by external IaC tools. If a resource has properties that are required to be modified dynamically by Teleport, a separate `status` field should be added to the resource to contain them. These fields will be ignored by IaC tools during their reconciliation.
 
 ```protobuf
 import "teleport/header/v1/metadata.proto";
@@ -111,7 +112,7 @@ message Foo {
 }
 
 // FooSpec contains specific properties of a Foo that MUST only
-// be modifed by the owner of the resource. These properties should
+// be modified by the owner of the resource. These properties should
 // not be automatically adjusted by Teleport during runtime.
 message FooSpec {
   string bar = 1;
@@ -134,11 +135,11 @@ migrate away from it as described in [RFD-0139](https://github.com/gravitational
 The `teleport.header.v1.Metadata` is a clone of `types.Metadata` which doesn't use any of the gogoproto features.
 Legacy resources also had a `types.ResourceHeader` that used gogo magic to embed the type in the resource message. To
 get around this, the required fields from the header MUST be included in the message itself. A non-gogo clone does exist
-`teleport.header.v1.ResourceHeader`, however, to get the fields, embeded custom marshalling must be manually written.
+`teleport.header.v1.ResourceHeader`, however, to get the fields, embedded custom marshalling must be manually written.
 
 If a resource has associated secrets (password, private key, jwt, mfa device, etc.) they should be defined in a separate
 resource and stored in a separate key range in the backend. The traditional pattern of defining secrets inline and only
-returning them if a `with_sercrets` flag is provided causes a variety of problems and introduces opportunity for human
+returning them if a `with_secrets` flag is provided causes a variety of problems and introduces opportunity for human
 error to accidentally include secrets when they should not have been. It would then be the responsibility of the caller
 to get both the base resource and the corresponding secret resource if required.
 
@@ -148,7 +149,7 @@ specification. To provide consistency and uniformity there are a few
 and [design patterns](https://cloud.google.com/apis/design/design_patterns)
 that should be followed when possible. The most notable of the design patterns
 is
-[Bool vs. Enum vs. String](https://cloud.google.com/apis/design/design_patterns#bool_vs_enum_vs_string). There have been several occasions in the past where a particular field
+[Bool vs. Enum vs. String](https://google.aip.dev/126). There have been several occasions in the past where a particular field
 was not flexible enough which prevented behavior from being easily extended to
 support a new feature.
 
@@ -537,6 +538,54 @@ func (fooExecutor) delete(ctx context.Context, cache *Cache, resource types.Reso
 }
 ```
 
+#### Event stream mechanism
+
+The event stream mechanism allows events (e.g creation, updates, delete) regarding your resource to be subscribed to
+by consumers.
+
+In order to add your resource to the event stream mechanism, you must write a "parser" which will allow your resource
+to be decoded from the event. This can be found in `lib/services/local/events.go`.
+
+For example, to add a parser for `foo`:
+
+```go
+func newFooParser() *fooParser {
+	return &fooParser{
+		baseParser: newBaseParser(backend.Key(fooPrefix)),
+	}
+}
+
+type fooParser struct {
+	baseParser
+}
+
+func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindFoo, types.V1, 0)
+	case types.OpPut:
+		foo, err := services.UnmarshalFoo(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
+		}
+		return types.Resource153ToLegacy(foo), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+```
+
+In addition, you will need to add support for instantiating this parser to the
+switch in the `NewWatcher` function in `lib/services/local/events.go`:
+
+```go
+		case types.KindFoo:
+			parser = newFooParser()
+```
+
 ### api client
 
 For users to interact with the new Foo RPC service the client in the `api`
@@ -605,8 +654,8 @@ message Foo {
 }
 
 // FooSpec contains specific properties of a Foo that MUST only
-// be modifed by the owner of the resource. These properties should
-// not be auotmatically adjusted by Teleport during runtime.
+// be modified by the owner of the resource. These properties should
+// not be automatically adjusted by Teleport during runtime.
 message FooSpec {
   string bar = 1;
   int32 baz = 2;

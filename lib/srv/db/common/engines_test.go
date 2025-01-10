@@ -20,15 +20,15 @@ package common
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 )
 
@@ -45,10 +45,10 @@ func TestRegisterEngine(t *testing.T) {
 	ec := EngineConfig{
 		Context:      context.Background(),
 		Clock:        clockwork.NewFakeClock(),
-		Log:          logrus.StandardLogger(),
+		Log:          slog.Default(),
 		Auth:         &testAuth{},
 		Audit:        &testAudit{},
-		AuthClient:   &auth.Client{},
+		AuthClient:   &authclient.Client{},
 		CloudClients: cloudClients,
 	}
 	require.NoError(t, ec.CheckAndSetDefaults())

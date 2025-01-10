@@ -21,23 +21,26 @@ package aws
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/textproto"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
 const (
@@ -68,6 +71,13 @@ const (
 	AmzJSON1_0 = "application/x-amz-json-1.0"
 	// AmzJSON1_1 is an AWS Content-Type header that indicates the media type is JSON.
 	AmzJSON1_1 = "application/x-amz-json-1.1"
+
+	// MaxRoleSessionNameLength is the maximum length of the role session name
+	// used by the AssumeRole call.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	MaxRoleSessionNameLength = 64
+
+	iamServiceName = "iam"
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -140,6 +150,11 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
+// VerifyAWSSignatureV2 is a temporary AWS SDK migration helper.
+func VerifyAWSSignatureV2(req *http.Request, provider aws.CredentialsProvider) error {
+	return VerifyAWSSignature(req, migration.NewCredentialsAdapter(provider))
+}
+
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
@@ -207,6 +222,11 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	return nil
 }
 
+// NewSignerV2 is a temporary AWS SDK migration helper.
+func NewSignerV2(provider aws.CredentialsProvider, signingServiceName string) *v4.Signer {
+	return NewSigner(migration.NewCredentialsAdapter(provider), signingServiceName)
+}
+
 // NewSigner creates a new V4 signer.
 func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
 	options := func(s *v4.Signer) {
@@ -249,7 +269,7 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 	for _, roleARN := range arns {
 		parsed, err := ParseRoleARN(roleARN)
 		if err != nil {
-			logrus.Warnf("skipping invalid AWS role ARN: %v", err)
+			slog.WarnContext(context.Background(), "Skipping invalid AWS role ARN.", "error", err)
 			continue
 		}
 		if accountID != "" && parsed.AccountID != accountID {
@@ -264,9 +284,10 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 		// arn:aws:iam::1234567890:role/path/to/customrole (display: customrole)
 		parts := strings.Split(parsed.Resource, "/")
 		result = append(result, Role{
-			Name:    strings.Join(parts[1:], "/"),
-			Display: parts[len(parts)-1],
-			ARN:     roleARN,
+			Name:      strings.Join(parts[1:], "/"),
+			Display:   parts[len(parts)-1],
+			ARN:       roleARN,
+			AccountID: parsed.AccountID,
 		})
 	}
 	return result
@@ -280,6 +301,8 @@ type Role struct {
 	Display string `json:"display"`
 	// ARN is the full role ARN.
 	ARN string `json:"arn"`
+	// AccountID is the AWS Account ID this role refers to.
+	AccountID string `json:"accountId"`
 }
 
 // Roles is a slice of roles.
@@ -374,7 +397,7 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 	}
 	roleARN := arn.ARN{
 		Partition: partition,
-		Service:   iam.ServiceName,
+		Service:   iamServiceName,
 		AccountID: accountID,
 		Resource:  resource,
 	}
@@ -414,7 +437,7 @@ func ParseRoleARN(roleARN string) (*arn.ARN, error) {
 // Example role ARN: arn:aws:iam::123456789012:role/some-role-name
 func checkRoleARN(parsed *arn.ARN) error {
 	parts := strings.Split(parsed.Resource, "/")
-	if parts[0] != "role" || parsed.Service != iam.ServiceName {
+	if parts[0] != "role" || parsed.Service != iamServiceName {
 		return trace.BadParameter("%q is not an AWS IAM role ARN", parsed)
 	}
 	if len(parts) < 2 || len(parts[len(parts)-1]) == 0 {
@@ -480,4 +503,31 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 		AccountID: accountID,
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
 	}.String()
+}
+
+// MaybeHashRoleSessionName truncates the role session name and adds a hash
+// when the original role session name is greater than AWS character limit
+// (64).
+func MaybeHashRoleSessionName(roleSessionName string) (ret string) {
+	if len(roleSessionName) <= MaxRoleSessionNameLength {
+		return roleSessionName
+	}
+
+	const hashLen = 16
+	hash := sha1.New()
+	hash.Write([]byte(roleSessionName))
+	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
+
+	// "1" for the delimiter.
+	keepPrefixIndex := MaxRoleSessionNameLength - len(hex) - 1
+
+	// Sanity check. This should never happen since hash length and
+	// MaxRoleSessionNameLength are both constant.
+	if keepPrefixIndex < 0 {
+		keepPrefixIndex = 0
+	}
+
+	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
+	slog.DebugContext(context.Background(), "AWS role session name is too long. Using a hash instead.", "hashed", ret, "original", roleSessionName)
+	return ret
 }

@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H3, Text } from 'design';
 import Dialog, {
+  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogContent,
 } from 'design/Dialog';
-import { Text, Box, ButtonSecondary } from 'design';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
+import cfg from 'teleport/config';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import { AuthType } from 'teleport/services/user';
-import { generateTshLoginCommand } from 'teleport/lib/util';
 
 function ConnectDialog(props: Props) {
   const {
@@ -39,6 +39,15 @@ function ConnectDialog(props: Props) {
     accessRequestId,
   } = props;
 
+  const startKubeExecSession = () => {
+    const url = cfg.getKubeExecConnectRoute({
+      clusterId,
+      kubeId: kubeConnectName,
+    });
+
+    openNewTab(url);
+  };
+
   return (
     <Dialog
       dialogCss={dialogCss}
@@ -47,10 +56,13 @@ function ConnectDialog(props: Props) {
       open={true}
     >
       <DialogHeader>
-        <DialogTitle>connect to kubernetes cluster</DialogTitle>
+        <DialogTitle>Connect to Kubernetes Cluster</DialogTitle>
       </DialogHeader>
       <DialogContent>
         <Box mb={4}>
+          <H3 mt={1} mb={2}>
+            Connect in the CLI using tsh and kubectl
+          </H3>
           <Text bold as="span">
             Step 1
           </Text>
@@ -99,6 +111,14 @@ function ConnectDialog(props: Props) {
             <TextSelectCopy mt="2" text={`tsh request drop`} />
           </Box>
         )}
+        <Box borderTop={1} mb={4} mt={4}>
+          <Flex mt={4} flex-direction="row" justifyContent="space-between">
+            <Text mt={1} bold>
+              Or exec into a pod on this Kubernetes cluster in Web UI
+            </Text>
+            <ButtonPrimary onClick={startKubeExecSession}>Exec</ButtonPrimary>
+          </Flex>
+        </Box>
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>

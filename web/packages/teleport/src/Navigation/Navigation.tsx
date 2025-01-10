@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import styled from 'styled-components';
-import { matchPath, useLocation, useHistory } from 'react-router';
+import type * as history from 'history';
+import { matchPath, useHistory, useLocation } from 'react-router';
+import styled, { useTheme } from 'styled-components';
+
+import { Box, Flex, Text } from 'design';
+import { IconTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
 import {
   NAVIGATION_CATEGORIES,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
-import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
-
-import type * as history from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
 
 const NavigationContainer = styled.div`
@@ -123,6 +123,91 @@ export function Navigation() {
   return (
     <NavigationContainer>
       <CategoriesContainer>{categories}</CategoriesContainer>
+      {cfg.edition === 'oss' && <AGPLFooter />}
+      {cfg.edition === 'community' && <CommunityFooter />}
     </NavigationContainer>
   );
 }
+function AGPLFooter() {
+  const theme = useTheme();
+  return (
+    <LicenseFooter
+      title="AGPL Edition"
+      subText="Unofficial Version"
+      infoContent={
+        <>
+          {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
+          {/* can find the official release on{' '} */}
+          This is an independently compiled AGPL-3.0 version of Teleport.
+          <br />
+          Visit{' '}
+          <Text
+            as="a"
+            href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+            color={theme.colors.interactive.solid.accent.default}
+          >
+            the Downloads page
+          </Text>{' '}
+          for the official release.
+        </>
+      }
+    />
+  );
+}
+
+function CommunityFooter() {
+  const theme = useTheme();
+  return (
+    <LicenseFooter
+      title="Community Edition"
+      subText="Limited Features"
+      infoContent={
+        <>
+          <Text
+            as="a"
+            href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+            color={theme.colors.interactive.solid.accent.default}
+          >
+            Upgrade to Teleport Enterprise
+          </Text>{' '}
+          for SSO, just-in-time access requests, Access Graph, and much more!
+        </>
+      }
+    />
+  );
+}
+
+function LicenseFooter({
+  title,
+  subText,
+  infoContent,
+}: {
+  title: string;
+  subText: string;
+  infoContent: JSX.Element;
+}) {
+  return (
+    <StyledFooterBox py={3} px={4}>
+      <Flex alignItems="center" gap={2}>
+        <Text>{title}</Text>
+        <IconTooltip position="right" sticky>
+          {infoContent}
+        </IconTooltip>
+      </Flex>
+      <SubText>{subText}</SubText>
+    </StyledFooterBox>
+  );
+}
+
+const StyledFooterBox = styled(Box)`
+  line-height: 20px;
+  border-top: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.spotBackground[0]};
+`;
+
+const SubText = styled(Text)`
+  color: ${props => props.theme.colors.text.disabled};
+  font-size: ${props => props.theme.fontSizes[1]}px;
+`;

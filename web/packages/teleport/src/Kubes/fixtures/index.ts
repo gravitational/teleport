@@ -41,3 +41,27 @@ export const kubes: Kube[] = [
     ],
   },
 ];
+
+export const moreKubes: Kube[] = [
+  {
+    kind: 'kube_cluster',
+    name: 'tele.logicoma.official-dev',
+    labels: [
+      { name: 'kernel', value: '4.15.0-51-generic' },
+      { name: 'env', value: 'official-dev' },
+    ],
+  },
+  {
+    kind: 'kube_cluster',
+    name: 'tele.logicoma.official-prod',
+    labels: [{ name: 'env', value: 'official-prod' }],
+  },
+  {
+    kind: 'kube_cluster',
+    name: 'cookie2',
+    labels: [
+      { name: 'cluster-name', value: 'some-cluster-name' },
+      { name: 'env', value: 'idk' },
+    ],
+  },
+];

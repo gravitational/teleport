@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
-import { ChevronUp, ChevronDown } from 'design/Icon';
+import { forwardRef } from 'react';
 import styled from 'styled-components';
+
 import { Text } from 'design';
+import { ChevronDown, ChevronUp } from 'design/Icon';
 
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
@@ -30,37 +31,37 @@ interface ClusterSelectorProps {
   onClick(): void;
 }
 
-export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
-  (props, ref) => {
-    const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-    const SortIcon = props.isOpened ? ChevronUp : ChevronDown;
-    const text = props.clusterName || 'Select Cluster';
+export const ClusterSelector = forwardRef<
+  HTMLButtonElement,
+  ClusterSelectorProps
+>((props, ref) => {
+  const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
+  const SortIcon = props.isOpened ? ChevronUp : ChevronDown;
+  const text = props.clusterName || 'Select Cluster';
 
-    return (
-      <Container
-        ref={ref}
-        onClick={props.onClick}
-        isOpened={props.isOpened}
-        isClusterSelected={!!props.clusterName}
-        title={getLabelWithAccelerator(
-          [props.clusterName, 'Open Clusters'].filter(Boolean).join('\n'),
-          'openClusters'
-        )}
+  return (
+    <Container
+      ref={ref}
+      onClick={props.onClick}
+      isClusterSelected={!!props.clusterName}
+      title={getLabelWithAccelerator(
+        [props.clusterName, 'Open Clusters'].filter(Boolean).join('\n'),
+        'openClusters'
+      )}
+    >
+      <Text
+        css={`
+          white-space: nowrap;
+        `}
       >
-        <Text
-          css={`
-            white-space: nowrap;
-          `}
-        >
-          {text}
-        </Text>
-        <SortIcon size="small" ml={3} />
-      </Container>
-    );
-  }
-);
+        {text}
+      </Text>
+      <SortIcon size="small" ml={3} />
+    </Container>
+  );
+});
 
-const Container = styled.button`
+const Container = styled.button<{ isClusterSelected?: boolean }>`
   background: inherit;
   color: inherit;
   font-family: inherit;

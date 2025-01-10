@@ -30,9 +30,10 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -121,7 +122,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	if cn == "" {
 		cn = "localhost"
 	}
-	privateKey, err := testauthority.New().GeneratePrivateKey()
+	privateKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,10 +160,20 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	}, nil
 }
 
+// ClientOption represents a database client config option.
+type ClientOption func(config *TestClientConfig)
+
+// WithUserAgent set client user agent.
+func WithUserAgent(userAgent string) ClientOption {
+	return func(config *TestClientConfig) {
+		config.UserAgent = userAgent
+	}
+}
+
 // TestClientConfig combines parameters for a test Postgres/MySQL client.
 type TestClientConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// AuthServer will be used to generate database access certificate for a user.
 	AuthServer *auth.Server
 	// Address is the address to connect to (web proxy).
@@ -175,18 +186,24 @@ type TestClientConfig struct {
 	PinnedIP string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+	// UserAgent contains the client user agent.
+	UserAgent string
 }
 
 // MakeTestClientTLSCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
 func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
-	key, err := client.GenerateRSAKey()
+	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Generate client certificate for the Teleport user.
 	cert, err := config.AuthServer.GenerateDatabaseTestCert(auth.DatabaseTestCertRequest{
-		PublicKey:       key.MarshalSSHPublicKey(),
+		PublicKey:       publicKeyPEM,
 		Cluster:         config.Cluster,
 		Username:        config.Username,
 		RouteToDatabase: config.RouteToDatabase,

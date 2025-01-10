@@ -1,0 +1,88 @@
+---
+title: Import Teleport Resources into Terraform
+description: How to import your existing Teleport resources into Terraform
+---
+
+This guide shows you how to import existing dynamic Teleport resources as
+Terraform resources.
+
+If you already created Teleport resources using another client tool like `tctl`
+or the Kubernetes Operator, and want to manage all Teleport resources using your
+Terraform configuration, follow these steps to generate a `.tf` file that
+contains `resource` blocks that represent your existing Teleport resources.
+
+By defining all Teleport resources in one place, you can help ensure that your
+cluster configuration matches your expectations.
+
+## Step 1/3. Add an `import` block
+
+1. On your workstation, navigate to your root Teleport Terraform module.
+
+1. Open a file in your text editor to configure Terraform imports. To keep your
+   configuration tidy, open a new file called `imports.tf`.
+
+1. Add an `import` block to `imports.tf`. Use the `to` field to indicate the
+   name of the resource you want to generate configuration for in Terraform. The
+   following example imports a Teleport role called `myrole`:
+
+   ```hcl
+   import {
+     to = teleport_role.myrole
+   }
+   ```
+
+## Step 2/3. Retrieve the ID of your resource
+
+1. Retrieve the ID of the resource. The method to use depends on the resource
+   type. Use the following rules to do so:
+
+   If the resource is `teleport_provision_token`, the ID is the `metadata.id` of
+   the resource.
+
+   If the resource can only have one instance, use the name of the resource type
+   without the `teleport` prefix. For example:
+
+   | Resource                              | ID                           |
+   |---------------------------------------|------------------------------|
+   | `teleport_cluster_maintenance_config` | `cluster_maintenance_config` |
+   | `teleport_cluster_networking_config`  | `cluster_networking_config`  |
+
+   For all other resources, the ID is always the `metadata.name` of the resource.
+
+   For example, the `teleport_role` resource uses the role's `metadata.name`
+   field for its ID. To find all possible role IDs, run the following command:
+
+   ```code
+   $ tctl get roles --format json | jq '.[].metadata.name'
+   ```
+
+1. In the `import` block, assign the `id` field to the resource ID you retrieved
+   earlier. For example, to import a Teleport role with a `metadata.name` of
+   `myrole`, add the following:
+
+   ```diff
+     import {
+       to = teleport_role.myrole
+   +   id = "myrole"
+     }
+   ```
+
+## Step 3/3. Generate a configuration file
+
+1. Generate a resource configuration
+
+   ```code
+   $ terraform plan -generate-config-out=imported-resources.tf
+   ```
+
+1. Inspect the resulting file, `imported-resources.tf`. If the new `resource`
+   block looks correct, you can check the file into source control.
+
+## Next steps
+
+- Follow [the user and role IaC guide](user-and-role.mdx) to use the Terraform
+  Provider to create Teleport users and grant them roles.
+- Explore the full list of supported [Terraform provider
+  resources](../../../reference/terraform-provider/terraform-provider.mdx).
+- See [the list of supported Teleport Terraform
+  setups](../terraform-provider/terraform-provider.mdx):

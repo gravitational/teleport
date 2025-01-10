@@ -19,21 +19,21 @@
 package teleagent
 
 import (
+	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Agent extends the agent.ExtendedAgent interface.
@@ -68,10 +68,6 @@ type AgentServer struct {
 	listener net.Listener
 	Path     string
 	Dir      string
-	// testPermissions is a test provided function used to test
-	// the permissions of the agent server during potentially
-	// vulnerable moments in permission changes.
-	testPermissions func()
 }
 
 // NewServer returns new instance of agent server
@@ -79,14 +75,19 @@ func NewServer(getter Getter) *AgentServer {
 	return &AgentServer{getAgent: getter}
 }
 
+func (a *AgentServer) SetListener(l net.Listener) {
+	a.listener = l
+	a.Path = l.Addr().String()
+	a.Dir = filepath.Dir(a.Path)
+}
+
 // ListenUnixSocket starts listening on a new unix socket.
-func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, user *user.User) error {
+func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, _ *user.User) error {
 	// Create a temp directory to hold the agent socket.
 	sockDir, err := os.MkdirTemp(os.TempDir(), sockDir+"-")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.Dir = sockDir
 
 	sockPath := filepath.Join(sockDir, sockName)
 	l, err := net.Listen("unix", sockPath)
@@ -95,65 +96,8 @@ func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, user *user.User
 		return trace.Wrap(err)
 	}
 
-	a.listener = l
-	a.Path = sockPath
-
-	if err := a.updatePermissions(user); err != nil {
-		a.Close()
-		return trace.Wrap(err)
-	}
-
+	a.SetListener(l)
 	return nil
-}
-
-// Update the agent server permissions to give the user sole ownership
-// of the socket path and prevent other users from accessing or seeing it.
-func (a *AgentServer) updatePermissions(user *user.User) error {
-	// Tests may provide a testPermissions function to test potentially
-	// vulnerable moments during permission updating.
-	testPermissions := func() {
-		if a.testPermissions != nil {
-			a.testPermissions()
-		}
-	}
-
-	testPermissions()
-
-	uid, err := strconv.Atoi(user.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(user.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	testPermissions()
-
-	if err := os.Chmod(a.Path, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	testPermissions()
-
-	if err := os.Lchown(a.Path, uid, gid); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	testPermissions()
-
-	// To prevent a privilege escalation attack, this must occur
-	// after the socket permissions are updated.
-	if err := os.Lchown(a.Dir, uid, gid); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	return nil
-}
-
-// SetTestPermissions can be used by tests to test agent socket permissions.
-func (a *AgentServer) SetTestPermissions(testPermissions func()) {
-	a.testPermissions = testPermissions
 }
 
 // Serve starts serving on the listener, assumes that Listen was called before
@@ -161,6 +105,8 @@ func (a *AgentServer) Serve() error {
 	if a.listener == nil {
 		return trace.BadParameter("Serve needs a Listen call first")
 	}
+
+	ctx := context.Background()
 	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
 		conn, err := a.listener.Accept()
@@ -173,7 +119,7 @@ func (a *AgentServer) Serve() error {
 				return nil
 			}
 			if !neterr.Timeout() {
-				log.WithError(err).Error("Got non-timeout error.")
+				slog.ErrorContext(ctx, "Got non-timeout error", "error", err)
 				return trace.Wrap(err)
 			}
 			if tempDelay == 0 {
@@ -184,7 +130,7 @@ func (a *AgentServer) Serve() error {
 			if max := 1 * time.Second; tempDelay > max {
 				tempDelay = max
 			}
-			log.WithError(err).Errorf("Got timeout error (will sleep %v).", tempDelay)
+			slog.ErrorContext(ctx, "Got timeout error - backing off", "delay_time", tempDelay, "error", err)
 			time.Sleep(tempDelay)
 			continue
 		}
@@ -193,7 +139,7 @@ func (a *AgentServer) Serve() error {
 		// get an agent instance for serving this conn
 		instance, err := a.getAgent()
 		if err != nil {
-			log.WithError(err).Error("Failed to get agent.")
+			slog.ErrorContext(ctx, "Failed to get agent", "error", err)
 			return trace.Wrap(err)
 		}
 
@@ -201,10 +147,8 @@ func (a *AgentServer) Serve() error {
 		// separate goroutine.
 		go func() {
 			defer instance.Close()
-			if err := agent.ServeAgent(instance, conn); err != nil {
-				if !errors.Is(err, io.EOF) {
-					log.Error(err)
-				}
+			if err := agent.ServeAgent(instance, conn); err != nil && !errors.Is(err, io.EOF) {
+				slog.ErrorContext(ctx, "Serving agent terminated unexpectedly", "error", err)
 			}
 		}()
 	}
@@ -224,7 +168,9 @@ func (a *AgentServer) ListenAndServe(addr utils.NetAddr) error {
 func (a *AgentServer) Close() error {
 	var errors []error
 	if a.listener != nil {
-		log.Debugf("AgentServer(%v) is closing", a.listener.Addr())
+		slog.DebugContext(context.Background(), "AgentServer is closing",
+			"listen_addr", logutils.StringerAttr(a.listener.Addr()),
+		)
 		if err := a.listener.Close(); err != nil {
 			errors = append(errors, trace.ConvertSystemError(err))
 		}

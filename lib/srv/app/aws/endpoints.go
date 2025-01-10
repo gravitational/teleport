@@ -42,7 +42,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/mediatailor"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/migrationhubstrategyrecommendations"
-	"github.com/aws/aws-sdk-go/service/mobile"
 	"github.com/aws/aws-sdk-go/service/pinpoint"
 	"github.com/aws/aws-sdk-go/service/pinpointsmsvoice"
 	"github.com/aws/aws-sdk-go/service/pricing"
@@ -182,29 +181,32 @@ var signingNameToEndpointsID = map[string]string{
 	"aws-marketplace":                       marketplacecatalog.EndpointsID,
 	"awsiottwinmaker":                       iottwinmaker.EndpointsID,
 	"awsmigrationhubstrategyrecommendation": migrationhubstrategyrecommendations.EndpointsID,
-	"awsmobilehubservice":                   mobile.EndpointsID,
-	"awsproton20200720":                     proton.EndpointsID,
-	"awsssooidc":                            ssooidc.EndpointsID,
-	"awsssoportal":                          sso.EndpointsID,
-	"detective":                             detective.EndpointsID,
-	"ecr":                                   ecr.EndpointsID,
-	"ecr-public":                            ecrpublic.EndpointsID,
-	"elastic-inference":                     elasticinference.EndpointsID,
-	"iot-jobs-data":                         iotjobsdataplane.EndpointsID,
-	"iot1click":                             iot1clickdevicesservice.EndpointsID,
-	"iotdata":                               iotdataplane.EndpointsID,
-	"iotdeviceadvisor":                      iotdeviceadvisor.EndpointsID,
-	"ioteventsdata":                         ioteventsdata.EndpointsID,
-	"iotfleethub":                           iotfleethub.EndpointsID,
-	"iotsecuredtunneling":                   iotsecuretunneling.EndpointsID,
-	"iotwireless":                           iotwireless.EndpointsID,
-	"lex":                                   lexmodelsv2.EndpointsID,
-	"mediatailor":                           mediatailor.EndpointsID,
-	"memorydb":                              memorydb.EndpointsID,
-	"mobiletargeting":                       pinpoint.EndpointsID,
-	"pricing":                               pricing.EndpointsID,
-	"sagemaker":                             sagemaker.EndpointsID,
-	"ses":                                   ses.EndpointsID,
-	"sms-voice":                             pinpointsmsvoice.EndpointsID,
-	"timestream":                            timestreamquery.EndpointsID,
+	// AWS mobile service deprecated since v1.55.0.
+	// Constant copied from mobile.EndpointsID:
+	// https://github.com/aws/aws-sdk-go/blob/019bed03fa64f3edad98bba262d41d58eb2b9fee/service/mobile/service.go#L33-L34
+	"awsmobilehubservice": "mobile",
+	"awsproton20200720":   proton.EndpointsID,
+	"awsssooidc":          ssooidc.EndpointsID,
+	"awsssoportal":        sso.EndpointsID,
+	"detective":           detective.EndpointsID,
+	"ecr":                 ecr.EndpointsID,
+	"ecr-public":          ecrpublic.EndpointsID,
+	"elastic-inference":   elasticinference.EndpointsID,
+	"iot-jobs-data":       iotjobsdataplane.EndpointsID,
+	"iot1click":           iot1clickdevicesservice.EndpointsID,
+	"iotdata":             iotdataplane.EndpointsID,
+	"iotdeviceadvisor":    iotdeviceadvisor.EndpointsID,
+	"ioteventsdata":       ioteventsdata.EndpointsID,
+	"iotfleethub":         iotfleethub.EndpointsID,
+	"iotsecuredtunneling": iotsecuretunneling.EndpointsID,
+	"iotwireless":         iotwireless.EndpointsID,
+	"lex":                 lexmodelsv2.EndpointsID,
+	"mediatailor":         mediatailor.EndpointsID,
+	"memorydb":            memorydb.EndpointsID,
+	"mobiletargeting":     pinpoint.EndpointsID,
+	"pricing":             pricing.EndpointsID,
+	"sagemaker":           sagemaker.EndpointsID,
+	"ses":                 ses.EndpointsID,
+	"sms-voice":           pinpointsmsvoice.EndpointsID,
+	"timestream":          timestreamquery.EndpointsID,
 }

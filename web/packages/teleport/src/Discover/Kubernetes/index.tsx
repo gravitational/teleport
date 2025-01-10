@@ -18,15 +18,15 @@
 
 import React from 'react';
 
-import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { DiscoverEvent } from 'teleport/services/userEvent';
-import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
 import { EnrollEksCluster } from 'teleport/Discover/Kubernetes/EnrollEKSCluster';
+import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
+import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { KubeWrapper } from './KubeWrapper';
+import { HelmChart } from './SelfHosted';
 import { SetupAccess } from './SetupAccess';
-import { HelmChart } from './HelmChart';
 import { TestConnection } from './TestConnection';
 
 export const KubernetesResource: ResourceViewConfig = {
@@ -34,7 +34,7 @@ export const KubernetesResource: ResourceViewConfig = {
   wrapper: (component: React.ReactNode) => (
     <KubeWrapper>{component}</KubeWrapper>
   ),
-  shouldPrompt(currentStep, resourceSpec) {
+  shouldPrompt(currentStep, currentView, resourceSpec) {
     if (resourceSpec?.kubeMeta?.location === KubeLocation.Aws) {
       // Allow user to bypass prompting on this step (Connect AWS Account)
       // on exit because users might need to change route to setup an
@@ -43,7 +43,7 @@ export const KubernetesResource: ResourceViewConfig = {
         return false;
       }
     }
-    return true;
+    return currentView?.eventName !== DiscoverEvent.Completed;
   },
   views(resource: ResourceSpec) {
     let configuredResourceViews = [

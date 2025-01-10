@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-import { IAppContext } from 'teleterm/ui/types';
-import { Cluster, UserType } from 'teleterm/services/tshd/types';
+import { Cluster, LoggedInUser_UserType } from 'teleterm/services/tshd/types';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { IAppContext } from 'teleterm/ui/types';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
-
 import { Setup } from './Setup';
 
 export default {
@@ -136,7 +135,7 @@ export function NoAccess() {
 
 export function AccessUnknown() {
   const cluster = makeRootCluster();
-  cluster.loggedInUser.userType = UserType.UNSPECIFIED;
+  cluster.loggedInUser.userType = LoggedInUser_UserType.UNSPECIFIED;
   const appContext = new MockAppContext({});
 
   return (

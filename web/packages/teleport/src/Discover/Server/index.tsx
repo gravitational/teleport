@@ -18,18 +18,22 @@
 
 import React from 'react';
 
+import cfg from 'teleport/config';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
 import { SetupAccess } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
-import { AwsAccount, ResourceKind, Finished } from 'teleport/Discover/Shared';
-import { DiscoverEvent } from 'teleport/services/userEvent';
+import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEvent,
+} from 'teleport/services/userEvent';
 
 import { ResourceSpec, ServerLocation } from '../SelectResource';
-
-import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
+import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
 import { CreateEc2Ice } from './CreateEc2Ice/CreateEc2Ice';
-
+import { DiscoveryConfigSsm } from './DiscoveryConfigSsm/DiscoveryConfigSsm';
+import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
 import { ServerWrapper } from './ServerWrapper';
 
 export const ServerResource: ResourceViewConfig<ResourceSpec> = {
@@ -37,7 +41,7 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
   wrapper: (component: React.ReactNode) => (
     <ServerWrapper>{component}</ServerWrapper>
   ),
-  shouldPrompt(currentStep, resourceSpec) {
+  shouldPrompt(currentStep, currentView, resourceSpec) {
     if (resourceSpec?.nodeMeta?.location === ServerLocation.Aws) {
       // Allow user to bypass prompting on this step (Connect AWS Connect)
       // on exit because users might need to change route to setup an
@@ -46,12 +50,17 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
         return false;
       }
     }
-    return true;
+    return currentView?.eventName !== DiscoverEvent.Completed;
   },
 
   views(resource) {
     let configureResourceViews;
-    if (resource && resource.nodeMeta?.location === ServerLocation.Aws) {
+    const { nodeMeta } = resource;
+    if (
+      nodeMeta?.location === ServerLocation.Aws &&
+      nodeMeta.discoveryConfigMethod ===
+        DiscoverDiscoveryConfigMethod.AwsEc2Eice
+    ) {
       configureResourceViews = [
         {
           title: 'Connect AWS Account',
@@ -68,6 +77,35 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
           component: CreateEc2Ice,
           eventName: DiscoverEvent.CreateNode,
           manuallyEmitSuccessEvent: true,
+        },
+      ];
+    } else if (
+      nodeMeta?.location === ServerLocation.Aws &&
+      nodeMeta.discoveryConfigMethod === DiscoverDiscoveryConfigMethod.AwsEc2Ssm
+    ) {
+      configureResourceViews = [
+        {
+          title: 'Connect AWS Account',
+          component: AwsAccount,
+          eventName: DiscoverEvent.IntegrationAWSOIDCConnectEvent,
+        },
+        // Self hosted requires user to manually install a discovery service.
+        // Cloud already has a discovery service running, so this step is not required.
+        ...(!cfg.isCloud
+          ? [
+              {
+                title: 'Configure Discovery Service',
+                component: ConfigureDiscoveryService,
+                eventName: DiscoverEvent.DeployService,
+              },
+            ]
+          : []),
+        {
+          title: cfg.isCloud
+            ? 'Configure Auto Discovery Service'
+            : 'Create Discovery Config',
+          component: DiscoveryConfigSsm,
+          eventName: DiscoverEvent.CreateDiscoveryConfig,
         },
       ];
     } else {

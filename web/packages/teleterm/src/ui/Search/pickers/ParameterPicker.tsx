@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactElement, useCallback, useEffect } from 'react';
+import { ReactElement, useCallback, useEffect } from 'react';
+
+import { Text } from 'design';
+import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import {
+  Attempt,
   makeSuccessAttempt,
   mapAttempt,
   useAsync,
-  Attempt,
 } from 'shared/hooks/useAsync';
-import { Text } from 'design';
-import * as icons from 'design/Icon';
 
+import { Parameter, ParametrizedAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
-import { ParametrizedAction, Parameter } from '../actions';
-
-import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
-import { actionPicker } from './pickers';
 import { PickerContainer } from './PickerContainer';
+import { actionPicker } from './pickers';
+import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
 
 interface ParameterPickerProps {
   action: ParametrizedAction;
@@ -109,7 +109,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
         render={item => ({
           key: item.value,
           Component: (
-            <Text typography="body1" fontSize={1}>
+            <Text typography="body2" fontSize={1}>
               <Highlight text={item.displayText} keywords={[inputValue]} />
             </Text>
           ),
@@ -128,11 +128,11 @@ export const SuggestionsError = ({
 }) => (
   <NonInteractiveItem>
     <IconAndContent Icon={icons.Warning} iconColor="warning.main">
-      <Text typography="body1">
+      <Text typography="body2">
         Could not fetch suggestions.{' '}
         {!allowOnlySuggestions && 'Type in the desired value to continue.'}
       </Text>
-      <Text typography="body2">{statusText}</Text>
+      <Text typography="body3">{statusText}</Text>
     </IconAndContent>
   </NonInteractiveItem>
 );
@@ -140,7 +140,7 @@ export const SuggestionsError = ({
 export const NoSuggestionsAvailable = ({ message }: { message: string }) => (
   <NonInteractiveItem>
     <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
-      <Text typography="body1">{message}</Text>
+      <Text typography="body2">{message}</Text>
     </IconAndContent>
   </NonInteractiveItem>
 );

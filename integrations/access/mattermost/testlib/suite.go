@@ -33,6 +33,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -46,9 +48,9 @@ var msgFieldRegexp = regexp.MustCompile(`(?im)^\*\*([a-zA-Z ]+)\*\*:\ +(.+)$`)
 var requestReasonRegexp = regexp.MustCompile("(?im)^\\*\\*Reason\\*\\*:\\ ```\\n(.*?)```(.*?)$")
 var resolutionReasonRegexp = regexp.MustCompile("(?im)^\\*\\*Resolution reason\\*\\*:\\ ```\\n(.*?)```(.*?)$")
 
-// MattermostSuite is the Mattermost access plugin test suite.
+// MattermostBaseSuite is the Mattermost access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type MattermostSuite struct {
+type MattermostBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig      *mattermost.Config
 	raceNumber     int
@@ -62,7 +64,7 @@ type MattermostSuite struct {
 
 // SetupTest starts a fake Mattermost and generates the plugin configuration.
 // It is run for each test.
-func (s *MattermostSuite) SetupTest() {
+func (s *MattermostBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -84,24 +86,45 @@ func (s *MattermostSuite) SetupTest() {
 	conf.Mattermost.Token = "000000"
 	conf.Mattermost.URL = s.fakeMattermost.URL()
 	conf.StatusSink = s.fakeStatusSink
+	conf.PluginType = types.PluginTypeMattermost
 
 	s.appConfig = &conf
 }
 
 // startApp starts the Mattermost plugin, waits for it to become ready and returns,
-func (s *MattermostSuite) startApp() {
+func (s *MattermostBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
 	app := mattermost.NewMattermostApp(s.appConfig)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
+}
+
+// MattermostSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type MattermostSuiteOSS struct {
+	MattermostBaseSuite
+}
+
+// MattermostSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type MattermostSuiteEnterprise struct {
+	MattermostBaseSuite
+}
+
+// SetupTest overrides MattermostBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *MattermostSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.MattermostBaseSuite.SetupTest()
 }
 
 // TestMattermostMessagePosting validates that a message is sent to each recipient
 // specified in the plugin's configuration and optional reviewers.
 // It also checks that the message content is correct, even when the reason
 // is too large.
-func (s *MattermostSuite) TestMattermostMessagePosting() {
+func (s *MattermostSuiteOSS) TestMattermostMessagePosting() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -176,7 +199,7 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 
 // TestApproval tests that when a request is approved, its corresponding message
 // is updated to reflect the new request state.
-func (s *MattermostSuite) TestApproval() {
+func (s *MattermostSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -215,7 +238,7 @@ func (s *MattermostSuite) TestApproval() {
 
 // TestDenial tests that when a request is denied, its corresponding message
 // is updated to reflect the new request state.
-func (s *MattermostSuite) TestDenial() {
+func (s *MattermostSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -254,14 +277,10 @@ func (s *MattermostSuite) TestDenial() {
 
 // TestReviewComments tests that that update messages are sent after the access
 // request is reviewed. Each review should trigger a new message.
-func (s *MattermostSuite) TestReviewComments() {
+func (s *MattermostSuiteEnterprise) TestReviewComments() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 
@@ -316,14 +335,10 @@ func (s *MattermostSuite) TestReviewComments() {
 
 // TestApprovalByReview tests that the message is updated after the access request
 // is reviewed and approved.
-func (s *MattermostSuite) TestApprovalByReview() {
+func (s *MattermostSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -388,14 +403,10 @@ func (s *MattermostSuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that the message is updated after the access request
 // is reviewed and denied.
-func (s *MattermostSuite) TestDenialByReview() {
+func (s *MattermostSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -460,7 +471,7 @@ func (s *MattermostSuite) TestDenialByReview() {
 
 // TestExpiration tests that when a request expires, its corresponding message
 // is updated to reflect the new request state.
-func (s *MattermostSuite) TestExpiration() {
+func (s *MattermostSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -497,14 +508,11 @@ func (s *MattermostSuite) TestExpiration() {
 // TestRace validates that the plugin behaves properly and performs all the
 // message updates when a lot of access requests are sent and reviewed in a very
 // short time frame.
-func (s *MattermostSuite) TestRace() {
+func (s *MattermostSuiteEnterprise) TestRace() {
 	t := s.T()
+	t.Skip("This test is flaky")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
@@ -648,7 +656,7 @@ func (s *MattermostSuite) TestRace() {
 	})
 }
 
-func (s *MattermostSuite) TestRecipientsConfig() {
+func (s *MattermostSuiteOSS) TestRecipientsConfig() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -697,4 +705,79 @@ func (s *MattermostSuite) TestRecipientsConfig() {
 
 	assert.Equal(t, directChannel1.ID, messages[0].ChannelID)
 	assert.Equal(t, channel2.ID, messages[1].ChannelID)
+}
+
+func (s *MattermostSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	directChannel1 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser)
+
+	team := s.fakeMattermost.StoreTeam(mattermost.Team{Name: "team-llama"})
+	channel2 := s.fakeMattermost.StoreChannel(mattermost.Channel{Name: "channel-llama", TeamID: team.ID})
+
+	// Setup base config to ensure access monitoring rule recipient take precidence
+	s.appConfig.Recipients = common.RawRecipientsMap{
+		types.Wildcard: []string{
+			"team-llama/channel-llama",
+			"somethingThatWillBeOverWritten",
+		},
+	}
+
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-mattermost-amr",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "mattermost",
+					Recipients: []string{
+						"team-llama/channel-llama",
+						s.reviewer1MattermostUser.Email,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	userName := integration.RequesterOSSUserName
+	request := s.CreateAccessRequest(ctx, userName, nil)
+	pluginData := s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, 2)
+
+	messageSet := make(MattermostDataPostSet)
+
+	msg, err := s.fakeMattermost.CheckNewPost(ctx)
+	require.NoError(t, err)
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	var messages []mattermost.Post
+	messages = append(messages, msg)
+
+	msg, err = s.fakeMattermost.CheckNewPost(ctx)
+	require.NoError(t, err)
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messages = append(messages, msg)
+
+	assert.Len(t, messageSet, 2)
+	assert.Contains(t, messageSet, pluginData.SentMessages[0])
+	assert.Contains(t, messageSet, pluginData.SentMessages[1])
+
+	sort.Sort(MattermostPostSlice(messages))
+
+	assert.Equal(t, directChannel1.ID, messages[0].ChannelID)
+	assert.Equal(t, channel2.ID, messages[1].ChannelID)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-mattermost-amr"))
 }

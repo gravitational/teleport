@@ -16,17 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { Flex, Link, Text, Box } from 'design';
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
-import TextEditor from 'shared/components/TextEditor';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { Box, Flex, H3, Link } from 'design';
+import { P } from 'design/Text/Text';
+import { IconTooltip } from 'design/Tooltip';
+import TextEditor from 'shared/components/TextEditor';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { Regions } from 'teleport/services/integrations';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 type AwsResourceKind = 'rds' | 'ec2' | 'eks';
 
@@ -39,9 +41,8 @@ export function ConfigureIamPerms({
   integrationRoleArn: string;
   kind: AwsResourceKind;
 }) {
-  // arn's are formatted as `don-care-about-this-part/role-arn`.
-  // We are splitting by slash and getting the last element.
-  const iamRoleName = integrationRoleArn.split('/').pop();
+  const { awsAccountId: accountID, arnResourceName: iamRoleName } =
+    splitAwsIamArn(integrationRoleArn);
 
   let scriptUrl;
   let msg;
@@ -55,6 +56,7 @@ export function ConfigureIamPerms({
       scriptUrl = cfg.getEc2InstanceConnectIAMConfigureScriptUrl({
         region,
         iamRoleName,
+        accountID,
       });
 
       const json = `{
@@ -95,6 +97,7 @@ export function ConfigureIamPerms({
       scriptUrl = cfg.getEksIamConfigureScriptUrl({
         region,
         iamRoleName,
+        accountID,
       });
 
       const json = `{
@@ -109,6 +112,7 @@ export function ConfigureIamPerms({
         "eks:CreateAccessEntry",
         "eks:DeleteAccessEntry",
         "eks:AssociateAccessPolicy",
+        "eks:TagResource"
       ],
       "Resource": "*"
     }
@@ -132,6 +136,7 @@ export function ConfigureIamPerms({
       scriptUrl = cfg.getAwsConfigureIamScriptListDatabasesUrl({
         region,
         iamRoleName,
+        accountID,
       });
 
       const json = `{
@@ -142,7 +147,9 @@ export function ConfigureIamPerms({
       "Action": [
         "rds:DescribeDBInstances",
         "rds:DescribeDBClusters",
-        "ec2:DescribeSecurityGroups"
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs"
       ],
       "Resource": "*"
     }
@@ -170,16 +177,14 @@ export function ConfigureIamPerms({
       header={
         <>
           <Flex alignItems="center">
-            <Text bold mr={1}>
-              Configure your AWS IAM permissions
-            </Text>
-            <ToolTipInfo sticky={true} maxWidth={450}>
+            <H3 mr={1}>Configure your AWS IAM permissions</H3>
+            <IconTooltip sticky={true} maxWidth={450}>
               The following IAM permissions will be added as an inline policy
               named <b>{iamPolicyName}</b> to IAM role <b>{iamRoleName}</b>
               <Box mb={2}>{editor}</Box>
-            </ToolTipInfo>
+            </IconTooltip>
           </Flex>
-          <Text typography="subtitle1" mb={3}>
+          <P mb={3}>
             {msg} Run the command below on your{' '}
             <Link
               href="https://console.aws.amazon.com/cloudshell/home"
@@ -189,7 +194,7 @@ export function ConfigureIamPerms({
             </Link>{' '}
             to configure your IAM permissions. Then press the refresh button
             above.
-          </Text>
+          </P>
         </>
       }
       hasTtl={false}
@@ -201,8 +206,7 @@ export function ConfigureIamPerms({
   );
 }
 
-const EditorWrapper = styled(Flex)`
-  flex-directions: column;
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;
   width: 450px;

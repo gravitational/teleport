@@ -1,4 +1,7 @@
 /**
+ * @jest-environment node
+ */
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -19,11 +22,12 @@
 import childProcess from 'node:child_process';
 import fs from 'node:fs/promises';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   createAgentConfigFile,
+  disableDebugServiceStanza,
   generateAgentConfigPaths,
 } from './createAgentConfigFile';
 
@@ -34,10 +38,12 @@ beforeEach(() => {
   jest
     .spyOn(childProcess, 'execFile')
     .mockImplementation((command, args, options, callback) => {
-      callback(undefined, '', '');
-      return this;
+      callback(null, '', '');
+      return undefined;
     });
   jest.spyOn(fs, 'rm').mockImplementation(() => Promise.resolve());
+  jest.spyOn(fs, 'mkdir').mockImplementation(() => Promise.resolve(undefined));
+  jest.spyOn(fs, 'writeFile').mockImplementation(() => Promise.resolve());
 });
 
 test('teleport configure is called with proper arguments', async () => {
@@ -69,7 +75,7 @@ test('teleport configure is called with proper arguments', async () => {
     [
       'node',
       'configure',
-      `--output=${userDataDir}/agents/cluster.local/config.yaml`,
+      `--output=stdout`,
       `--data-dir=${userDataDir}/agents/cluster.local/data`,
       `--proxy=${proxy}`,
       `--token=${token}`,
@@ -79,6 +85,13 @@ test('teleport configure is called with proper arguments', async () => {
       timeout: 10_000, // 10 seconds
     },
     expect.anything()
+  );
+  expect(fs.writeFile).toHaveBeenCalledWith(
+    `${userDataDir}/agents/cluster.local/config.yaml`,
+    // It'd be nice to make childProcess.execFile return certain output and then verify that this
+    // argument includes that output + disableDebugServiceStanza. Alas, the promisified version of
+    // execFile isn't easily mockable – stdout in tests is just "undefined" for some reason.
+    expect.stringContaining(disableDebugServiceStanza)
   );
 });
 

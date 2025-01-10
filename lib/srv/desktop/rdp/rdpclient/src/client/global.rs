@@ -1,16 +1,18 @@
-// Copyright 2023 Gravitational, Inc
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This module contains static structures which are used in common by all
 //! desktop sessions on a given windows_desktop_service.
@@ -27,15 +29,14 @@
 //! managed by Go).
 //!
 //! In practice this primarily means ensuring that any such global, static
-//! structures that might be accessed directly by a call from go are [`Send`]
-//! + [`Sync`] and thus are only mutated when locked. See [`assert_send_sync`]
+//! structures that might be accessed directly by a call from go are `Send + Sync`
+//! and thus are only mutated when locked. See `assert_send_sync`
 //! below for an example of how this is enforced.
 
 use super::ClientHandle;
 use crate::CgoHandle;
 use parking_lot::RwLock;
-use static_init::dynamic;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 /// Gets a [`ClientHandle`] from the global [`CLIENT_HANDLES`] map.
 pub fn get_client_handle(cgo_handle: CgoHandle) -> Option<ClientHandle> {
@@ -43,14 +44,13 @@ pub fn get_client_handle(cgo_handle: CgoHandle) -> Option<ClientHandle> {
 }
 
 /// A global, static tokio runtime for use by all clients.
-#[dynamic]
-pub static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
+pub static TOKIO_RT: LazyLock<tokio::runtime::Runtime> =
+    LazyLock::new(|| tokio::runtime::Runtime::new().unwrap());
 
 /// A global, static map of [`ClientHandle`] indexed by [`CgoHandle`].
 ///
 /// See [`ClientHandles`].
-#[dynamic]
-pub static CLIENT_HANDLES: ClientHandles = ClientHandles::new();
+pub static CLIENT_HANDLES: LazyLock<ClientHandles> = LazyLock::new(Default::default);
 
 const _: () = {
     /// References to following types can be shared by multiple
@@ -67,15 +67,14 @@ const _: () = {
 /// A function can be dispatched to the [`Client`] corresponding to a
 /// given [`CgoHandle`] by retrieving it's corresponding [`ClientHandle`]
 /// from this map and sending the desired [`ClientFunction`].
+#[derive(Default)]
 pub struct ClientHandles {
     map: RwLock<HashMap<CgoHandle, ClientHandle>>,
 }
 
 impl ClientHandles {
-    fn new() -> Self {
-        ClientHandles {
-            map: RwLock::new(HashMap::new()),
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 
     pub fn insert(&self, cgo_handle: CgoHandle, client_handle: ClientHandle) {

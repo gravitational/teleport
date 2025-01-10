@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { context, trace } from '@opentelemetry/api';
+import { useEffect, useRef, useState } from 'react';
 
 import cfg from 'teleport/config';
-import { TermEvent } from 'teleport/lib/term/enums';
-import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentSsh } from 'teleport/Console/stores';
-
+import { TermEvent } from 'teleport/lib/term/enums';
+import Tty from 'teleport/lib/term/tty';
 import type {
   ParticipantMode,
   Session,
@@ -38,16 +36,16 @@ const tracer = trace.getTracer('TTY');
 export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
-  const ttyRef = React.useRef<Tty>(null);
+  const ttyRef = useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
-  const [session, setSession] = React.useState<Session>(null);
-  const [status, setStatus] = React.useState<Status>('loading');
+  const [session, setSession] = useState<Session>(null);
+  const [status, setStatus] = useState<Status>('loading');
 
   function closeDocument() {
     ctx.closeTab(doc);
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
         'initTTY',
@@ -91,10 +89,12 @@ export default function useSshSession(doc: DocumentSsh) {
     }
     initTty(
       {
+        kind: 'ssh',
         login,
         serverId,
         clusterId,
         sid,
+        kubeExec: doc.kubeExec,
       },
       mode
     );

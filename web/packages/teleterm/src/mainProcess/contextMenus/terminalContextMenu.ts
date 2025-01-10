@@ -18,18 +18,24 @@
 
 import { ipcMain, ipcRenderer, Menu } from 'electron';
 
+import { ConfigService } from 'teleterm/services/config';
+
 import { TerminalContextMenuEventChannel } from '../types';
 
-export function subscribeToTerminalContextMenuEvent(): void {
+export function subscribeToTerminalContextMenuEvent(
+  configService: ConfigService
+): void {
   ipcMain.on(TerminalContextMenuEventChannel, () => {
     Menu.buildFromTemplate([
       {
         label: 'Copy',
         role: 'copy',
+        accelerator: configService.get('keymap.terminalCopy').value,
       },
       {
         label: 'Paste',
         role: 'paste',
+        accelerator: configService.get('keymap.terminalPaste').value,
       },
     ]).popup();
   });

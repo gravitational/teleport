@@ -20,9 +20,11 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -326,6 +328,56 @@ func TestLocks(t *testing.T) {
 	require.Nil(t, unlock2)
 
 	require.NoError(t, unlock())
+}
+
+// TestLockWithBlocking verifies that second lock call is blocked until first is released.
+func TestLockWithBlocking(t *testing.T) {
+	var locked atomic.Bool
+
+	lockFile := filepath.Join(os.TempDir(), ".lock")
+	t.Cleanup(func() {
+		require.NoError(t, os.Remove(lockFile))
+	})
+
+	// Acquire first lock should not return any error.
+	unlock, err := FSWriteLock(lockFile)
+	require.NoError(t, err)
+	locked.Store(true)
+
+	signal := make(chan struct{})
+	errChan := make(chan error)
+	go func() {
+		signal <- struct{}{}
+		unlock, err := FSWriteLock(lockFile)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		if locked.Load() {
+			errChan <- fmt.Errorf("first lock is still acquired, second lock must be blocking")
+			return
+		}
+		if err := unlock(); err != nil {
+			errChan <- err
+			return
+		}
+		signal <- struct{}{}
+	}()
+
+	<-signal
+	// We have to wait till next lock is reached to ensure we block execution of goroutine.
+	// Since this is system call we can't track if the function reach blocking state already.
+	time.Sleep(100 * time.Millisecond)
+	locked.Store(false)
+	require.NoError(t, unlock())
+
+	select {
+	case err := <-errChan:
+		require.NoError(t, err)
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "second lock is not released")
+	}
 }
 
 func TestOverwriteFile(t *testing.T) {

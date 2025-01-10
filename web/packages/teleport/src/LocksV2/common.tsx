@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Trash } from 'design/Icon';
 
 export const TrashButton = styled(Trash)`
@@ -25,7 +26,7 @@ export const TrashButton = styled(Trash)`
   border-radius: 2px;
   cursor: pointer;
   background-color: ${({ theme }) => theme.colors.buttons.trashButton.default};
-  :hover {
+  &:hover {
     background-color: ${({ theme }) => theme.colors.buttons.trashButton.hover};
   }
 `;

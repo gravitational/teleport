@@ -1,0 +1,203 @@
+---
+title: TCP Application Access
+description: How to configure Teleport for accessing plain TCP apps
+---
+
+Teleport can provide access to any TCP-based application. This allows users to
+connect to applications which Teleport doesn't natively support such as SMTP
+servers or databases not yet natively supported by the Teleport Database
+Service.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- TCP application to connect to. In this guide we'll use a PostgreSQL running
+  in Docker as an example. You can also use any TCP-based application you may
+  already have.
+- Host where you will run the Teleport Application Service.
+
+We will assume your Teleport cluster is accessible at `teleport.example.com`
+and `*.teleport.example.com`. You can substitute the address of your Teleport
+Proxy Service. (For Teleport Cloud customers, this will be similar to
+`mytenant.teleport.sh`.)
+
+<Admonition type="note" title="Application Access and DNS" scope={["oss", "enterprise"]} scopeOnly>
+(!docs/pages/includes/dns-app-access.mdx!)
+</Admonition>
+
+## Step 1/4. Start PostgreSQL container
+
+Skip this step if you already have an application you'd like to connect to.
+
+Start a PostgreSQL server in a Docker container:
+
+```code
+$ docker run --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=<pass> -d postgres
+```
+
+## Step 2/4. Start Teleport Application Service
+
+Teleport Application Service requires a valid auth token to join the cluster.
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+To generate one, run the following command on your Auth Service node:
+
+```code
+$ tctl tokens add --type=app
+```
+
+Next, create a Teleport user with the `access` role that will allow it to
+connect to cluster applications:
+
+```code
+$ tctl users add --roles=access alice
+```
+</TabItem>
+
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+To generate one, log into your Cloud tenant and run the following command:
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh
+$ tctl tokens add --type=app
+```
+</TabItem>
+
+</Tabs>
+
+Save the generated token in `/tmp/token` on the node where Application Service
+will run.
+
+Now, install Teleport on the Application Service node. It must be able to reach
+both your Teleport Proxy and the TCP application it's going to proxy.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Create the Application Service configuration file `/etc/teleport.yaml` with
+the following contents:
+
+```yaml
+version: v3
+teleport:
+  auth_token: "/tmp/token"
+  proxy_server: teleport.example.com:3080
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "no"
+proxy_service:
+  enabled: "no"
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "tcp-app"
+    uri: tcp://localhost:5432
+```
+
+Note that the URI scheme must be `tcp://` in order for Teleport to recognize
+this as a TCP application.
+
+(!docs/pages/includes/start-teleport.mdx!)
+
+## Step 3/4. Start app proxy
+
+Log into your Teleport cluster and view available applications:
+
+```code
+$ tsh login --proxy=teleport.example.com
+$ tsh apps ls
+Application Description   Type Public Address                   Labels
+----------- ------------- ---- -------------------------------- -----------
+tcp-app                   TCP  tcp-app.root.gravitational.io
+```
+
+Your TCP application should show up and be denoted with a `TCP` type.
+
+Now log into the application:
+
+```code
+$ tsh apps login tcp-app
+Logged into TCP app tcp-app. Start the local TCP proxy for it:
+
+  tsh proxy app tcp-app
+
+Then connect to the application through this proxy.
+```
+
+Next, start a local proxy for it:
+
+```code
+$ tsh proxy app tcp-app
+Proxying connections to tcp-app on 127.0.0.1:55868
+```
+
+The `tsh proxy app` command will set up a listener that will proxy all connections to
+the target application.
+
+## Step 4/4. Connect
+
+Once the local proxy is running, you can connect to the application using the
+application client you would normally use to connect to it:
+
+```code
+$ psql postgres://postgres@localhost:55868/postgres
+```
+
+## Next steps
+
+### Configuring access to multiple ports
+
+By default, the Application Service proxies connections to the `uri` field from the application
+specification. However, Teleport can enable access to multiple ports of a TCP application. An
+application specification in this case needs to have no port number in the `uri` field and a new
+field called `tcp_ports` with a list of ports.
+
+For example, let's take tcp-app from the steps above and add access to port 8080 and port range
+31276-32300. The Application Service definition should look like this:
+
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "tcp-app"
+    uri: tcp://localhost # No port in the URI
+    tcp_ports:
+    - port: 5432 # PostgreSQL
+    - port: 8080 # HTTP server
+    - port: 31276
+      end_port: 32300 # Inclusive end of range
+```
+
+To access the app, [start VNet](../../../connect-your-client/vnet.mdx) and point an application
+client towards the target port:
+
+```code
+$ curl -I http://tcp-app.teleport.example.com:8080
+HTTP/1.1 200 OK
+
+$ psql postgres://postgres@tcp-app.teleport.example.com:5432/postgres
+```
+
+<Notice type="warning">
+There is no RBAC for TCP ports – a user that has access to an application can connect to any port in
+the specification. We&nbsp;strongly recommend specifying only the necessary ports instead of defining a
+wide port range that happens to include ports that are meant to be available.
+</Notice>
+
+{/* TODO: DELETE IN 19.0.0. At this point all compatible servers and clients are going
+to support multiple ports. */}
+
+Support for multiple ports is available in Teleport v17.1+. Connections from Teleport clients that
+do not support multiple ports are routed to the first port from the application specification. An
+Application Service that does not support multiple ports will not be able to handle traffic to a
+multi-port application if it receives such application through [dynamic
+registration](./dynamic-registration.mdx) from an Auth Service.
+
+### Further reading
+
+- Learn about [access controls](../controls.mdx) for applications.
+- Learn how to [connect to TCP apps with VNet](../../../connect-your-client/vnet.mdx) and
+  [configure VNet for custom `public_addr`](vnet.mdx).

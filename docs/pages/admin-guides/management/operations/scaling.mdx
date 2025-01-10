@@ -1,0 +1,159 @@
+---
+title: Scaling
+description: How to configure Teleport for large-scale deployments
+---
+
+This section explains the recommended configuration settings for large-scale
+self-hosted deployments of Teleport.
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Prerequisites
+
+- Teleport v(=teleport.version=) Open Source or Enterprise.
+
+## Hardware recommendations
+
+Set up Teleport with a [High Availability configuration](../../deploy-a-cluster/high-availability.mdx).
+
+| Scenario                                                              | Max Recommended Count | Proxy Service         | Auth Service          | AWS Instance Types |
+|-----------------------------------------------------------------------|-----------------------|-----------------------|-----------------------|--------------------|
+| Teleport SSH Nodes connected to Auth Service                          | 10,000                | 2x  4 vCPUs, 8GB RAM  | 2x 8 vCPUs, 16GB RAM  | m4.2xlarge         |
+| Teleport SSH Nodes connected to Auth Service                          | 50,000                | 2x  4 vCPUs, 16GB RAM | 2x 8 vCPUs, 16GB RAM  | m4.2xlarge         |
+| Teleport SSH Nodes connected to Proxy Service through reverse tunnels | 10,000                | 2x 4 vCPUs, 8GB RAM   | 2x 8 vCPUs, 16+GB RAM | m4.2xlarge         |
+
+## Auth Service and Proxy Service Configuration
+
+Upgrade Teleport's connection limits from the default connection limit of `15000`
+to `65000`.
+
+```yaml
+# Teleport Auth Service and Proxy Service
+teleport:
+  connection_limits:
+    max_connections: 65000
+```
+
+## Agent configuration
+
+Agents cache roles and other configuration locally in order to make access-control decisions quickly.
+By default agents are fairly aggressive in trying to re-initialize their caches if they lose connectivity
+to the Auth Service. In very large clusters, this can contribute to a "thundering herd" effect,
+where control plane elements experience excess load immediately after restart. Setting the `max_backoff`
+parameter to something in the 8-16 minute range can help mitigate this effect:
+
+```yaml
+teleport:
+  cache:
+    enabled: yes
+    max_backoff: 12m
+```
+
+## Kernel parameters
+
+Tweak Teleport's systemd unit parameters to allow a higher amount of open
+files:
+
+```txt
+[Service]
+LimitNOFILE=65536
+```
+
+Verify that Teleport's process has high enough file limits:
+
+```code
+$ cat /proc/$(pidof teleport)/limits
+# Limit                     Soft Limit           Hard Limit           Units
+# Max open files            65536                65536                files
+```
+
+## DynamoDB configuration
+
+When using Teleport with DynamoDB, we recommend using on-demand provisioning.
+This allow DynamoDB to scale with cluster load.
+
+For customers that can not use on-demand provisioning, we recommend at least
+250 WCU and 100 RCU for 10k clusters.
+
+## etcd
+
+When using Teleport with etcd, we recommend you do the following.
+
+- For performance, use the fastest SSDs available and ensure low-latency network connectivity
+  between etcd peers. See the [etcd Hardware
+  recommendations guide](https://etcd.io/docs/v3.5/op-guide/hardware/) for more
+  details.
+- For debugging, ingest etcd's Prometheus metrics and visualize them over
+  time using a dashboard. See the [etcd Metrics
+  guide](https://etcd.io/docs/v3.5/metrics) for more
+  details.
+
+During an incident, we may ask you to run `etcdctl`, test that you can run the
+following command successfully.
+
+```code
+etcdctl \
+    --write-out=table \
+    --cacert=/path/to/ca.cert \
+    --cert=/path/to/cert \
+    --key=/path/to/key.pem \
+    --endpoints=127.0.0.1:2379 \
+    endpoint status
+```
+
+## Supported Load
+
+The tests below were performed against a Teleport Cloud tenant which runs on instances with 8 vCPU and 32 GiB memory and
+has default limits of 4CPU and 4Gi memory.
+
+### Concurrent Logins
+
+| Resource Type | Login Command                          | Logins | Failure                  |
+|---------------|----------------------------------------|--------|--------------------------|
+| SSH           | tsh login                              | 2000   | Auth CPU Limits exceeded |
+| Application   | tsh app login                          | 2000   | Auth CPU Limits exceeded |
+| Database      | tsh db login                           | 2000   | Auth CPU Limits exceeded |
+| Kubernetes    | tsh kube login && tsh kube credentials | 2000   | Auth CPU Limits exceeded |
+
+
+### Sessions Per Second
+
+| Resource Type | Sessions | Failure                   |
+|---------------|----------|---------------------------|
+| SSH           | 1000     | Auth CPU Limits exceeded  |
+| Application   | 2500     | Proxy CPU Limits exceeded |
+| Database      | 40       | Proxy CPU Limits exceeded |
+| Kubernetes    | 50       | Proxy CPU Limits exceeded |
+
+## Windows Desktop Service
+
+Windows Desktop sessions can vary greatly in resource usage depending on the applications being used. The primary
+factor affecting resource usage per session is how often the screen is updated. For example, a session playing a video
+in full screen mode will consume significantly more resources than a session where the user is typing in a text editor.
+
+We measured the resource usage of sessions playing fullscreen videos to get the worst-case estimate for resource requirements.
+We then inferred resource requirements for more standard use cases on the basis of those measurements.
+
+**Worst Case:**
+- 1/12 vCPU per concurrent session
+- 42 MB RAM per concurrent session
+
+**Typical Case:**
+- 1/240 vCPU per concurrent session
+- 2 MB RAM per concurrent session
+
+From these estimates we calculated the following table of recommendations based on the expected maximum number of concurrent
+sessions:
+
+| Concurrent users | CPU (vCPU, low to high) | Memory (GB, low to high) |
+|------------------|-------------------------|--------------------------|
+| 1                | 1                       | 0.5                      |
+| 10               | 1                       | 0.5 to 1                 |
+| 100              | 1 to 8                  | 1 to 8                   |
+| 1000             | 4 to 96                 | 4 to 64                  |
+
+To avoid service interruptions, we recommend leaning towards the higher end of the recommendations to start while monitoring
+your resource usage, and then scaling resources based on measured outcomes.
+
+Note that you are not limited to a single `windows_desktop_service`, and can connect multiple to your cluster in order to
+spread resources out over multiple logical machines.

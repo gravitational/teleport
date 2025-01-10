@@ -93,15 +93,6 @@ func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
 	return false
 }
 
-// Deprecated in favor of IsSatisfiedBy.
-// TODO(Joerger): delete once reference in /e is replaced.
-func (requiredPolicy PrivateKeyPolicy) VerifyPolicy(keyPolicy PrivateKeyPolicy) error {
-	if !requiredPolicy.IsSatisfiedBy(keyPolicy) {
-		return NewPrivateKeyPolicyError(requiredPolicy)
-	}
-	return nil
-}
-
 // IsHardwareKeyPolicy return true if this private key policy requires a hardware key.
 func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 	switch p {
@@ -194,5 +185,8 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 
 // IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
 func IsPrivateKeyPolicyError(err error) bool {
+	if err == nil {
+		return false
+	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
 }

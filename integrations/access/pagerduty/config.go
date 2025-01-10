@@ -19,8 +19,13 @@
 package pagerduty
 
 import (
-	"github.com/gravitational/trace"
+	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/pelletier/go-toml"
+
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -44,6 +49,10 @@ type Config struct {
 	// TeleportUser is the name of the Teleport user that will act
 	// as the access request approver
 	TeleportUser string
+
+	// OnAccessMonitoringRuleCacheUpdateCallback is used for checking when
+	// the Rule cache is updated in tests
+	OnAccessMonitoringRuleCacheUpdateCallback func(Operation types.OpType, name string, rule *accessmonitoringrulesv1.AccessMonitoringRule) error
 }
 
 type PagerdutyConfig struct {
@@ -88,4 +97,25 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log.Severity = "info"
 	}
 	return nil
+}
+
+func LoadConfig(filepath string) (*Config, error) {
+	t, err := toml.LoadFile(filepath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf := &Config{}
+	if err := t.Unmarshal(conf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if strings.HasPrefix(conf.Pagerduty.APIKey, "/") {
+		conf.Pagerduty.APIKey, err = lib.ReadPassword(conf.Pagerduty.APIKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if err := conf.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conf, nil
 }

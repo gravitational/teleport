@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import ConnectDialog from './ConnectDialog';
 
 export default {
@@ -68,6 +66,17 @@ export const ConnectDynamodb = () => (
   />
 );
 
+export const ConnectSpanner = () => (
+  <ConnectDialog
+    username="gavin"
+    dbName="spanner1"
+    dbProtocol="spanner"
+    clusterId="im-a-cluster"
+    onClose={() => null}
+    authType="local"
+  />
+);
+
 export const ConnectWithRequestId = () => {
   return (
     <ConnectDialog
@@ -81,3 +90,15 @@ export const ConnectWithRequestId = () => {
     />
   );
 };
+
+export const ConnectDbSupportsInteractive = () => (
+  <ConnectDialog
+    username="gabriel"
+    dbName="pg"
+    dbProtocol="postgres"
+    clusterId="im-a-cluster"
+    onClose={() => null}
+    authType="local"
+    supportsInteractive={true}
+  />
+);

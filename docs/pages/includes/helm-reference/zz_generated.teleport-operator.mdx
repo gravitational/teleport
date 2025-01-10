@@ -1,0 +1,355 @@
+
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+## `enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`enabled` controls if the operator should be enabled and deployed.
+
+- When `true`, the chart creates both the `CustomResourceDefinition` and operator `Deployment` Kubernetes resources.
+- When `false`, the chart creates the `CustomResourceDefinition` resources without the operator `Deployment`.
+
+## `installCRDs`
+
+| Type | Default |
+|------|---------|
+| `string` | `"dynamic"` |
+
+`installCRDs` controls if the chart should install the CRDs.
+There are 3 possible values: dynamic, always, never.
+
+- "dynamic" means the CRDs are installed if the operator is enabled or if
+  the CRDs are already present in the cluster. The presence check is here to
+  avoid all CRDs to be removed if you temporarily disable the operator.
+  Removing CRDs triggers a cascading deletion, which removes CRs, and all the
+  related resources in Teleport.
+- "always" means the CRDs are always installed
+- "never" means the CRDs are never installed
+
+## `teleportAddress`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportAddress` is the address of the Teleport cluster whose resources
+are managed by the operator. The address must contain both the domain name and
+the port of the Teleport cluster. It can be either the address of the Auth Service
+or the Proxy Service.
+
+For example:
+  - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
+  - joining an Auth: `teleport-auth.example.com:3025`
+  - joining a Cloud-hosted Teleport: `example.teleport.sh:443`
+
+## `caPins`
+
+| Type | Default |
+|------|---------|
+| `list[string]` | `[]` |
+
+`caPins` is a list of Teleport CA fingerprints that is used by the operator to
+validate the identity of the Teleport Auth Service. This is only used when joining
+an Auth Service directly (on port `3025`) and is ignored when joining through a Proxy
+(port `443` or `3080`).
+
+## `joinMethod`
+
+| Type | Default |
+|------|---------|
+| `string` | `"kubernetes"` |
+
+`joinMethod` describes how the Teleport Kubernetes Operator joins the Teleport cluster.
+The operator does not store its Teleport-issued identity, it must be able to join the
+cluster again on each pod restart. To achieve this, it needs to use a delegated join
+method. `kubernetes` is the most common one.
+
+## `teleportClusterName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportClusterName` is the name of the joined Teleport cluster.
+Setting this value is required when joining via the
+[Kubernetes JWKS](../../reference/join-methods.mdx#kubernetes-jwks) join method.
+
+## `token`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`token` is the name of the token used by the operator to join the Teleport cluster.
+
+## `teleportVersionOverride`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportVersionOverride` controls the Teleport Kubernetes Operator
+image version deployed by the chart.
+
+Normally, the version of the Teleport Kubernetes Operator matches the
+version of the chart. If you install chart version 15.0.0, you'll use
+Teleport Kubernetes Operator version 15.0.0. Upgrading the operator is
+done by upgrading the chart.
+
+<Admonition type="warning">
+`teleportVersionOverride` is intended for development and MUST NOT be
+used to control the Teleport version in a typical deployment. This
+chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm install --version X.Y.Z` instead.
+
+</Admonition>
+
+## `image`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-operator"` |
+
+`image` sets the container image used for Teleport Kubernetes Operator
+pods run by the chart.
+
+You can override this to use your own Teleport Kubernetes Operator
+image rather than a Teleport-published image.
+
+## `annotations`
+
+### `annotations.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.deployment` contains the Kubernetes annotations
+put on the `Deployment` resource created by the chart.
+
+### `annotations.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.pod` contains the Kubernetes annotations
+put on the `Pod` resources created by the chart.
+
+### `annotations.serviceAccount`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.serviceAccount` contains the Kubernetes annotations
+put on the `Deployment` resource created by the chart.
+
+## `annotations`
+
+### `labels.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`labels.deployment` contains the Kubernetes labels
+put on the `Deployment` resource created by the chart.
+
+### `labels.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`labels.pod` contains the Kubernetes labels
+put on the `Pod` resources created by the chart.
+
+## `serviceAccount`
+
+### `serviceAccount.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`serviceAccount.create` controls if the chart should create the Kubernetes
+`ServiceAccount` resource for the operator.
+
+- When `true`, the chart creates a `ServiceAccount` resource for the operator.
+- When `false`, the chart does not create the `ServiceAccount` resource.
+  The user is responsible for deploying and maintaining it separately.
+
+This value can be set to `false` when deploying in constrained environments
+where the user deploying the operator is not allowed to edit `ServiceAccount`
+resources.
+
+### `serviceAccount.name`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`serviceAccount.name` controls the name of the operator Kubernetes `ServiceAccount`.
+The operator pods use by default a `ServiceAccount` named after the Helm chart release.
+This value overrides this behaviour, this is useful when `serviceAccount.create`
+is false and the operator must use an existing `ServiceAccount`.
+
+## `rbac`
+
+### `rbac.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`rbac.create` controls if the chart should create RBAC Kubernetes resources.
+
+- When `true`, the chart creates both `Role` and `RoleBinding` resources for the operator.
+- When `false`, the chart does not create the `Role` and `RoleBinding` resources.
+  The user is responsible for deploying and maintaining them separately.
+
+This value can be set to `false` when deploying in constrained environments
+where the user deploying the operator is not allowed to edit RBAC resources.
+
+## `imagePullPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"IfNotPresent"` |
+
+`imagePullPolicy` sets the pull policy for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
+for more details.
+
+## `resources`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`resources` sets the resource requests/limits for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+for more details.
+
+## `priorityClassName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`priorityClassName` sets the priority class used by any pods created by the chart.
+The user is responsible for creating the `PriorityClass` resource before deploying the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+for more details.
+
+## `tolerations`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`tolerations` sets the tolerations for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+for more details.
+
+## `nodeSelector`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`nodeSelector` sets the node selector for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+for more details.
+
+## `affinity`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`affinity` sets the affinities for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+for more details.
+
+## `imagePullSecrets`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`imagePullSecrets` sets the image pull secrets for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod)
+for more details.
+
+## `highAvailability`
+
+### `highAvailability.replicaCount`
+
+| Type | Default |
+|------|---------|
+| `int` | `1` |
+
+`highAvailability.replicaCount` controls the amount of operator pod replicas deployed
+by the chart.
+
+When multiple pods are running, all pods join the Teleport cluster on
+startup but a single pod actively reconciles resources.
+
+The operator replicas elect a replica leader using
+[Kubernetes leases](https://kubernetes.io/docs/concepts/architecture/leases/).
+If the leader fails, its lease will expire and another replica will start
+reconciling resources.
+
+## `tls`
+
+### `tls.existingCASecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tls.existingCASecretName` makes the operator pods trust an additional CA certificate.
+This is used to trust Proxy certificates if they're signed by a private CA. The operator
+trusts by default CAs part of Mozilla's Web PKI (the `ca-certificates` package).
+
+To use this value, you must create a Kubernetes `Secret` containing the CA
+certs in the same namespace as the Teleport Kubernetes Operator using a
+command such as:
+
+```code
+$ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+## `podSecurityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"fsGroup":65532,"runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` |
+
+`podSecurityContext` sets the pod security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+for more details.
+
+The default value supports running under the `restricted`
+[Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
+
+## `securityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` |
+
+`securityContext` sets the container security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+The default value supports running under the `restricted`
+[Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/).

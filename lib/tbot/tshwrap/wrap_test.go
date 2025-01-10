@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,54 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
-// TestTSHSupported ensures that the tsh version check works as expected (and,
-// implicitly, that the version capture and parsing works.)
-func TestTSHSupported(t *testing.T) {
-	version := func(v string) []byte {
-		return []byte(fmt.Sprintf(`{"version": "%s"}`, v))
-	}
-
-	tests := []struct {
-		name   string
-		out    []byte
-		err    error
-		expect func(t require.TestingT, err error, msgAndArgs ...interface{})
-	}{
-		{
-			// Before `-f json` is supported
-			name:   "very old tsh",
-			err:    trace.Errorf("unsupported"),
-			expect: require.Error,
-		},
-		{
-			name:   "too old",
-			out:    version("9.2.0"),
-			expect: require.Error,
-		},
-		{
-			name:   "supported",
-			out:    version(TSHMinVersion),
-			expect: require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wrapper := Wrapper{
-				path: "tsh", // path is arbitrary here
-				capture: func(tshPaths string, args ...string) ([]byte, error) {
-					if tt.err != nil {
-						return nil, tt.err
-					}
-					return tt.out, nil
-				},
-			}
-
-			tt.expect(t, CheckTSHSupported(&wrapper))
-		})
-	}
-}
-
 // TestGetEnvForTSH ensures we generate a valid minimum subset of environment
 // parameters needed for tsh wrappers to work.
 func TestGetEnvForTSH(t *testing.T) {
@@ -89,7 +40,7 @@ func TestGetEnvForTSH(t *testing.T) {
 	expected := map[string]string{
 		client.VirtualPathEnvName(client.VirtualPathKey, nil):      filepath.Join(p, identity.PrivateKeyKey),
 		client.VirtualPathEnvName(client.VirtualPathDatabase, nil): filepath.Join(p, identity.TLSCertKey),
-		client.VirtualPathEnvName(client.VirtualPathApp, nil):      filepath.Join(p, identity.TLSCertKey),
+		client.VirtualPathEnvName(client.VirtualPathAppCert, nil):  filepath.Join(p, identity.TLSCertKey),
 
 		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, config.UserCAPath),
 		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, config.HostCAPath),
@@ -104,33 +55,29 @@ func TestGetEnvForTSH(t *testing.T) {
 }
 
 func TestGetDestinationDirectory(t *testing.T) {
-	output := func() config.Output {
-		return &config.IdentityOutput{
-			Destination: &config.DestinationDirectory{
-				Path: "/from-bot-config",
-			},
+	config := func(outputCount int) *config.BotConfig {
+		cfg := &config.BotConfig{}
+		for i := 0; i < outputCount; i++ {
+			cfg.Services = append(cfg.Services, &config.IdentityOutput{
+				Destination: &config.DestinationDirectory{
+					Path: fmt.Sprintf("/from-bot-config%d", i),
+				},
+			})
 		}
+		require.NoError(t, cfg.CheckAndSetDefaults())
+		return cfg
 	}
 	t.Run("one output configured", func(t *testing.T) {
-		dest, err := GetDestinationDirectory(&config.BotConfig{
-			Outputs: []config.Output{
-				output(),
-			},
-		})
+		dest, err := GetDestinationDirectory("", config(1))
 		require.NoError(t, err)
-		require.Equal(t, "/from-bot-config", dest.Path)
+		require.Equal(t, "/from-bot-config0", dest.Path)
 	})
 	t.Run("no outputs specified", func(t *testing.T) {
-		_, err := GetDestinationDirectory(&config.BotConfig{})
-		require.ErrorContains(t, err, "either --destination-dir or a config file containing an output must be specified")
+		_, err := GetDestinationDirectory("", config(0))
+		require.ErrorContains(t, err, "either --destination-dir or a config file containing an output or service must be specified")
 	})
 	t.Run("multiple outputs specified", func(t *testing.T) {
-		_, err := GetDestinationDirectory(&config.BotConfig{
-			Outputs: []config.Output{
-				output(),
-				output(),
-			},
-		})
-		require.ErrorContains(t, err, "the config file contains multiple outputs; a --destination-dir must be specified")
+		_, err := GetDestinationDirectory("", config(2))
+		require.ErrorContains(t, err, "the config file contains multiple outputs and services; a --destination-dir must be specified")
 	})
 }

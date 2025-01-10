@@ -19,6 +19,7 @@
 package opsgenie
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 )
 
 // Config stores the full configuration for the teleport-opsgenie plugin to run.
@@ -38,6 +40,14 @@ type Config struct {
 	// AccessTokenProvider provides a method to get the bearer token
 	// for use when authorizing to a 3rd-party provider API.
 	AccessTokenProvider auth.AccessTokenProvider
+
+	// Teleport is a handle to the client to use when communicating with
+	// the Teleport auth server. The ServiceNow app will create a gRPC-based
+	// client on startup if this is not set.
+	Client teleport.Client
+	// TeleportUserName is the name of the Teleport user that will act
+	// as the access request approver.
+	TeleportUserName string
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
@@ -71,6 +81,14 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	c.PluginType = types.PluginTypeOpsgenie
 	return nil
+}
+
+// GetTeleportClient returns the configured Teleport client.
+func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
+	if c.Client != nil {
+		return c.Client, nil
+	}
+	return c.BaseConfig.GetTeleportClient(ctx)
 }
 
 // NewBot initializes the new Opsgenie message generator (OpsgenieBot)

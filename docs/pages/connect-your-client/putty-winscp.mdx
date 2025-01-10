@@ -27,6 +27,15 @@ You will learn how to:
 
   You should then unzip the archive and move `tsh.exe` to your `%PATH%`.
 
+  <Admonition type="note">
+    Do not place `tsh.exe` in the `System32` directory, as this can cause issues when using WinSCP.
+    You should use `%SystemRoot%` (e.g. `C:\Windows`) instead, which is already included in `%PATH%`.
+
+    If you do not have administrator rights on the Windows system you're using, you can use `%USERPROFILE%`
+    (e.g. `C:\Users\<username>`) instead - but note that you will not be able to run `tsh` commands globally
+    from the command line unless you are in the same directory as `tsh.exe`.
+  </Admonition>
+
 - PuTTY for Windows version 0.78 or higher. You can download the latest version of PuTTY from the [PuTTY download page](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html).
 
 - (optional) WinSCP for Windows version 6.2 or higher. You can download the latest version of WinSCP from the [WinSCP download page](https://winscp.net/eng/download.php)
@@ -40,16 +49,16 @@ To add saved sessions to PuTTY:
 
 1. Sign into a Teleport cluster using the `tsh login` command:
 
-```bash
-C:\Users\gus>tsh login --proxy=teleport.example.com
+```code
+$ tsh login --proxy=teleport.example.com
 ```
 
 This command retrieves your user certificates and saves them in a local file in the `%USERPROFILE%/.tsh` directory.
 
 2. List SSH nodes that the user can connect to inside the cluster:
 
-```bash
-C:\Users\gus>tsh ls
+```code
+$ tsh ls
 Node Name                           Address        Labels
 ----------------------------------- -------------- ----------------------------
 ip-172-31-30-140                    127.0.0.1:3022 company=acmecorp,env=aws,...
@@ -62,19 +71,19 @@ ip-172-31-8-63                      172.31.8.63:22 type=openssh
 For example, you can add a saved session for the login `ubuntu` on the node `ip-172-31-30-140` to the Windows
 registry by running the following command:
 
-```bash
-C:\Users\gus>tsh puttyconfig ubuntu@ip-172-31-30-140
+```code
+$ tsh puttyconfig ubuntu@ip-172-31-30-140
 Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:teleport.example.com]
 ```
 
 If you don't provide a login to this command, your local Windows username is used instead.
 
 If you are adding a session for a registered OpenSSH node within your cluster (added with
-[`teleport join openssh`](../server-access/openssh/openssh.mdx)), you must specify the `sshd` port
+[`teleport join openssh`](../enroll-resources/server-access/openssh/openssh-agentless.mdx)), you must specify the `sshd` port
 (usually 22) when adding a session with `tsh puttyconfig`:
 
-```bash
-C:\Users\gus>tsh puttyconfig --port 22 ubuntu@ip-172-31-8-63
+```code
+$ tsh puttyconfig --port 22 ubuntu@ip-172-31-8-63
 Added PuTTY session for ubuntu@ip-172-31-8-63 [proxy:teleport.example.com]
 ```
 
@@ -85,8 +94,8 @@ You can also use `tsh puttyconfig user@host:22` if you prefer.
 
 1. Sign into a Teleport cluster using the `tsh login` command:
 
-```bash
-C:\Users\gus>tsh login --proxy=mytenant.teleport.sh
+```code
+$ tsh login --proxy=mytenant.teleport.sh
 ```
 
 This command retrieves your user certificates and saves them in a local file in the `%USERPROFILE%/.tsh` directory.
@@ -94,7 +103,7 @@ This command retrieves your user certificates and saves them in a local file in 
 2. List SSH nodes that the user can connect to inside the cluster:
 
 ```
-C:\Users\gus>tsh ls
+$ tsh ls
 Node Name                           Address        Labels
 ----------------------------------- -------------- ----------------------------
 ip-172-31-30-140                    ⟵ Tunnel      company=acmecorp,env=aws,...
@@ -106,8 +115,8 @@ ip-172-31-34-128.us-east-2.compu... ⟵ Tunnel      access=open,enhanced_reco...
 For example, you can add a saved session for the login `ubuntu` on the node `ip-172-31-30-140` to the Windows
 registry by running the following command:
 
-```bash
-C:\Users\gus>tsh puttyconfig ubuntu@ip-172-31-30-140
+```code
+$ tsh puttyconfig ubuntu@ip-172-31-30-140
 Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:mytenant.teleport.sh]
 ```
 
@@ -145,8 +154,8 @@ recording of the session after you stop the session and disconnect from the host
 
 To list available leaf clusters, run the following command:
 
-```bash
-C:\Users\gus>tsh clusters
+```code
+$ tsh clusters
 Cluster Name         Status Cluster Type Labels Selected
 -----------------    ------ ------------ ------ --------
 teleport.example.com online root                *
@@ -158,8 +167,8 @@ You can access a leaf cluster in a PuTTY session by adding the `--leaf <leaf clu
 For example, if your leaf cluster is named `example.teleport.sh` and your node is called `ip-172-31-34-128.us-east-2.compute.internal`,
 you can add a PuTTY session for the login `ec2-user` using the following command:
 
-```bash
-C:\Users\gus>tsh puttyconfig --leaf example.teleport.sh ec2-user@ip-172-31-34-128.us-east-2.compute.internal
+```code
+$ tsh puttyconfig --leaf example.teleport.sh ec2-user@ip-172-31-34-128.us-east-2.compute.internal
 Added PuTTY session for ec2-user@ip-172-31-34-128.us-east-2.compute.internal [leaf:example.teleport.sh,proxy:teleport.example.com]
 ```
 
@@ -276,7 +285,7 @@ Yes, WinSCP version 6.2 and higher support validation using SSH host certificate
 
 No, PuTTY calls `tsh proxy ssh` which uses the default authentication method configured for the Teleport cluster.
 
-For more information about Teleport authentication, see [Authentication options](../reference/authentication.mdx).
+For more information about Teleport authentication, see [Authentication options](../reference/access-controls/authentication.mdx).
 
 Advanced users can use the Registry Editor to modify the PuTTY proxy command themselves under the `ProxyTelnetCommand`
 key. Note that if you re-run `tsh puttyconfig` for the given hostname, this command is overwritten.
@@ -284,10 +293,34 @@ key. Note that if you re-run `tsh puttyconfig` for the given hostname, this comm
 
 ## Troubleshooting
 
+### WinSCP shows `Server unexpectedly closed network connection` or `Error 232: The pipe is being closed` when connecting
+
+This error is usually caused when the `tsh.exe` application is incorrectly placed in the `C:\Windows\System32` directory. This
+triggers a bug in WinSCP which causes the path to `tsh.exe` to be erroneously replaced at runtime, leading to a connection
+failure. This bug does not seem to affect PuTTY sessions.
+
+Here are two locations where `tsh.exe` can be stored which are not affected by this bug:
+- `%SystemRoot%` (e.g. `C:\Windows` - requires administrator privileges, and is included in `%PATH%` by default)
+- `%USERPROFILE` (e.g. `C:\Users\<username>` - does not require administrator privileges)
+
+To fix this issue, follow these steps:
+1. Place the `tsh.exe` application into a different directory, as detailed above.
+1. Re-run `tsh puttyconfig` for each PuTTY session in order to replace the configured path to `tsh.exe` inside the session.
+1. Delete each saved session inside WinSCP.
+1. Re-import saved PuTTY sessions into WinSCP by following the process detailed in steps 2-3 above.
+
 ### `proxy: ERROR: access denied to <user> connecting to <proxy>`
 
 You have provided an incorrect login username to the `tsh puttyconfig` command. Re-run the command with a login username
 that your Teleport user/role has permissions to use. Check the logins listed under the `logins` role specification or user trait.
+
+If you can log in successfully with `tsh ssh`, you should be able to use the name login/hostname with `tsh puttyconfig`.
+
+### `Connect failed [ssh: handshake failed: ssh: unable to authenticate, attempted methods [none publickey], no supported methods remain]`
+
+You have provided an incorrect login username to the `tsh puttyconfig` command when attempting to connect to an OpenSSH server.
+Re-run the command with a login username that your Teleport user/role has permissions to use. Check the logins listed under the
+`logins` role specification or user trait.
 
 If you can log in successfully with `tsh ssh`, you should be able to use the name login/hostname with `tsh puttyconfig`.
 
@@ -299,6 +332,15 @@ successful, check the Teleport proxy logs for more detailed errors.
 
 If the node is running OpenSSH rather than Teleport, you must make sure to specify the `sshd` port when adding the session,
 for example using `tsh puttyconfig --port 22 user@host` or `tsh puttyconfig user@host:22`.
+
+### `proxy: direct dialing to nodes not found in inventory is not supported`
+
+This error usually means that you registered an agentless OpenSSH host (i.e. a host running sshd) without also providing the
+port while running `tsh puttyconfig`. Try re-adding the host with the correct port (22 in this example) by using
+`tsh puttyconfig --port 22 user@host`.
+
+If you still get this error after fixing the port, make sure that the host you are trying to connect to appears in the output
+of `tsh ls`. Hostnames which do not appear in the output of `tsh ls` are unavailable for connection.
 
 ### `Unable to use certificate file "C:\Users\<username>\.tsh\keys\<proxy>\<user>-ssh\<cluster>-cert.pub" (unable to open file)`
 
@@ -333,7 +375,7 @@ If this error appears during normal day-to-day operation, this is a bug and shou
 ## Uninstalling tsh
 
 To remove `tsh` and associated user data see
-[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+[Uninstalling Teleport](../admin-guides/management/admin/uninstall-teleport.mdx).
 
 ## Further reading
 - [CLI Reference](../reference/cli/tsh.mdx#tsh-puttyconfig).

@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
 
-import { ButtonPrimary } from 'design';
+import { Button } from 'design';
 
 import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
@@ -64,15 +63,16 @@ export default function AgentButtonAdd(props: Props) {
       }}
       style={{ textDecoration: 'none' }}
     >
-      <ButtonPrimary
-        textTransform="none"
+      <Button
+        intent="primary"
+        fill="border"
         title={title}
         disabled={disabled}
         width="240px"
         onClick={onClick}
       >
         {agent === 'unified_resource' ? 'Enroll New Resource' : `Add ${agent}`}
-      </ButtonPrimary>
+      </Button>
     </Link>
   );
 }

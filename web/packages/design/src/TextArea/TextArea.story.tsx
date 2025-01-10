@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import Box from 'design/Box';
+import Flex from 'design/Flex';
+import { H2 } from 'design/Text/Text';
 
 import { TextArea } from './TextArea';
 
@@ -28,10 +30,36 @@ export const TextAreas = () => (
   <>
     <TextArea mb={4} placeholder="Enter Some long text" />
     <TextArea mb={4} hasError={true} defaultValue="This field has an error" />
+    <TextArea mb={4} readOnly defaultValue="This field is read-only" />
+    <TextArea mb={4} disabled defaultValue="This field is disabled" />
+    <TextArea mb={4} disabled placeholder="Disabled field with a placeholder" />
     <TextArea
       mb={4}
       resizable={true}
       defaultValue="This field is resizable vertically"
     />
+    <H2 mb={2}>Sizes</H2>
+    <Flex gap={4} mb={4}>
+      <Box flex="1">
+        <TextArea size="large" defaultValue="large" />
+      </Box>
+      <Box flex="1">
+        <TextArea size="medium" defaultValue="medium" />
+      </Box>
+      <Box flex="1">
+        <TextArea size="small" defaultValue="small" />
+      </Box>
+    </Flex>
+    <Flex gap={4}>
+      <Box flex="1">
+        <TextArea hasError size="large" defaultValue="large" />
+      </Box>
+      <Box flex="1">
+        <TextArea hasError size="medium" defaultValue="medium" />
+      </Box>
+      <Box flex="1">
+        <TextArea hasError size="small" defaultValue="small" />
+      </Box>
+    </Flex>
   </>
 );

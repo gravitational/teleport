@@ -17,20 +17,26 @@
  */
 
 import React from 'react';
-
+import { useLocation } from 'react-router';
 import { Prompt } from 'react-router-dom';
+
 import { Box } from 'design';
 
-import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { FeatureBox } from 'teleport/components/Layout';
-import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
-import cfg from 'teleport/config';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
+import { Navigation } from 'teleport/components/Wizard/Navigation';
+import cfg from 'teleport/config';
+import type { View } from 'teleport/Discover/flow';
+import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
-import { EViewConfigs } from './types';
-
-import { DiscoverProvider, useDiscover } from './useDiscover';
 import { DiscoverIcon } from './SelectResource/icons';
+import { EViewConfigs } from './types';
+import {
+  DiscoverProvider,
+  DiscoverUpdateProps,
+  useDiscover,
+} from './useDiscover';
 
 function DiscoverContent() {
   const {
@@ -41,12 +47,15 @@ function DiscoverContent() {
     ...agentProps
   } = useDiscover();
 
-  let content;
-  const hasSelectedResource = Boolean(viewConfig);
-  if (hasSelectedResource) {
-    const view = findViewAtIndex(indexedViews, currentStep);
+  let currentView: View | undefined;
+  let content: React.ReactNode;
 
-    const Component = view.component;
+  const hasSelectedResource = Boolean(viewConfig);
+
+  if (hasSelectedResource) {
+    currentView = findViewAtIndex(indexedViews, currentStep);
+
+    const Component = currentView.component;
 
     content = <Component {...agentProps} />;
 
@@ -54,6 +63,8 @@ function DiscoverContent() {
       content = viewConfig.wrapper(content);
     }
   } else {
+    currentView = undefined;
+
     content = (
       <SelectResource onSelect={resource => onSelectResource(resource)} />
     );
@@ -63,7 +74,7 @@ function DiscoverContent() {
     <>
       <FeatureBox>
         {hasSelectedResource && (
-          <Box mt={2} mb={7}>
+          <Box mt={2} mb={6}>
             <Navigation
               currentStep={currentStep}
               views={indexedViews}
@@ -85,8 +96,12 @@ function DiscoverContent() {
           }}
           when={
             viewConfig.shouldPrompt
-              ? viewConfig.shouldPrompt(currentStep, agentProps.resourceSpec)
-              : true
+              ? viewConfig.shouldPrompt(
+                  currentStep,
+                  currentView,
+                  agentProps.resourceSpec
+                )
+              : currentView?.eventName !== DiscoverEvent.Completed
           }
         />
       )}
@@ -94,9 +109,17 @@ function DiscoverContent() {
   );
 }
 
-export function DiscoverComponent({ eViewConfigs = [] }: Props) {
+export function DiscoverComponent({
+  eViewConfigs = [],
+  updateFlow,
+}: DiscoverComponentProps) {
+  const location = useLocation();
   return (
-    <DiscoverProvider eViewConfigs={eViewConfigs}>
+    <DiscoverProvider
+      eViewConfigs={eViewConfigs}
+      key={location.key}
+      updateFlow={updateFlow}
+    >
       <DiscoverContent />
     </DiscoverProvider>
   );
@@ -106,6 +129,7 @@ export function Discover() {
   return <DiscoverComponent />;
 }
 
-type Props = {
+export type DiscoverComponentProps = {
   eViewConfigs?: EViewConfigs;
+  updateFlow?: DiscoverUpdateProps;
 };

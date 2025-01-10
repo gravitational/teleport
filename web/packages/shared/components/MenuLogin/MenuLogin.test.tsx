@@ -16,10 +16,46 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import { MenuLogin } from './MenuLogin';
+import { MenuInputType } from './types';
+
+test('filters options and selects first item when inputType is FILTER', async () => {
+  const loginItems = [
+    { url: '', login: 'user1' },
+    { url: '', login: 'user2' },
+    { url: '', login: 'admin' },
+  ];
+  const onSelect = jest.fn();
+
+  render(
+    <MenuLogin
+      required={false}
+      getLoginItems={() => loginItems}
+      onSelect={onSelect}
+      inputType={MenuInputType.FILTER}
+    />
+  );
+
+  fireEvent.click(await screen.findByText(/connect/i));
+
+  // Type 'user' into the input to filter
+  const input = await screen.findByPlaceholderText('Search logins…');
+  fireEvent.change(input, { target: { value: 'user' } });
+
+  fireEvent.keyPress(input, {
+    key: 'Enter',
+    keyCode: 13,
+  });
+
+  await waitFor(() => {
+    expect(onSelect).toHaveBeenCalledWith(expect.anything(), 'user1');
+  });
+
+  // Verify that 'admin' is not visible in the filtered list
+  expect(screen.queryByText('admin')).not.toBeInTheDocument();
+});
 
 test('does not accept an empty value when required is set to true', async () => {
   const onSelect = jest.fn();

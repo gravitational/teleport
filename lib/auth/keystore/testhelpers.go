@@ -19,6 +19,7 @@
 package keystore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -30,10 +31,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-func HSMTestConfig(t *testing.T) Config {
+func HSMTestConfig(t *testing.T) servicecfg.KeystoreConfig {
 	if cfg, ok := yubiHSMTestConfig(t); ok {
 		t.Log("Running test with YubiHSM")
 		return cfg
@@ -55,64 +58,60 @@ func HSMTestConfig(t *testing.T) Config {
 		return cfg
 	}
 	t.Skip("No HSM available for test")
-	return Config{}
+	return servicecfg.KeystoreConfig{}
 }
 
-func yubiHSMTestConfig(t *testing.T) (Config, bool) {
+func yubiHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	yubiHSMPath := os.Getenv("TELEPORT_TEST_YUBIHSM_PKCS11_PATH")
 	yubiHSMPin := os.Getenv("TELEPORT_TEST_YUBIHSM_PIN")
 	if yubiHSMPath == "" || yubiHSMPin == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
 	slotNumber := 0
-	return Config{
-		PKCS11: PKCS11Config{
+	return servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
 			Path:       yubiHSMPath,
 			SlotNumber: &slotNumber,
-			Pin:        yubiHSMPin,
+			PIN:        yubiHSMPin,
 		},
 	}, true
 }
 
-func cloudHSMTestConfig(t *testing.T) (Config, bool) {
+func cloudHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	cloudHSMPin := os.Getenv("TELEPORT_TEST_CLOUDHSM_PIN")
 	if cloudHSMPin == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
-	return Config{
-		PKCS11: PKCS11Config{
+	return servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
 			Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 			TokenLabel: "cavium",
-			Pin:        cloudHSMPin,
+			PIN:        cloudHSMPin,
 		},
 	}, true
 }
 
-func awsKMSTestConfig(t *testing.T) (Config, bool) {
+func awsKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	awsKMSAccount := os.Getenv("TELEPORT_TEST_AWS_KMS_ACCOUNT")
 	awsKMSRegion := os.Getenv("TELEPORT_TEST_AWS_KMS_REGION")
 	if awsKMSAccount == "" || awsKMSRegion == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
-	cloudClients, err := cloud.NewClients()
-	require.NoError(t, err)
-	return Config{
-		AWSKMS: AWSKMSConfig{
-			Cluster:      "test-cluster",
-			AWSAccount:   awsKMSAccount,
-			AWSRegion:    awsKMSRegion,
-			CloudClients: cloudClients,
+	return servicecfg.KeystoreConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
+			AWSAccount: awsKMSAccount,
+			AWSRegion:  awsKMSRegion,
 		},
 	}, true
 }
 
-func gcpKMSTestConfig(t *testing.T) (Config, bool) {
+func gcpKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	gcpKeyring := os.Getenv("TELEPORT_TEST_GCP_KMS_KEYRING")
 	if gcpKeyring == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
-	return Config{
-		GCPKMS: GCPKMSConfig{
+	return servicecfg.KeystoreConfig{
+		GCPKMS: servicecfg.GCPKMSConfig{
 			KeyRing:         gcpKeyring,
 			ProtectionLevel: "SOFTWARE",
 		},
@@ -120,7 +119,7 @@ func gcpKMSTestConfig(t *testing.T) (Config, bool) {
 }
 
 var (
-	cachedSoftHSMConfig      *Config
+	cachedSoftHSMConfig      *servicecfg.KeystoreConfig
 	cachedSoftHSMConfigMutex sync.Mutex
 )
 
@@ -138,10 +137,10 @@ var (
 // delete the token or the entire token directory. Each test should clean up
 // all keys that it creates because SoftHSM2 gets really slow when there are
 // many keys for a given token.
-func softHSMTestConfig(t *testing.T) (Config, bool) {
+func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	path := os.Getenv("SOFTHSM2_PATH")
 	if path == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
 
 	cachedSoftHSMConfigMutex.Lock()
@@ -183,12 +182,53 @@ func softHSMTestConfig(t *testing.T) (Config, bool) {
 		require.NoError(t, err, "error attempting to run softhsm2-util")
 	}
 
-	cachedSoftHSMConfig = &Config{
-		PKCS11: PKCS11Config{
+	cachedSoftHSMConfig = &servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
 			Path:       path,
 			TokenLabel: tokenLabel,
-			Pin:        "password",
+			PIN:        "password",
 		},
 	}
 	return *cachedSoftHSMConfig, true
+}
+
+type testKeystoreOptions struct {
+	rsaKeyPairSource RSAKeyPairSource
+}
+
+type TestKeystoreOption func(*testKeystoreOptions)
+
+func WithRSAKeyPairSource(rsaKeyPairSource RSAKeyPairSource) TestKeystoreOption {
+	return func(opts *testKeystoreOptions) {
+		opts.rsaKeyPairSource = rsaKeyPairSource
+	}
+}
+
+// NewSoftwareKeystoreForTests returns a new *Manager that is valid for tests not specifically testing the
+// keystore functionality.
+func NewSoftwareKeystoreForTests(_ *testing.T, opts ...TestKeystoreOption) *Manager {
+	var options testKeystoreOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: options.rsaKeyPairSource})
+	return &Manager{
+		backendForNewKeys:     softwareBackend,
+		usableSigningBackends: []backend{softwareBackend},
+		currentSuiteGetter: cryptosuites.GetSuiteFunc(func(context.Context) (types.SignatureAlgorithmSuite, error) {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+		}),
+	}
+}
+
+type fakeAuthPreferenceGetter struct {
+	suite types.SignatureAlgorithmSuite
+}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SignatureAlgorithmSuite: f.suite,
+		},
+	}, nil
 }

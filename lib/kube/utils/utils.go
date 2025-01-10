@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/kubernetes"
@@ -32,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 // GetKubeClient returns instance of client to the kubernetes cluster
@@ -216,6 +219,31 @@ func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
 	})
 
 	return []types.KubeCluster(sorted)
+}
+
+type Pinger interface {
+	Ping(context.Context) (proto.PingResponse, error)
+}
+
+// GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
+// for enrolling EKS clusters.
+func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, releaseChannels automaticupgrades.Channels) (string, error) {
+	pingResponse, err := pinger.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	agentVersion := pingResponse.ServerVersion
+
+	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
+		defaultVersion, err := releaseChannels.DefaultVersion(ctx)
+		if err == nil {
+			agentVersion = defaultVersion
+		} else if !errors.Is(err, &version.NoNewVersionError{}) {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	return strings.TrimPrefix(agentVersion, "v"), nil
 }
 
 // CheckKubeCluster validates kubeClusterName is registered with this Teleport cluster.

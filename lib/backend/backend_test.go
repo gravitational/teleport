@@ -21,6 +21,7 @@ package backend
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,17 +43,32 @@ func TestParams(t *testing.T) {
 
 func TestRangeEnd(t *testing.T) {
 	for _, test := range []struct {
-		key, expected string
+		key, expected Key
 	}{
-		{"abc", "abd"},
-		{"/foo/bar", "/foo/bas"},
-		{"/xyz", "/xy{"},
-		{"\xFF", "\x00"},
-		{"\xFF\xFF\xFF", "\x00"},
+		{
+			key:      NewKey("abc"),
+			expected: NewKey("abd"),
+		},
+		{
+			key:      NewKey("foo", "bar"),
+			expected: NewKey("foo", "bas"),
+		},
+		{
+			key:      NewKey("xyz"),
+			expected: NewKey("xy{"),
+		},
+		{
+			key:      NewKey("\xFF"),
+			expected: Key{s: "0", components: []string{"0"}},
+		},
+		{
+			key:      NewKey("\xFF\xFF\xFF"),
+			expected: Key{s: "0", components: []string{"0"}},
+		},
 	} {
-		t.Run(test.key, func(t *testing.T) {
-			end := RangeEnd([]byte(test.key))
-			require.Equal(t, test.expected, string(end))
+		t.Run(test.key.String(), func(t *testing.T) {
+			end := RangeEnd(test.key)
+			require.Empty(t, cmp.Diff(test.expected, end, cmp.AllowUnexported(Key{})))
 		})
 	}
 }

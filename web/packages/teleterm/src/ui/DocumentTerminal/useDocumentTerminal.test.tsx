@@ -16,38 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
+
 import 'jest-canvas-mock';
 
 import Logger, { NullService } from 'teleterm/logger';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
+import {
+  makeLeafCluster,
+  makeRootCluster,
+  makeServer,
+} from 'teleterm/services/tshd/testHelpers';
+import type * as tsh from 'teleterm/services/tshd/types';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
+  AmbiguousHostnameError,
+  ResourcesService,
+} from 'teleterm/ui/services/resources';
+import {
+  DocumentPtySession,
   DocumentTerminal,
   DocumentTshNode,
   DocumentTshNodeWithLoginHost,
   DocumentTshNodeWithServerId,
 } from 'teleterm/ui/services/workspacesService';
-import {
-  ResourcesService,
-  AmbiguousHostnameError,
-} from 'teleterm/ui/services/resources';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import {
-  makeRootCluster,
-  makeLeafCluster,
-  makeServer,
-} from 'teleterm/services/tshd/testHelpers';
+import type { IAppContext } from 'teleterm/ui/types';
+import type * as uri from 'teleterm/ui/uri';
 
 import { WorkspaceContextProvider } from '../Documents';
-
 import { useDocumentTerminal } from './useDocumentTerminal';
-
-import type { IAppContext } from 'teleterm/ui/types';
-import type * as tsh from 'teleterm/services/tshd/types';
-import type * as uri from 'teleterm/ui/uri';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -80,6 +79,13 @@ const getDocTshNodeWithServerId: () => DocumentTshNodeWithServerId = () => ({
   leafClusterId: undefined,
   login: 'user',
   origin: 'resource_table',
+});
+
+const getDocPtySession: () => DocumentPtySession = () => ({
+  kind: 'doc.terminal_shell',
+  title: 'Terminal',
+  uri: '/docs/456',
+  rootClusterId: 'test',
 });
 
 const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
@@ -237,6 +243,13 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
   jest.spyOn(terminalsService, 'createPtyProcess').mockResolvedValue({
     process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.ResolveShellEnvTimeout,
+    windowsPty: undefined,
+    shell: {
+      id: 'zsh',
+      friendlyName: 'zsh',
+      binPath: '/bin/zsh',
+      binName: 'zsh',
+    },
   });
   jest.spyOn(notificationsService, 'notifyWarning');
 
@@ -574,6 +587,13 @@ const testSetup = (
       return {
         process: getPtyProcessMock(),
         creationStatus: PtyProcessCreationStatus.Ok,
+        windowsPty: undefined,
+        shell: {
+          id: 'zsh',
+          friendlyName: 'zsh',
+          binPath: '/bin/zsh',
+          binName: 'zsh',
+        },
       };
     });
 
@@ -594,6 +614,44 @@ const testSetup = (
 
   return { appContext, wrapper, documentsService };
 };
+
+test('shellId is set to a config default when empty', async () => {
+  const doc = getDocPtySession();
+  const { wrapper, appContext } = testSetup(doc);
+  appContext.configService.set('terminal.shell', 'bash');
+  const { terminalsService } = appContext;
+
+  (
+    terminalsService.createPtyProcess as jest.MockedFunction<
+      typeof terminalsService.createPtyProcess
+    >
+  ).mockReset();
+  jest.spyOn(terminalsService, 'createPtyProcess').mockResolvedValue({
+    process: getPtyProcessMock(),
+    creationStatus: PtyProcessCreationStatus.Ok,
+    windowsPty: undefined,
+    shell: {
+      id: 'zsh',
+      friendlyName: 'zsh',
+      binPath: '/bin/zsh',
+      binName: 'zsh',
+    },
+  });
+
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
+
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
+  expect(terminalsService.createPtyProcess).toHaveBeenCalledWith({
+    shellId: 'bash',
+    clusterName: 'Test',
+    cwd: undefined,
+    kind: 'pty.shell',
+    proxyHost: 'localhost:3080',
+    rootClusterId: 'test',
+    title: 'Terminal',
+    uri: '/docs/456',
+  });
+});
 
 // TODO(ravicious): Add tests for the following cases:
 // * dispose on unmount when state is success

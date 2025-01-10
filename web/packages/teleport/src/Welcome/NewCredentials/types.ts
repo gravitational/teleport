@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
-import { Auth2faType, PrimaryAuthType } from 'shared/services';
-
-import { NewFlow, StepComponentProps } from 'design/StepSlider';
-
 import { ReactElement } from 'react';
 
+import { NewFlow, StepComponentProps } from 'design/StepSlider';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Auth2faType, PrimaryAuthType } from 'shared/services';
+
+import { RecoveryCodesProps } from 'teleport/components/RecoveryCodes';
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
+import { DeviceUsage } from 'teleport/services/mfa';
 
 export type UseTokenState = {
   auth2faType: Auth2faType;
@@ -32,8 +32,10 @@ export type UseTokenState = {
   isPasswordlessEnabled: boolean;
   fetchAttempt: Attempt;
   submitAttempt: Attempt;
+  credential?: Credential;
   clearSubmitAttempt: () => void;
   onSubmit: (password: string, otpCode?: string, deviceName?: string) => void;
+  createNewWebAuthnDevice: (usage: DeviceUsage) => void;
   onSubmitWithWebauthn: (password?: string, deviceName?: string) => void;
   resetToken: ResetToken;
   recoveryCodes: RecoveryCodes;
@@ -74,6 +76,8 @@ export type NewCredentialsProps = UseTokenState & {
   InviteCollaborators?: ({
     onSubmit,
   }: InviteCollaboratorsCardProps) => ReactElement;
+
+  RecoveryCodes?: React.ComponentType<RecoveryCodesProps>;
 };
 
 export type RegisterSuccessProps = {

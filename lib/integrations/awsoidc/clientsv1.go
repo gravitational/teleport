@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	utilsaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -43,9 +44,6 @@ type IntegrationTokenGenerator interface {
 	// GetIntegration returns the specified integration resources.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 
-	// GetProxies returns a list of registered proxies.
-	GetProxies() ([]types.Server, error)
-
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 }
@@ -53,6 +51,11 @@ type IntegrationTokenGenerator interface {
 // NewSessionV1 creates a new AWS Session for the region using the integration as source of credentials.
 // This session is usable for AWS SDK Go V1.
 func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region string, integrationName string) (*session.Session, error) {
+	if region != "" {
+		if err := utilsaws.IsValidRegion(region); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	integration, err := client.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)

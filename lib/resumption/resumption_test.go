@@ -212,6 +212,9 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 		default:
 		}
 
+		// wait until the reconnection loop has passed the reconnection phase
+		// and is waiting on the reconnection timer again
+		clock.BlockUntil(1)
 		clock.Advance(replacementInterval)
 		redialingSyncPoint <- struct{}{}
 

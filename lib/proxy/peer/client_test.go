@@ -19,8 +19,7 @@
 package peer
 
 import (
-	"crypto/tls"
-	"crypto/x509"
+	"context"
 	"testing"
 	"time"
 
@@ -29,14 +28,17 @@ import (
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/proxy/peer/internal"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestClientConn checks the client's connection caching capabilities
 func TestClientConn(t *testing.T) {
 	ca := newSelfSignedCA(t)
 
-	client := setupClient(t, ca, ca, types.RoleProxy)
+	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
 	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
 	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
@@ -46,30 +48,30 @@ func TestClientConn(t *testing.T) {
 	require.Len(t, client.conns, 2)
 
 	// dial first server and send a test data frame
-	stream, cached, err := client.dial([]string{"s1"}, &proto.DialRequest{})
+	stream, cached, err := client.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
-	stream.CloseSend()
+	stream.Close()
 
 	// dial second server
-	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	stream, cached, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
-	stream.CloseSend()
+	stream.Close()
 
 	// redial second server
-	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	stream, cached, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
-	stream.CloseSend()
+	stream.Close()
 
 	// close second server
 	// and attempt to redial it
 	server2.Shutdown()
-	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	stream, cached, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.Error(t, err)
 	require.True(t, cached)
 	require.Nil(t, stream)
@@ -79,7 +81,7 @@ func TestClientConn(t *testing.T) {
 func TestClientUpdate(t *testing.T) {
 	ca := newSelfSignedCA(t)
 
-	client := setupClient(t, ca, ca, types.RoleProxy)
+	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
 	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
 	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
@@ -90,10 +92,10 @@ func TestClientUpdate(t *testing.T) {
 	require.Contains(t, client.conns, "s1")
 	require.Contains(t, client.conns, "s2")
 
-	s1, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
+	s1, _, err := client.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, s1)
-	s2, _, err := client.dial([]string{"s2"}, &proto.DialRequest{})
+	s2, _, err := client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, s2)
 
@@ -105,7 +107,7 @@ func TestClientUpdate(t *testing.T) {
 	sendMsg(t, s1) // stream is not broken across updates
 	sendMsg(t, s2) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
 
-	s2.CloseSend()
+	s2.Close()
 
 	// watcher finds two servers with one broken connection
 	server2.Shutdown()
@@ -114,7 +116,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is still going strong
-	_, _, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	_, _, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.Error(t, err) // can't dial server2, obviously
 
 	// peer address change
@@ -124,66 +126,85 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
-	s3, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
+	s3, _, err := client.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, s3)
 
-	s1.CloseSend()
-	s3.CloseSend()
+	s1.Close()
+	s3.Close()
 }
 
 func TestCAChange(t *testing.T) {
 	clientCA := newSelfSignedCA(t)
 	serverCA := newSelfSignedCA(t)
+	currentServerCA := newAtomicCA(serverCA)
 
-	client := setupClient(t, clientCA, serverCA, types.RoleProxy)
-	server, _ := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
+	client := setupClient(t, clientCA, currentServerCA, types.RoleProxy)
+	server, ts := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
+	t.Cleanup(func() { server.Close() })
 
 	// dial server and send a test data frame
-	conn, err := client.connect("s1", server.config.Listener.Addr().String())
+	const supportsQUICFalse = false
+	conn, err := client.connect(connectParams{
+		peerID:       "s1",
+		peerAddr:     ts.GetPeerAddr(),
+		peerHost:     "s1",
+		peerGroup:    "",
+		supportsQUIC: supportsQUICFalse,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err := client.startStream(conn)
+	require.IsType(t, (*grpcClientConn)(nil), conn)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream, err := clientapi.NewProxyServiceClient(conn.(*grpcClientConn).cc).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	stream.CloseSend()
 
 	// rotate server ca
 	require.NoError(t, server.Close())
 	newServerCA := newSelfSignedCA(t)
-	server, _ = setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
+	server2, ts := setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
+	t.Cleanup(func() { server2.Close() })
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect(connectParams{
+		peerID:       "s1",
+		peerAddr:     ts.GetPeerAddr(),
+		peerHost:     "s1",
+		peerGroup:    "",
+		supportsQUIC: supportsQUICFalse,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = client.startStream(conn)
+	require.IsType(t, (*grpcClientConn)(nil), conn)
+	stream, err = clientapi.NewProxyServiceClient(conn.(*grpcClientConn).cc).DialNode(ctx)
 	require.Error(t, err)
 	require.Nil(t, stream)
 
 	// new connection should succeed because client tls config references new
 	// RootCAs.
-	client.config.getConfigForServer = func() (*tls.Config, error) {
-		config := client.config.TLSConfig.Clone()
-		rootCAs := x509.NewCertPool()
-		rootCAs.AddCert(newServerCA.Cert)
-		config.RootCAs = rootCAs
-		return config, nil
-	}
+	currentServerCA.Store(newServerCA)
 
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect(connectParams{
+		peerID:       "s1",
+		peerAddr:     ts.GetPeerAddr(),
+		peerHost:     "s1",
+		peerGroup:    "",
+		supportsQUIC: supportsQUICFalse,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = client.startStream(conn)
+	require.IsType(t, (*grpcClientConn)(nil), conn)
+	stream, err = clientapi.NewProxyServiceClient(conn.(*grpcClientConn).cc).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	stream.CloseSend()
 }
 
 func TestBackupClient(t *testing.T) {
 	ca := newSelfSignedCA(t)
-	client := setupClient(t, ca, ca, types.RoleProxy)
+	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
 	dialCalled := false
 
 	// Force the first client connection to fail.
@@ -199,17 +220,18 @@ func TestBackupClient(t *testing.T) {
 
 	err := client.updateConnections([]types.Server{def1, def2})
 	require.NoError(t, err)
-	waitForConns(t, client.conns, time.Second*2)
+	waitForGRPCConns(t, client.conns, time.Second*2)
 
-	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, &proto.DialRequest{})
+	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, dialCalled)
 }
 
-func waitForConns(t *testing.T, conns map[string]*clientConn, d time.Duration) {
+func waitForGRPCConns(t *testing.T, conns map[string]internal.ClientConn, d time.Duration) {
 	require.Eventually(t, func() bool {
 		for _, conn := range conns {
-			if conn.GetState() != connectivity.Ready {
+			// panic if we hit a non-grpc client conn
+			if conn.(*grpcClientConn).cc.GetState() != connectivity.Ready {
 				return false
 			}
 		}

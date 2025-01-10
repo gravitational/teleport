@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-import React from 'react';
 import { Flex, Text } from 'design';
-// @ts-ignore
-import { AccessRequestCheckoutButton } from 'e-teleterm/ui/StatusBar/AccessRequestCheckoutButton';
 
-import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
+import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
 import { ShareFeedback } from './ShareFeedback';
+import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
 export function StatusBar() {
   const clusterBreadcrumbs = useActiveDocumentClusterBreadcrumbs();
@@ -46,7 +43,7 @@ export function StatusBar() {
         css={`
           white-space: nowrap;
         `}
-        title={clusterBreadcrumbs}
+        title={clusterBreadcrumbs && `Current cluster: ${clusterBreadcrumbs}`}
       >
         {clusterBreadcrumbs}
       </Text>

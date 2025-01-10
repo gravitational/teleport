@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, ButtonBorder } from 'design';
+
+import { Box, ButtonBorder, ButtonPrimary } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import {
   CustomSort,
@@ -78,14 +78,14 @@ export function renderActionCell(
     <Cell align="right">
       {isResourceSelected ? (
         <ButtonPrimary
-          width="134px"
+          width="123px"
           size="small"
           onClick={toggleResourceSelect}
         >
           Remove
         </ButtonPrimary>
       ) : (
-        <ButtonBorder width="134px" size="small" onClick={toggleResourceSelect}>
+        <ButtonBorder width="123px" size="small" onClick={toggleResourceSelect}>
           + Add Target
         </ButtonBorder>
       )}

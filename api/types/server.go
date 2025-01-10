@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -91,6 +92,18 @@ type Server interface {
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
 	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 	IsOpenSSHNode() bool
+
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
+
+	// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
+	GetAWSInstanceID() string
+	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
+	GetAWSAccountID() string
+
+	// GetGitHub returns the GitHub server spec.
+	GetGitHub() *GitHubServerMetadata
 }
 
 // NewServer creates an instance of Server.
@@ -132,6 +145,37 @@ func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) 
 	return server, nil
 }
 
+// NewNode is a convenience method to create an EICE Node.
+func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindNode,
+		SubKind: SubKindOpenSSHEICENode,
+		Metadata: Metadata{
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
+// NewGitHubServer creates a new Git server for GitHub.
+func NewGitHubServer(githubSpec GitHubServerMetadata) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindGitServer,
+		SubKind: SubKindGitHub,
+		Spec: ServerSpecV2{
+			GitHub: &githubSpec,
+		},
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
@@ -160,16 +204,6 @@ func (s *ServerV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (s *ServerV2) SetSubKind(sk string) {
 	s.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (s *ServerV2) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (s *ServerV2) SetResourceID(id int64) {
-	s.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -391,6 +425,43 @@ func IsOpenSSHNodeSubKind(subkind string) bool {
 	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
 }
 
+// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
+func (s *ServerV2) GetAWSAccountID() string {
+	awsAccountID, _ := s.GetLabel(AWSAccountIDLabel)
+
+	awsMetadata := s.GetAWSInfo()
+	if awsMetadata != nil && awsMetadata.AccountID != "" {
+		awsAccountID = awsMetadata.AccountID
+	}
+	return awsAccountID
+}
+
+// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
+func (s *ServerV2) GetAWSInstanceID() string {
+	awsInstanceID, _ := s.GetLabel(AWSInstanceIDLabel)
+
+	awsMetadata := s.GetAWSInfo()
+	if awsMetadata != nil && awsMetadata.InstanceID != "" {
+		awsInstanceID = awsMetadata.InstanceID
+	}
+	return awsInstanceID
+}
+
+// IsEICE returns whether the Node is an EICE instance.
+// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+func (s *ServerV2) IsEICE() bool {
+	if s.SubKind != SubKindOpenSSHEICENode {
+		return false
+	}
+
+	return s.GetAWSAccountID() != "" && s.GetAWSInstanceID() != ""
+}
+
+// GetGitHub returns the GitHub server spec.
+func (s *ServerV2) GetGitHub() *GitHubServerMetadata {
+	return s.Spec.GitHub
+}
+
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
 // They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
@@ -444,29 +515,78 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
+// serverNameForEICE returns the deterministic Server's name for an EICE instance.
+// This name must comply with the expected format for EC2 Nodes as defined here: api/utils/aws.IsEC2NodeID
+// Returns an error if AccountID or InstanceID is not present.
+func serverNameForEICE(s *ServerV2) (string, error) {
+	awsAccountID := s.GetAWSAccountID()
+	awsInstanceID := s.GetAWSInstanceID()
+
+	if awsAccountID != "" && awsInstanceID != "" {
+		eiceNodeName := fmt.Sprintf("%s-%s", awsAccountID, awsInstanceID)
+		if !aws.IsEC2NodeID(eiceNodeName) {
+			return "", trace.BadParameter("invalid account %q or instance id %q", awsAccountID, awsInstanceID)
+		}
+		return eiceNodeName, nil
+	}
+
+	return "", trace.BadParameter("missing account id or instance id in %s node", SubKindOpenSSHEICENode)
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
 
-	// if the server is a registered OpenSSH node, allow the name to be
-	// randomly generated
-	if s.Metadata.Name == "" && s.IsOpenSSHNode() {
-		s.Metadata.Name = uuid.New().String()
+	if s.Metadata.Name == "" {
+		switch s.SubKind {
+		case SubKindOpenSSHEICENode:
+			// For EICE nodes, use a deterministic name.
+			eiceNodeName, err := serverNameForEICE(s)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			s.Metadata.Name = eiceNodeName
+		case SubKindOpenSSHNode:
+			// if the server is a registered OpenSSH node, allow the name to be
+			// randomly generated
+			s.Metadata.Name = uuid.NewString()
+		case SubKindGitHub:
+			s.Metadata.Name = uuid.NewString()
+		}
 	}
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if s.Kind == "" {
+	switch s.Kind {
+	case "":
 		return trace.BadParameter("server Kind is empty")
-	}
-	if s.Kind != KindNode && s.SubKind != "" {
-		return trace.BadParameter(`server SubKind must only be set when Kind is "node"`)
+	case KindNode:
+		if err := s.nodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case KindGitServer:
+		if err := s.gitServerCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		if s.SubKind != "" {
+			return trace.BadParameter(`server SubKind must only be set when Kind is "node" or "git_server"`)
+		}
 	}
 
+	for key := range s.Spec.CmdLabels {
+		if !IsValidLabelKey(key) {
+			return trace.BadParameter("invalid label key: %q", key)
+		}
+	}
+	return nil
+}
+
+func (s *ServerV2) nodeCheckAndSetDefaults() error {
 	switch s.SubKind {
 	case "", SubKindTeleportNode:
 		// allow but do nothing
@@ -481,15 +601,36 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		}
 
 	default:
-		return trace.BadParameter("invalid SubKind %q", s.SubKind)
+		return trace.BadParameter("invalid SubKind %q of Kind %q", s.SubKind, s.Kind)
+	}
+	return nil
+}
+
+func (s *ServerV2) gitServerCheckAndSetDefaults() error {
+	switch s.SubKind {
+	case SubKindGitHub:
+		return trace.Wrap(s.githubCheckAndSetDefaults())
+	default:
+		return trace.BadParameter("invalid SubKind %q of Kind %q", s.SubKind, s.Kind)
+	}
+}
+
+func (s *ServerV2) githubCheckAndSetDefaults() error {
+	if s.Spec.GitHub == nil {
+		return trace.BadParameter("github must be set for Subkind %q", s.SubKind)
+	}
+	if s.Spec.GitHub.Integration == "" {
+		return trace.BadParameter("integration must be set for Subkind %q", s.SubKind)
+	}
+	if err := ValidateGitHubOrganizationName(s.Spec.GitHub.Organization); err != nil {
+		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 
-	for key := range s.Spec.CmdLabels {
-		if !IsValidLabelKey(key) {
-			return trace.BadParameter("invalid label key: %q", key)
-		}
+	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
+	if s.Metadata.Labels == nil {
+		s.Metadata.Labels = make(map[string]string)
 	}
-
+	s.Metadata.Labels[GitHubOrgLabel] = s.Spec.GitHub.Organization
 	return nil
 }
 
@@ -696,4 +837,30 @@ func (s Servers) GetFieldVals(field string) ([]string, error) {
 	}
 
 	return vals, nil
+}
+
+// MakeGitHubOrgServerDomain creates a special domain name used in server's
+// host address to identify the GitHub organization.
+func MakeGitHubOrgServerDomain(org string) string {
+	return fmt.Sprintf("%s.%s", org, GitHubOrgServerDomain)
+}
+
+// GetGitHubOrgFromNodeAddr parses the organization from the node address.
+func GetGitHubOrgFromNodeAddr(addr string) (string, bool) {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	if strings.HasSuffix(addr, "."+GitHubOrgServerDomain) {
+		return strings.TrimSuffix(addr, "."+GitHubOrgServerDomain), true
+	}
+	return "", false
+}
+
+// GetOrganizationURL returns the URL to the GitHub organization.
+func (m *GitHubServerMetadata) GetOrganizationURL() string {
+	if m == nil {
+		return ""
+	}
+	// Public github.com for now.
+	return fmt.Sprintf("%s/%s", GithubURL, m.Organization)
 }

@@ -21,11 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // WebSessionsGetter provides access to web sessions
@@ -65,10 +61,14 @@ type WebSession interface {
 	SetUser(string)
 	// GetPub is returns public certificate signed by auth server
 	GetPub() []byte
-	// GetPriv returns private OpenSSH key used to auth with SSH nodes
-	GetPriv() []byte
-	// SetPriv sets private key
-	SetPriv([]byte)
+	// GetSSHPriv returns private SSH key used to auth with SSH nodes.
+	GetSSHPriv() []byte
+	// SetSSHPriv sets SSH private key.
+	SetSSHPriv([]byte)
+	// GetTLSPriv returns private TLS key.
+	GetTLSPriv() []byte
+	// SetTLSPriv sets TLS private key.
+	SetTLSPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
 	// GetBearerToken is a special bearer token used for additional
@@ -104,6 +104,17 @@ type WebSession interface {
 	// GetDeviceWebToken returns the session's DeviceWebToken, if any.
 	// The token is considered a secret.
 	GetDeviceWebToken() *DeviceWebToken
+	// GetHasDeviceExtensions returns the HasDeviceExtensions value.
+	// If true the session's TLS and SSH certificates are augmented with device
+	// extensions.
+	GetHasDeviceExtensions() bool
+	// SetTrustedDeviceRequirement sets the session's trusted device requirement.
+	// See [TrustedDeviceRequirement].
+	SetTrustedDeviceRequirement(r TrustedDeviceRequirement)
+	// GetTrustedDeviceRequirement returns the session's trusted device
+	// requirement.
+	// See [TrustedDeviceRequirement].
+	GetTrustedDeviceRequirement() TrustedDeviceRequirement
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -167,16 +178,6 @@ func (ws *WebSessionV2) GetMetadata() Metadata {
 	return ws.Metadata
 }
 
-// GetResourceID gets ResourceID
-func (ws *WebSessionV2) GetResourceID() int64 {
-	return ws.Metadata.GetID()
-}
-
-// SetResourceID sets ResourceID
-func (ws *WebSessionV2) SetResourceID(id int64) {
-	ws.Metadata.SetID(id)
-}
-
 // GetRevision returns the revision
 func (ws *WebSessionV2) GetRevision() string {
 	return ws.Metadata.GetRevision()
@@ -194,11 +195,12 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 
 // WithoutSecrets returns a copy of the WebSession without secrets.
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
-	cp := proto.Clone(ws).(*WebSessionV2)
+	cp := *ws
 	cp.Spec.Priv = nil
+	cp.Spec.TLSPriv = nil
 	cp.Spec.SAMLSession = nil
 	cp.Spec.DeviceWebToken = nil
-	return cp
+	return &cp
 }
 
 // SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
@@ -231,6 +233,24 @@ func (ws *WebSessionV2) SetDeviceWebToken(webToken *DeviceWebToken) {
 // The token is considered a secret.
 func (ws *WebSessionV2) GetDeviceWebToken() *DeviceWebToken {
 	return ws.Spec.DeviceWebToken
+}
+
+// GetHasDeviceExtensions returns the HasDeviceExtensions value.
+// If true the session's TLS and SSH certificates are augmented with device
+// extensions.
+func (ws *WebSessionV2) GetHasDeviceExtensions() bool {
+	return ws.Spec.HasDeviceExtensions
+}
+
+// SetTrustedDeviceRequirement sets the session's trusted device requirement.
+func (ws *WebSessionV2) SetTrustedDeviceRequirement(r TrustedDeviceRequirement) {
+	ws.Spec.TrustedDeviceRequirement = r
+}
+
+// GetTrustedDeviceRequirement returns the session's trusted device
+// requirement.
+func (ws *WebSessionV2) GetTrustedDeviceRequirement() TrustedDeviceRequirement {
+	return ws.Spec.TrustedDeviceRequirement
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -285,14 +305,30 @@ func (ws *WebSessionV2) GetPub() []byte {
 	return ws.Spec.Pub
 }
 
-// GetPriv returns private OpenSSH key used to auth with SSH nodes
-func (ws *WebSessionV2) GetPriv() []byte {
+// GetSSHPriv returns private SSH key.
+func (ws *WebSessionV2) GetSSHPriv() []byte {
 	return ws.Spec.Priv
 }
 
-// SetPriv sets private key
-func (ws *WebSessionV2) SetPriv(priv []byte) {
+// SetSSHPriv sets private SSH key.
+func (ws *WebSessionV2) SetSSHPriv(priv []byte) {
 	ws.Spec.Priv = priv
+}
+
+// GetTLSPriv returns private TLS key.
+func (ws *WebSessionV2) GetTLSPriv() []byte {
+	// TODO(nklaassen): DELETE IN 18.0.0 when all auth servers are writing web session TLS key.
+	if ws.Spec.TLSPriv == nil {
+		// An older auth instance may have written this web session before the
+		// SSH and TLS keys were split.
+		return ws.Spec.Priv
+	}
+	return ws.Spec.TLSPriv
+}
+
+// SetTLSPriv sets private TLS key.
+func (ws *WebSessionV2) SetTLSPriv(priv []byte) {
+	ws.Spec.TLSPriv = priv
 }
 
 // GetBearerToken gets a special bearer token used for additional
@@ -516,16 +552,6 @@ func (r *WebTokenV3) SetName(name string) {
 	r.Metadata.Name = name
 }
 
-// GetResourceID returns the token resource ID
-func (r *WebTokenV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-// SetResourceID sets the token resource ID
-func (r *WebTokenV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
-}
-
 // GetRevision returns the revision
 func (r *WebTokenV3) GetRevision() string {
 	return r.Metadata.GetRevision()
@@ -595,53 +621,6 @@ func (r *WebTokenV3) CheckAndSetDefaults() error {
 func (r *WebTokenV3) String() string {
 	return fmt.Sprintf("WebToken(kind=%v,user=%v,token=%v,expires=%v)",
 		r.GetKind(), r.GetUser(), r.GetToken(), r.Expiry())
-}
-
-// CheckAndSetDefaults validates the request and sets defaults.
-func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
-	if r.User == "" {
-		return trace.BadParameter("user name required")
-	}
-	if len(r.Roles) == 0 {
-		return trace.BadParameter("roles required")
-	}
-	if len(r.Traits) == 0 {
-		return trace.BadParameter("traits required")
-	}
-	if r.SessionTTL == 0 {
-		r.SessionTTL = defaults.CertDuration
-	}
-	return nil
-}
-
-// NewWebSessionRequest defines a request to create a new user
-// web session
-type NewWebSessionRequest struct {
-	// User specifies the user this session is bound to
-	User string
-	// LoginIP is an observed IP of the client, it will be embedded into certificates.
-	LoginIP string
-	// Roles optionally lists additional user roles
-	Roles []string
-	// Traits optionally lists role traits
-	Traits map[string][]string
-	// SessionTTL optionally specifies the session time-to-live.
-	// If left unspecified, the default certificate duration is used.
-	SessionTTL time.Duration
-	// LoginTime is the time that this user recently logged in.
-	LoginTime time.Time
-	// AccessRequests contains the UUIDs of the access requests currently in use.
-	AccessRequests []string
-	// RequestedResourceIDs optionally lists requested resources
-	RequestedResourceIDs []ResourceID
-	// AttestWebSession optionally attests the web session to meet private key policy requirements.
-	// This should only be set to true for web sessions that are purely in the purview of the Proxy
-	// and Auth services. Users should never have direct access to attested web sessions.
-	AttestWebSession bool
-	// PrivateKey is a specific private key to use when generating the web sessions' certificates.
-	// This should be provided when extending an attested web session in order to maintain the
-	// session attested status.
-	PrivateKey *keys.PrivateKey
 }
 
 // Check validates the request.

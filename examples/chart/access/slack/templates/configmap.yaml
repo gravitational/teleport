@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slack.fullname" . }}
+  {{- with .Values.annotations.config }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "slack.labels" . | nindent 4 }}
+data:
+  teleport-slack.toml: |
+    [teleport]
+    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
+    identity = "/var/lib/teleport/plugins/slack/teleport-identity/{{ include "slack.identitySecretPath" . }}"
+    refresh_identity = true
+
+    [slack]
+    token = "/var/lib/teleport/plugins/slack/slack-token"
+
+    [role_to_recipients]
+    {{- range $role, $recipients := .Values.roleToRecipients }}
+    {{ $role | toJson }} = {{ $recipients | toJson }}
+    {{- end }}
+
+    [log]
+    output = "{{ .Values.log.output }}"
+    severity = "{{ .Values.log.severity }}"

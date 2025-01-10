@@ -1,0 +1,10 @@
+.version: &version "18.0.0-dev"
+
+name: tbot
+apiVersion: v2
+version: *version
+appVersion: *version
+description: This chart deploys an instance of the Machine ID agent, TBot, into your Kubernetes cluster. This allows workloads running within Kubernetes to authenticate to your Teleport cluster.
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport

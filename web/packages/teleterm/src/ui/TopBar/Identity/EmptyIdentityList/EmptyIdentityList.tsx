@@ -16,11 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonPrimary, Flex, Text } from 'design';
-import Image from 'design/Image';
-
-import clusterPng from './clusters.png';
+import { ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
 
 interface EmptyIdentityListProps {
   onConnect(): void;
@@ -35,8 +31,8 @@ export function EmptyIdentityList(props: EmptyIdentityListProps) {
       width="200px"
       p={3}
     >
-      <Image width="60px" src={clusterPng} />
-      <Text fontSize={1} bold mb={2}>
+      <ResourceIcon width="60px" name="server" />
+      <Text typography="body3" bold mb={2}>
         No cluster connected
       </Text>
       <ButtonPrimary size="small" onClick={props.onConnect}>

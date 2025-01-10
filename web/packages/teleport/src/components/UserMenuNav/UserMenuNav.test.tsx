@@ -16,53 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { setupServer } from 'msw/node';
-import { rest } from 'msw';
-
 import {
-  render as testingRender,
-  screen,
   fireEvent,
+  screen,
+  render as testingRender,
 } from 'design/utils/testing';
 
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
 import cfg from 'teleport/config';
-
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getOSSFeatures } from 'teleport/features';
-
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import TeleportContext from 'teleport/teleportContext';
-
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { makeUserContext } from 'teleport/services/user';
-
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { UserMenuNav } from './UserMenuNav';
 
-const server = setupServer(
-  rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-    return res(
-      ctx.json({
-        theme: Theme.LIGHT,
-        assist: {},
-      })
-    );
-  })
-);
-
-beforeAll(() => server.listen());
-
 beforeEach(() => mockUserContextProviderWith(makeTestUserContext()));
-
-afterEach(() => server.resetHandlers());
-
-afterAll(() => server.close());
 
 describe('navigation items rendering', () => {
   test.each`

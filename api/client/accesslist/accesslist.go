@@ -23,6 +23,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
 // Client is an access list client that conforms to the following lib/services interfaces:
@@ -48,7 +49,9 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = conv.FromProto(accessList)
+		accessLists[i], err = conv.FromProto(
+			accessList,
+			conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -70,7 +73,7 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = conv.FromProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -102,13 +105,28 @@ func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.Acce
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = conv.FromProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	return accessLists, nil
+}
+
+// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
+func (c *Client) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
+	resp, err := c.grpcClient.GetInheritedGrants(ctx, &accesslistv1.GetInheritedGrantsRequest{
+		AccessListId: accessListID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &accesslist.Grants{
+		Roles:  resp.Grants.Roles,
+		Traits: traitv1.FromProto(resp.Grants.Traits),
+	}, nil
 }
 
 // UpsertAccessList creates or updates an access list resource.
@@ -119,7 +137,19 @@ func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.Ac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseAccessList, err := conv.FromProto(resp)
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
+	return responseAccessList, trace.Wrap(err)
+}
+
+// UpdateAccessList updates an access list resource.
+func (c *Client) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.UpdateAccessList(ctx, &accesslistv1.UpdateAccessListRequest{
+		AccessList: conv.ToProto(accessList),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return responseAccessList, trace.Wrap(err)
 }
 
@@ -137,15 +167,15 @@ func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
 }
 
 // CountAccessListMembers will count all access list members.
-func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
 	resp, err := c.grpcClient.CountAccessListMembers(ctx, &accesslistv1.CountAccessListMembersRequest{
 		AccessListName: accessListName,
 	})
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, 0, trace.Wrap(err)
 	}
 
-	return resp.Count, nil
+	return resp.Count, resp.ListCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
@@ -207,6 +237,26 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 	return member, trace.Wrap(err)
 }
 
+// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+//
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (c *Client) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	resp, err := c.grpcClient.GetAccessListOwners(ctx, &accesslistv1.GetAccessListOwnersRequest{
+		AccessList: accessListName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	owners := make([]*accesslist.Owner, 0, len(resp.Owners))
+	for _, owner := range resp.Owners {
+		ownerProto := conv.FromOwnerProto(owner)
+		owners = append(owners, &ownerProto)
+	}
+
+	return owners, nil
+}
+
 // UpsertAccessListMember creates or updates an access list member resource.
 func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{
@@ -215,7 +265,19 @@ func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseMember, err := conv.FromMemberProto(resp)
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
+	return responseMember, trace.Wrap(err)
+}
+
+// UpdateAccessListMember updates an access list member resource using a conditional update.
+func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpdateAccessListMember(ctx, &accesslistv1.UpdateAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return responseMember, trace.Wrap(err)
 }
 
@@ -251,14 +313,18 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessList, err := conv.FromProto(resp.AccessList)
+	accessList, err := conv.FromProto(resp.AccessList, conv.WithOwnersIneligibleStatusField(resp.AccessList.GetSpec().GetOwners()))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	updatedMembers, err := conv.FromMembersProto(resp.Members)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	updatedMembers := make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		updatedMembers[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
 	return accessList, updatedMembers, nil
@@ -278,7 +344,7 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
 		AccessList: accessList,
 		PageSize:   int32(pageSize),
-		NextToken:  nextToken,
+		NextToken:  pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -300,7 +366,7 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 func (c *Client) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
 	resp, err := c.grpcClient.ListAllAccessListReviews(ctx, &accesslistv1.ListAllAccessListReviewsRequest{
 		PageSize:  int32(pageSize),
-		NextToken: nextToken,
+		NextToken: pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)

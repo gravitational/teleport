@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
 func getTestVal(isTestField bool, testVal string) string {
@@ -112,7 +113,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			SubKind: SubKindOpenSSHEICENode,
 			Version: V2,
 			Metadata: Metadata{
-				Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
 				Namespace: defaults.Namespace,
 			},
 			Spec: ServerSpecV2{
@@ -385,7 +385,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `invalid SubKind "invalid-subkind"`)
+				require.EqualError(t, err, `invalid SubKind "invalid-subkind" of Kind "node"`)
 			},
 		},
 		{
@@ -394,7 +394,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS CloudMetadata")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -403,7 +403,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS CloudMetadata")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -412,7 +412,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.AccountID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS Account ID")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -421,7 +421,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.InstanceID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS InstanceID")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -440,7 +440,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				SubKind: SubKindOpenSSHEICENode,
 				Version: V2,
 				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
 					Namespace: defaults.Namespace,
 				},
 				Spec: ServerSpecV2{
@@ -467,7 +466,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				SubKind: SubKindOpenSSHEICENode,
 				Version: V2,
 				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
 					Namespace: defaults.Namespace,
 				},
 				Spec: ServerSpecV2{
@@ -497,7 +495,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					SubKind: SubKindOpenSSHEICENode,
 					Version: V2,
 					Metadata: Metadata{
-						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+						Name:      "123456789012-i-123456789012",
 						Namespace: defaults.Namespace,
 					},
 					Spec: ServerSpecV2{
@@ -518,6 +516,141 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				assert.Equal(t, expectedServer, s)
 
 				require.True(t, s.IsOpenSSHNode(), "IsOpenSSHNode must be true for this node")
+
+				require.True(t, aws.IsEC2NodeID(s.GetName()),
+					"expected an EC2 Node ID format (<accid>-<instanceid>), got %s", s.GetName(),
+				)
+			},
+		},
+		{
+			name: "already existing OpenSSHEC2InstanceConnectEndpoint nodes use UUID and that must be accepted",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHEICENode,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "f043b730-8fdd-4f9a-81e4-45f5a9ea23a7",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:   "123456789012",
+							InstanceID:  "i-123456789012",
+							Region:      "us-east-1",
+							Integration: "teleportdev",
+							VPCID:       "some-vpc",
+							SubnetID:    "some-subnet",
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint nodes with invalid account id or instance id must be rejected",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHEICENode,
+				Version: V2,
+				Metadata: Metadata{
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:   "abcd",
+							InstanceID:  "i-defg",
+							Region:      "us-east-1",
+							Integration: "teleportdev",
+							VPCID:       "some-vpc",
+							SubnetID:    "some-subnet",
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, `invalid account "abcd" or instance id "i-defg"`)
+			},
+		},
+		{
+			name: "git_server with invalid subkind",
+			server: &ServerV2{
+				Kind:    KindGitServer,
+				SubKind: "invalid-subkind",
+				Metadata: Metadata{
+					Name: "5da56852-2adb-4540-a37c-80790203f6a9",
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.EqualError(t, err, `invalid SubKind "invalid-subkind" of Kind "git_server"`)
+			},
+		},
+		{
+			name: "GitHub server",
+			server: &ServerV2{
+				Kind:    KindGitServer,
+				SubKind: SubKindGitHub,
+				Metadata: Metadata{
+					Name: "5da56852-2adb-4540-a37c-80790203f6a9",
+				},
+				Spec: ServerSpecV2{
+					GitHub: &GitHubServerMetadata{
+						Integration:  "my-org",
+						Organization: "my-org",
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				t.Helper()
+				require.NoError(t, err)
+
+				expectedServer := &ServerV2{
+					Kind:    KindGitServer,
+					SubKind: SubKindGitHub,
+					Version: V2,
+					Metadata: Metadata{
+						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+						Namespace: defaults.Namespace,
+						Labels: map[string]string{
+							GitHubOrgLabel: "my-org",
+						},
+					},
+					Spec: ServerSpecV2{
+						Hostname: "my-org.github-org",
+						GitHub: &GitHubServerMetadata{
+							Integration:  "my-org",
+							Organization: "my-org",
+						},
+					},
+				}
+				assert.Equal(t, expectedServer, s)
+			},
+		},
+		{
+			name: "invalid GitHub server",
+			server: &ServerV2{
+				Kind:    KindGitServer,
+				SubKind: SubKindGitHub,
+				Metadata: Metadata{
+					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					GitHub: &GitHubServerMetadata{
+						Integration:  "",
+						Organization: "my-org",
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.EqualError(t, err, `integration must be set for Subkind "github"`)
 			},
 		},
 	}
@@ -566,6 +699,73 @@ func TestIsOpenSSHNodeSubKind(t *testing.T) {
 	}
 }
 
+func TestIsEICE(t *testing.T) {
+	tests := []struct {
+		name   string
+		server *ServerV2
+		want   bool
+	}{
+		{
+			name: "eice node with account and instance id labels is EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel:  "123456789012",
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "regular node not eice",
+			server: &ServerV2{
+				SubKind: SubKindTeleportNode,
+			},
+			want: false,
+		},
+		{
+			name: "agentless openssh node is not eice",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHNode,
+			},
+			want: false,
+		},
+		{
+			name: "eice node without account id label is not EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSInstanceIDLabel: "i-123",
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "eice node without instance id label is not EICE",
+			server: &ServerV2{
+				SubKind: SubKindOpenSSHEICENode,
+				Metadata: Metadata{
+					Labels: map[string]string{
+						AWSAccountIDLabel: "123456789012",
+					},
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.server.IsEICE(); got != tt.want {
+				t.Errorf("IsEICE() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetCloudMetadataAWS(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -603,4 +803,17 @@ func TestGetCloudMetadataAWS(t *testing.T) {
 			require.Equal(t, tt.expected, out)
 		})
 	}
+}
+
+func TestGitServerOrgDomain(t *testing.T) {
+	domain := MakeGitHubOrgServerDomain("my-org")
+	require.Equal(t, "my-org.github-org", domain)
+
+	githubNodeAddr := domain + ":22"
+	org, ok := GetGitHubOrgFromNodeAddr(githubNodeAddr)
+	require.True(t, ok)
+	require.Equal(t, "my-org", org)
+
+	_, ok = GetGitHubOrgFromNodeAddr("my-server.example.teleport.sh:22")
+	require.False(t, ok)
 }

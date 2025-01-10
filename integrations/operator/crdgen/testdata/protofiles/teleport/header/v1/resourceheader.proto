@@ -26,7 +26,10 @@ message ResourceHeader {
   string kind = 1;
   // sub_kind is an optional resource sub kind, used in some resources.
   string sub_kind = 2;
-  // version is version.
+  // Version is the API version used to create the resource. It must be
+  // specified. Based on this version, Teleport will apply different defaults on
+  // resource creation or deletion. It must be an integer prefixed by "v".
+  // For example: `v1`
   string version = 3;
   // metadata is resource metadata.
   Metadata metadata = 4;

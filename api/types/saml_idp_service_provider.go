@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/xml"
 	"fmt"
+	"net/url"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -139,6 +140,10 @@ type SAMLIdPServiceProvider interface {
 	GetRelayState() string
 	// SetRelayState sets Relay State.
 	SetRelayState(string)
+	// GetLaunchURLs returns launch URLs
+	GetLaunchURLs() []string
+	// SetLaunchURLs sets launch URLs
+	SetLaunchURLs([]string)
 	// Copy returns a copy of this saml idp service provider object.
 	Copy() SAMLIdPServiceProvider
 	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
@@ -216,6 +221,16 @@ func (s *SAMLIdPServiceProviderV1) SetRelayState(relayState string) {
 	s.Spec.RelayState = relayState
 }
 
+// GetLaunchURLs returns Launch URLs.
+func (s *SAMLIdPServiceProviderV1) GetLaunchURLs() []string {
+	return s.Spec.LaunchURLs
+}
+
+// SetLaunchURLs sets Launch URLs.
+func (s *SAMLIdPServiceProviderV1) SetLaunchURLs(launchURLs []string) {
+	s.Spec.LaunchURLs = launchURLs
+}
+
 // String returns the SAML IdP service provider string representation.
 func (s *SAMLIdPServiceProviderV1) String() string {
 	return fmt.Sprintf("SAMLIdPServiceProviderV1(Name=%v)",
@@ -284,6 +299,16 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 			return trace.Wrap(ErrDuplicateAttributeName)
 		}
 		attrNames[attributeMap.Name] = struct{}{}
+	}
+
+	for _, launchURL := range s.Spec.LaunchURLs {
+		endpoint, err := url.Parse(launchURL)
+		switch {
+		case err != nil:
+			return trace.BadParameter("launch URL %q could not be parsed: %v", launchURL, err)
+		case endpoint.Scheme != "https":
+			return trace.BadParameter("invalid scheme %q in launch URL %q (must be 'https')", endpoint.Scheme, launchURL)
+		}
 	}
 
 	if ok := s.checkAndSetPresetDefaults(s.Spec.Preset); !ok {
@@ -362,7 +387,7 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 // preset can be either empty or one of the supported type.
 func (s *SAMLIdPServiceProviderV1) checkAndSetPresetDefaults(preset string) bool {
 	switch preset {
-	case "":
+	case "", samlsp.Unspecified, samlsp.AWSIdentityCenter:
 		return true
 	case samlsp.GCPWorkforce:
 		if s.GetRelayState() == "" {

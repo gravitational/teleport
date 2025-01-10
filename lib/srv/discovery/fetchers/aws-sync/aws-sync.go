@@ -20,15 +20,23 @@ package aws_sync
 
 import (
 	"context"
+	"reflect"
 	"sync"
+	"time"
 
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
 
 // pageSize is the default page size to use when fetching AWS resources
@@ -39,6 +47,10 @@ const pageSize int64 = 500
 type Config struct {
 	// CloudClients is the cloud clients to use when fetching AWS resources.
 	CloudClients cloud.Clients
+	// GetEKSClient gets an AWS EKS client for the given region.
+	GetEKSClient EKSClientGetter
+	// GetEC2Client gets an AWS EC2 client for the given region.
+	GetEC2Client server.EC2ClientGetter
 	// AccountID is the AWS account ID to use when fetching resources.
 	AccountID string
 	// Regions is the list of AWS regions to fetch resources from.
@@ -47,6 +59,8 @@ type Config struct {
 	AssumeRole *AssumeRole
 	// Integration is the name of the AWS integration to use when fetching resources.
 	Integration string
+	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
+	DiscoveryConfigName string
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
@@ -60,12 +74,23 @@ type AssumeRole struct {
 // awsFetcher is a fetcher that fetches AWS resources.
 type awsFetcher struct {
 	Config
+	lastError               error
+	lastDiscoveredResources uint64
+	lastResult              *Resources
 }
 
 // AWSSync is the interface for fetching AWS resources.
 type AWSSync interface {
 	// Poll polls all AWS resources and returns the result.
 	Poll(context.Context, Features) (*Resources, error)
+	// Status reports the last known status of the fetcher.
+	Status() (uint64, error)
+	// DiscoveryConfigName returns the name of the Discovery Config.
+	DiscoveryConfigName() string
+	// IsFromDiscoveryConfig returns true if the fetcher is associated with a Discovery Config.
+	IsFromDiscoveryConfig() bool
+	// GetAccountID returns the AWS account ID.
+	GetAccountID() string
 }
 
 // Resources is a collection of polled AWS resources.
@@ -110,12 +135,58 @@ type Resources struct {
 	AccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1
 	// RDSDatabases is a list of RDS instances and clusters.
 	RDSDatabases []*accessgraphv1alpha.AWSRDSDatabaseV1
+	// SAMLProviders is a list of SAML providers.
+	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
+	// OIDCProviders is a list of OIDC providers.
+	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
+}
+
+func (r *Resources) count() int {
+	if r == nil {
+		return 0
+	}
+
+	elem := reflect.ValueOf(r).Elem()
+	sum := 0
+	for i := 0; i < elem.NumField(); i++ {
+		field := elem.Field(i)
+		if field.IsValid() {
+			switch field.Kind() {
+			case reflect.Slice:
+				sum += field.Len()
+			}
+		}
+	}
+	return sum
+}
+
+// UsageReport returns a usage report based on the resources.
+func (r *Resources) UsageReport(numberAccounts int) *usageeventsv1.AccessGraphAWSScanEvent {
+	if r == nil {
+		return &usageeventsv1.AccessGraphAWSScanEvent{
+			TotalAccounts: uint64(numberAccounts),
+		}
+	}
+	return &usageeventsv1.AccessGraphAWSScanEvent{
+		TotalEc2Instances:  uint64(len(r.Instances)),
+		TotalUsers:         uint64(len(r.Users)),
+		TotalGroups:        uint64(len(r.Groups)),
+		TotalRoles:         uint64(len(r.Roles)),
+		TotalPolicies:      uint64(len(r.Policies)),
+		TotalEksClusters:   uint64(len(r.EKSClusters)),
+		TotalRdsInstances:  uint64(len(r.RDSDatabases)),
+		TotalS3Buckets:     uint64(len(r.S3Buckets)),
+		TotalSamlProviders: uint64(len(r.SAMLProviders)),
+		TotalOidcProviders: uint64(len(r.OIDCProviders)),
+		TotalAccounts:      uint64(numberAccounts),
+	}
 }
 
 // NewAWSFetcher creates a new AWS fetcher.
 func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 	a := &awsFetcher{
-		Config: cfg,
+		Config:     cfg,
+		lastResult: &Resources{},
 	}
 	accountID, err := a.getAccountId(context.Background())
 	if err != nil {
@@ -131,7 +202,22 @@ func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 // if some resources were fetched successfully and some were not.
 func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
 	result, err := a.poll(ctx, features)
+	deduplicateResources(result)
+	a.storeReport(result, err)
 	return result, trace.Wrap(err)
+}
+
+func (a *awsFetcher) storeReport(rec *Resources, err error) {
+	a.lastError = err
+	if rec == nil {
+		return
+	}
+	a.lastResult = rec
+	a.lastDiscoveredResources = uint64(rec.count())
+}
+
+func (a *awsFetcher) GetAccountID() string {
+	return a.AccountID
 }
 
 func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {
@@ -159,7 +245,7 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 	// - attached policies
 	// - user groups they are members of
 	if features.Users {
-		eGroup.Go(a.pollAWSUsers(ctx, result, collectErr))
+		eGroup.Go(a.pollAWSUsers(ctx, result, a.lastResult, collectErr))
 	}
 
 	// fetch AWS groups and their associated resources.
@@ -202,6 +288,11 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 		eGroup.Go(a.pollAWSRDSDatabases(ctx, result, collectErr))
 	}
 
+	if features.IDP {
+		eGroup.Go(a.pollAWSSAMLProviders(ctx, result, collectErr))
+		eGroup.Go(a.pollAWSOIDCProviders(ctx, result, collectErr))
+	}
+
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -210,14 +301,49 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 
 // getAWSOptions returns a list of AWSAssumeRoleOptionFn to be used when
 // creating AWS clients.
-func (a *awsFetcher) getAWSOptions() []cloud.AWSAssumeRoleOptionFn {
-	opts := []cloud.AWSAssumeRoleOptionFn{
+func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
+	opts := []cloud.AWSOptionsFn{
 		cloud.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
 
 	if a.Config.AssumeRole != nil {
 		opts = append(opts, cloud.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
 	}
+	const maxRetries = 10
+	opts = append(opts,
+		cloud.WithMaxRetries(maxRetries),
+		cloud.WithRetryer(
+			client.DefaultRetryer{
+				NumMaxRetries:    maxRetries,
+				MinRetryDelay:    time.Second,
+				MinThrottleDelay: time.Second,
+				MaxRetryDelay:    300 * time.Second,
+				MaxThrottleDelay: 300 * time.Second,
+			},
+		),
+	)
+
+	return opts
+}
+
+// getAWSV2Options returns a list of options to be used when
+// creating AWS clients with the v2 sdk.
+func (a *awsFetcher) getAWSV2Options() []awsconfig.OptionsFn {
+	opts := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
+	}
+
+	if a.Config.AssumeRole != nil {
+		opts = append(opts, awsconfig.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
+	}
+	const maxRetries = 10
+	opts = append(opts, awsconfig.WithRetryer(func() awsv2.Retryer {
+		return retry.NewStandard(func(so *retry.StandardOptions) {
+			so.MaxAttempts = maxRetries
+			so.Backoff = retry.NewExponentialJitterBackoff(300 * time.Second)
+		})
+	}))
+
 	return opts
 }
 
@@ -238,4 +364,16 @@ func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
 	}
 
 	return aws.StringValue(req.Account), nil
+}
+
+func (a *awsFetcher) DiscoveryConfigName() string {
+	return a.Config.DiscoveryConfigName
+}
+
+func (a *awsFetcher) IsFromDiscoveryConfig() bool {
+	return a.Config.DiscoveryConfigName != ""
+}
+
+func (a *awsFetcher) Status() (uint64, error) {
+	return a.lastDiscoveredResources, a.lastError
 }

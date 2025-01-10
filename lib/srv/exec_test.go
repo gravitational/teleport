@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -39,7 +40,7 @@ import (
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-
+	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if IsReexec() {
@@ -63,12 +64,12 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	rec, ok := scx.session.recorder.(*mockRecorder)
 	require.True(t, ok)
 
+	scx.GetServer().TargetMetadata()
+
 	expectedUsr, err := user.Current()
 	require.NoError(t, err)
-	expectedHostname, err := os.Hostname()
-	if err != nil {
-		expectedHostname = "localhost"
-	}
+	expectedHostname := "testHost"
+
 	expectedMeta := apievents.UserMetadata{
 		User:                 "teleportUser",
 		Login:                expectedUsr.Username,
@@ -115,7 +116,8 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, tt.outCommand, execEvent.Command)
 		require.Equal(t, tt.outCode, execEvent.ExitCode)
 		require.Equal(t, expectedMeta, execEvent.UserMetadata)
-		require.Equal(t, "testHostUUID", execEvent.ServerID)
+		require.Equal(t, "123", execEvent.ServerID)
+		require.Equal(t, "abc", execEvent.ForwardedBy)
 		require.Equal(t, expectedHostname, execEvent.ServerHostname)
 		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
 		require.Equal(t, "xxx", execEvent.SessionID)

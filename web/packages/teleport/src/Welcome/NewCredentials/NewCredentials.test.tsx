@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { render, screen } from 'design/utils/testing';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { render, screen } from 'design/utils/testing';
-import React from 'react';
-
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
-import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials/types';
-import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
+import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials/types';
 
 const attempt: Attempt = { status: '' };
 const failedAttempt: Attempt = { status: 'failed' };
@@ -49,6 +47,7 @@ const makeProps = (): NewCredentialsProps => {
     submitAttempt: attempt,
     clearSubmitAttempt: () => {},
     onSubmit: () => {},
+    createNewWebAuthnDevice: () => {},
     onSubmitWithWebauthn: () => {},
     resetToken: resetToken,
     recoveryCodes: recoveryCodes,
@@ -114,7 +113,9 @@ test('renders credential flow for passwordless', () => {
   props.primaryAuthType = 'passwordless';
   render(<NewCredentials {...props} />);
 
-  expect(screen.getByText(/Set A Passwordless Device/i)).toBeInTheDocument();
+  expect(
+    screen.getByText(/Set up Passwordless Authentication/i)
+  ).toBeInTheDocument();
 });
 
 test('renders credential flow for local', () => {

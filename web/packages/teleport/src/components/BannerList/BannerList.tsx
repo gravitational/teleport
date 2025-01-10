@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { Box } from 'design';
 
-import { Banner } from './Banner';
-
-import type { Severity } from './Banner';
-import type { ReactNode } from 'react';
+import { StandardBanner, type Severity } from './StandardBanner';
 
 export const BannerList = ({
   banners = [],
@@ -57,12 +54,13 @@ export const BannerList = ({
   return (
     <Box>
       {shownBanners.map(banner => (
-        <Banner
+        <StandardBanner
           message={banner.message}
           severity={banner.severity}
           id={banner.id}
-          link={banner.link}
-          onClose={removeBanner}
+          link={banner.linkDestination}
+          linkText={banner.linkText}
+          onDismiss={() => removeBanner(banner.id)}
           key={banner.id}
         />
       ))}
@@ -83,6 +81,7 @@ export type BannerType = {
   message: string;
   severity: Severity;
   id: string;
-  link?: string;
+  linkDestination?: string;
+  linkText?: string;
   hidden?: boolean;
 };

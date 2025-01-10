@@ -20,10 +20,10 @@ package sqlserver
 
 import (
 	"context"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -38,7 +38,7 @@ type Proxy struct {
 	// Service is used to connect to a remote database service.
 	Service common.Service
 	// Log is used for logging.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 }
 
 // HandleConnection accepts connection from a SQL Server client, authenticates

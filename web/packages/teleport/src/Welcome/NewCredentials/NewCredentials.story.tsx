@@ -16,10 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
-
+import { WelcomeWrapper } from 'teleport/components/Onboard';
 import {
   NewMfaDevice,
   NewMfaDeviceProps,
@@ -53,6 +50,15 @@ export const PrimaryPasswordWithMfa = () =>
 export const PrimaryPasswordlessNoMfa = () =>
   renderNewCredentials({ primaryAuthType: 'passwordless' });
 
+export const PrimaryPasswordlessPasskeyCreated = () =>
+  renderNewCredentials({
+    primaryAuthType: 'passwordless',
+    credential: {
+      id: 'some-credential',
+      type: 'public-key',
+    },
+  });
+
 export const PrimaryPasswordlessWithMfa = () =>
   renderNewCredentials({
     primaryAuthType: 'passwordless',
@@ -71,21 +77,40 @@ export const PrimaryPasswordlessError = () =>
 export const MfaDeviceOtp = () =>
   renderMfaFlow({
     auth2faType: 'otp',
+    stepIndex: 1,
+    flowLength: 2,
   });
 
 export const MfaDeviceWebauthn = () =>
   renderMfaFlow({
     auth2faType: 'webauthn',
+    stepIndex: 1,
+    flowLength: 2,
+  });
+
+export const MfaDeviceWebauthnKeyCreated = () =>
+  renderMfaFlow({
+    auth2faType: 'webauthn',
+    credential: {
+      id: 'some-credential',
+      type: 'public-key',
+    },
+    stepIndex: 1,
+    flowLength: 2,
   });
 
 export const MfaDeviceOptional = () =>
   renderMfaFlow({
     auth2faType: 'optional',
+    stepIndex: 1,
+    flowLength: 2,
   });
 
 export const MfaDeviceOn = () =>
   renderMfaFlow({
     auth2faType: 'on',
+    stepIndex: 1,
+    flowLength: 2,
   });
 
 export const MfaDeviceError = () =>
@@ -95,6 +120,8 @@ export const MfaDeviceError = () =>
       status: 'failed',
       statusText: 'some server error message',
     },
+    stepIndex: 1,
+    flowLength: 2,
   });
 
 export const ExpiredInvite = () =>
@@ -184,6 +211,7 @@ const makeNewCredProps = (
       clearSubmitAttempt: () => null,
       fetchAttempt: { status: 'success' },
       onSubmitWithWebauthn: () => null,
+      createNewWebAuthnDevice: () => null,
       onSubmit: () => null,
       redirect: () => null,
       success: false,
@@ -271,7 +299,7 @@ const renderNewCredentials = (partialProps: Partial<NewCredentialsProps>) => {
  * @param partialProps - partial NewCredentialProps to override default values on individual stories
  *
  */
-const renderMfaFlow = (partialProps: Partial<NewCredentialsProps>) => {
+const renderMfaFlow = (partialProps: Partial<NewMfaDeviceProps>) => {
   const props = makeNewMfaDeviceProps(partialProps);
 
   return (

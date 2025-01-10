@@ -16,60 +16,142 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { storiesOf } from '@storybook/react';
-import { Flex } from 'design';
+import { useEffect, useRef } from 'react';
+import styled from 'styled-components';
+
+import { Flex, H3 } from 'design';
 
 import { MenuLogin } from './MenuLogin';
-import { MenuLoginHandle } from './types';
+import { LoginItem, MenuLoginHandle } from './types';
 
-storiesOf('Shared/MenuLogin', module).add('MenuLogin', () => {
-  return <MenuLoginExamples />;
-});
+export default {
+  title: 'Shared/MenuLogin',
+};
 
-export function MenuLoginExamples() {
+export const MenuLoginStory = () => <MenuLoginExamples />;
+
+function MenuLoginExamples() {
   return (
     <Flex
-      width="400px"
-      height="100px"
-      alignItems="center"
-      justifyContent="space-around"
+      inline
+      p={4}
+      gap="128px"
+      justifyContent="flex-start"
       bg="levels.surface"
     >
-      <MenuLogin
-        getLoginItems={() => []}
-        onSelect={() => null}
-        placeholder="Please provide user name…"
-      />
-      <MenuLogin
-        getLoginItems={() => new Promise(() => {})}
-        placeholder="MenuLogin in processing state"
-        onSelect={() => null}
-      />
-      <SampleMenu />
+      <Example>
+        <H3>No logins</H3>
+        <MenuLogin
+          getLoginItems={() => []}
+          onSelect={() => null}
+          placeholder="Please provide user name…"
+        />
+      </Example>
+      <Example>
+        <H3>Processing state</H3>
+        <MenuLogin
+          getLoginItems={() => new Promise(() => {})}
+          placeholder="MenuLogin in processing state"
+          onSelect={() => null}
+        />
+      </Example>
+      <Example>
+        <H3>With logins</H3>
+        <SampleMenu loginItems={loginItems} open />
+      </Example>
+      <Example>
+        <H3>With a lot of logins</H3>
+        <SampleMenu loginItems={aLotOfLoginItems} />
+      </Example>
     </Flex>
   );
 }
 
-class SampleMenu extends React.Component {
-  menuRef = React.createRef<MenuLoginHandle>();
+const Example = styled(Flex).attrs({
+  gap: 2,
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+})``;
 
-  componentDidMount() {
-    this.menuRef.current.open();
-  }
+const SampleMenu = ({
+  loginItems,
+  open = false,
+}: {
+  loginItems: LoginItem[];
+  open?: boolean;
+}) => {
+  const menuRef = useRef<MenuLoginHandle>();
 
-  render() {
-    return (
-      <MenuLogin
-        ref={this.menuRef}
-        getLoginItems={() => loginItems}
-        onSelect={() => null}
-      />
-    );
-  }
-}
+  useEffect(() => {
+    if (open) {
+      menuRef.current.open();
+    }
+  }, [open]);
 
-const loginItems = ['root', 'jazrafiba', 'evubale', 'ipizodu'].map(login => ({
-  url: '',
-  login,
-}));
+  return (
+    <MenuLogin
+      ref={menuRef}
+      getLoginItems={() => loginItems}
+      onSelect={() => null}
+    />
+  );
+};
+
+const makeLoginItem = (login: string) => ({ url: '', login });
+
+const loginItems = ['root', 'jazrafiba', 'evubale', 'ipizodu'].map(
+  makeLoginItem
+);
+const aLotOfLoginItems = [
+  'root',
+  'nyvpr@freire42.arg',
+  'obo@qngnubfg.pb',
+  'puneyvr@zlqbznva.bet',
+  'qnir@erzbgrobk.pbz',
+  'rir@flfgrzyvax.qri',
+  'senax@pybhqlfcnpr.vb',
+  'tenpr@grpuuho.hf',
+  'unax@frpherybtva.ovm',
+  'vil@argpbaarpg.gi',
+  'wvyy@fnsrnpprff.ceb',
+  'xra@erzbgryno.pb',
+  'yran@qribcf.pybhq',
+  'zvxr@ulcreabqr.bet',
+  'avan@ybtzrva.klm',
+  'bfpne@frpherubfg.arg',
+  'cnhy@dhvpxpbaarpg.pb',
+  'dhvaa@yvaxzr.ceb',
+  'ehgu@snfgqngn.vb',
+  'fgrir@npprffcbvag.qri',
+  'gvan@pbzchgryvax.hf',
+  'htb@frphercbeg.ovm',
+  'iren@freirenpprff.gi',
+  'jnyg@ybtvafgngvba.pbz',
+  'kran@fnsrubfg.arg',
+  'lhev@erzbgrfreire.pb',
+  'mnen@pbaarpgyvax.vb',
+  'nqnz@ploreabqr.pybhq',
+  'orgu@flfgrztngr.bet',
+  'pney@snfgybtva.ceb',
+  'qvan@qngnjbeyq.ovm',
+  'rq@ybtoevqtr.gi',
+  'snl@frpherjnl.qri',
+  'tvy@grpunpprff.hf',
+  'uny@erzbgryvax.arg',
+  'vqn@freirecbvag.pbz',
+  'wnxr@pbaarpgceb.vb',
+  'xnen@ybtfgngvba.bet',
+  'yrb@npprffarg.pb',
+  'znln@ploreyvax.gi',
+  'abnu@erzbgrfcnpr.ovm',
+  'bytn@frpherqngn.ceb',
+  'crgr@dhvpxabqr.qri',
+  'dhvaa@flfgrznpprff.hf',
+  'eurn@ybtabqr.pbz',
+  'fnen@erzbgrnpprff.arg',
+  'gbz@pybhqfgngvba.pb',
+  'hefhyn@ulcreyvax.vb',
+  'ivp@frpheryvax.gi',
+  'jvyy@freiretngr.ceb',
+  'last@item.com',
+].map(makeLoginItem);

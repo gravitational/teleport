@@ -38,7 +38,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -53,10 +52,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -68,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -117,7 +115,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	rCfg.Listeners = options.rootClusterListeners(t, &rCfg.Fds)
 	rc := helpers.NewInstance(t, rCfg)
@@ -129,7 +127,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
@@ -186,7 +184,8 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 	}
 
 	if options.trustedCluster != nil {
-		helpers.TryCreateTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster)
+		const skipNameValidation = false
+		helpers.TryUpsertTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster, skipNameValidation)
 		helpers.WaitForTunnelConnections(t, suite.root.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
 	}
 
@@ -197,7 +196,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 	nodeConfig := func() *servicecfg.Config {
 		tconf := servicecfg.MakeDefaultConfig()
 		tconf.Console = nil
-		tconf.Log = utils.NewLoggerForTests()
+		tconf.Logger = utils.NewSlogLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
 		tconf.SetAuthServerAddress(utils.NetAddr{
@@ -218,7 +217,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = helpers.WaitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
+	err = p.root.WaitForNodeCount(context.Background(), p.leaf.Secrets.SiteName, 2)
 	require.NoError(t, err)
 }
 
@@ -237,7 +236,7 @@ func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helper
 
 	cmd := []string{"echo", "hello world"}
 	err = retryutils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(context.TODO(), cmd)
 		return trace.Wrap(err)
 	})
 	require.NoError(t, err)
@@ -530,12 +529,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	})
 
 	go func() {
-		var err error
-		if config.HTTPMiddleware == nil {
-			err = lp.Start(context.Background())
-		} else {
-			err = lp.StartHTTPAccessProxy(context.Background())
-		}
+		err := lp.Start(context.Background())
 		assert.NoError(t, err)
 	}()
 	return lp
@@ -571,6 +565,7 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 			return tls.Certificate{}, nil
 		},
+		CloseContext: context.Background(),
 	})
 }
 
@@ -657,24 +652,17 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 	t.Setenv("AWS_SESSION_TOKEN", cred.SessionToken)
 	t.Setenv("AWS_REGION", "us-west-2")
 
-	privateKey, err := ssh.ParseRawPrivateKey([]byte(fixtures.SSHCAPrivateKey))
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
 	node := uuid.NewString()
-	_, err = auth.Register(auth.RegisterParams{
+	_, err = join.Register(context.TODO(), join.RegisterParams{
 		Token: token,
-		ID: auth.IdentityID{
+		ID: state.IdentityID{
 			Role:     types.RoleNode,
 			HostUUID: node,
 			NodeName: node,
 		},
-		ProxyServer:  proxyAddr,
-		JoinMethod:   types.JoinMethodIAM,
-		PublicTLSKey: pubTLS,
-		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
-		Insecure:     lib.IsInsecureDevMode(),
+		ProxyServer: proxyAddr,
+		JoinMethod:  types.JoinMethodIAM,
+		Insecure:    lib.IsInsecureDevMode(),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }

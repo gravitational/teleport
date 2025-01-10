@@ -31,12 +31,9 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -69,15 +66,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
 
-	// Attach CSRF token in cookie and header.
-	csrfToken, err := utils.CryptoRandomHex(32)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{
@@ -175,7 +164,7 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 
 	q := u.Query()
 	q.Set("params", string(data))
-	q.Set(roundtrip.AccessTokenQueryParam, w.bearerToken)
+	q.Set(roundtrip.AuthBearer, w.bearerToken)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -193,5 +182,16 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 	header.Add("Cookie", cookie.String())
 
 	ws, resp, err := dialer.Dial(u.String(), header)
-	return ws, resp, trace.Wrap(err)
+	require.NoError(t, err)
+
+	authReq, err := json.Marshal(struct {
+		Token string `json:"token"`
+	}{Token: w.bearerToken})
+	require.NoError(t, err)
+
+	if err := ws.WriteMessage(websocket.TextMessage, authReq); err != nil {
+		return nil, nil, err
+	}
+
+	return ws, resp, nil
 }

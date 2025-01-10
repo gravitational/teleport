@@ -1,0 +1,79 @@
+---
+title: Diagnostics Service
+description: Reference information for the `tbot` diagnostics service.
+---
+
+The `tbot` process can optionally expose a diagnostics service. This is
+disabled by default, but once enabled, allows useful information about the
+running `tbot` process to be queried via HTTP.
+
+## Configuration
+
+To enable the diagnostics service, you must specify an address and port for
+it to listen on.
+
+For security reasons, you should ensure that access to this listener is
+restricted. In most cases, the most secure thing to do is to bind the listener
+to `127.0.0.1`, which will only allow access from the local machine.
+
+You can configure the diagnostics service using the `--diag-addr` CLI parameter:
+
+```code
+$ tbot start -c my-config.yaml --diag-addr 127.0.0.1:3001
+```
+
+Or directly within the configuration file using `diag_addr`:
+
+```yaml
+diag_addr: 127.0.0.1:3001
+```
+
+## Endpoints
+
+The diagnostics service exposes the following HTTP endpoints.
+
+### `/livez`
+
+The `/livez` endpoint always returns with a 200 status code. This can be used
+to determine if the `tbot` process is running and has not crashed or hung.
+
+If deploying to Kubernetes, we recommend this endpoint is used for your
+Liveness Probe.
+
+### `/readyz`
+
+The `/readyz` endpoint currently returns the same information as `/livez`.
+
+In the future, this endpoint will be expanded to indicate whether the internal
+components of `tbot` have been able to generate certificates and are ready
+to serve requests.
+
+### `/metrics`
+
+The `/metrics` endpoint returns a Prometheus-compatible metrics snapshot.
+
+The metrics provided by the Go runtime are exposed and these can be used for
+monitoring the overall health of the `tbot` process. In addition, certain
+outputs and services configured in `tbot` will produce metrics.
+
+#### `ssh-multiplexer`
+
+The SSH multiplexer service exposes metrics about the number of active SSH
+connections:
+
+- `tbot_ssh_multiplexer_requests_started_total`: the total number of SSH
+   connections that have been started.
+- `tbot_ssh_multiplexer_requests_handled_total`: the total number of SSH
+   connections that have been handled. This has a `status` label with the
+   following values: `OK` or `ERROR`.
+- `tbot_ssh_multiplexer_requests_in_flight`: the number of SSH connections
+   currently in progress.
+
+### `/debug/pprof`
+
+These endpoints allow the collection of pprof profiles for debugging purposes.
+You may be asked by a Teleport engineer to collect these if you are experiencing
+performance issues.
+
+They will only be enabled if the `-d`/`--debug` flag is provided when starting
+`tbot`. This is known as **debug mode**.

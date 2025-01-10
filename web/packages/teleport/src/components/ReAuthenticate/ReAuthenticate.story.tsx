@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import {
+  MFA_OPTION_SSO_DEFAULT,
+  MFA_OPTION_TOTP,
+  MFA_OPTION_WEBAUTHN,
+} from 'teleport/services/mfa';
 
-import { State } from './useReAuthenticate';
-import { ReAuthenticate } from './ReAuthenticate';
+import { ReAuthenticate, State } from './ReAuthenticate';
+import { ReauthState } from './useReAuthenticate';
 
 export default {
   title: 'Teleport/ReAuthenticate',
@@ -30,24 +34,38 @@ export default {
 export const Loaded = () => <ReAuthenticate {...props} />;
 
 export const Processing = () => (
-  <ReAuthenticate {...props} attempt={{ status: 'processing' }} />
+  <ReAuthenticate
+    {...props}
+    reauthState={{
+      ...props.reauthState,
+      submitAttempt: { status: 'processing', data: null, statusText: '' },
+    }}
+  />
 );
 
 export const Failed = () => (
   <ReAuthenticate
     {...props}
-    attempt={{ status: 'failed', statusText: 'an error has occurred' }}
+    reauthState={{
+      ...props.reauthState,
+      submitAttempt: {
+        status: 'error',
+        data: null,
+        error: new Error('an error has occurred'),
+        statusText: 'an error has occurred',
+      },
+    }}
   />
 );
 
 const props: State = {
-  attempt: { status: '' },
-  clearAttempt: () => null,
-  submitWithTotp: () => null,
-  submitWithWebauthn: () => null,
-  preferredMfaType: 'webauthn',
+  reauthState: {
+    initAttempt: { status: 'success' },
+    mfaOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP, MFA_OPTION_SSO_DEFAULT],
+    submitWithMfa: async () => null,
+    submitAttempt: makeEmptyAttempt(),
+    clearSubmitAttempt: () => {},
+  } as ReauthState,
+
   onClose: () => null,
-  auth2faType: 'on',
-  actionText: 'performing this action',
-  challengeScope: MfaChallengeScope.UNSPECIFIED,
 };

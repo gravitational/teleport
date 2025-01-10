@@ -4,6 +4,8 @@ metadata:
   name:
   region:
   version: "1.29"
+  tags:
+    teleport.dev/creator:
 
 iam:
   withOIDC: true
@@ -16,5 +18,7 @@ addons:
 managedNodeGroups:
   - name:
     instanceType: m5.4xlarge
-    minSize: 2
+    minSize: 3
     maxSize: 10
+    tags:
+      teleport.dev/creator:

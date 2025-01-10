@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/state"
 )
 
 var (
@@ -150,7 +150,7 @@ func (s *SSHD) UpdateConfig(u SSHDConfigUpdate, restart bool) error {
 
 // WriteKeys writes the OpenSSH keys and CA from the Identity and the
 // OpenSSH CA to disk for the OpenSSH daemon to use
-func WriteKeys(keysdir string, id *auth.Identity, cas []types.CertAuthority) error {
+func WriteKeys(keysdir string, id *state.Identity, cas []types.CertAuthority) error {
 	if err := os.MkdirAll(keysdir, 0o755); err != nil {
 		return trace.ConvertSystemError(err)
 	}

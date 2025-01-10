@@ -95,24 +95,28 @@ func TestExtractCredFromAuthHeader(t *testing.T) {
 // TestFilterAWSRoles verifies filtering AWS role ARNs by AWS account ID.
 func TestFilterAWSRoles(t *testing.T) {
 	acc1ARN1 := Role{
-		ARN:     "arn:aws:iam::123456789012:role/EC2FullAccess",
-		Display: "EC2FullAccess",
-		Name:    "EC2FullAccess",
+		ARN:       "arn:aws:iam::123456789012:role/EC2FullAccess",
+		Display:   "EC2FullAccess",
+		Name:      "EC2FullAccess",
+		AccountID: "123456789012",
 	}
 	acc1ARN2 := Role{
-		ARN:     "arn:aws:iam::123456789012:role/EC2ReadOnly",
-		Display: "EC2ReadOnly",
-		Name:    "EC2ReadOnly",
+		ARN:       "arn:aws:iam::123456789012:role/EC2ReadOnly",
+		Display:   "EC2ReadOnly",
+		Name:      "EC2ReadOnly",
+		AccountID: "123456789012",
 	}
 	acc1ARN3 := Role{
-		ARN:     "arn:aws:iam::123456789012:role/path/to/customrole",
-		Display: "customrole",
-		Name:    "path/to/customrole",
+		ARN:       "arn:aws:iam::123456789012:role/path/to/customrole",
+		Display:   "customrole",
+		Name:      "path/to/customrole",
+		AccountID: "123456789012",
 	}
 	acc2ARN1 := Role{
-		ARN:     "arn:aws:iam::210987654321:role/test-role",
-		Display: "test-role",
-		Name:    "test-role",
+		ARN:       "arn:aws:iam::210987654321:role/test-role",
+		Display:   "test-role",
+		Name:      "test-role",
+		AccountID: "210987654321",
 	}
 	invalidARN := Role{
 		ARN: "invalid-arn",
@@ -486,6 +490,36 @@ func TestResourceARN(t *testing.T) {
 			case "policy":
 				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
 			}
+		})
+	}
+}
+
+func TestMaybeHashRoleSessionName(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		role     string
+		expected string
+	}{
+		{
+			name:     "role session name not hashed, less than 64 characters",
+			role:     "MyRole",
+			expected: "MyRole",
+		},
+		{
+			name:     "role session name not hashed, exactly 64 characters",
+			role:     "Role123456789012345678901234567890123456789012345678901234567890",
+			expected: "Role123456789012345678901234567890123456789012345678901234567890",
+		},
+		{
+			name:     "role session name hashed, longer than 64 characters",
+			role:     "remote-raimundo.oliveira@abigcompany.com-teleport.abigcompany.com",
+			expected: "remote-raimundo.oliveira@abigcompany.com-telepo-8fe1f87e599b043e",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := MaybeHashRoleSessionName(tt.role)
+			require.Equal(t, tt.expected, actual)
+			require.LessOrEqual(t, len(actual), MaxRoleSessionNameLength)
 		})
 	}
 }

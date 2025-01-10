@@ -24,7 +24,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -33,9 +35,9 @@ import (
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/linux"
 )
@@ -103,9 +105,10 @@ func rewriteTPMPermissionError(err error) error {
 	if !errors.As(err, &pathErr) || pathErr.Path != "/dev/tpmrm0" {
 		return err
 	}
-	log.
-		WithError(err).
-		Debug("TPM: Replacing TPM permission error with a more friendly one")
+	slog.DebugContext(context.Background(), "Replacing TPM permission error with a more friendly one",
+		teleport.ComponentKey, "TPM",
+		"error", err,
+	)
 
 	return errors.New("" +
 		"Failed to open the TPM device. " +
@@ -140,7 +143,10 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 	go func() {
 		osRelease, err := cddFuncs.parseOSRelease()
 		if err != nil {
-			log.WithError(err).Debug("TPM: Failed to parse /etc/os-release file")
+			slog.DebugContext(context.Background(), "Failed to parse /etc/os-release file",
+				teleport.ComponentKey, "TPM",
+				"error", err,
+			)
 			// err swallowed on purpose.
 
 			osRelease = &linux.OSRelease{}
@@ -186,26 +192,29 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 }
 
 func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
+	ctx := context.Background()
+	logger := slog.With(teleport.ComponentKey, "TPM")
+
 	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
 	if err == nil {
 		return dmiInfo, nil
 	}
 
-	log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
+	logger.WarnContext(ctx, "Failed to read device model and/or serial numbers", "error", err)
 	if !errors.Is(err, fs.ErrPermission) {
 		return dmiInfo, nil // original info
 	}
 
 	switch mode {
 	case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
-		log.Debug("TPM: Reading cached DMI info")
+		logger.DebugContext(ctx, "Reading cached DMI info")
 
 		dmiCached, err := cddFuncs.readDMIInfoCached()
 		if err == nil {
 			return dmiCached, nil // successful cache hit
 		}
 
-		log.WithError(err).Debug("TPM: Failed to read cached DMI info")
+		logger.DebugContext(ctx, "Failed to read cached DMI info", "error", err)
 		if mode == CollectedDataNeverEscalate {
 			return dmiInfo, nil // original info
 		}
@@ -213,7 +222,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		fallthrough
 
 	case CollectedDataAlwaysEscalate:
-		log.Debug("TPM: Running escalated `tsh device dmi-info`")
+		logger.DebugContext(ctx, "Running escalated `tsh device dmi-info`")
 
 		dmiInfo, err = cddFuncs.readDMIInfoEscalated()
 		if err != nil {
@@ -221,7 +230,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		}
 
 		if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
-			log.WithError(err).Warn("TPM: Failed to write DMI cache")
+			logger.WarnContext(ctx, "Failed to write DMI cache", "error", err)
 			// err swallowed on purpose.
 		}
 	}
@@ -235,15 +244,25 @@ func readDMIInfoCached() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err, "setting up state dir")
 	}
 
-	f, err := os.Open(stateDir.dmiJSONPath)
+	path := stateDir.dmiJSONPath
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer f.Close()
 
 	var dmiInfo linux.DMIInfo
-	err = json.NewDecoder(f).Decode(&dmiInfo)
-	return &dmiInfo, trace.Wrap(err)
+	const cachedFileLimitBytes = 1024 * 1024 // 1MB should be plenty
+	dec := json.NewDecoder(io.LimitReader(f, cachedFileLimitBytes))
+	if err := dec.Decode(&dmiInfo); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if dec.More() {
+		slog.WarnContext(context.Background(), "DMI cache file contains multiple JSON entries, only one expected", "path", path)
+		// Warn but keep going.
+	}
+
+	return &dmiInfo, nil
 }
 
 func readDMIInfoEscalated() (*linux.DMIInfo, error) {
@@ -307,7 +326,7 @@ func saveDMIInfoToCache(dmiInfo *linux.DMIInfo) error {
 	if err := f.Close(); err != nil {
 		return trace.Wrap(err, "closing dmi.json after write")
 	}
-	log.Debug("TPM: Saved DMI information to local cache")
+	slog.DebugContext(context.Background(), "Saved DMI information to local cache", teleport.ComponentKey, "TPM")
 
 	return nil
 }

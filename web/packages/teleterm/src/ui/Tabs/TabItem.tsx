@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import styled from 'styled-components';
-import * as Icons from 'design/Icon';
-import { ButtonIcon, Text } from 'design';
 
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { ButtonIcon, Text } from 'design';
+import * as Icons from 'design/Icon';
+
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import { useTabDnD } from './useTabDnD';
 
@@ -137,7 +138,12 @@ const RelativeContainer = styled.div`
   height: 100%;
 `;
 
-const TabContent = styled.div`
+const TabContent = styled.div<{
+  dragging?: boolean;
+  active?: boolean;
+  // TODO(bl-nero): is this really used? Perhaps remove it.
+  canDrag?: boolean;
+}>`
   display: flex;
   z-index: 1; // covers shadow from the top
   align-items: center;

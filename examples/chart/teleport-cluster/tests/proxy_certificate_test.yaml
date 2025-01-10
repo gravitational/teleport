@@ -192,3 +192,23 @@ tests:
       - notEqual:
           path: spec.dnsNames[4]
           value: "teleport.test.com"
+
+  - it: sets extraLabels on Certificate Secret
+    values:
+      - ../.lint/cert-manager.yaml
+    set:
+      extraLabels:
+        certSecret:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          certSecret:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.secretTemplate.labels.foo
+          value: bar
+      - equal:
+          path: spec.secretTemplate.labels.baz
+          value: overridden

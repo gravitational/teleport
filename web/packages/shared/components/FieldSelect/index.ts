@@ -17,6 +17,12 @@
  */
 
 import FieldSelect from './FieldSelect';
-export default FieldSelect;
 
-export { FieldSelectCreatable } from './FieldSelectCreatable';
+export default FieldSelect;
+export { FieldSelect, FieldSelectAsync } from './FieldSelect';
+export { resolveUndefinedOptions } from './shared';
+
+export {
+  FieldSelectCreatable,
+  FieldSelectCreatableAsync,
+} from './FieldSelectCreatable';

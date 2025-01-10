@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
-import cfg, { UrlResourcesParams } from 'teleport/config';
 
-import { UnifiedResource, ResourcesResponse } from '../agents';
-
+import { ResourcesResponse, UnifiedResource } from '../agents';
+import { makeResource, makeResourceList, RoleResource } from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
-
-import { makeResource, makeResourceList } from './';
 
 class ResourceService {
   fetchTrustedClusters() {
@@ -56,10 +54,11 @@ class ResourceService {
       .then(res => makeResourceList<'github'>(res));
   }
 
-  fetchRoles() {
-    return api
-      .get(cfg.getRolesUrl())
-      .then(res => makeResourceList<'role'>(res));
+  async fetchRoles(params?: UrlListRolesParams): Promise<{
+    items: RoleResource[];
+    startKey: string;
+  }> {
+    return await api.get(cfg.getListRolesUrl(params));
   }
 
   fetchPresetRoles() {
@@ -76,7 +75,7 @@ class ResourceService {
 
   createRole(content: string) {
     return api
-      .post(cfg.getRolesUrl(), { content })
+      .post(cfg.getRoleUrl(), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -94,7 +93,7 @@ class ResourceService {
 
   updateRole(name: string, content: string) {
     return api
-      .put(cfg.getRolesUrl(name), { content })
+      .put(cfg.getRoleUrl(name), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -109,7 +108,7 @@ class ResourceService {
   }
 
   deleteRole(name: string) {
-    return api.delete(cfg.getRolesUrl(name));
+    return api.delete(cfg.getRoleUrl(name));
   }
 
   deleteGithubConnector(name: string) {

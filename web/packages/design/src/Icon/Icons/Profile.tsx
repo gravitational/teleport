@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Profile({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Profile = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-profile"
       {...otherProps}
+      ref={ref}
     >
       <path d="M13.5 10.5C13.5 10.0858 13.8358 9.75 14.25 9.75H18C18.4142 9.75 18.75 10.0858 18.75 10.5C18.75 10.9142 18.4142 11.25 18 11.25H14.25C13.8358 11.25 13.5 10.9142 13.5 10.5Z" />
       <path d="M13.5 13.5C13.5 13.0858 13.8358 12.75 14.25 12.75H18C18.4142 12.75 18.75 13.0858 18.75 13.5C18.75 13.9142 18.4142 14.25 18 14.25H14.25C13.8358 14.25 13.5 13.9142 13.5 13.5Z" />
@@ -71,5 +72,5 @@ export function Profile({ size = 24, color, ...otherProps }: IconProps) {
         d="M3.75 3.75C2.92157 3.75 2.25 4.42157 2.25 5.25V18.75C2.25 19.5784 2.92157 20.25 3.75 20.25H20.25C21.0784 20.25 21.75 19.5784 21.75 18.75V5.25C21.75 4.42157 21.0784 3.75 20.25 3.75H3.75ZM3.75 5.25H20.25V18.75H3.75V5.25Z"
       />
     </Icon>
-  );
-}
+  )
+);

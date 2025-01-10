@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -129,18 +131,23 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			if f.insecure {
 				return nil
 			}
-			f.mu.RLock()
-			defer f.mu.RUnlock()
+			caPool := func() *x509.CertPool {
+				f.mu.RLock()
+				defer f.mu.RUnlock()
+				return f.identity.TLSCAPool
+			}()
 			opts := x509.VerifyOptions{
-				DNSName:       state.ServerName,
-				Intermediates: x509.NewCertPool(),
-				Roots:         f.identity.TLSCAPool,
+				DNSName: state.ServerName,
+				Roots:   caPool,
 			}
-			for _, cert := range state.PeerCertificates[1:] {
-				// Whilst we don't currently use intermediate certs at
-				// Teleport, including this here means that we are
-				// future-proofed in case we do.
-				opts.Intermediates.AddCert(cert)
+			if len(state.PeerCertificates) > 1 {
+				opts.Intermediates = x509.NewCertPool()
+				for _, cert := range state.PeerCertificates[1:] {
+					// Whilst we don't currently use intermediate certs at
+					// Teleport, including this here means that we are
+					// future-proofed in case we do.
+					opts.Intermediates.AddCert(cert)
+				}
 			}
 			_, err := state.PeerCertificates[0].Verify(opts)
 			return err
@@ -171,7 +178,7 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
 				f.mu.RLock()
 				defer f.mu.RUnlock()
-				return []ssh.Signer{f.identity.KeySigner}, nil
+				return []ssh.Signer{f.identity.CertSigner}, nil
 			}),
 		},
 		HostKeyCallback: hostKeyCallback,
@@ -198,4 +205,16 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// Expiry returns the credential expiry.
+func (f *Facade) Expiry() (time.Time, bool) {
+	if len(f.identity.TLSCert.Certificate) == 0 {
+		return time.Time{}, false
+	}
+	cert, _, err := keys.X509Certificate(f.identity.TLSCert.Certificate[0])
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
 }

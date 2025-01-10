@@ -18,12 +18,14 @@
 
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
-import * as uri from 'teleterm/ui/uri';
-
 import type * as tsh from 'teleterm/services/tshd/types';
+import * as uri from 'teleterm/ui/uri';
 
 export type Kind = Document['kind'];
 
+/**
+ * DocumentOrigin denotes which part of Connect UI was used to create a document for the resource.
+ */
 export type DocumentOrigin =
   | 'resource_table'
   | 'search_bar'
@@ -151,6 +153,8 @@ export interface DocumentGatewayKube extends DocumentBase {
   leafClusterId: string | undefined;
   targetUri: uri.KubeUri;
   origin: DocumentOrigin;
+  /** Identifier of the shell to be opened. */
+  shellId?: string;
   // status is used merely to show a progress bar when the gateway is being set up.
   status: '' | 'connecting' | 'connected' | 'error';
 }
@@ -197,6 +201,8 @@ export interface DocumentAccessRequests extends DocumentBase {
 export interface DocumentPtySession extends DocumentBase {
   kind: 'doc.terminal_shell';
   cwd?: string;
+  /** Identifier of the shell to be opened. */
+  shellId?: string;
   rootClusterId?: string;
   leafClusterId?: string;
 }
@@ -214,6 +220,26 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+/**
+ * Document to authorize a web session with device trust.
+ * Unlike other documents, it is not persisted on disk.
+ */
+export interface DocumentAuthorizeWebSession extends DocumentBase {
+  kind: 'doc.authorize_web_session';
+  // `DocumentAuthorizeWebSession` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+  webSessionRequest: WebSessionRequest;
+}
+
+export interface WebSessionRequest {
+  id: string;
+  token: string;
+  username: string;
+  redirectUri: string;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -227,7 +253,8 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputer;
+  | DocumentConnectMyComputer
+  | DocumentAuthorizeWebSession;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
@@ -243,6 +270,16 @@ export function isDocumentTshNodeWithServerId(
   // Careful here as TypeScript lets you make type guards unsound. You can double invert the last
   // check and TypeScript won't complain.
   return doc.kind === 'doc.terminal_tsh_node' && 'serverId' in doc;
+}
+
+/**
+ * `DocumentPtySession` and `DocumentGatewayKube` spawn a shell.
+ * The shell is taken from the `doc.shellId` property.
+ */
+export function canDocChangeShell(
+  doc: Document
+): doc is DocumentPtySession | DocumentGatewayKube {
+  return doc.kind === 'doc.terminal_shell' || doc.kind === 'doc.gateway_kube';
 }
 
 export type CreateGatewayDocumentOpts = {

@@ -85,8 +85,13 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 	cred, err := service.GetPluginStaticCredentials(ctx, cred1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cred1, cred,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+
+	// Fetch all.
+	all, err := service.GetAllPluginStaticCredentials(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
 
 	// Try to fetch a static credential that doesn't exist.
 	_, err = service.GetPluginStaticCredentials(ctx, "doesnotexist")
@@ -103,7 +108,7 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.PluginStaticCredentials{cred1}, creds,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	creds, err = service.GetPluginStaticCredentialsByLabels(ctx, map[string]string{
@@ -111,7 +116,7 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.PluginStaticCredentials{cred1, cred2}, creds,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	creds, err = service.GetPluginStaticCredentialsByLabels(ctx, map[string]string{
@@ -120,7 +125,7 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.PluginStaticCredentials{cred2}, creds,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Delete a static credential.
@@ -132,4 +137,17 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 	// Try to delete a static credential that doesn't exist.
 	err = service.DeletePluginStaticCredentials(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
+
+	// Upsert.
+	_, err = service.UpsertPluginStaticCredentials(ctx, cred1)
+	require.NoError(t, err)
+	_, err = service.GetPluginStaticCredentials(ctx, cred1.GetName())
+	require.NoError(t, err)
+
+	// Delete all.
+	err = service.DeleteAllPluginStaticCredentials(ctx)
+	require.NoError(t, err)
+	all, err = service.GetAllPluginStaticCredentials(ctx)
+	require.NoError(t, err)
+	require.Empty(t, all)
 }

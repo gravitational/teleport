@@ -21,15 +21,17 @@
 package labels
 
 import (
+	"cmp"
 	"context"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -40,15 +42,13 @@ type DynamicConfig struct {
 	Labels services.CommandLabels
 
 	// Log is a component logger.
-	Log *logrus.Entry
+	Log *slog.Logger
 }
 
 // CheckAndSetDefaults makes sure valid values were passed in to create
 // dynamic labels.
 func (c *DynamicConfig) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger())
-	}
+	c.Log = cmp.Or(c.Log, slog.With(teleport.ComponentKey, "dynamiclabels"))
 
 	// Loop over all labels and make sure the key name is valid and the interval
 	// is valid as well. If the interval is not valid, update the value.
@@ -65,11 +65,11 @@ func (c *DynamicConfig) CheckAndSetDefaults() error {
 		if label.GetPeriod() < time.Second {
 			label.SetPeriod(time.Second)
 			labels[name] = label
-			c.Log.Warnf("Label period can't be less than 1 second. Period for label %q was set to 1 second.", name)
+			c.Log.WarnContext(context.Background(), "Label period cannot be less than 1 second. Defaulting to 1 second.", "label", name)
 		}
 	}
-	c.Labels = labels
 
+	c.Labels = labels
 	return nil
 }
 
@@ -152,7 +152,7 @@ func (l *Dynamic) periodicUpdateLabel(name string, label types.CommandLabel) {
 func (l *Dynamic) updateLabel(name string, label types.CommandLabel) {
 	out, err := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...).Output()
 	if err != nil {
-		l.c.Log.Errorf("Failed to run command and update label: %v.", err)
+		l.c.Log.ErrorContext(context.Background(), "Failed to run command and update label", "error", err)
 		label.SetResult(err.Error() + " output: " + string(out))
 	} else {
 		label.SetResult(strings.TrimSpace(string(out)))

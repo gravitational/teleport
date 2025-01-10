@@ -115,6 +115,46 @@ func Test_Channels_CheckAndSetDefaults(t *testing.T) {
 	})
 }
 
+func Test_Channels_DefaultChannel(t *testing.T) {
+	channels := make(Channels)
+	require.NoError(t, channels.CheckAndSetDefaults())
+
+	defaultChannel, err := NewDefaultChannel()
+	require.NoError(t, err)
+
+	customDefaultChannel := &Channel{ForwardURL: "asdf"}
+	tests := []struct {
+		desc     string
+		channels Channels
+		want     *Channel
+	}{
+		{
+			desc: "nil channels",
+			want: defaultChannel,
+		},
+		{
+			desc:     "default channels",
+			channels: channels,
+			want:     defaultChannel,
+		},
+		{
+			desc: "configured channels",
+			channels: Channels{
+				DefaultChannelName: customDefaultChannel,
+			},
+			want: customDefaultChannel,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got, err := test.channels.DefaultChannel()
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
 func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 
 	tests := []struct {

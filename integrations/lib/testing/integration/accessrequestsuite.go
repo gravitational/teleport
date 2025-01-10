@@ -20,13 +20,10 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -208,6 +205,7 @@ func (s *AccessRequestSuite) SetupSuite() {
 				// submit positive reviews.
 				types.NewRule("access_request", []string{"list", "read", "update"}),
 				types.NewRule("access_plugin_data", []string{"update"}),
+				types.NewRule(types.KindAccessMonitoringRule, []string{"update", "read", "list"}),
 			},
 		},
 	})
@@ -261,6 +259,7 @@ func (s *AccessRequestSuite) SetupSuite() {
 // newClientForUser creates a teleport client for a give user.
 // The user must be created beforehand.
 func (s *AccessRequestSuite) newClientForUser(ctx context.Context, user types.User) *client.Client {
+	s.T().Helper()
 	t := s.T()
 	creds := s.AuthHelper.CredentialsForUser(t, ctx, user)
 	clientConfig := client.Config{
@@ -316,6 +315,7 @@ func (s *AccessRequestSuite) ClientByName(name string) *Client {
 // The access request reason can be padded with "A" by setting
 // SetReasonPadding.
 func (s *AccessRequestSuite) NewAccessRequest(userName string, suggestedReviewers []string, padding int) types.AccessRequest {
+	s.T().Helper()
 	t := s.T()
 	t.Helper()
 
@@ -334,45 +334,14 @@ func (s *AccessRequestSuite) NewAccessRequest(userName string, suggestedReviewer
 
 // CreateAccessRequest creates a new access request and submits it.
 func (s *AccessRequestSuite) CreateAccessRequest(ctx context.Context, userName string, suggestedReviewers []string) types.AccessRequest {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	req := s.NewAccessRequest(userName, suggestedReviewers, s.requestPadding)
 	out, err := s.ClientByName(userName).CreateAccessRequestV2(ctx, req)
 
 	require.NoError(t, err)
 	return out
-}
-
-// RunAndWaitReady is a helper to start an app implementing AppI and wait for
-// it to become ready.
-// This is used to start plugins.
-func (s *AccessRequestSuite) RunAndWaitReady(t *testing.T, app AppI) {
-	appCtx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	go func() {
-		ctx := appCtx
-		if err := app.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
-		}
-	}()
-
-	t.Cleanup(func() {
-		err := app.Shutdown(appCtx)
-		assert.NoError(t, err)
-		err = app.Err()
-		if err != nil {
-			assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
-		}
-	})
-
-	waitCtx, cancel := context.WithTimeout(appCtx, 20*time.Second)
-	defer cancel()
-
-	ok, err := app.WaitReady(waitCtx)
-	require.NoError(t, err)
-	require.True(t, ok)
 }
 
 // TeleportFeatures returns the teleport features of the auth server the tests
@@ -418,5 +387,11 @@ func (s *AccessRequestSuite) AnnotateRequesterRoleAccessRequests(ctx context.Con
 		role.SetAccessRequestConditions(types.Allow, conditions)
 		_, err = adminClient.UpdateRole(ctx, role)
 		require.NoError(t, err)
+	}
+}
+
+func (s *AccessRequestSuite) RequireAdvancedWorkflow(t *testing.T) {
+	if !s.TeleportFeatures().GetAdvancedAccessWorkflows() {
+		require.Fail(t, "This test requires AdvancedAccessWorkflows (Teleport enterprise)")
 	}
 }

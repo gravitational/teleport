@@ -4,7 +4,11 @@ kind: Service
 metadata:
   name: {{ include "teleport-cluster.auth.serviceName" . }}
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.service }}
+    {{- toYaml $auth.extraLabels.service | nindent 4 }}
+    {{- end }}
 {{- if $auth.annotations.service }}
   annotations: {{- toYaml $auth.annotations.service | nindent 4 }}
 {{- end }}

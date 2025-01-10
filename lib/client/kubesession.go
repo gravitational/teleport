@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -62,8 +61,6 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 		NetDialContext:  kubeSessionNetDialer(ctx, tc, kubeAddr).DialContext,
 		TLSClientConfig: tlsConfig,
 	}
-
-	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	ws, resp, err := dialer.DialContext(ctx, joinEndpoint, nil)
 	if resp != nil && resp.Body != nil {
@@ -187,18 +184,21 @@ func handleIncomingResizeEvents(stream *streamproto.SessionStream, term *termina
 
 func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode types.SessionParticipantMode, stdout io.Writer) error {
 	if s.stream.MFARequired && mode == types.SessionModeratorMode {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxy, err := tc.ConnectToProxy(ctx)
+		clt, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		auth, err := proxy.ConnectToCluster(ctx, s.meta.GetClusterName())
+		auth, err := clt.ConnectToCluster(ctx, s.meta.GetClusterName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		go RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
+		go func() {
+			RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFACeremony())
+			auth.Close()
+			clt.Close()
+		}()
 	}
 
 	return nil
@@ -227,7 +227,7 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 			handleNonPeerControls(mode, s.term, func() {
 				err := s.stream.ForceTerminate()
 				if err != nil {
-					log.Debugf("Error sending force termination request: %v", err)
+					log.DebugContext(context.Background(), "Error sending force termination request", "error", err)
 					fmt.Print("\n\rError while sending force termination request\n\r")
 				}
 			})

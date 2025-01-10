@@ -1,0 +1,199 @@
+should match the snapshot (mailgun on):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-email.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/email/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [mailgun]
+        domain           = "mymailgunsubdomain.mailgun.org"
+        private_key_file = "/var/lib/teleport/plugins/email/mailgun_private_key"
+
+
+        [delivery]
+        sender = ""
+        recipients = []
+
+        [log]
+        output = "stdout"
+        severity = "INFO"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-email
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-email-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-email
+should match the snapshot (smtp on):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-email.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/email/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [smtp]
+        host            = "smtp.example.com"
+        port            = 1234
+        username        = "mysmtpuser"
+        password_file   = "/var/lib/teleport/plugins/email/smtp_password"
+        starttls_policy = "mandatory"
+
+        [delivery]
+        sender = "teleport@example.com"
+        recipients = ["security@mycompany.com"]
+
+        [log]
+        output = "/var/log/teleport-email.log"
+        severity = "DEBUG"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-email
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-email-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-email
+should match the snapshot (smtp on, no starttls):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-email.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/email/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [smtp]
+        host            = "smtp.example.com"
+        port            = 1234
+        username        = "mysmtpuser"
+        password_file   = "/var/lib/teleport/plugins/email/smtp_password"
+        starttls_policy = "mandatory"
+
+        [delivery]
+        sender = ""
+        recipients = []
+
+        [log]
+        output = "stdout"
+        severity = "INFO"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-email
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-email-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-email
+should match the snapshot (smtp on, password file):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-email.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/email/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [smtp]
+        host            = "smtp.example.com"
+        port            = 1234
+        username        = "mysmtpuser"
+        password_file   = "/var/lib/teleport/plugins/email/smtp_password"
+        starttls_policy = "mandatory"
+
+        [delivery]
+        sender = ""
+        recipients = []
+
+        [log]
+        output = "stdout"
+        severity = "INFO"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-email
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-email-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-email
+should match the snapshot (smtp on, roleToRecipients set):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-email.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/email/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [smtp]
+        host            = "smtp.example.com"
+        port            = 1234
+        username        = "mysmtpuser"
+        password_file   = "/var/lib/teleport/plugins/email/smtp_password"
+        starttls_policy = "mandatory"
+
+        [delivery]
+        sender = "teleport@example.com"
+
+        [role_to_recipients]
+        "*" = ["security@mycompany.com"]
+        "dev" = ["developers@mycompany.com"]
+
+        [log]
+        output = "/var/log/teleport-email.log"
+        severity = "DEBUG"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-email
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-email-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-email
+should match the snapshot (smtp on, starttls disabled):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-email.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/email/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [smtp]
+        host            = "smtp.example.com"
+        port            = 1234
+        username        = "mysmtpuser"
+        password_file   = "/var/lib/teleport/plugins/email/smtp_password"
+        starttls_policy = "disabled"
+
+        [delivery]
+        sender = ""
+        recipients = []
+
+        [log]
+        output = "stdout"
+        severity = "INFO"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-email
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-email-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-email

@@ -16,45 +16,46 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
 import {
+  Box,
   ButtonPrimary,
   ButtonSecondary,
-  Text,
-  Box,
-  LabelInput,
+  H3,
   Indicator,
+  LabelInput,
   Link,
+  Subtitle3,
+  Text,
 } from 'design';
-import Select from 'shared/components/Select';
-import { useAsync } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
+import Select, { type Option } from 'shared/components/Select';
 import * as connectMyComputer from 'shared/connectMyComputer';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
-import { openNewTab } from 'teleport/lib/util';
+import cfg from 'teleport/config';
 import {
-  useConnectionDiagnostic,
-  Header,
   ActionButtons,
-  HeaderSubtitle,
   ConnectionDiagnosticResult,
+  Header,
+  HeaderSubtitle,
   StyledBox,
   TextIcon,
+  useConnectionDiagnostic,
 } from 'teleport/Discover/Shared';
-import { sortNodeLogins } from 'teleport/services/nodes';
-import { ApiError } from 'teleport/services/api/parseError';
-
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
-import { NodeMeta } from '../../useDiscover';
-
-import type { Option } from 'shared/components/Select';
-import type { AgentStepProps } from '../../types';
-import type { MfaAuthnResponse } from 'teleport/services/mfa';
+import { openNewTab } from 'teleport/lib/util';
 import type { ConnectionDiagnosticRequest } from 'teleport/services/agents';
+import { ApiError } from 'teleport/services/api/parseError';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import type { MfaChallengeResponse } from 'teleport/services/mfa';
+import { sortNodeLogins } from 'teleport/services/nodes';
+import useTeleport from 'teleport/useTeleport';
+
+import type { AgentStepProps } from '../../types';
+import { NodeMeta } from '../../useDiscover';
 
 export function TestConnection(props: AgentStepProps) {
   const { userService, storeUser } = useTeleport();
@@ -140,7 +141,7 @@ export function TestConnection(props: AgentStepProps) {
   function testConnection(args: {
     login: string;
     sshPrincipalSelectionMode: ConnectionDiagnosticRequest['sshPrincipalSelectionMode'];
-    mfaResponse?: MfaAuthnResponse;
+    mfaResponse?: MfaChallengeResponse;
   }) {
     return runConnectionDiagnostic(
       {
@@ -166,13 +167,13 @@ export function TestConnection(props: AgentStepProps) {
     <Box>
       {showMfaDialog && (
         <ReAuthenticate
-          onMfaResponse={res =>
-            testConnection({
+          onMfaResponse={async res => {
+            await testConnection({
               login: selectedLoginOpt.value,
               sshPrincipalSelectionMode,
               mfaResponse: res,
-            })
-          }
+            });
+          }}
           onClose={cancelMfaDialog}
           challengeScope={MfaChallengeScope.USER_SESSION}
         />
@@ -194,11 +195,12 @@ export function TestConnection(props: AgentStepProps) {
             buttonText="Refresh"
             buttonOnClick={() => window.location.reload()}
           >
-            For Connect My Computer to work, the role{' '}
-            {connectMyComputer.getRoleNameForUser(storeUser.getUsername())} must
-            be assigned to you.
-            <br />
-            {$restartSetupInstructions}
+            <P>
+              For Connect My Computer to work, the role{' '}
+              {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
+              must be assigned to you.
+            </P>
+            <P>{$restartSetupInstructions}</P>
           </FetchLoginsAttemptError>
         ) : (
           <FetchLoginsAttemptError
@@ -284,9 +286,10 @@ export function TestConnection(props: AgentStepProps) {
 
 const StepSkeletonPickUser = (props: { children: React.ReactNode }) => (
   <StyledBox mb={5}>
-    <Text bold mb={3}>
-      Step 1: Pick the OS user to test
-    </Text>
+    <header>
+      <H3>Step 1</H3>
+      <Subtitle3 mb={3}>Pick the OS user to test</Subtitle3>
+    </header>
     {props.children}
   </StyledBox>
 );

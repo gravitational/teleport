@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
+import { Alert, Box, ButtonPrimary, Flex, H2, Text } from 'design';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+
+import { Cluster } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { DocumentClusterQueryParams } from 'teleterm/ui/services/workspacesService';
-import Document from 'teleterm/ui/Document';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import { Cluster } from 'teleterm/services/tshd/types';
-
 import * as uri from 'teleterm/ui/uri';
 import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { UnifiedResources } from './UnifiedResources';
 
@@ -185,6 +185,7 @@ function PrintState(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
+      px={4}
       css={`
         top: 11%;
         position: relative;
@@ -193,9 +194,7 @@ function PrintState(props: {
       {props.action && props.action.attempt.status === 'error' && (
         <Alert>{props.action.attempt.statusText}</Alert>
       )}
-      <Text typography="h4" bold>
-        {props.clusterName}
-      </Text>
+      <H2 mb={1}>{props.clusterName}</H2>
       <Text>{props.clusterState}</Text>
       {props.action && (
         <ButtonPrimary

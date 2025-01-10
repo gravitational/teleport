@@ -32,7 +32,10 @@ export enum IamPolicyStatus {
 }
 
 export type Aws = {
-  rds: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets' | 'vpcId'>;
+  rds: Pick<
+    AwsRdsDatabase,
+    'resourceId' | 'region' | 'subnets' | 'vpcId' | 'securityGroups'
+  >;
   iamPolicyStatus: IamPolicyStatus;
 };
 
@@ -45,8 +48,11 @@ export interface Database {
   labels: ResourceLabel[];
   names?: string[];
   users?: string[];
+  roles?: string[];
   hostname: string;
   aws?: Aws;
+  requiresRequest?: boolean;
+  supportsInteractive?: boolean;
 }
 
 export type DatabasesResponse = {
@@ -69,6 +75,8 @@ export type CreateDatabaseRequest = {
   labels?: ResourceLabel[];
   awsRds?: AwsRdsDatabase;
   awsRegion?: Regions;
+  awsVpcId?: string;
+  overwrite?: boolean;
 };
 
 export type DatabaseIamPolicyResponse = {

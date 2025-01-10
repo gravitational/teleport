@@ -19,14 +19,17 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
@@ -40,15 +43,29 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 			name: "missing region",
 			req: ConfigureIAMListDatabasesRequest{
 				IntegrationRole: "integrationrole",
+				AccountID:       "123456789012",
 			},
 			errCheck: badParameterCheck,
 		},
 		{
 			name: "missing integration role",
 			req: ConfigureIAMListDatabasesRequest{
-				IntegrationRole: "integrationrole",
+				Region:    "us-east-1",
+				AccountID: "123456789012",
 			},
 			errCheck: badParameterCheck,
+		},
+		{
+			name: "missing account id is ok",
+			req: ConfigureIAMListDatabasesRequest{
+				Region:          "us-east-1",
+				IntegrationRole: "integrationrole",
+			},
+			errCheck: require.NoError,
+			expected: ConfigureIAMListDatabasesRequest{
+				Region:          "us-east-1",
+				IntegrationRole: "integrationrole",
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,11 +85,14 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 	baseReq := ConfigureIAMListDatabasesRequest{
 		Region:          "us-east-1",
 		IntegrationRole: "integrationrole",
+		AccountID:       "123456789012",
+		AutoConfirm:     true,
 	}
 
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
+		mockAccountID     string
 		req               ConfigureIAMListDatabasesRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
@@ -80,18 +100,28 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 			name:              "valid",
 			req:               baseReq,
 			mockExistingRoles: []string{"integrationrole"},
+			mockAccountID:     "123456789012",
 			errCheck:          require.NoError,
+		},
+		{
+			name:              "account does not match expected account",
+			req:               baseReq,
+			mockExistingRoles: []string{"integrationrole"},
+			mockAccountID:     "222222222222",
+			errCheck:          badParameterCheck,
 		},
 		{
 			name:              "integration role does not exist",
 			mockExistingRoles: []string{},
+			mockAccountID:     "123456789012",
 			req:               baseReq,
 			errCheck:          notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockListDatabasesIAMConfigClient{
-				existingRoles: tt.mockExistingRoles,
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
 			}
 
 			err := ConfigureListDatabasesIAM(ctx, &clt, tt.req)
@@ -100,7 +130,30 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 	}
 }
 
+func TestListDatabasesIAMConfigOutput(t *testing.T) {
+	var buf bytes.Buffer
+	req := ConfigureIAMListDatabasesRequest{
+		Region:          "us-east-1",
+		IntegrationRole: "integrationrole",
+		AccountID:       "123456789012",
+		AutoConfirm:     true,
+		stdout:          &buf,
+	}
+	clt := &mockListDatabasesIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
+		existingRoles:        []string{req.IntegrationRole},
+	}
+
+	ctx := context.Background()
+	require.NoError(t, ConfigureListDatabasesIAM(ctx, clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockListDatabasesIAMConfigClient struct {
+	CallerIdentityGetter
 	existingRoles []string
 }
 
@@ -108,7 +161,7 @@ type mockListDatabasesIAMConfigClient struct {
 func (m *mockListDatabasesIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}
 	}

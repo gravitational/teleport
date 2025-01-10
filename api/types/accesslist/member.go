@@ -22,10 +22,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[*AccessListMember] = (*AccessListMember)(nil)
 
 // AccessListMember is an access list member resource.
 type AccessListMember struct {
@@ -58,6 +61,10 @@ type AccessListMemberSpec struct {
 
 	// IneligibleStatus describes the reason why this member is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
+
+	// MembershipKind describes the kind of membership,
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
+	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // NewAccessListMember will create a new access listm member.
@@ -81,6 +88,10 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if a.Spec.MembershipKind == "" {
+		a.Spec.MembershipKind = MembershipKindUser
 	}
 
 	if a.Spec.AccessList == "" {

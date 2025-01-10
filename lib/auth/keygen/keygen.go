@@ -22,31 +22,25 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"strings"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Keygen is a key generator that precomputes keys to provide quick access to
 // public/private key pairs.
 type Keygen struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-
 	// clock is used to control time.
 	clock clockwork.Clock
 }
@@ -62,29 +56,15 @@ func SetClock(clock clockwork.Clock) Option {
 }
 
 // New returns a new key generator.
-func New(ctx context.Context, opts ...Option) *Keygen {
-	ctx, cancel := context.WithCancel(ctx)
+func New(_ context.Context, opts ...Option) *Keygen {
 	k := &Keygen{
-		ctx:    ctx,
-		cancel: cancel,
-		clock:  clockwork.NewRealClock(),
+		clock: clockwork.NewRealClock(),
 	}
 	for _, opt := range opts {
 		opt(k)
 	}
 
 	return k
-}
-
-// Close stops the precomputation of keys (if enabled) and releases all resources.
-func (k *Keygen) Close() {
-	k.cancel()
-}
-
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
-// execute.
-func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
-	return native.GenerateKeyPair()
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
@@ -137,156 +117,80 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c.Role, principals)
+	slog.DebugContext(
+		context.TODO(),
+		"Generated SSH host certificate.",
+		"role", c.Role, "principals", principals,
+	)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
 // GenerateUserCert generates a user ssh certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
-func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
-	if err := c.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err, "error validating UserCertParams")
+func (k *Keygen) GenerateUserCert(req sshca.UserCertificateRequest) ([]byte, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err, "error validating user certificate request")
 	}
-	return k.GenerateUserCertWithoutValidation(c)
+	return k.GenerateUserCertWithoutValidation(req)
 }
 
 // GenerateUserCertWithoutValidation generates a user ssh certificate with the
 // passed in parameters without validating them.
-func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
+func (k *Keygen) GenerateUserCertWithoutValidation(req sshca.UserCertificateRequest) ([]byte, error) {
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicUserKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	validBefore := uint64(ssh.CertTimeInfinity)
-	if c.TTL != 0 {
-		b := k.clock.Now().UTC().Add(c.TTL)
-		validBefore = uint64(b.Unix())
-		log.Debugf("generated user key for %v with expiry on (%v) %v", c.AllowedLogins, validBefore, b)
+
+	// create shallow copy of identity since we want to make some local changes
+	ident := req.Identity
+
+	// since this method ignores the supplied values for ValidBefore/ValidAfter, avoid confusing by
+	// rejecting identities where they are set.
+	if ident.ValidBefore != 0 {
+		return nil, trace.BadParameter("ValidBefore should not be set in calls to GenerateUserCert")
 	}
-	cert := &ssh.Certificate{
-		// we have to use key id to identify teleport user
-		KeyId:           c.Username,
-		ValidPrincipals: c.AllowedLogins,
-		Key:             pubKey,
-		ValidAfter:      uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix()),
-		ValidBefore:     validBefore,
-		CertType:        ssh.UserCert,
-	}
-	cert.Permissions.Extensions = map[string]string{
-		teleport.CertExtensionPermitPTY: "",
-	}
-	if c.PermitX11Forwarding {
-		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
-	}
-	if c.PermitAgentForwarding {
-		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
-	}
-	if c.PermitPortForwarding {
-		cert.Permissions.Extensions[teleport.CertExtensionPermitPortForwarding] = ""
-	}
-	if c.MFAVerified != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = c.MFAVerified
-	}
-	if !c.PreviousIdentityExpires.IsZero() {
-		cert.Permissions.Extensions[teleport.CertExtensionPreviousIdentityExpires] = c.PreviousIdentityExpires.Format(time.RFC3339)
-	}
-	if c.LoginIP != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionLoginIP] = c.LoginIP
-	}
-	if c.Impersonator != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionImpersonator] = c.Impersonator
-	}
-	if c.DisallowReissue {
-		cert.Permissions.Extensions[teleport.CertExtensionDisallowReissue] = ""
-	}
-	if c.Renewable {
-		cert.Permissions.Extensions[teleport.CertExtensionRenewable] = ""
-	}
-	if c.Generation > 0 {
-		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
-	}
-	if c.BotName != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionBotName] = c.BotName
-	}
-	if c.AllowedResourceIDs != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
-	}
-	if c.ConnectionDiagnosticID != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = c.ConnectionDiagnosticID
-	}
-	if c.PrivateKeyPolicy != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionPrivateKeyPolicy] = string(c.PrivateKeyPolicy)
-	}
-	if devID := c.DeviceID; devID != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionDeviceID] = devID
-	}
-	if assetTag := c.DeviceAssetTag; assetTag != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionDeviceAssetTag] = assetTag
-	}
-	if credID := c.DeviceCredentialID; credID != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
+	if ident.ValidAfter != 0 {
+		return nil, trace.BadParameter("ValidAfter should not be set in calls to GenerateUserCert")
 	}
 
-	if c.PinnedIP != "" {
+	// calculate ValidBefore based on the outer request TTL
+	ident.ValidBefore = uint64(ssh.CertTimeInfinity)
+	if req.TTL != 0 {
+		b := k.clock.Now().UTC().Add(req.TTL)
+		ident.ValidBefore = uint64(b.Unix())
+		slog.DebugContext(
+			context.TODO(),
+			"Generated user key with expiry.",
+			"allowed_logins", ident.AllowedLogins,
+			"valid_before_unix_ts", ident.ValidBefore,
+			"valid_before", b,
+		)
+	}
+
+	// set ValidAfter to be 1 minute in the past
+	ident.ValidAfter = uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix())
+
+	// if the provided identity is attempting to perform IP pinning, make sure modules are enforced
+	if ident.PinnedIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("source IP pinning is only supported in Teleport Enterprise")
 		}
-		if cert.CriticalOptions == nil {
-			cert.CriticalOptions = make(map[string]string)
-		}
-		//IPv4, all bits matter
-		ip := c.PinnedIP + "/32"
-		if strings.Contains(c.PinnedIP, ":") {
-			//IPv6
-			ip = c.PinnedIP + "/128"
-		}
-		cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress] = ip
 	}
 
-	for _, extension := range c.CertificateExtensions {
-		// TODO(lxea): update behavior when non ssh, non extensions are supported.
-		if extension.Mode != types.CertExtensionMode_EXTENSION ||
-			extension.Type != types.CertExtensionType_SSH {
-			continue
-		}
-		cert.Extensions[extension.Name] = extension.Value
-	}
-
-	// Add roles, traits, and route to cluster in the certificate extensions if
-	// the standard format was requested. Certificate extensions are not included
-	// legacy SSH certificates due to a bug in OpenSSH <= OpenSSH 7.1:
-	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-	if c.CertificateFormat == constants.CertificateFormatStandard {
-		traits, err := wrappers.MarshalTraits(&c.Traits)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(traits) > 0 {
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportTraits] = string(traits)
-		}
-		if len(c.Roles) != 0 {
-			roles, err := services.MarshalCertRoles(c.Roles)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
-		}
-		if c.RouteToCluster != "" {
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster] = c.RouteToCluster
-		}
-		if !c.ActiveRequests.IsEmpty() {
-			requests, err := c.ActiveRequests.Marshal()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests] = string(requests)
-		}
-	}
-
-	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
+	// encode the identity into a certificate
+	cert, err := ident.Encode(req.CertificateFormat)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// set the public key of the certificate
+	cert.Key = pubKey
+
+	if err := cert.SignCert(rand.Reader, req.CASigner); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 

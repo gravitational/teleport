@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { Dispatch, SetStateAction } from 'react';
+
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { FlatBot } from 'teleport/services/bot/types';
@@ -24,9 +25,9 @@ export type BotOptionsCellProps = {
   bot: FlatBot;
   disabledEdit: boolean;
   disabledDelete: boolean;
-  onClickEdit: (bot: FlatBot) => void;
-  onClickDelete: (bot: FlatBot) => void;
-  onClickView: (bot: FlatBot) => void;
+  onClickEdit: () => void;
+  onClickDelete: () => void;
+  onClickView: () => void;
 };
 
 export type BotListProps = {
@@ -34,7 +35,7 @@ export type BotListProps = {
   bots: FlatBot[];
   disabledEdit: boolean;
   disabledDelete: boolean;
-  roles: string[];
+  fetchRoles: (input: string) => Promise<string[]>;
   onClose: () => void;
   onDelete: () => void;
   onEdit: () => void;
@@ -61,7 +62,7 @@ export enum BotFlowType {
 }
 
 export type EditBotProps = {
-  allRoles: string[];
+  fetchRoles: (input: string) => Promise<string[]>;
   attempt: Attempt;
   name: string;
   onClose: () => void;

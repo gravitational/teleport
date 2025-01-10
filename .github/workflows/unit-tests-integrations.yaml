@@ -25,9 +25,11 @@ jobs:
            ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
            filters: |
              changed:
-               - '/go.mod'
-               - '/go.sum'
+               - 'go.mod'
+               - 'go.sum'
                - 'integrations/**'
+               - 'api/proto/**'
+               - 'proto/**'
                - 'api/types/**'
                - 'gen/**'
                - 'lib/tbot/**'
@@ -46,7 +48,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:
@@ -56,9 +58,6 @@ jobs:
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Build teleport binaries
-        run: make build/tctl build/teleport build/tsh && echo "$PWD/build" >> "$GITHUB_PATH"
-
       - name: Run access plugin tests
         run: make test-access-integrations
         timeout-minutes: 5
@@ -66,6 +65,14 @@ jobs:
       - name: Run integrations lib tests
         run: make test-integrations-lib
         timeout-minutes: 5
+
+      - name: Run terraform provider OSS tests
+        run: make test-terraform-provider
+        timeout-minutes: 15
+
+      - name: Run integrations event-handler tests
+        run: make test-event-handler-integrations
+        timeout-minutes: 10
 
       - name: Run operator tests
         timeout-minutes: 40

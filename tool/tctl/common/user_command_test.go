@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestTrimDurationSuffix(t *testing.T) {
@@ -82,9 +83,9 @@ func TestUserAdd(t *testing.T) {
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := getAuthClient(ctx, t, fileConfig)
+	client := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		name string
@@ -200,7 +201,7 @@ func TestUserAdd(t *testing.T) {
 			}
 			args = append(args, tc.args...)
 			args = append(args, username)
-			err := runUserCommand(t, fileConfig, args)
+			err := runUserCommand(t, client, args)
 			if tc.errorChecker != nil {
 				tc.errorChecker(t, err)
 				return
@@ -234,9 +235,9 @@ func TestUserUpdate(t *testing.T) {
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := getAuthClient(ctx, t, fileConfig)
+	client := testenv.MakeDefaultAuthClient(t, process)
 
 	baseUser, err := types.NewUser("test-user")
 	require.NoError(t, err)
@@ -359,7 +360,7 @@ func TestUserUpdate(t *testing.T) {
 			require.NoError(t, err)
 			args := append([]string{"update"}, tc.args...)
 			args = append(args, "test-user")
-			err := runUserCommand(t, fileConfig, args)
+			err := runUserCommand(t, client, args)
 			if tc.errorChecker != nil {
 				tc.errorChecker(t, err)
 				return

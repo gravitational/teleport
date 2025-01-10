@@ -11,6 +11,8 @@ does not generate a config for clusterrole.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -51,6 +53,8 @@ does not generate a config for pdb.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -90,6 +94,8 @@ matches snapshot and tests for annotations.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -134,6 +140,8 @@ matches snapshot and tests for extra-labels.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -176,6 +184,8 @@ matches snapshot for affinity.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -229,6 +239,11 @@ matches snapshot for all-v6.yaml:
           enabled: true
         discovery_service:
           enabled: false
+        jamf_service:
+          api_endpoint: testjamf.jamfcloud.com/api
+          client_id: teleport-jamf-client-id
+          client_secret_file: /etc/teleport-jamf-api-credentials/credential
+          enabled: true
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -293,6 +308,8 @@ matches snapshot for app-discovery-full.yaml:
             - '*'
             types:
             - app
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -344,6 +361,8 @@ matches snapshot for app-discovery-minimal.yaml:
             - '*'
             types:
             - app
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -396,6 +415,8 @@ matches snapshot for aws-databases.yaml:
             - rds
           enabled: true
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: false
@@ -458,6 +479,8 @@ matches snapshot for azure-databases.yaml:
           enabled: true
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -496,6 +519,8 @@ matches snapshot for backwards-compatibility.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -536,6 +561,8 @@ matches snapshot for ca-pin.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -585,6 +612,8 @@ matches snapshot for db.yaml:
           enabled: true
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -626,6 +655,8 @@ matches snapshot for dynamic-app.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: false
@@ -669,6 +700,8 @@ matches snapshot for dynamic-db.yaml:
               '*': '*'
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -707,6 +740,8 @@ matches snapshot for imagepullsecrets.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -748,9 +783,99 @@ matches snapshot for initcontainers.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for jamf-service-existing-secret.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          enabled: false
+        jamf_service:
+          api_endpoint: https://testjamf.jamfcloud.com/api
+          client_id: teleport-jamf-client-id
+          client_secret_file: /etc/teleport-jamf-api-credentials/credential
+          enabled: true
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for jamf-service.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          enabled: false
+        jamf_service:
+          api_endpoint: https://testjamf.jamfcloud.com/api
+          client_id: teleport-jamf-client-id
+          client_secret_file: /etc/teleport-jamf-api-credentials/credential
+          enabled: true
+        kubernetes_service:
+          enabled: false
         proxy_service:
           enabled: false
         ssh_service:
@@ -787,6 +912,8 @@ matches snapshot for join-params-iam.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -828,6 +955,8 @@ matches snapshot for join-params-token.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -867,6 +996,8 @@ matches snapshot for log-basic.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -908,6 +1039,8 @@ matches snapshot for log-extra.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -947,6 +1080,8 @@ matches snapshot for log-legacy.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -988,6 +1123,8 @@ matches snapshot for node-selector.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -1027,6 +1164,8 @@ matches snapshot for pdb.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -1068,6 +1207,8 @@ matches snapshot for resources.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -1107,6 +1248,8 @@ matches snapshot for stateful.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -1148,6 +1291,8 @@ matches snapshot for tolerations.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -1187,6 +1332,8 @@ matches snapshot for v10.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -1228,6 +1375,8 @@ matches snapshot for v11.yaml:
           enabled: false
         discovery_service:
           enabled: false
+        jamf_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -1267,6 +1416,8 @@ matches snapshot for volumes.yaml:
         db_service:
           enabled: false
         discovery_service:
+          enabled: false
+        jamf_service:
           enabled: false
         kubernetes_service:
           enabled: true

@@ -29,11 +29,13 @@ import (
 
 // OSRelease represents the information contained in the /etc/os-release file.
 type OSRelease struct {
-	PrettyName string
-	Name       string
-	VersionID  string
-	Version    string
-	ID         string
+	PrettyName      string
+	Name            string
+	VersionID       string
+	Version         string
+	VersionCodename string
+	ID              string
+	IDLike          string
 }
 
 // ParseOSRelease reads the /etc/os-release contents.
@@ -54,13 +56,24 @@ func ParseOSReleaseFromReader(in io.Reader) (*OSRelease, error) {
 	scan := bufio.NewScanner(in)
 	for scan.Scan() {
 		line := scan.Text()
-		vals := strings.Split(line, "=")
-		if len(vals) != 2 {
-			continue // Skip unexpected line
+
+		line = strings.TrimSpace(line) // Remove spaces from start and end.
+
+		if len(line) == 0 {
+			continue // Skip empty lines.
 		}
 
-		key := vals[0]
-		val := strings.Trim(vals[1], `"'`)
+		if line[0] == '#' {
+			continue // Skip comments.
+		}
+
+		vals := strings.Split(line, "=")
+		if len(vals) != 2 {
+			continue // Skip unexpected line.
+		}
+
+		key := strings.TrimSpace(vals[0])
+		val := strings.Trim(vals[1], `"' `)
 		m[key] = val
 	}
 	if err := scan.Err(); err != nil {
@@ -68,10 +81,12 @@ func ParseOSReleaseFromReader(in io.Reader) (*OSRelease, error) {
 	}
 
 	return &OSRelease{
-		PrettyName: m["PRETTY_NAME"],
-		Name:       m["NAME"],
-		VersionID:  m["VERSION_ID"],
-		Version:    m["VERSION"],
-		ID:         m["ID"],
+		PrettyName:      m["PRETTY_NAME"],
+		Name:            m["NAME"],
+		VersionID:       m["VERSION_ID"],
+		Version:         m["VERSION"],
+		VersionCodename: m["VERSION_CODENAME"],
+		ID:              m["ID"],
+		IDLike:          m["ID_LIKE"],
 	}, nil
 }

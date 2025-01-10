@@ -16,52 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-
+import type { UrlListRolesParams } from 'teleport/config';
+import { RoleWithYaml } from 'teleport/services/resources';
+import { yamlService } from 'teleport/services/yaml';
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import TeleportContext from 'teleport/teleportContext';
-import { Resource, KindRole } from 'teleport/services/resources';
 
-export default function useRoles(ctx: TeleportContext) {
-  const [items, setItems] = useState<Resource<KindRole>[]>([]);
-  const { attempt, run } = useAttempt('processing');
+export function useRoles(ctx: TeleportContext) {
+  const rolesAcl = ctx.storeUser.getRoleAccess();
 
-  function fetchData() {
-    return ctx.resourceService.fetchRoles().then(received => {
-      setItems(received);
-    });
+  async function create(role: Partial<RoleWithYaml>) {
+    return ctx.resourceService.createRole(await toYaml(role));
   }
 
-  // TODO: we cannot refetch the data right after saving because this backend
-  // operation is not atomic.
-  function save(name: string, yaml: string, isNew: boolean) {
-    if (isNew) {
-      return ctx.resourceService.createRole(yaml).then(result => {
-        setItems([result, ...items]);
-      });
-    }
-
-    return ctx.resourceService.updateRole(name, yaml).then(result => {
-      setItems([result, ...items.filter(r => r.name !== result.name)]);
-    });
+  async function update(name: string, role: Partial<RoleWithYaml>) {
+    return ctx.resourceService.updateRole(name, await toYaml(role));
   }
 
   function remove(name: string) {
-    return ctx.resourceService.deleteRole(name).then(() => {
-      setItems(items.filter(r => r.name !== name));
-    });
+    return ctx.resourceService.deleteRole(name);
   }
 
-  useEffect(() => {
-    run(() => fetchData());
-  }, []);
+  function fetch(params?: UrlListRolesParams) {
+    return ctx.resourceService.fetchRoles(params);
+  }
 
   return {
-    items,
-    attempt,
-    save,
+    fetch,
+    create,
+    update,
     remove,
+    rolesAcl,
   };
+}
+
+async function toYaml(role: Partial<RoleWithYaml>): Promise<string> {
+  return (
+    role.yaml ||
+    (await yamlService.stringify(YamlSupportedResourceKind.Role, {
+      resource: role.object,
+    }))
+  );
 }
 
 export type State = ReturnType<typeof useRoles>;

@@ -33,6 +33,8 @@ service AccessListService {
   rpc GetAccessList(GetAccessListRequest) returns (AccessList);
   // UpsertAccessList creates or updates an access list resource.
   rpc UpsertAccessList(UpsertAccessListRequest) returns (AccessList);
+  // UpdateAccessList updates an access list resource.
+  rpc UpdateAccessList(UpdateAccessListRequest) returns (AccessList);
   // DeleteAccessList hard deletes the specified access list resource.
   rpc DeleteAccessList(DeleteAccessListRequest) returns (google.protobuf.Empty);
   // DeleteAllAccessLists hard deletes all access lists.
@@ -51,8 +53,13 @@ service AccessListService {
   rpc ListAllAccessListMembers(ListAllAccessListMembersRequest) returns (ListAllAccessListMembersResponse);
   // GetAccessListMember returns the specified access list member resource.
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
+  // GetAccessListOwners returns a list of all owners in an Access List,
+  // including those inherited from nested Access Lists.
+  rpc GetAccessListOwners(GetAccessListOwnersRequest) returns (GetAccessListOwnersResponse);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
+  // UpdateAccessListMember conditionally updates an access list member resource.
+  rpc UpdateAccessListMember(UpdateAccessListMemberRequest) returns (Member);
   // DeleteAccessListMember hard deletes the specified access list member
   // resource.
   rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
@@ -85,6 +92,9 @@ service AccessListService {
   // GetSuggestedAccessLists returns suggested access lists for an access
   // request.
   rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
+
+  // GetInheritedGrants returns the inherited grants for an access list.
+  rpc GetInheritedGrants(GetInheritedGrantsRequest) returns (GetInheritedGrantsResponse);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -113,6 +123,18 @@ message ListAccessListsResponse {
   string next_token = 2;
 }
 
+// GetInheritedGrantsRequest is the request for getting inherited grants.
+message GetInheritedGrantsRequest {
+  // access_list_id is the ID of the access list to retrieve.
+  string access_list_id = 1;
+}
+
+// GetInheritedGrantsResponse is the response for getting inherited grants.
+message GetInheritedGrantsResponse {
+  // grants is the list of inherited member grants.
+  AccessListGrants grants = 1;
+}
+
 // GetAccessListRequest is the request for retrieving an access list.
 message GetAccessListRequest {
   // name is the name of the access list to retrieve.
@@ -121,6 +143,12 @@ message GetAccessListRequest {
 
 // UpsertAccessListRequest is the request for upserting an access list.
 message UpsertAccessListRequest {
+  // access_list is the access list to upsert.
+  AccessList access_list = 1;
+}
+
+// UpdateAccessListRequest is the request for updating an access list.
+message UpdateAccessListRequest {
   // access_list is the access list to upsert.
   AccessList access_list = 1;
 }
@@ -156,6 +184,8 @@ message CountAccessListMembersRequest {
 message CountAccessListMembersResponse {
   // count is the number of access list members in the access list.
   uint32 count = 1;
+  // list_count is the number of access list members of type list in the access list.
+  uint32 list_count = 2;
 }
 
 // ListAccessListMembersRequest is the request for getting paginated access list
@@ -227,6 +257,21 @@ message GetAccessListMemberRequest {
   string member_name = 2;
 }
 
+// GetAccessListOwnersRequest is the request for getting a list of all owners
+// in an Access List, including those inherited from nested Access Lists.
+message GetAccessListOwnersRequest {
+  // access_list is the name of the access list.
+  string access_list = 1;
+}
+
+// GetAccessListOwnersResponse is the response for getting a list of all
+// owners in an Access List, including those inherited from nested Access Lists.
+message GetAccessListOwnersResponse {
+  // owners is the list of all owners in the Access List, including those
+  // inherited from nested Access Lists.
+  repeated accesslist.v1.AccessListOwner owners = 1;
+}
+
 // UpsertAccessListMemberRequest is the request for upserting an access list
 // member.
 message UpsertAccessListMemberRequest {
@@ -235,6 +280,13 @@ message UpsertAccessListMemberRequest {
 
   // member is the access list member to upsert.
   Member member = 4;
+}
+
+// UpdateAccessListMemberRequest is the request for updating an access list
+// member.
+message UpdateAccessListMemberRequest {
+  // member is the access list member to upsert.
+  Member member = 1;
 }
 
 // DeleteAccessListMemberRequest is the request for deleting a member from an

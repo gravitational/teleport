@@ -16,27 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { PromptHardwareKeyPINChangeResponse } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+
+import Logger from 'teleterm/logger';
 import { TshdEventContextBridgeService } from 'teleterm/types';
 import { IAppContext } from 'teleterm/ui/types';
-import * as tshdEvents from 'teleterm/services/tshdEvents';
 
 export function createTshdEventsContextBridgeService(
   ctx: IAppContext
 ): TshdEventContextBridgeService {
+  const logger = new Logger('tshd events UI');
+
   return {
     relogin: async ({ request, onRequestCancelled }) => {
-      await ctx.reloginService.relogin(
-        request as tshdEvents.ReloginRequest,
-        onRequestCancelled
-      );
+      await ctx.reloginService.relogin(request, onRequestCancelled);
       return {};
     },
 
     sendNotification: async ({ request }) => {
-      ctx.tshdNotificationsService.sendNotification(
-        request as tshdEvents.SendNotificationRequest
-      );
-
+      ctx.tshdNotificationsService.sendNotification(request);
       return {};
     },
 
@@ -45,7 +43,7 @@ export function createTshdEventsContextBridgeService(
       onRequestCancelled,
     }) => {
       await ctx.headlessAuthenticationService.sendPendingHeadlessAuthentication(
-        request as tshdEvents.SendPendingHeadlessAuthenticationRequest,
+        request,
         onRequestCancelled
       );
       return {};
@@ -58,8 +56,11 @@ export function createTshdEventsContextBridgeService(
       }>(resolve => {
         const { closeDialog } = ctx.modalsService.openImportantDialog({
           kind: 'reauthenticate',
-          promptMfaRequest: request as tshdEvents.PromptMfaRequest,
+          promptMfaRequest: request,
           onSuccess: totpCode => resolve({ hasCanceledModal: false, totpCode }),
+          onSsoContinue: (redirectUrl: string) => {
+            window.open(redirectUrl);
+          },
           onCancel: () =>
             resolve({
               hasCanceledModal: true,
@@ -84,7 +85,158 @@ export function createTshdEventsContextBridgeService(
         };
       }
 
-      return { totpCode };
+      return {
+        totpCode,
+      };
+    },
+
+    getUsageReportingSettings: async () => {
+      return {
+        usageReportingSettings: {
+          enabled: ctx.configService.get('usageReporting.enabled').value,
+        },
+      };
+    },
+
+    reportUnexpectedVnetShutdown: async ({ request }) => {
+      if (!ctx.unexpectedVnetShutdownListener) {
+        logger.warn(
+          `Dropping unexpected VNet shutdown event, no listener present; error: ${request.error}`
+        );
+      } else {
+        ctx.unexpectedVnetShutdownListener(request);
+      }
+      return {};
+    },
+
+    promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
+      ctx.mainProcessClient.forceFocusWindow();
+      const { pin, hasCanceledModal } = await new Promise<{
+        pin: string;
+        hasCanceledModal: boolean;
+      }>(resolve => {
+        const { closeDialog } = ctx.modalsService.openImportantDialog({
+          kind: 'hardware-key-pin',
+          req: request,
+          onSuccess: pin => resolve({ hasCanceledModal: false, pin }),
+          onCancel: () =>
+            resolve({
+              hasCanceledModal: true,
+              pin: undefined,
+            }),
+        });
+
+        // tshd can cancel the request
+        onRequestCancelled(closeDialog);
+      });
+
+      if (hasCanceledModal) {
+        throw {
+          isCrossContextError: true,
+          name: 'AbortError',
+          message: 'hardware key PIN modal closed by user',
+        };
+      }
+
+      return { pin: pin };
+    },
+
+    promptHardwareKeyTouch: async ({ request, onRequestCancelled }) => {
+      ctx.mainProcessClient.forceFocusWindow();
+      const { hasCanceledModal } = await new Promise<{
+        hasCanceledModal: boolean;
+      }>(resolve => {
+        const { closeDialog } = ctx.modalsService.openImportantDialog({
+          kind: 'hardware-key-touch',
+          req: request,
+          onCancel: () =>
+            resolve({
+              hasCanceledModal: true,
+            }),
+        });
+
+        // When a tap is detected, tshd cancels this request.
+        onRequestCancelled(closeDialog);
+      });
+
+      if (hasCanceledModal) {
+        throw {
+          isCrossContextError: true,
+          name: 'AbortError',
+          message: 'hardware key touch modal closed by user',
+        };
+      }
+
+      return {};
+    },
+
+    promptHardwareKeyPINChange: async ({ request, onRequestCancelled }) => {
+      const { hasCanceledModal, res } = await new Promise<{
+        hasCanceledModal: boolean;
+        res: PromptHardwareKeyPINChangeResponse;
+      }>(resolve => {
+        const { closeDialog } = ctx.modalsService.openImportantDialog({
+          kind: 'hardware-key-pin-change',
+          req: request,
+          onSuccess: res => {
+            resolve({ hasCanceledModal: false, res });
+          },
+          onCancel: () =>
+            resolve({
+              hasCanceledModal: true,
+              res: undefined,
+            }),
+        });
+
+        // tshd can cancel the request
+        onRequestCancelled(closeDialog);
+      });
+
+      if (hasCanceledModal) {
+        throw {
+          isCrossContextError: true,
+          name: 'AbortError',
+          message: 'hardware key change PIN modal closed by user',
+        };
+      }
+
+      return res;
+    },
+
+    confirmHardwareKeySlotOverwrite: async ({
+      request,
+      onRequestCancelled,
+    }) => {
+      const { hasCanceledModal, confirmed } = await new Promise<{
+        hasCanceledModal: boolean;
+        confirmed: boolean;
+      }>(resolve => {
+        const { closeDialog } = ctx.modalsService.openImportantDialog({
+          kind: 'hardware-key-slot-overwrite',
+          req: request,
+          onConfirm: () => {
+            resolve({ hasCanceledModal: false, confirmed: true });
+          },
+          onCancel: () =>
+            resolve({
+              hasCanceledModal: true,
+              confirmed: false,
+            }),
+        });
+
+        // tshd can cancel the request
+        onRequestCancelled(closeDialog);
+      });
+
+      if (hasCanceledModal) {
+        throw {
+          isCrossContextError: true,
+          name: 'AbortError',
+          message: 'hardware key slot overwrite modal closed by user',
+        };
+      }
+
+      return { confirmed };
     },
   };
 }

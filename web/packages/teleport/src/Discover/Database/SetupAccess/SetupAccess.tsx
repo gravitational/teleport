@@ -16,26 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, Flex, Link } from 'design';
+import React, { useEffect, useState } from 'react';
+
+import { Box, Flex, H3, Link, Mark, Text } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
 
+import { Tabs } from 'teleport/components/Tabs';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { StyledBox } from 'teleport/Discover/Shared';
 import {
-  SelectCreatable,
   Option,
+  SelectCreatable,
 } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  useUserTraits,
   SetupAccessWrapper,
+  useUserTraits,
+  type State,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { Mark, StyledBox } from 'teleport/Discover/Shared';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { DbMeta } from 'teleport/Discover/useDiscover';
-import { Tabs } from 'teleport/components/Tabs';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
-import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
 export default function Container() {
   const state = useUserTraits();
@@ -205,11 +205,11 @@ const Info = (props: {
   <>
     <Flex mb={2}>
       <InfoIcon size="medium" mr={1} />
-      <Text bold>To allow access using your Database Users</Text>
+      <H3>To allow access using your Database Users</H3>
     </Flex>
     <DbEngineInstructions {...props} />
     <Box>
-      <Text bold>Access Definition</Text>
+      <H3>Access Definition</H3>
       <ul
         css={`
           margin-bottom: 0;

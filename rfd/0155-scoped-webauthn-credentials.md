@@ -245,6 +245,12 @@ endpoints:
   - `http createWebSession`
   - `http deleteWebSession`
 
+Update: Minimizing which admin actions allow reuse has caused several issues
+in new bulk admin actions, most notably the new Discover flows. Other than the
+critical admin action endpoints listed above, most now allow reuse. It is
+instead left up to the client to be reasonable, only requesting a reusable MFA
+challenge in preparation for a bulk admin action.
+
 #### Expiration
 
 Webauthn challenges are always set to expire after 5 minutes. However, as we've

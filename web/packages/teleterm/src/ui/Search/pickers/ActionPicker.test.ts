@@ -19,8 +19,8 @@
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import {
-  makeRootCluster,
   makeRetryableError,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
@@ -31,13 +31,11 @@ describe('getActionPickerStatus', () => {
     it('partitions resource search errors into clusters with expired certs and non-retryable errors', () => {
       const retryableError = new ResourceSearchError(
         '/clusters/foo',
-        'server',
         makeRetryableError()
       );
 
       const nonRetryableError = new ResourceSearchError(
         '/clusters/bar',
-        'database',
         new Error('whoops')
       );
 
@@ -68,7 +66,6 @@ describe('getActionPickerStatus', () => {
       const offlineCluster = makeRootCluster({ connected: false });
       const retryableError = new ResourceSearchError(
         '/clusters/foo',
-        'server',
         makeRetryableError()
       );
 
@@ -95,17 +92,8 @@ describe('getActionPickerStatus', () => {
 
     it('includes a cluster with expired cert only once even if multiple requests fail with retryable errors', () => {
       const retryableErrors = [
-        new ResourceSearchError(
-          '/clusters/foo',
-          'server',
-          makeRetryableError()
-        ),
-        new ResourceSearchError(
-          '/clusters/foo',
-          'database',
-          makeRetryableError()
-        ),
-        new ResourceSearchError('/clusters/foo', 'kube', makeRetryableError()),
+        new ResourceSearchError('/clusters/foo', makeRetryableError()),
+        new ResourceSearchError('/clusters/foo', makeRetryableError()),
       ];
       const status = getActionPickerStatus({
         inputValue: 'foo',
@@ -186,15 +174,10 @@ describe('getActionPickerStatus', () => {
     it('returns non-retryable errors when fetching a preview after selecting a filter fails', () => {
       const nonRetryableError = new ResourceSearchError(
         '/clusters/bar',
-        'server',
         new Error('non-retryable error')
       );
       const resourceSearchErrors = [
-        new ResourceSearchError(
-          '/clusters/foo',
-          'server',
-          makeRetryableError()
-        ),
+        new ResourceSearchError('/clusters/foo', makeRetryableError()),
         nonRetryableError,
       ];
       const status = getActionPickerStatus({

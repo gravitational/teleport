@@ -421,7 +421,7 @@ func RDSCluster(name, region string, labels map[string]string, opts ...func(*rds
 		EngineMode:          aws.String("provisioned"),
 		Status:              aws.String("available"),
 		Endpoint:            aws.String(fmt.Sprintf("%v.cluster-aabbccdd.%v.rds.amazonaws.com", name, region)),
-		ReaderEndpoint:      aws.String(fmt.Sprintf("%v-co.cluster-aabbccdd.%v.rds.amazonaws.com", name, region)),
+		ReaderEndpoint:      aws.String(fmt.Sprintf("%v.cluster-ro-aabbccdd.%v.rds.amazonaws.com", name, region)),
 		Port:                aws.Int64(3306),
 		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
 		DBClusterMembers: []*rds.DBClusterMember{{
@@ -472,4 +472,31 @@ func RDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, name, region string) *rds.DBP
 		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
 		Status:              aws.String("available"),
 	}
+}
+
+// DocumentDBCluster returns a sample rds.DBCluster for DocumentDB.
+func DocumentDBCluster(name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) *rds.DBCluster {
+	cluster := &rds.DBCluster{
+		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
+		DBClusterIdentifier: aws.String(name),
+		DbClusterResourceId: aws.String(uuid.New().String()),
+		Engine:              aws.String("docdb"),
+		EngineVersion:       aws.String("5.0.0"),
+		Status:              aws.String("available"),
+		Endpoint:            aws.String(fmt.Sprintf("%v.cluster-aabbccdd.%v.docdb.amazonaws.com", name, region)),
+		ReaderEndpoint:      aws.String(fmt.Sprintf("%v.cluster-ro-aabbccdd.%v.docdb.amazonaws.com", name, region)),
+		Port:                aws.Int64(27017),
+		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
+		DBClusterMembers: []*rds.DBClusterMember{{
+			IsClusterWriter: aws.Bool(true), // One writer by default.
+		}},
+	}
+	for _, opt := range opts {
+		opt(cluster)
+	}
+	return cluster
+}
+
+func WithDocumentDBClusterReader(cluster *rds.DBCluster) {
+	WithRDSClusterReader(cluster)
 }

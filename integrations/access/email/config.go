@@ -17,6 +17,7 @@ limitations under the License.
 package email
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
@@ -64,46 +66,16 @@ type Config struct {
 	Delivery         DeliveryConfig          `toml:"delivery"`
 	RoleToRecipients common.RawRecipientsMap `toml:"role_to_recipients"`
 	Log              logger.Config           `toml:"log"`
+
+	// Teleport is a handle to the client to use when communicating with
+	// the Teleport auth server. The Email app will create a gRPC-based
+	// client on startup if this is not set.
+	Client teleport.Client
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
-
-const ExampleConfig = `# Example email plugin configuration TOML file
-
-[teleport]
-addr = "0.0.0.0:3025"                              # Teleport Auth Server GRPC API address
-
-# When using --format=file:
-# identity = "/var/lib/teleport/plugins/email/auth_id"    # Identity file
-# refresh_identity = true                                 # Refresh identity file on a periodic basis.
-#
-# When using --format=tls:
-# client_key = "/var/lib/teleport/plugins/email/auth.key" # Teleport TLS secret key
-# client_crt = "/var/lib/teleport/plugins/email/auth.crt" # Teleport TLS certificate
-# root_cas = "/var/lib/teleport/plugins/email/auth.cas"   # Teleport CA certs
-
-[mailgun]
-domain = "your-domain-name"
-private_key = "xoxb-11xx"
-# private_key_file = "/var/lib/teleport/plugins/email/mailgun_private_key"
-
-[smtp]
-host = "smtp.gmail.com"
-port = 587
-username = "username@gmail.com"
-password = ""
-# password_file = "/var/lib/teleport/plugins/email/smtp_password"
-starttls_policy = "mandatory" # mandatory|opportunistic|disabled
-
-[delivery]
-sender = "noreply@example.com" # From: email address
-
-[role_to_recipients]
-"dev" = "dev-manager@example.com" # All requests to 'dev' role will be sent to this address
-"*" = ["root@example.com", "admin@example.com"] # These recipients will receive review requests not handled by the roles above
-
-[log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/email.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
-`
 
 // LoadConfig reads the config file, initializes a new Config struct object, and returns it.
 // Optionally returns an error if the file is not readable, or if file format is invalid.
@@ -260,4 +232,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetTeleportClient returns the configured Teleport client.
+func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
+	if c.Client != nil {
+		return c.Client, nil
+	}
+	client, err := common.GetTeleportClient(ctx, c.Teleport)
+	return client, trace.Wrap(err)
 }

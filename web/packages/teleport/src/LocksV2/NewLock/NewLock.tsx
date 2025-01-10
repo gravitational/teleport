@@ -16,42 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Prompt } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Transition } from 'react-transition-group';
-import { Box, Flex, ButtonSecondary, Text, ButtonPrimary } from 'design';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
+import { ArrowBack } from 'design/Icon';
 import Select from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { ArrowBack } from 'design/Icon';
 
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import cfg from 'teleport/config';
 
-import { LockCheckout } from './LockCheckout/LockCheckout';
 import {
-  SimpleList,
-  SimpleListOpts,
-} from './ResourceList/SimpleList/SimpleList';
-import { ServerSideSupportedList } from './ResourceList/ServerSideSupportedList/ServerSideSupportedList';
-import { Logins } from './ResourceList/Logins';
+  baseResourceKindOpts,
+  CommonListProps,
+  getEmptyResourceMap,
+  LockResource,
+  LockResourceMap,
+  LockResourceOption,
+} from './common';
+import { LockCheckout } from './LockCheckout/LockCheckout';
 import {
   HybridList,
   HybridListOpts,
 } from './ResourceList/HybridList/HybridList';
+import { Logins } from './ResourceList/Logins';
+import { ServerSideSupportedList } from './ResourceList/ServerSideSupportedList/ServerSideSupportedList';
 import {
-  CommonListProps,
-  LockResourceMap,
-  LockResourceOption,
-  getEmptyResourceMap,
-  baseResourceKindOpts,
-  LockResource,
-} from './common';
+  SimpleList,
+  SimpleListOpts,
+} from './ResourceList/SimpleList/SimpleList';
 
 const PAGE_SIZE = 10;
 
@@ -170,6 +171,8 @@ export function NewLockView(props: Props) {
   }
 
   const numAddedResources = getNumSelectedResources(selectedResources);
+  const transitionRef = useRef<HTMLDivElement>();
+
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -209,9 +212,16 @@ export function NewLockView(props: Props) {
           clearSelectedResources={clearSelectedResources}
           setShowCheckout={setShowCheckout}
         />
-        <Transition in={showCheckout} timeout={300} mountOnEnter unmountOnExit>
+        <Transition
+          in={showCheckout}
+          nodeRef={transitionRef}
+          timeout={300}
+          mountOnEnter
+          unmountOnExit
+        >
           {transitionState => (
             <LockCheckout
+              ref={transitionRef}
               selectedResources={selectedResources}
               onClose={() => setShowCheckout(false)}
               toggleResource={toggleSelectResource}

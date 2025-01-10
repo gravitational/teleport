@@ -17,5 +17,6 @@
  */
 
 export { StepSlider } from './StepSlider';
+export { StepHeader } from './StepHeader';
 
 export type { StepComponentProps, NewFlow } from './StepSlider';

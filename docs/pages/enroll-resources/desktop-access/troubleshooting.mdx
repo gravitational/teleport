@@ -1,0 +1,488 @@
+---
+title: Troubleshooting Desktop Access
+description: Common issues and resolutions for Teleport's desktop access
+---
+
+Common issues and resolution steps.
+
+## Certificate expired or not yet valid
+
+In order for remote desktop access to work correctly, certificates issued by
+Teleport must be validated by several different components. If these components
+do not agree what the current time is, then you will likely encounter
+certificate validation errors which prevent Teleport from working correctly.
+
+These errors can manifest in several different ways depending on which system(s)
+have an incorrect system clock.
+
+For example, you may see that Teleport starts a remote desktop session, but that
+the login screen on the remote desktop shows an error similar to:
+
+```text
+The smartcard certificate used for authentication has expired. Please contact your system administrator.
+```
+
+Alternatively, you may see an error in the Teleport Web UI before the remote desktop connection
+is established:
+
+```text
+Remote error tls expired certificate
+```
+
+**Solution:** Check the system clock on all systems
+
+In order to fix these issues, it is important for the system clocks on the
+following components to be synchronized:
+- the Teleport Auth Service
+- the Teleport Proxy Service
+- the Teleport Windows Desktop Service
+- the target Windows hosts
+
+We recommend using NTP on these systems to ensure that the system clock remains
+accurate. On Linux systems running systemd, you can verify the system clock
+settings with the following command:
+
+```code
+$ timedatectl
+```
+
+The following is an example of a correctly configured system:
+
+```
+               Local time: Wed 2024-09-11 13:45:17 UTC
+           Universal time: Wed 2024-09-11 13:45:17 UTC
+                 RTC time: Wed 2024-09-11 13:45:17
+                Time zone: Etc/UTC (UTC, +0000)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+```
+
+In this example, you can see that NTP service is marked active and that the
+system clock is synchronized. If your output differs from the above then your
+clock settings may need to be reconfigured.
+
+## Auto-login does not work
+
+### Smart card service not running
+
+You connect to a Windows host from the Teleport UI, land on the Windows login
+screen and nothing happens.
+
+You can click on the username, click `Sign-in options` and click on the smart
+card icon. The error message is: **"No Valid Certificates Were Found on This
+Smart Card"**.
+
+**Solution:** Enable the Smart Card Service
+
+Usually, this means that the Smart Card service is not running on the target
+host.
+
+First, make sure that you [enable the Smart Card service in Group
+Policy](./active-directory.mdx#enable-smart-card-authentication).
+
+If that doesn't help, log into the target host directly, open the "Services"
+program from the "Start" menu and check that the "Smart Card" service is in the
+"Running" state.
+
+If the "Smart Card" service is not running, open PowerShell and run
+`gpupdate.exe /force`. This forces a Group Policy sync and should pick up the
+service changes.
+
+### Smart card PIN not detected
+
+Teleport uses a cryptographically secure random number generator to generate
+a smart card PIN for each new desktop session. In order to prevent the smart
+card certificate from being used for any purpose other than the initial login,
+this PIN is never shared with the Teleport user.
+
+Teleport provides this PIN to the desktop during the RDP connection phase.
+If your group policy prevents the desktop from seeing this PIN, the user will
+remain at the login screen even though the smart card was detected.
+
+**Solution:** Ensure that group policy allows specifying credentials during
+RDP connection establishment.
+
+Expand Computer Configuration, Administrative Templates, Windows Components,
+Remote Desktop Services, and Remote Desktop Session Host.
+
+Under Remote Desktop Session Host, select **Security**.
+
+Right-click **Always prompt for password upon connection**, select **Edit**,
+select **Disabled**, then click **OK**.
+
+Note: despite mention of passwords in the name of this policy, no passwords are
+sent on the wire. This mechanism is used only to send the smart card PIN.
+
+### Third-party smart card drivers prevent automatic login
+
+Some third-party smart card drivers such as HID ActivID ActivClient may prevent
+the automatic login process from working correctly. To check for the presence of
+third-party drivers, connect to the host where automatic logon is not working
+and view the contents of the
+`Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography\Calais\SmartCards\Identity Device (NIST SP 800-73 [PIV])`
+entry.
+
+On a correctly configured system, you expect to see an entry pointing at a DLL
+for the default Windows driver: `C:\Windows\System32\msclmd.dll`. On a system
+with custom drivers installed, you will typically see this path overridden to
+point to a DLL under `C:\Program Files`.
+
+**Solution:** Disable or uninstall any third party smart card tools that may be
+interfering with the logon process. Ensure that the registry entry mentioned
+above points to `msclmd.dll` after completing the uninstall.
+
+### Smart card not supported for Account
+
+You connect to a Windows host and get the error message: **"Signing in with a smart card
+isn't supported for your account."** or similar.
+
+**Solution:** Review the Security-Kerberos Log on the Windows host for causes.
+
+The Security-Kerberos Windows Event Log provides information on smart card-based
+authentication attempts. This Event Log is not enabled by default.
+Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs,
+Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt
+to connect with Teleport Web UI to review log entries.
+
+### Smart card certificate not trusted
+
+You connect to a Windows host from the Teleport UI, land on the Windows login
+screen and see an error message: **"The smartcard certificate used for
+authentication was not trusted"** (or similar).
+
+**Solution:** Import the Teleport CA
+
+This means that the host does not trust the Teleport CA.
+
+First, make sure that you [import the Teleport CA into Group
+Policy](./active-directory.mdx#create-the-GPO-for-the-Teleport-certificate).
+Note that if you have rotated the Teleport CA since the last import, you need to
+fetch the new CA using the following command, replacing <Var name="teleport.example.com" />
+with the address of your Teleport cluster:
+
+```code
+$ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
+```
+
+If that doesn't help, log into the target host directly, open PowerShell and
+run `gpupdate.exe /force`. This forces a Group Policy update and should pick up
+the new CA.
+
+## New session "hangs"
+
+### Host unreachable
+
+You click **Connect** on a Windows host from the Teleport Web UI, and a new tab opens, but
+nothing is displayed other than the top bar. After a while, an error is displayed about a
+failed connection.
+In most case, this error occurs when the `windows_desktop_service` can't reach the target
+Windows host.
+
+**Solution:** Modify firewall rules to allow inbound RDP traffic
+
+First, make sure that you open the RDP port and [allow remote desktop
+connections](./active-directory.mdx#allow-remote-desktop-connections)
+in the group policy object you have configured for Teleport connections.
+
+If that does not help, check if the target host is online and try to `ping` it
+from the Linux server that runs `windows_desktop_service`. If the host is
+online but not reachable, there is some other networking barrier in the way,
+specific to your infrastructure.
+
+### Hostname does not resolve
+
+Connections to Windows Desktops hang during connection establishment, or the
+Teleport debug logs show errors of the form
+`couldn't resolve winserver.example.com`.
+
+**Solution:** Ensure Firewall Permits DNS Traffic
+
+For desktops that are automatically discovered via LDAP, Teleport makes DNS
+queries against the LDAP server in order to resolve the hostname to an IP
+address.
+
+Ensure that your firewalls allow inbound DNS traffic on port `53` from the
+instance(s) running Teleport's Windows Desktop Service to the LDAP server
+(Active Directory Domain Controller).
+
+## Teleport fails to start
+
+### Incorrect domain
+
+Teleport fails to start with an error similar to:
+
+```text
+LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310082F, data 0, 1 access points
+"\tref 1: 'xample.com'"
+"\x00"
+```
+
+**Solution:** Correct Domain
+
+This means that your domain name is likely wrong. Double-check the `domain`
+field in the `ldap` section of `windows_desktop_service`.
+
+### Domain controller unreachable
+
+Teleport fails to start with an error similar to:
+
+```text
+LDAP Result Code 200 "Network Error": dial tcp ad.example.com:636: i/o timeout
+```
+
+**Solution:** Check LDAP Address
+
+This means that your domain controller is down or unreachable. Double-check the
+`addr` field in the `ldap` section of `windows_desktop_service`. If it's
+correct, check that the domain controller is up and reachable from the server
+that runs `windows_desktop_service`.
+
+### Cannot initialize LDAP over TLS
+
+Teleport fails to connect to LDAP on startup. You may see errors similar to:
+
+```text
+LDAP Result Code 52 "Unavailable": 00000000: LdapErr: DSID-0C090F78, comment: Error initializing SSL/TLS, data 0, v2580\x00
+```
+
+or
+
+```text
+connecting to LDAP server: unable to read LDAP response packet: read tcp 172.18.0.5:35970->;172.18.0.4:636: read: connection reset by peer
+```
+
+**Solution:** Enable LDAPS
+
+This means you do not have an LDAP certificate installed on your LDAP servers,
+or you are trying to make an insecure connection on port `389`. Teleport requires
+secure LDAPS connections, which are typically on port `636`. First, confirm that
+you are connecting to the correct LDAPS port. If that doesn't resolve your
+issue, you can
+[install Active Directory Certificate Services](https://docs.microsoft.com/en-us/windows-server/networking/core-network-guide/cncg/server-certs/install-the-certification-authority)
+(AD CS) or
+[import](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-ldap-over-ssl-3rd-certification-authority)
+your own third party certificate. Note that Active Directory is
+[extremely picky](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-ldap-over-ssl-3rd-certification-authority#requirements-for-an-ldaps-certificate)
+so take care to generate your certificates correctly.
+
+## Desktops are not discovered via LDAP
+
+### LDAP not yet initialized
+
+Teleport is running, but desktops do not show up in the Web UI. The logs contain
+errors similar to:
+
+```
+skipping desktop discovery: LDAP not yet initialized
+```
+
+**Solution:** Confirm Teleport certificate is installed
+
+The Teleport Desktop Service uses a Teleport-issued certificate to authenticate
+with the LDAP server. This error occurs when Teleport is unable to authenticate,
+which is often due to its certificate authority not being trusted by Active
+Directory.
+
+First, verify that the Teleport CA is present in the LDAP NTAuth store. Run the
+following command, modifying the DN for your domain (in this command we use a
+domain of example.com)
+
+```
+$ certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?caCertificate"
+```
+
+You should see a popup window that shows the Teleport CA certificate. If the
+Teleport certificate is not present, import it with:
+
+```
+$ certutil -dspublish -f <path-to-cert> NTAuthCA
+```
+
+Once you've verified that the Teleport certificate is present in LDAP, you
+should check whether it has propagated to all desktops. From a desktop that you
+would like to connect to, run the following:
+
+```
+$ certutil -viewstore -enterprise NTAuth
+```
+
+If the popup window does not show the Teleport certificate, and it was present
+in LDAP, you can force the desktop to sync with the following command:
+
+```
+$ certutil -pulse
+```
+
+If you have verified that the Teleport CA certificate is properly installed and
+are still seeing this error, check for any security tools or addons that may be
+interfering with the mTLS connection. Tools such as CrowdStrike's LDAP inspection
+or Silverfort's AD adapter are known to terminate TLS and drop the client certificate,
+which prevents Teleport from authenticating.
+
+#### Manually validate a client certificate
+
+Another helpful troubleshooting step is to issue a client certificate using
+`tctl` and attempt to validate it on the Windows side.
+
+First, generate a client certificate with `tctl`, being sure to replace the
+`--windows-user`, `--windows-sid`, and `--windows-domain` flags with values
+appropriate for your environment:
+
+```code
+# NOTE: To issue Windows certificates, you must run 'tctl auth sign' locally
+# on the same machine as the Teleport auth_service. Running this command remotely
+# with an identity issued by 'tsh' will result in 'ERROR: access denied'
+$ tctl auth sign \
+    --windows-user=svc-teleport \
+    --windows-sid=S-1-5-21-3788279871-1068139173-3054872986-500 \
+    --windows-domain=domain.example.com \
+    --format=windows \
+    --out=test
+```
+
+This will generate a certificate file named `test.svc-teleport.der`.
+
+Next, copy this certificate to one of your domain controllers and attempt to verify it:
+
+```
+$ certutil -urlfetch -verify test.svc-teleport.der
+```
+
+A successful verification should end with output similar to the following:
+
+```
+------------------------------------
+Verified Application Policies:
+    1.3.6.1.5.5.7.3.2 Client Authentication
+    1.3.6.1.4.1.311.20.2.2 Smart Card Logon
+Cert is an End Entity certificate
+Leaf certificate revocation check passed
+CertUtil: -verify command completed successfully.
+```
+
+If you do not see similar results, scan the output for errors which may indicate
+why the certificate cannot be verified.
+
+## Connection attempts fail
+
+### RDP server only uses Standard RDP Security
+
+Attempts to connect to a desktop fail with an error similar to
+
+```
+client advertised SSL, but server selected STANDARD_RDP_SECURITY
+```
+
+**Solution:** Enable Enhanced RDP security
+
+Standard RDP Security is based on RC4 encryption and is the least secure way
+to connect to a Windows host over RDP. Teleport's RDP client requires enhanced
+RDP security with TLS.
+
+Enhanced RDP Security is typically enabled by default, but your environment may
+be configured to require the legacy security methods.
+
+This configuration is available via group policy at:
+
+```text
+Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
+```
+
+Look for the "Require use of a specific security layer for remote (RDP)
+connections" setting. The setting should be set to **Negotiate** or **SSL**, not
+**RDP**.
+
+### RDP connection failed
+
+You click **Connect** on a Windows host from the Teleport Web UI, a new tab opens but
+nothing is displayed other than the top bar. You see an error that refers to a
+failed RDP connection. You may also see errors similar to:
+
+```text
+Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer" }))
+```
+
+**Solution:** Configure a certificate for RDP connections
+
+This means that the desktop does not support secure cipher suites for TLS
+connections.
+
+Make sure that you [configure a certificate for RDP
+connections](./active-directory.mdx#step-47-configure-a-certificate-for-rdp-connections).
+
+### Enhanced RDP security with CredSSP required
+
+Attempts to connect to a desktop fail, and the logs show an error similar to:
+
+```
+Error during negotiation step: the server requires that the client support enhanced RDP security with CredSSP
+```
+
+**Solution:** Disable Network Level Authentication (NLA)
+
+This means that the RDP server is requiring NLA. To fix this error,
+you can configure the server such that it doesn't require NLA, or you
+can enable NLA if you are running Teleport 16.2.0 or later.
+
+To configure the server to not require NLA, follow the instructions to [allow remote
+desktop connections](./active-directory.mdx#allow-remote-desktop-connections)
+in the group policy object you have configured for Teleport connections.
+If you are still encountering this error after disabling NLA in Active Directory,
+run the following command from the Windows Command prompt as an administrator
+to force the policy update:
+
+```code
+$ gpupdate.exe /force
+```
+
+To enable NLA with Teleport 16.2.0 and later, set the `TELEPORT_ENABLE_RDP_NLA`
+environment variable to `yes` on hosts running Teleport's `windows_desktop_service`.
+More information on Teleport's NLA support is available in the [Active Directory guide](./active-directory.mdx#network-level-authentication-nla).
+
+### CredSSP: server not found in Kerberos database
+
+Attempts to connect to a desktop fail, and the UI shows an error similar to:
+
+```
+CredSSP UnknownCredentials: server not found in Kerberos database
+```
+
+This is an error with NLA. To connect to a Windows host using NLA, Teleport
+must specify the computer name as it exists in Active Directory. You will see
+this error if you have not specified the correct computer name, or if you are
+connecting by IP address instead of hostname.
+
+**Solution:** correct the server's computer name
+
+To fix this error, ensure that either:
+
+- the server's computer name is specified in the `teleport.dev/computer_name` label
+- the server's `addr` field specifies the correct computer name
+
+See [Computer Name](./active-directory.mdx#computer-name) for more information.
+
+## Directory Sharing
+
+### Failed to share directory
+
+Attempts to share a directory fail and a warning is presented that says:
+
+```
+Failed to share directory, drive redirection may be disabled on the RDP server.
+```
+
+**Solution:** Ensure that device redirection is enabled.
+
+Teleport's directory sharing feature leverages RDP device redirection.
+If device redirection is not enabled or allowed by the RDP server then the operation
+will fail.
+
+Device redirection is typically enabled by default, but may be disabled in group policy.
+The relevant settings are located under:
+
+```text
+Computer configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Device and Resource Redirection
+```
+
+Make sure that the option for *Do not allow drive redirection* is unset or disabled.

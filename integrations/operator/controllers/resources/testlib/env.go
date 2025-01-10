@@ -20,7 +20,8 @@ package testlib
 
 import (
 	"context"
-	"math/rand"
+	"log/slog"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
@@ -36,9 +36,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -46,6 +48,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
@@ -85,12 +88,11 @@ func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace)
 	require.NoError(t, err)
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-
 func ValidRandomResourceName(prefix string) string {
-	b := make([]rune, 5)
+	const letters = "abcdefghijklmnopqrstuvwxyz1234567890"
+	b := make([]byte, 5)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letters[rand.N(len(letters))]
 	}
 	return prefix + string(b)
 }
@@ -99,8 +101,10 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			OIDC: true,
-			SAML: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
 		},
 	})
 
@@ -108,7 +112,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         logrus.StandardLogger(),
+		Logger:      slog.Default(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
@@ -193,6 +197,10 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
 		Scheme:  scheme,
 		Metrics: metricsserver.Options{BindAddress: "0"},
+		Controller: ctrlconfig.Controller{
+			// disable name validation for tests to allow re-using the same name between tests
+			SkipNameValidation: ptr.To(true),
+		},
 		// We enable cache to ensure the tests are close to how the manager is created when running in a real cluster
 		Client: ctrlclient.Options{Cache: &ctrlclient.CacheOptions{Unstructured: true}},
 	})

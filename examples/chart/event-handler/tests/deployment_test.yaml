@@ -1,0 +1,44 @@
+suite: Test deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      image:
+        repository: gcr.io/overridden/repository
+        tag: v98.76.54
+    asserts:
+      - matchSnapshot: {}
+
+  - it: uses the recreate strategy if a PV is mounted
+    set:
+      persistentVolumeClaim:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: should mount tls.existingCASecretName and set environment when set in values
+    template: deployment.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - matchSnapshot:
+          path: spec.template.spec

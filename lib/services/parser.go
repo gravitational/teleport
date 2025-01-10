@@ -19,13 +19,14 @@
 package services
 
 import (
+	"context"
 	"fmt"
-	"io"
+	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"github.com/vulcand/predicate/builder"
 
@@ -34,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // RuleContext specifies context passed to the
@@ -229,34 +232,41 @@ func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 // NewLogActionFn creates logger functions
 func NewLogActionFn(ctx RuleContext) interface{} {
 	l := &LogAction{ctx: ctx}
-	writer, ok := ctx.(io.Writer)
-	if ok && writer != nil {
-		l.writer = writer
-	}
+
 	return l.Log
 }
 
 // LogAction represents action that will emit log entry
 // when specified in the actions of a matched rule
 type LogAction struct {
-	ctx    RuleContext
-	writer io.Writer
+	ctx RuleContext
 }
 
-// Log logs with specified level and formatting string with arguments
-func (l *LogAction) Log(level, format string, args ...interface{}) predicate.BoolPredicate {
+// Log logs with specified level and message string and attributes
+func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate {
 	return func() bool {
-		ilevel, err := log.ParseLevel(level)
-		if err != nil {
-			ilevel = log.DebugLevel
+		slevel := slog.LevelDebug
+		switch strings.ToLower(level) {
+		case "error":
+			slevel = slog.LevelError
+		case "warn", "warning":
+			slevel = slog.LevelWarn
+		case "info":
+			slevel = slog.LevelInfo
+		case "debug":
+			slevel = slog.LevelDebug
+		case "trace":
+			slevel = logutils.TraceLevel
 		}
-		var writer io.Writer
-		if l.writer != nil {
-			writer = l.writer
-		} else {
-			writer = log.StandardLogger().WriterLevel(ilevel)
+
+		ctx := context.Background()
+		// Expicitly check whether logging is enabled for the level
+		// to avoid formatting the message if the log won't be sampled.
+		if !slog.Default().Handler().Enabled(ctx, slevel) {
+			//nolint:sloglint // msg cannot be constant
+			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
 		}
-		writer.Write([]byte(fmt.Sprintf(format, args...)))
+
 		return true
 	}
 }
@@ -529,16 +539,6 @@ func (r *EmptyResource) GetKind() string {
 	return r.Kind
 }
 
-// GetResourceID returns resource ID
-func (r *EmptyResource) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *EmptyResource) SetResourceID(id int64) {
-	r.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (r *EmptyResource) GetRevision() string {
 	return r.Metadata.GetRevision()
@@ -575,55 +575,6 @@ func (r *EmptyResource) GetMetadata() types.Metadata {
 }
 
 func (r *EmptyResource) CheckAndSetDefaults() error { return nil }
-
-// BoolPredicateParser extends predicate.Parser with a convenience method
-// for evaluating bool predicates.
-type BoolPredicateParser interface {
-	predicate.Parser
-	EvalBoolPredicate(string) (bool, error)
-}
-
-type boolPredicateParser struct {
-	predicate.Parser
-}
-
-func (p boolPredicateParser) EvalBoolPredicate(expr string) (bool, error) {
-	ifn, err := p.Parse(expr)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("expected boolean predicate, got unsupported type: %T", ifn)
-	}
-
-	return fn(), nil
-}
-
-// NewJSONBoolParser returns a generic parser for boolean expressions based on a
-// json-serializable context.
-func NewJSONBoolParser(ctx interface{}) (BoolPredicateParser, error) {
-	p, err := predicate.NewParser(predicate.Def{
-		Operators: predicate.Operators{
-			AND: predicate.And,
-			OR:  predicate.Or,
-			NOT: predicate.Not,
-		},
-		Functions: map[string]interface{}{
-			"equals":   predicate.Equals,
-			"contains": predicate.Contains,
-		},
-		GetIdentifier: func(fields []string) (interface{}, error) {
-			return predicate.GetFieldByTag(ctx, teleport.JSON, fields)
-		},
-		GetProperty: GetStringMapValue,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return boolPredicateParser{Parser: p}, nil
-}
 
 // newParserForIdentifierSubcondition returns a parser customized for
 // extracting the largest admissible subexpression of a `where` condition that
@@ -731,136 +682,75 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 	})
 }
 
-// NewResourceParser returns a parser made for boolean expressions based on a
-// json-serialiable resource. Customized to allow short identifiers common in all
+// NewResourceExpression returns a [typical.Expression] that is to be evaluated against a
+// [types.ResourceWithLabels]. It is customized to allow short identifiers common in all
 // resources:
-//   - shorthand `name` refers to `resource.spec.hostname` for node resources or it refers
+//   - shorthand `name` refers to `resource.spec.hostname` for node resources, or it refers
 //     to `resource.metadata.name` for all other resources eg: `name == "app-name-jenkins"`
 //   - shorthand `labels` refers to resource `resource.metadata.labels + resource.spec.dynamic_labels`
 //     eg: `labels.env == "prod"`
 //
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
-func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, error) {
-	predEquals := func(a interface{}, b interface{}) predicate.BoolPredicate {
-		switch aval := a.(type) {
-		case label:
-			bval, ok := b.(string)
-			return func() bool {
-				return ok && aval.value == bval
-			}
-		default:
-			return predicate.Equals(a, b)
-		}
-	}
-	predPrefix := func(a interface{}, prefix string) predicate.BoolPredicate {
-		switch aval := a.(type) {
-		case label:
-			return func() bool {
-				return strings.HasPrefix(aval.value, prefix)
-			}
-		case string:
-			return func() bool {
-				return strings.HasPrefix(aval, prefix)
-			}
-		default:
-			return func() bool {
-				return false
-			}
-		}
-	}
-
-	p, err := predicate.NewParser(predicate.Def{
-		Operators: predicate.Operators{
-			AND: predicate.And,
-			OR:  predicate.Or,
-			NOT: predicate.Not,
-			EQ:  predEquals,
-			NEQ: func(a interface{}, b interface{}) predicate.BoolPredicate {
-				return predicate.Not(predEquals(a, b))
-			},
-		},
-		Functions: map[string]interface{}{
-			"hasPrefix": predPrefix,
-			"equals":    predEquals,
-			// search allows fuzzy matching against select field values.
-			"search": func(searchVals ...string) predicate.BoolPredicate {
-				return func() bool {
-					return resource.MatchSearch(searchVals)
-				}
-			},
-			// exists checks for an existence of a label by checking
-			// if a key exists. Label value are unchecked.
-			"exists": func(l label) predicate.BoolPredicate {
-				return func() bool {
-					return len(l.key) > 0
-				}
-			},
-		},
-		GetIdentifier: func(fields []string) (interface{}, error) {
-			switch fields[0] {
-			case ResourceLabelsIdentifier:
-				switch {
-				// Field length of 1 means the user is using
-				// an index expression ie: labels["env"], which the
-				// parser will expect a map for lookup in `GetProperty`.
-				case len(fields) == 1:
-					return resource, nil
-				case len(fields) > 2:
-					return nil, trace.BadParameter("only two fields are supported with identifier %q, got %d: %v", ResourceLabelsIdentifier, len(fields), fields)
-				default:
-					key := fields[1]
-					val, ok := resource.GetLabel(key)
-					if ok {
-						return label{key: key, value: val}, nil
-					}
-					return label{}, nil
-				}
-
-			case ResourceNameIdentifier:
-				if len(fields) > 1 {
-					return nil, trace.BadParameter("only one field are supported with identifier %q, got %d: %v", ResourceNameIdentifier, len(fields), fields)
-				}
-
+func NewResourceExpression(expression string) (typical.Expression[types.ResourceWithLabels, bool], error) {
+	parser, err := typical.NewParser[types.ResourceWithLabels, bool](typical.ParserSpec[types.ResourceWithLabels]{
+		Variables: map[string]typical.Variable{
+			"resource.metadata.labels": typical.DynamicVariable(func(r types.ResourceWithLabels) (map[string]string, error) {
+				return r.GetStaticLabels(), nil
+			}),
+			"resource.metadata.name": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
+				return r.GetName(), nil
+			}),
+			"labels": typical.DynamicMapFunction(func(r types.ResourceWithLabels, key string) (string, error) {
+				val, _ := r.GetLabel(key)
+				return val, nil
+			}),
+			"name": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
 				// For nodes, the resource "name" that user expects is the
-				// nodes hostname, not its UUID. Currently for other resources,
+				// nodes hostname, not its UUID. Currently, for other resources,
 				// the metadata.name returns the name as expected.
-				if server, ok := resource.(types.Server); ok {
+				if server, ok := r.(types.Server); ok {
 					return server.GetHostname(), nil
 				}
 
-				return resource.GetName(), nil
-			case ResourceIdentifier:
-				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
-			default:
-				return nil, trace.NotFound("identifier %q is not defined", strings.Join(fields, "."))
-			}
+				return r.GetName(), nil
+			}),
 		},
-		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {
-			r, ok := mapVal.(types.ResourceWithLabels)
-			if !ok {
-				return GetStringMapValue(mapVal, keyVal)
+		Functions: map[string]typical.Function{
+			"hasPrefix": typical.BinaryFunction[types.ResourceWithLabels](func(s, suffix string) (bool, error) {
+				return strings.HasPrefix(s, suffix), nil
+			}),
+			"equals": typical.BinaryFunction[types.ResourceWithLabels](func(a, b string) (bool, error) {
+				return strings.Compare(a, b) == 0, nil
+			}),
+			"search": typical.UnaryVariadicFunctionWithEnv(func(r types.ResourceWithLabels, v ...string) (bool, error) {
+				return r.MatchSearch(v), nil
+			}),
+			"exists": typical.UnaryFunction[types.ResourceWithLabels](func(value string) (bool, error) {
+				return value != "", nil
+			}),
+			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) ([]string, error) {
+				return strings.Split(value, delimiter), nil
+			}),
+			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list []string, value string) (bool, error) {
+				return slices.Contains(list, value), nil
+			}),
+		},
+		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {
+			if fields[0] == ResourceIdentifier {
+				if f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:]); err == nil {
+					return f, nil
+				}
 			}
 
-			key, ok := keyVal.(string)
-			if !ok {
-				return nil, trace.BadParameter("only string keys are supported")
-			}
-
-			val, ok := r.GetLabel(key)
-			if ok {
-				return label{key: key, value: val}, nil
-			}
-			return label{}, nil
+			identifier := strings.Join(fields, ".")
+			return nil, trace.BadParameter("identifier %s is not defined", identifier)
 		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return boolPredicateParser{Parser: p}, nil
-}
-
-type label struct {
-	key, value string
+	expr, err := parser.Parse(expression)
+	return expr, trace.Wrap(err)
 }

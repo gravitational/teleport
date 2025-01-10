@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AuthType } from 'teleport/services/user';
+import type { AuthType } from 'teleport/services/user';
 
 export const openNewTab = (url: string) => {
   const element = document.createElement('a');

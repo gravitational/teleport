@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ConfigService } from 'teleterm/services/config';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   askAboutUserJobRoleIfNeeded,
   setUpUsageReporting,
 } from 'teleterm/ui/services/usage';
 import { IAppContext } from 'teleterm/ui/types';
-import { ConfigService } from 'teleterm/services/config';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 /**
  * Runs after the UI becomes visible.
@@ -44,11 +44,6 @@ export async function showStartupModalsAndNotifications(
   // Instead, on the first launch only "usage reporting" dialog shows up.
   // "User job role" dialog is shown on the second launch (only if user agreed to reporting earlier).
   await setUpUsageReporting(configService, ctx.modalsService);
-
-  // If there's a workspace that was active before the user closed the app, restorePersistedState
-  // will block until the user interacts with the login modal (if the cert is not valid anymore) and
-  // the modal for restoring documents.
-  await ctx.workspacesService.restorePersistedState();
 
   notifyAboutConfigErrors(configService, ctx.notificationsService);
   notifyAboutDuplicatedShortcutsCombinations(
@@ -83,9 +78,9 @@ function notifyAboutConfigErrors(
           description:
             isKeymapError &&
             'A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab".\nFunction keys do not require a modifier.',
-          link: {
+          action: {
             href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/#configuration',
-            text: 'See the config file documentation',
+            content: 'See the config file documentation',
           },
         });
       }

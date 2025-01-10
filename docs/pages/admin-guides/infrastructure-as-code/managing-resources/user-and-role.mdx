@@ -1,0 +1,489 @@
+---
+title: Managing Users And Roles With IaC
+description: Use infrastructure-as-code tooling to create Teleport users and roles.
+---
+
+In this guide, you will see how to create users and grant them roles through
+infrastructure as code (IaC). Teleports supports three ways to dynamically
+create resources from code:
+
+- The Teleport Kubernetes Operator, which allows you to manage Teleport resources
+  from Kubernetes
+- The Teleport Terraform Provider, which allows you to manage Teleport resources
+  via Terraform
+- The `tctl` CLI, which allows you to manage Teleport resources from your local
+  computer or your CI environment
+
+## Prerequisites
+
+To follow this guide, you must have:
+
+<Tabs>
+<TabItem label="tctl">
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+A running operator by following either:
+- [the guide to enable the operator in the `teleport-cluster` Helm chart](../teleport-operator/teleport-operator-helm.mdx).
+- [the guide to setup a standalone operator](../teleport-operator/teleport-operator-standalone.mdx).
+
+You must also set the namespace in which you deployed the operator as this is
+the namespace where you will deploy the CustomResources:
+
+```code
+# for operators deployed with the `teleport-cluster` Helm chart
+$ export OPERATOR_NAMESPACE="teleport-cluster"
+
+# for standalone operators
+$ export OPERATOR_NAMESPACE="teleport-iac"
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+A functional Teleport Terraform provider by following [the Terraform provider guide](../terraform-provider/terraform-provider.mdx).
+
+</TabItem>
+</Tabs>
+
+## Step 1/4. Write manifests
+
+In this step, we'll write text files describing the resources we want in
+Teleport. Those files are called manifests and their syntax will vary based on
+the IaC tooling you'll use.
+
+Those manifests are typically versioned in a shared revision system like git.
+This allows you to keep track of all changes, follow standard code review
+procedures before changing resources in Teleport, and quickly redeploy your
+Teleport instance if needed.
+
+### Write role manifests
+
+We will create 2 roles:
+
+- `manager` allows listing users and roles, as well as reviewing audit events and
+  session contents.
+- `engineer` grants access to dev and staging servers.
+
+<Tabs>
+<TabItem label="tctl">
+
+Create the following `roles.yaml` file:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: manager
+spec:
+  allow:
+    rules:
+      - resources: ['user', 'role']
+        verbs: ['list','read']
+      - resources: ['session', 'event']
+        verbs: ['list', 'read']
+---
+kind: role
+version: v7
+metadata:
+  name: engineer
+spec:
+  allow:
+    logins: ['root', 'ubuntu', '{{internal.logins}}']
+    node_labels:
+      'env': ['test', 'staging']
+```
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+Create the following `roles.yaml` file:
+
+```yaml
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV7
+metadata:
+  name: manager
+spec:
+  allow:
+    rules:
+      - resources: ['user', 'role']
+        verbs: ['list','read']
+      - resources: ['session', 'event']
+        verbs: ['list', 'read']
+---
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV7
+metadata:
+  name: engineer
+spec:
+  allow:
+    logins: ['root', 'ubuntu', '{{internal.logins}}']
+    node_labels:
+      'env': ['test', 'staging']
+```
+
+<Admonition type="note">
+  Kubernetes validates all custom resource names to follow RFC 1123, which
+  includes specifications for hostnames. This requires the `metadata.name` field
+  of Teleport resources controlled by the operator to consist of lowercase
+  alphanumeric characters, `-` or `.`, and to start and end with an alphanumeric
+  character.
+</Admonition>
+
+</TabItem>
+<TabItem label="Terraform">
+
+Create the following `roles.tf` file:
+
+```hcl
+resource "teleport_role" "manager" {
+  version = "v7"
+  metadata = {
+    name = "manager"
+  }
+
+  spec = {
+    allow = {
+      rules = [
+        {
+          resources = ["user", "role"]
+          verbs     = ["list", "read"]
+        },
+        {
+          resources = ["session", "event"]
+          verbs     = ["list", "read"]
+        }
+      ]
+    }
+  }
+}
+
+resource "teleport_role" "engineer" {
+  version = "v7"
+  metadata = {
+    name = "engineer"
+  }
+
+  spec = {
+    allow = {
+      logins = ["root", "ubuntu", "{{internal.logins}}"]
+      node_labels = {
+        env = ["test", "staging"]
+      }
+    }
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+### Write user manifests
+
+We will create 2 users:
+- Bob, an engineer with the `engineer` role.
+- Alice, an engineering manager with both `manager` and `engineer` roles.
+
+<Admonition type="note">
+  Users created from manifests are local users, as opposed to users coming from
+  an external SAML/OIDC/GitHub Identity Provider (IdP).
+
+  See [the user type reference](../../../reference/user-types.mdx) for more details.
+</Admonition>
+
+<Tabs>
+<TabItem label="tctl">
+
+Create the file `users.yaml` with the following content:
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: alice
+spec:
+  roles: ['manager', 'engineer']
+---
+kind: user
+version: v2
+metadata:
+  name: bob
+spec:
+  roles: ['engineer']
+```
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+Create the file `users.yaml` with the following content:
+
+```yaml
+apiVersion: resources.teleport.dev/v2
+kind: TeleportUser
+metadata:
+  name: alice
+spec:
+  roles: ['manager', 'engineer']
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportUser
+metadata:
+  name: bob
+spec:
+  roles: ['engineer']
+```
+
+<Admonition type="note">
+  Kubernetes validates all custom resource names to follow RFC 1123, which
+  includes specifications for hostnames. This requires the `metadata.name` field
+  of Teleport resources controlled by the operator to consist of lowercase
+  alphanumeric characters, `-` or `.`, and to start and end with an alphanumeric
+  character.
+</Admonition>
+
+</TabItem>
+<TabItem label="Terraform">
+
+Create the file `users.tf` with the following content:
+
+```hcl
+resource "teleport_user" "alice" {
+  version = "v2"
+  metadata = {
+    name        = "alice"
+  }
+
+  spec = {
+    # referencing to the teleport_role resource name instead of using plain
+    # strings tells Terraform that the user depends on the role. Thanks to this,
+    # Terraform will create the role first and won't let you remove the role
+    # if it is still assigned to a user (which is illegal in Teleport).
+    roles = [
+      teleport_role.manager.metadata.name,
+      teleport_role.engineer.metadata.name,
+    ]
+  }
+}
+
+resource "teleport_user" "bob" {
+  version = "v2"
+  metadata = {
+    name        = "bob"
+  }
+
+  spec = {
+    roles = [teleport_role.engineer.metadata.name]
+  }
+}
+```
+
+
+</TabItem>
+</Tabs>
+
+## Step 2/4. Apply all manifests
+
+<Tabs>
+<TabItem label="tctl">
+
+```code
+$ tctl create -f roles.yaml
+role 'manager' has been created
+role 'engineer' has been created
+
+$ tctl create -f users.yaml
+user "alice" has been created
+user "bob" has been created
+```
+
+<Admonition type="note">
+The user resource depends on roles, you must create roles before users as a user
+with a non-existing role is invalid and might be rejected by Teleport.
+</Admonition>
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+```code
+$ kubectl apply -n "$OPERATOR_NAMESPACE" -f roles.yaml
+teleportrolev7.resources.teleport.dev/manager created
+teleportrolev7.resources.teleport.dev/engineer created
+
+$ kubectl apply -n "$OPERATOR_NAMESPACE" -f users.yaml 
+teleportuser.resources.teleport.dev/alice created
+teleportuser.resources.teleport.dev/bob created
+```
+
+List the created Kubernetes resources:
+
+```code
+$ kubectl get teleportrolev7 -n "$OPERATOR_NAMESPACE"
+# NAME       AGE
+# engineer   10m
+# manager    10m
+
+$ kubectl get teleportusers -n "$OPERATOR_NAMESPACE"
+# NAME     AGE
+# alice    10m
+# bob      10m
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+```code
+$ terraform plan
+[...]
+Plan: 4 to add, 0 to change, 0 to destroy.
+
+$ terraform apply
+teleport_role.engineer: Creating...
+teleport_role.manager: Creating...
+teleport_role.engineer: Creation complete after 0s [id=engineer]
+teleport_role.manager: Creation complete after 0s [id=manager]
+teleport_user.bob: Creating...
+teleport_user.alice: Creating...
+teleport_user.bob: Creation complete after 0s [id=bob]
+teleport_user.alice: Creation complete after 0s [id=alice]
+
+Apply complete! Resources: 4 added, 0 changed, 0 destroyed.
+```
+
+</TabItem>
+</Tabs>
+
+## Step 3/4. Validate users were created
+
+Now that the IaC tooling has run, we'll validate that the users were properly
+created and granted the correct roles.
+
+<Tabs>
+<TabItem label="Via the UI">
+
+If you have UI access, connect to your Teleport cluster Web UI, select the "Users" tab.
+
+Two new users `alice` and `bob` should be present.
+
+</TabItem>
+<TabItem label="Via CLI">
+
+```code
+$ tctl users ls
+User                          Roles
+----------------------------- -------------------------
+@teleport-access-approval-bot @teleport-access-approver
+alice                         manager,engineer
+bob                           engineer
+bot-operator                  bot-operator
+
+# alternatively you can inspect the users details by doing
+$ tctl get user/alice
+kind: user
+metadata:
+  id: 1704849160091933780
+  labels:
+    teleport.dev/origin: kubernetes
+  name: alice
+spec:
+  created_by:
+    time: "2024-01-10T01:12:40.088581806Z"
+    user:
+      name: bot-operator
+  expires: "0001-01-01T00:00:00Z"
+  roles:
+  - manager
+  - engineer
+  status:
+    is_locked: false
+    lock_expires: "0001-01-01T00:00:00Z"
+    locked_time: "0001-01-01T00:00:00Z"
+    recovery_attempt_lock_expires: "0001-01-01T00:00:00Z"
+version: v2
+```
+
+</TabItem>
+</Tabs>
+
+## Step 4/4. Create a password reset link
+
+At this point, the local users have been created in Teleport. However, we never
+specified any password or additional authentication factors. You must issue a
+password reset link for the users to finish their Teleport registration and be
+able to log in Teleport.
+
+User reset links contain single-use expiring tokens. Because of this, you cannot
+follow the same declarative approach as for other Teleport resources and
+generate them via a manifest. You need to create those tokens once after the
+user creation, and securely send them to the end-user for them to register their
+password/MFA.
+
+### Option 1: Reset via CLI
+You can manually reset a user password via `tctl` by doing:
+
+```code
+$ tctl users reset alice
+User "alice" has been reset. Share this URL with the user to complete password reset, link is valid for 8h:
+https://teleport.example.com:443/web/reset/05b420fdc784597cbbb1d2ba65697cd8
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
+```
+
+### Option 2: Automating user reset
+
+If you have a way to securely send reset links to the users, you can build
+automation to fit your organization's specific needs. For example:
+
+```
+$ tctl users reset alice --format=json | \
+    jq '"Sending an email to " + .spec.user +" that contains the link: " + .spec.url'
+```
+
+You must replace the `jq` command by something that actually sends the link over
+a secure channel. This channel will depend on your organization. It is usually a
+direct message or an email.
+
+<Admonition type="tip" title="For Terraform users">
+
+You can trigger your custom script on Terraform resource creation with
+[the `local-exec` provisioner](https://developer.hashicorp.com/terraform/language/resources/provisioners/local-exec).
+
+```hcl
+resource "teleport_user" "bob" {
+  version = v2
+  metadata = {
+    name = "bob"
+  }
+
+  spec = {
+    roles = [teleport_role.engineer.metadata.name]
+  }
+  
+  # on user creation, trigger a reset flow and send the link via 
+  provisioner "local-exec" {
+    command = "tctl users reset alice --format=json | jq '\"Sending an email to \" + .spec.user +\" that contains the link: \" + .spec.url'"
+  }
+}
+
+```
+
+</Admonition>
+
+## Next steps
+
+- Allow users with the `manager` role to grant access to production servers to
+  some `engineers` via Access Lists. Manager will need to justify and review
+  granted access periodically.
+  See [the AccessList documentation](../../access-controls/access-lists/access-lists.mdx) for
+  a high-level explanation of the feature,
+  and [the AccessList IaC guide](access-list.mdx) for a step by step IaC
+  AccessList setup.
+- Allow users with the `engineer` role to request temporary access to
+  production, and have users with the `manager` role validate the requests.
+  See [the Access Requests documentation](../../access-controls/access-requests/access-requests.mdx)
+- You can see all supported fields in the references
+  of [the user resource](../../../reference/resources.mdx)
+  and [the role resource](../../../reference/resources.mdx).

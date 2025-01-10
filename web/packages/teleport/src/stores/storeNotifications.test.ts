@@ -16,22 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  Notification,
-  NotificationKind,
-  StoreNotifications,
-} from './storeNotifications';
+import { LocalNotificationKind } from 'teleport/services/notifications';
+
+import { Notification, StoreNotifications } from './storeNotifications';
 
 test('get/set/update notifications', async () => {
   const store = new StoreNotifications();
 
   expect(store.getNotifications()).toStrictEqual([]);
-  expect(store.hasNotificationsByKind(NotificationKind.AccessList)).toBeFalsy();
+  expect(
+    store.hasNotificationsByKind(LocalNotificationKind.AccessList)
+  ).toBeFalsy();
 
   // set some notifications, sorted by earliest date.
   const newerNote: Notification = {
     item: {
-      kind: NotificationKind.AccessList,
+      kind: LocalNotificationKind.AccessList,
       resourceName: 'apple',
       route: '',
     },
@@ -40,7 +40,7 @@ test('get/set/update notifications', async () => {
   };
   const olderNote: Notification = {
     item: {
-      kind: NotificationKind.AccessList,
+      kind: LocalNotificationKind.AccessList,
       resourceName: 'banana',
       route: '',
     },
@@ -54,7 +54,7 @@ test('get/set/update notifications', async () => {
   // Update notes, sorted by earliest date.
   const newestNote: Notification = {
     item: {
-      kind: NotificationKind.AccessList,
+      kind: LocalNotificationKind.AccessList,
       resourceName: 'carrot',
       route: '',
     },
@@ -63,7 +63,7 @@ test('get/set/update notifications', async () => {
   };
   const newestOlderNote: Notification = {
     item: {
-      kind: NotificationKind.AccessList,
+      kind: LocalNotificationKind.AccessList,
       resourceName: 'carrot',
       route: '',
     },
@@ -72,7 +72,7 @@ test('get/set/update notifications', async () => {
   };
   const newestOldestNote: Notification = {
     item: {
-      kind: NotificationKind.AccessList,
+      kind: LocalNotificationKind.AccessList,
       resourceName: 'carrot',
       route: '',
     },
@@ -88,6 +88,6 @@ test('get/set/update notifications', async () => {
 
   // Test has notifications
   expect(
-    store.hasNotificationsByKind(NotificationKind.AccessList)
+    store.hasNotificationsByKind(LocalNotificationKind.AccessList)
   ).toBeTruthy();
 });

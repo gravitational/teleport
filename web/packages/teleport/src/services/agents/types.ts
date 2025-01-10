@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { Platform } from 'design/platform';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
+
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
-import { Node } from 'teleport/services/nodes';
-import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
+import { Node } from 'teleport/services/nodes';
 
+import type { MfaChallengeResponse } from '../mfa';
 import { UserGroup } from '../userGroups';
-
-import type { MfaAuthnResponse } from '../mfa';
-import type { Platform } from 'design/platform';
 
 export type UnifiedResource =
   | App
@@ -38,6 +39,7 @@ export type UnifiedResource =
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
 export type ResourcesResponse<T> = {
+  //TODO(gzdunek): Rename to items.
   agents: T[];
   startKey?: string;
   totalCount?: number;
@@ -58,6 +60,7 @@ export type ResourceFilter = {
   startKey?: string;
   pinnedOnly?: boolean;
   searchAsRoles?: '' | 'yes';
+  includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };
@@ -83,7 +86,15 @@ export type ResourceIdKind =
   | 'db'
   | 'kube_cluster'
   | 'user_group'
-  | 'windows_desktop';
+  | 'windows_desktop'
+  | 'saml_idp_service_provider'
+  | 'aws_ic_account_assignment';
+
+export type AccessRequestScope =
+  | 'my_requests'
+  | 'needs_review'
+  | 'reviewed'
+  | '';
 
 export type ConnectionDiagnostic = {
   /** id is the identifier of the connection diagnostic. */
@@ -131,7 +142,7 @@ export type ConnectionDiagnosticRequest = {
   sshNodeSetupMethod?: 'script' | 'connect_my_computer'; // `json:"ssh_node_setup_method"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation"`
   dbTester?: DatabaseTester;
-  mfaAuthnResponse?: MfaAuthnResponse;
+  mfaAuthnResponse?: MfaChallengeResponse;
 };
 
 export type KubeImpersonation = {

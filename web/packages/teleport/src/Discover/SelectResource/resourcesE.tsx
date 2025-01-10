@@ -16,27 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared';
-
-import { ResourceSpec, SamlServiceProviderPreset } from './types';
+import { ResourceSpec } from './types';
 
 export const SAML_APPLICATIONS: ResourceSpec[] = [
   {
-    name: 'SAML Application',
+    name: 'SAML Application (Generic)',
     kind: ResourceKind.SamlApplication,
     samlMeta: { preset: SamlServiceProviderPreset.Unspecified },
-    keywords: 'saml sso application idp',
-    icon: 'Application',
+    keywords: ['saml', 'sso', 'application', 'idp'],
+    icon: 'application',
     event: DiscoverEventResource.SamlApplication,
   },
   {
     name: 'Grafana',
     kind: ResourceKind.SamlApplication,
     samlMeta: { preset: SamlServiceProviderPreset.Grafana },
-    keywords: 'saml sso application idp grafana',
-    icon: 'Grafana',
+    keywords: ['saml', 'sso', 'application', 'idp', 'grafana'],
+    icon: 'grafana',
+    event: DiscoverEventResource.SamlApplication,
+  },
+  {
+    name: 'Workforce Identity Federation',
+    kind: ResourceKind.SamlApplication,
+    samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
+    keywords: [
+      'saml',
+      'sso',
+      'application',
+      'idp',
+      'gcp',
+      'workforce',
+      'federation',
+    ],
+    icon: 'googlecloud',
     event: DiscoverEventResource.SamlApplication,
   },
 ];

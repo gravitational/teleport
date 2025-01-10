@@ -45,7 +45,7 @@ test('fetch events', async () => {
       id: '5ec6-4c2c-8567-36bcb',
       code: 'T6000I',
       user: '90678c66-ffcc-4f02.im-a-cluster-name',
-      time: '2021-05-25T07:34:22.204Z',
+      time: new Date('2021-05-25T07:34:22.204Z'),
       raw: {
         cluster_name: 'im-a-cluster-name',
         code: 'T6000I',
@@ -66,7 +66,7 @@ test('fetch events', async () => {
       id: 'user.login:2021-05-25T14:37:27.848Z',
       code: 'T1000I',
       user: 'root',
-      time: '2021-05-25T14:37:27.848Z',
+      time: new Date('2021-05-25T14:37:27.848Z'),
       raw: {
         cluster_name: 'im-a-cluster-name',
         code: 'T1000I',

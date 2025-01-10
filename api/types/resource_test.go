@@ -266,7 +266,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			name:               "kube cluster",
 			matchingSearchVals: []string{"foo", "prod", "env"},
 			newResource: func(t *testing.T) ResourceWithLabels {
-				kc, err := NewKubernetesClusterV3FromLegacyCluster("_", &KubernetesCluster{
+				kc, err := NewKubernetesClusterV3FromLegacyCluster("", &KubernetesCluster{
 					Name:         "foo",
 					StaticLabels: labels,
 				})
@@ -528,6 +528,15 @@ func TestFriendlyName(t *testing.T) {
 		return group
 	}
 
+	newRole := func(t *testing.T, name string, labels map[string]string) Role {
+		role, err := NewRole(name, RoleSpecV6{})
+		require.NoError(t, err)
+		metadata := role.GetMetadata()
+		metadata.Labels = labels
+		role.SetMetadata(metadata)
+		return role
+	}
+
 	node, err := NewServer("node", KindNode, ServerSpecV2{
 		Hostname: "friendly hostname",
 	})
@@ -574,6 +583,14 @@ func TestFriendlyName(t *testing.T) {
 			expected: "label friendly name",
 		},
 		{
+			name: "friendly role name (uses label)",
+			resource: newRole(t, "friendly", map[string]string{
+				OriginLabel:       OriginOkta,
+				OktaRoleNameLabel: "label friendly name",
+			}),
+			expected: "label friendly name",
+		},
+		{
 			name:     "friendly node name",
 			resource: node,
 			expected: "friendly hostname",
@@ -596,7 +613,6 @@ func TestMetadataIsEqual(t *testing.T) {
 			Description: "description",
 			Labels:      map[string]string{"label1": "value1"},
 			Expires:     &time.Time{},
-			ID:          1234,
 			Revision:    "aaaa",
 		}
 
@@ -640,7 +656,6 @@ func TestMetadataIsEqual(t *testing.T) {
 			name: "id and revision have no effect",
 			m1:   newMetadata(),
 			m2: newMetadata(func(m *Metadata) {
-				m.ID = 7890
 				m.Revision = "bbbb"
 			}),
 			expected: true,
@@ -725,7 +740,6 @@ func TestResourceHeaderIsEqual(t *testing.T) {
 				Description: "description",
 				Labels:      map[string]string{"label1": "value1"},
 				Expires:     &time.Time{},
-				ID:          1234,
 				Revision:    "aaaa",
 			},
 		}

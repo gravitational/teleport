@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { waitFor } from '@testing-library/react';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { EditBot } from 'teleport/Bots/EditBot';
 import { EditBotProps } from 'teleport/Bots/types';
 
 const makeProps = (overrides: Partial<EditBotProps> = {}): EditBotProps => ({
-  allRoles: [],
+  fetchRoles: jest.fn().mockResolvedValueOnce([]),
   attempt: { status: '' },
   name: 'bot-007',
   onClose: () => {},
@@ -35,6 +37,7 @@ const makeProps = (overrides: Partial<EditBotProps> = {}): EditBotProps => ({
 test('renders', async () => {
   const props = makeProps({ selectedRoles: ['foo-role'] });
   render(<EditBot {...props} />);
+  await waitFor(() => expect(props.fetchRoles).toHaveBeenCalledTimes(1));
 
   expect(screen.getByText('Edit Bot')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
@@ -45,7 +48,7 @@ test('renders', async () => {
     'readonly'
   );
 
-  expect(screen.getByRole('textbox', { name: 'Bot Roles' })).toBeEnabled();
+  expect(screen.getByRole('combobox', { name: 'Bot Roles' })).toBeEnabled();
   expect(screen.getByText('foo-role')).toBeInTheDocument();
 });
 
@@ -72,6 +75,7 @@ test('edit calls onedit cb', async () => {
 test('disables buttons when processing', async () => {
   const props = makeProps({ attempt: { status: 'processing' } });
   render(<EditBot {...props} />);
+  await waitFor(() => expect(props.fetchRoles).toHaveBeenCalledTimes(1));
 
   expect(screen.queryByRole('button', { name: 'Save' })).toBeDisabled();
   expect(screen.queryByRole('button', { name: 'Cancel' })).toBeDisabled();
@@ -82,6 +86,7 @@ test('displays error text', async () => {
     attempt: { status: 'failed', statusText: 'error editing' },
   });
   render(<EditBot {...props} />);
+  await waitFor(() => expect(props.fetchRoles).toHaveBeenCalledTimes(1));
 
   expect(screen.getByText('error editing')).toBeInTheDocument();
 });

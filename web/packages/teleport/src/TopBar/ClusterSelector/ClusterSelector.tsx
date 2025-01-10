@@ -16,17 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { components } from 'react-select';
+import { useState } from 'react';
+import { components, ValueContainerProps } from 'react-select';
 import styled from 'styled-components';
+
 import { Box, Flex, Text } from 'design';
 import { SelectAsync } from 'shared/components/Select';
 
-const ValueContainer = ({ children, ...props }) => (
+const ValueContainer = ({
+  children,
+  ...props
+}: ValueContainerProps<Option>) => (
   <components.ValueContainer {...props}>
     <Flex alignItems="center" color="text.main">
-      <Text typography="h6" fontWeight="regular" mr="2">
-        CLUSTER:
+      <Text typography="body2" mr="2">
+        Cluster:
       </Text>
       {children}
     </Flex>
@@ -40,8 +44,8 @@ export default function ClusterSelector({
   defaultMenuIsOpen = false,
   ...styles
 }) {
-  const [errorMessage, setError] = React.useState(null);
-  const [options, setOptions] = React.useState<Option[]>([]);
+  const [errorMessage, setError] = useState(null);
+  const [options, setOptions] = useState<Option[]>([]);
 
   const selectedOption = {
     value,
@@ -72,6 +76,7 @@ export default function ClusterSelector({
       .then(options => filterOptions(inputValue, options))
       .catch((err: Error) => {
         setError(err.message);
+        return [];
       });
   }
 
@@ -100,7 +105,6 @@ export default function ClusterSelector({
         maxMenuHeight={600}
         menuPosition="fixed"
         isSearchable
-        isSimpleValue={false}
         isClearable={false}
         defaultOptions
         cacheOptions

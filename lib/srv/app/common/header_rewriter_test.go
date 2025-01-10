@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"testing"
 
@@ -51,8 +52,8 @@ func newTestDelegate(header, value string) *testDelegate {
 	}
 }
 
-func (t *testDelegate) Rewrite(req *http.Request) {
-	req.Header.Set(t.header, t.value)
+func (t *testDelegate) Rewrite(req *httputil.ProxyRequest) {
+	req.Out.Header.Set(t.header, t.value)
 }
 
 func TestHeaderRewriter(t *testing.T) {
@@ -128,10 +129,21 @@ func TestHeaderRewriter(t *testing.T) {
 			delegates = append(delegates, test.extraDelegates...)
 			hr := NewHeaderRewriter(delegates...)
 
-			hr.Rewrite(test.req)
+			// replicate net/http/httputil.ReverseProxy stripping
+			// forwarding headers from the outbound request
+			outReq := test.req.Clone(test.req.Context())
+			outReq.Header.Del("Forwarded")
+			outReq.Header.Del(reverseproxy.XForwardedFor)
+			outReq.Header.Del(reverseproxy.XForwardedHost)
+			outReq.Header.Del(reverseproxy.XForwardedProto)
+
+			hr.Rewrite(&httputil.ProxyRequest{
+				In:  test.req,
+				Out: outReq,
+			})
 
 			for header, value := range test.expectedHeaders {
-				assert.Equal(t, test.req.Header.Get(header), value[0])
+				assert.Equal(t, outReq.Header.Get(header), value[0])
 			}
 		})
 	}

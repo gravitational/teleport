@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ConfigService } from 'teleterm/services/config';
+import type { CloneableAbortSignal, TshdClient } from 'teleterm/services/tshd';
+import type * as types from 'teleterm/services/tshd/types';
 import { SendPendingHeadlessAuthenticationRequest } from 'teleterm/services/tshdEvents';
 import { MainProcessClient } from 'teleterm/types';
 import { ModalsService } from 'teleterm/ui/services/modals';
-import { ConfigService } from 'teleterm/services/config';
-
-import type * as types from 'teleterm/services/tshd/types';
 
 export class HeadlessAuthenticationService {
   constructor(
     private mainProcessClient: MainProcessClient,
     private modalsService: ModalsService,
-    private tshClient: types.TshdClient,
+    private tshClient: TshdClient,
     private configService: ConfigService
   ) {}
 
@@ -59,12 +59,11 @@ export class HeadlessAuthenticationService {
   }
 
   async updateHeadlessAuthenticationState(
-    params: types.UpdateHeadlessAuthenticationStateParams,
-    abortSignal: types.CloneableAbortSignal
+    params: types.UpdateHeadlessAuthenticationStateRequest,
+    abortSignal: CloneableAbortSignal
   ): Promise<void> {
-    return this.tshClient.updateHeadlessAuthenticationState(
-      params,
-      abortSignal
-    );
+    await this.tshClient.updateHeadlessAuthenticationState(params, {
+      abort: abortSignal,
+    });
   }
 }

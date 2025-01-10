@@ -18,16 +18,17 @@
 
 import { formatDuration } from 'date-fns';
 
-import { AccessRequestResource } from 'teleport/Assist/types';
-import { ResourceIdKind } from 'teleport/services/agents';
-import api from 'teleport/services/api';
-import cfg from 'teleport/config';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+
 import {
   AccessRequest,
+  AccessRequestResource,
   CreateAccessRequest,
   DurationOption,
 } from 'teleport/AccessRequests/types';
 import { middleValues } from 'teleport/AccessRequests/utils';
+import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 export async function createAccessRequest(
   clusterId: string,
@@ -41,7 +42,7 @@ export async function createAccessRequest(
     reason,
     roles,
     resourceIds: resources.map(item => ({
-      kind: item.type as ResourceIdKind,
+      kind: item.type as RequestableResourceKind,
       name: item.id,
       clusterName: clusterId,
     })),

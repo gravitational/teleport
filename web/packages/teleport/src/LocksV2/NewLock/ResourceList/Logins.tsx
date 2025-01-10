@@ -17,10 +17,11 @@
  */
 
 import React, { useState } from 'react';
-import Table from 'design/DataTable';
-import { Box, ButtonSecondary, Flex, Input, Text } from 'design';
 
-import { renderActionCell, LoginsProps } from './common';
+import { Box, ButtonSecondary, Flex, Input, Text } from 'design';
+import Table from 'design/DataTable';
+
+import { LoginsProps, renderActionCell } from './common';
 
 export function Logins(props: LoginsProps) {
   const [loginInput, setLoginInput] = useState('');
@@ -29,7 +30,7 @@ export function Logins(props: LoginsProps) {
     return Object.keys(loginMap).map(login => ({ login }));
   });
 
-  function addLogin(e: React.MouseEvent<HTMLButtonElement>) {
+  function addLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); // from form submit event
 
     props.toggleSelectResource({ kind: 'login', targetValue: loginInput });
@@ -63,7 +64,7 @@ export function Logins(props: LoginsProps) {
           type="submit"
           size="large"
           disabled={
-            !loginInput.length || props.selectedResources['login'][loginInput]
+            !loginInput.length || !!props.selectedResources['login'][loginInput]
           }
         >
           + Add Login

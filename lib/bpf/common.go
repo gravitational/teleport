@@ -42,6 +42,9 @@ type BPF interface {
 
 	// Close will stop any running BPF programs.
 	Close(restarting bool) error
+
+	// Enabled returns whether enhanced recording is active.
+	Enabled() bool
 }
 
 // SessionContext contains all the information needed to track and emit
@@ -99,6 +102,10 @@ func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
 // CloseSession closes a NOP session. Note this function does nothing.
 func (s *NOP) CloseSession(_ *SessionContext) error {
 	return nil
+}
+
+func (s *NOP) Enabled() bool {
+	return false
 }
 
 // IsHostCompatible checks that BPF programs can run on this host.

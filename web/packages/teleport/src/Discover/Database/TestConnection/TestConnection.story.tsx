@@ -16,14 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { DatabaseEngine } from '../../SelectResource';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import {
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 
-import { TestConnectionView } from './TestConnection';
-
-import type { State } from './useTestConnection';
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
+import { TestConnection } from './TestConnection';
 
 export default {
   title: 'Teleport/Discover/Database/TestConnection',
@@ -31,41 +40,84 @@ export default {
 
 export const InitMySql = () => (
   <MemoryRouter>
-    <TestConnectionView {...props} />
+    <Provider dbEngine={DatabaseEngine.MySql}>
+      <TestConnection />
+    </Provider>
   </MemoryRouter>
 );
 
 export const InitPostgres = () => (
   <MemoryRouter>
-    <TestConnectionView {...props} dbEngine={DatabaseEngine.Postgres} />
+    <Provider dbEngine={DatabaseEngine.Postgres}>
+      <TestConnection />
+    </Provider>
   </MemoryRouter>
 );
 
-const props: State = {
-  attempt: {
-    status: 'success',
-    statusText: '',
-  },
-  testConnection: () => null,
-  nextStep: () => null,
-  prevStep: () => null,
-  diagnosis: null,
-  canTestConnection: true,
-  username: 'teleport-username',
-  authType: 'local',
-  clusterId: 'some-cluster-id',
-  db: {
-    kind: 'db',
-    name: 'dbname',
-    description: 'some desc',
-    type: 'self-hosted',
-    protocol: 'postgres',
-    labels: [],
-    names: ['name1', 'name2'],
-    users: ['user1', 'user2'],
-    hostname: 'db-hostname',
-  },
-  dbEngine: DatabaseEngine.MySql,
-  showMfaDialog: false,
-  cancelMfaDialog: () => null,
+const Provider: React.FC<PropsWithChildren<{ dbEngine: DatabaseEngine }>> = ({
+  children,
+  dbEngine,
+}) => {
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'db-name',
+      agentMatcherLabels: [],
+      db: {
+        kind: 'db',
+        name: 'aurora',
+        description: 'PostgreSQL 11.6: AWS Aurora ',
+        type: 'RDS PostgreSQL',
+        protocol: 'postgres',
+        labels: [
+          { name: 'cluster', value: 'root' },
+          { name: 'env', value: 'aws' },
+        ],
+        hostname: 'aurora-hostname',
+        names: ['name1', 'name2', '*'],
+        users: ['user1', 'user2', '*'],
+      },
+      awsIntegration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'test-oidc',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+    },
+    currentStep: 0,
+    onSelectResource: () => null,
+    resourceSpec: {
+      dbMeta: {
+        location: DatabaseLocation.Aws,
+        engine: dbEngine,
+      },
+    } as any,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+    nextStep: () => null,
+    prevStep: () => null,
+  };
+
+  return (
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'database' } },
+      ]}
+    >
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
 };

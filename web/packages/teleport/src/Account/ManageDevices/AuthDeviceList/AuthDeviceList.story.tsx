@@ -16,12 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import * as Icon from 'design/Icon';
 
-import { ActionButton, Header } from 'teleport/Account/Header';
-
+import { ActionButtonSecondary, Header } from 'teleport/Account/Header';
 import { MfaDevice } from 'teleport/services/mfa';
 
 import { AuthDeviceList } from './AuthDeviceList';
@@ -39,10 +36,10 @@ export function EmptyList() {
           description="Just some junk"
           icon={<Icon.ShieldCheck />}
           actions={
-            <ActionButton>
+            <ActionButtonSecondary>
               <Icon.Add />
               Add a new device
-            </ActionButton>
+            </ActionButtonSecondary>
           }
         />
       }
@@ -61,10 +58,10 @@ export function ListWithDevices() {
           description="These are very important devices, and I really need to provide a lengthy explanation for the reason why I'm listing them all here, just to make sure this text wraps to the new line, and ugh, I should have really just used some lorem ipsum."
           icon={<Icon.Key />}
           actions={
-            <ActionButton>
+            <ActionButtonSecondary>
               <Icon.Add />
               Add a new device
-            </ActionButton>
+            </ActionButtonSecondary>
           }
         />
       }
@@ -110,5 +107,14 @@ const devices: MfaDevice[] = [
     lastUsedDate: new Date(1614481052000),
     type: 'webauthn',
     usage: 'passwordless',
+  },
+  {
+    id: '5',
+    description: 'sso provider',
+    name: 'okta',
+    registeredDate: new Date(1612493852000),
+    lastUsedDate: new Date(1614481052000),
+    type: 'sso',
+    usage: 'mfa',
   },
 ];

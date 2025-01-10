@@ -19,13 +19,14 @@
 package automaticupgrades
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -58,7 +59,7 @@ func IsEnabled() bool {
 
 	automaticUpgrades, err := strconv.ParseBool(autoUpgradesEnv)
 	if err != nil {
-		log.Warnf("unexpected value for ENV:%s: %v", automaticUpgradesEnvar, err)
+		slog.WarnContext(context.Background(), "unexpected value for TELEPORT_AUTOMATIC_UPGRADES environment variable", "error", err)
 		return false
 	}
 
@@ -77,12 +78,15 @@ func GetUpgraderVersion(ctx context.Context) string {
 	if os.Getenv(EnvUpgrader) == "unit" {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
-			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
-		} else {
-			if version := strings.TrimSpace(string(out)); version != "" {
-				return version
-			}
+			slog.DebugContext(ctx, "Failed to exec /usr/sbin/teleport-upgrade version command", "error", err)
+			return ""
 		}
+		ver, err := version.EnsureSemver(string(bytes.TrimSpace(out)))
+		if err != nil {
+			slog.DebugContext(ctx, "Unexpected teleport-upgrade version", "error", err)
+			return ""
+		}
+		return ver
 	}
 	return os.Getenv(EnvUpgraderVersion)
 }

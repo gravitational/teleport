@@ -1,0 +1,31 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RDSProxyConnect",
+            "Effect": "Allow",
+            "Action": "rds-db:connect",
+            "Resource": "*"
+        },
+        {
+            "Sid": "RDSProxyFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBProxies",
+                "rds:DescribeDBProxyEndpoints"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`RDSProxyConnect` | Generate an IAM authentication token to connect to a database. |
+|`RDSProxyFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
+
+(!docs/pages/includes/database-access/reference/rds-action-notes-on-connect.mdx!)
+
+(!docs/pages/includes/database-access/reference/metadata-fetching-permissions-note.mdx sid="RDSProxyFetchMetadata"!)

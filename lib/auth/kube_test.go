@@ -19,11 +19,10 @@
 package auth
 
 import (
-	"crypto/rsa"
+	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -31,6 +30,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -38,7 +40,9 @@ import (
 func TestProcessKubeCSR(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Kubernetes: true, // test requires kube feature is enabled
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.K8s: {Enabled: true}, // test requires kube feature is enabled
+			},
 		},
 	})
 
@@ -64,7 +68,7 @@ func TestProcessKubeCSR(t *testing.T) {
 
 	pemCSR, err := newTestCSR(subj)
 	require.NoError(t, err)
-	csr := KubeCSR{
+	csr := authclient.KubeCSR{
 		Username:    username,
 		ClusterName: s.clusterName.GetClusterName(),
 		CSR:         pemCSR,
@@ -101,16 +105,14 @@ func TestProcessKubeCSR(t *testing.T) {
 
 // newTestCSR creates and PEM-encodes an x509 CSR with given subject.
 func newTestCSR(subj pkix.Name) ([]byte, error) {
-	// Use math/rand to avoid blocking on system entropy.
-	rng := rand.New(rand.NewSource(0))
-	priv, err := rsa.GenerateKey(rng, 2048)
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, err
 	}
 	x509CSR := &x509.CertificateRequest{
 		Subject: subj,
 	}
-	derCSR, err := x509.CreateCertificateRequest(rng, x509CSR, priv)
+	derCSR, err := x509.CreateCertificateRequest(rand.Reader, x509CSR, priv)
 	if err != nil {
 		return nil, err
 	}

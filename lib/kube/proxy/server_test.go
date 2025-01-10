@@ -23,11 +23,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -37,12 +35,12 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -66,13 +64,13 @@ func TestMTLSClientCAs(t *testing.T) {
 		cas: make(map[string]types.CertAuthority),
 	}
 	// Reuse the same CA private key for performance.
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	addCA := func(t *testing.T, name string) (key, cert []byte) {
 		cert, err := tlsca.GenerateSelfSignedCAWithSigner(caKey, pkix.Name{CommonName: name}, nil, time.Minute)
 		require.NoError(t, err)
-		_, key, err = utils.MarshalPrivateKey(caKey)
+		key, err = keys.MarshalPrivateKey(caKey)
 		require.NoError(t, err)
 		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 			Type:        types.HostCA,
@@ -105,19 +103,17 @@ func TestMTLSClientCAs(t *testing.T) {
 			DNSNames:  sans,
 		})
 		require.NoError(t, err)
-		keyRaw, err := x509.MarshalECPrivateKey(userHostKey)
+		keyPEM, err := keys.MarshalPrivateKey(userHostKey)
 		require.NoError(t, err)
-		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
 		cert, err := tls.X509KeyPair(certRaw, keyPEM)
 		require.NoError(t, err)
 		return cert
 	}
 	hostCert := genCert(t, "localhost", "localhost", "127.0.0.1", "::1")
 	userCert := genCert(t, "user")
-	log := logrus.New()
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: log,
+			Log: utils.NewSlogLoggerForTests(),
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -128,7 +124,7 @@ func TestMTLSClientCAs(t *testing.T) {
 			},
 			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
-		log: logrus.NewEntry(log),
+		log: utils.NewSlogLoggerForTests(),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -210,7 +206,7 @@ func TestGetServerInfo(t *testing.T) {
 
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: logrus.New(),
+			Log: utils.NewSlogLoggerForTests(),
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",
@@ -233,24 +229,16 @@ func TestGetServerInfo(t *testing.T) {
 	}
 
 	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
-		serverInfo, err := srv.getServerInfo("kube-cluster")
+		kubeServer, err := srv.getServerInfo("kube-cluster")
 		require.NoError(t, err)
-
-		kubeServer, ok := serverInfo.(types.KubeServer)
-		require.True(t, ok)
-
 		require.Equal(t, listener.Addr().String(), kubeServer.GetHostname())
 	})
 
 	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
 		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
 
-		serverInfo, err := srv.getServerInfo("kube-cluster")
+		kubeServer, err := srv.getServerInfo("kube-cluster")
 		require.NoError(t, err)
-
-		kubeServer, ok := serverInfo.(types.KubeServer)
-		require.True(t, ok)
-
 		require.Equal(t, "k8s.example.com", kubeServer.GetHostname())
 	})
 }
@@ -275,7 +263,7 @@ func TestHeartbeat(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
 	type args struct {
-		kubeClusterGetter func(auth.ClientI) []string
+		kubeClusterGetter func(authclient.ClientI) []string
 	}
 	tests := []struct {
 		name      string
@@ -285,7 +273,7 @@ func TestHeartbeat(t *testing.T) {
 		{
 			name: "List KubeServers",
 			args: args{
-				kubeClusterGetter: func(authClient auth.ClientI) []string {
+				kubeClusterGetter: func(authClient authclient.ClientI) []string {
 					rsp, err := authClient.ListResources(testCtx.Context, proto.ListResourcesRequest{
 						ResourceType: types.KindKubeServer,
 						Limit:        10,

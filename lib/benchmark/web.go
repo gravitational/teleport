@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 // WebSSHBenchmark is a benchmark suite that connects to the configured
@@ -176,9 +176,22 @@ func getServers(ctx context.Context, tc *client.TeleportClient) ([]types.Server,
 	return resources, nil
 }
 
+// TerminalRequest describes a request to create a web-based terminal
+// to a remote SSH server.
+type TerminalRequest struct {
+	// Server describes a server to connect to (serverId|hostname[:port]).
+	Server string `json:"server_id"`
+
+	// Login is Linux username to connect as.
+	Login string `json:"login"`
+
+	// Term is the initial PTY size.
+	Term session.TerminalParams `json:"term"`
+}
+
 // connectToHost opens an SSH session to the target host via the Proxy web api.
 func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *webSession, host string) (io.ReadWriteCloser, error) {
-	req := web.TerminalRequest{
+	req := TerminalRequest{
 		Server: host,
 		Login:  tc.HostLogin,
 		Term: session.TerminalParams{
@@ -224,7 +237,7 @@ func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *w
 		return nil, trace.BadParameter("unexpected websocket message received %d", ty)
 	}
 
-	stream := web.NewTerminalStream(ctx, web.TerminalStreamConfig{WS: ws})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
 	return stream, trace.Wrap(err)
 }
 

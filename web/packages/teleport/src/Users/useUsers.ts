@@ -17,11 +17,14 @@
  */
 
 import { ReactElement, useEffect, useState } from 'react';
+
 import { useAttempt } from 'shared/hooks';
 
-import { User } from 'teleport/services/user';
-import useTeleport from 'teleport/useTeleport';
+import cfg from 'teleport/config';
 import auth from 'teleport/services/auth/auth';
+import { storageService } from 'teleport/services/storageService';
+import { ExcludeUserField, User } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
 export default function useUsers({
   InviteCollaborators,
@@ -30,7 +33,6 @@ export default function useUsers({
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
-  const [roles, setRoles] = useState([] as string[]);
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
@@ -78,30 +80,24 @@ export default function useUsers({
   }
 
   function onUpdate(u: User) {
-    return ctx.userService.updateUser(u).then(result => {
-      setUsers([result, ...users.filter(i => i.name !== u.name)]);
-    });
+    return ctx.userService
+      .updateUser(u, ExcludeUserField.Traits)
+      .then(result => {
+        setUsers([result, ...users.filter(i => i.name !== u.name)]);
+      });
   }
 
   async function onCreate(u: User) {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
     return ctx.userService
-      .createUser(u, webauthnResponse)
+      .createUser(u, ExcludeUserField.Traits, mfaResponse)
       .then(result => setUsers([result, ...users]))
       .then(() =>
-        ctx.userService.createResetPasswordToken(
-          u.name,
-          'invite',
-          webauthnResponse
-        )
+        ctx.userService.createResetPasswordToken(u.name, 'invite', mfaResponse)
       );
   }
 
-  function onInviteCollaboratorsClose(newUsers?: User[]) {
-    if (newUsers && newUsers.length > 0) {
-      setUsers([...newUsers, ...users]);
-    }
-
+  function onInviteCollaboratorsClose() {
     setInviteCollaboratorsOpen(false);
     setOperation({ type: 'none' });
   }
@@ -110,29 +106,36 @@ export default function useUsers({
     setOperation({ type: 'none' });
   }
 
+  async function fetchRoles(search: string): Promise<string[]> {
+    const { items } = await ctx.resourceService.fetchRoles({
+      search,
+      limit: 50,
+    });
+    return items.map(r => r.name);
+  }
+
+  function onDismissUsersMauNotice() {
+    storageService.setUsersMAUAcknowledged();
+  }
+
   useEffect(() => {
-    function fetchRoles() {
-      if (ctx.getFeatureFlags().roles) {
-        return ctx.resourceService
-          .fetchRoles()
-          .then(resources => resources.map(role => role.name));
-      }
-
-      return Promise.resolve([]);
-    }
-
-    attemptActions.do(() =>
-      Promise.all([fetchRoles(), ctx.userService.fetchUsers()]).then(values => {
-        setRoles(values[0]);
-        setUsers(values[1]);
-      })
-    );
+    attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
   }, []);
+
+  // if the cluster has billing enabled, and usageBasedBilling, and they haven't acknowledged
+  // the info yet
+  const showMauInfo =
+    ctx.getFeatureFlags().billing &&
+    cfg.isUsageBasedBilling &&
+    !storageService.getUsersMauAcknowledged();
+
+  const usersAcl = ctx.storeUser.getUserAccess();
 
   return {
     attempt,
     users,
-    roles,
+    fetchRoles,
+    usersAcl,
     operation,
     onStartCreate,
     onStartDelete,
@@ -149,6 +152,8 @@ export default function useUsers({
     inviteCollaboratorsOpen,
     onEmailPasswordResetClose,
     EmailPasswordReset,
+    showMauInfo,
+    onDismissUsersMauNotice,
   };
 }
 

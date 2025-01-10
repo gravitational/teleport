@@ -19,10 +19,13 @@
 package client
 
 import (
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -54,15 +57,17 @@ func TestProfileStore(t *testing.T) {
 		}
 		profiles := []*profile.Profile{
 			{
-				WebProxyAddr: "proxy1.example.com",
-				Username:     "test-user",
-				SiteName:     "root",
-				Dir:          dir,
+				WebProxyAddr:   "proxy1.example.com",
+				Username:       "test-user",
+				SiteName:       "root",
+				Dir:            dir,
+				SSHDialTimeout: 10 * time.Second,
 			}, {
-				WebProxyAddr: "proxy2.example.com",
-				Username:     "test-user",
-				SiteName:     "root",
-				Dir:          dir,
+				WebProxyAddr:   "proxy2.example.com",
+				Username:       "test-user",
+				SiteName:       "root",
+				Dir:            dir,
+				SSHDialTimeout: 1 * time.Second,
 			},
 		}
 
@@ -142,4 +147,50 @@ func TestProfileStatusAccessInfo(t *testing.T) {
 	}
 
 	require.Equal(t, wantAccessInfo, profileStatus.AccessInfo())
+}
+
+func Test_profileStatusFromKeyRing(t *testing.T) {
+	auth := newTestAuthority(t)
+	idx := KeyRingIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: "root",
+		Username:    "test-user",
+	}
+	profile := &profile.Profile{
+		WebProxyAddr: idx.ProxyHost + ":3080",
+		SiteName:     idx.ClusterName,
+		Username:     idx.Username,
+	}
+	keyRing := auth.makeSignedKeyRing(t, idx, false)
+	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
+		ProfileName:   profile.Name(),
+		WebProxyAddr:  profile.WebProxyAddr,
+		ProfileDir:    "",
+		Username:      profile.Username,
+		SiteName:      profile.SiteName,
+		KubeProxyAddr: profile.KubeProxyAddr,
+		IsVirtual:     true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, &ProfileStatus{
+		Name:    "proxy.example.com",
+		Cluster: "root",
+		ProxyURL: url.URL{
+			Scheme: "https",
+			Host:   "proxy.example.com:3080",
+		},
+		Username: "test-user",
+		Logins:   []string{"test-user", "root"},
+		Extensions: []string{
+			teleport.CertExtensionPermitPortForwarding,
+			teleport.CertExtensionPermitPTY,
+		},
+		ValidUntil: time.Unix(auth.clock.Now().Add(20*time.Minute).Unix(), 0),
+		IsVirtual:  true,
+		GitHubIdentity: &GitHubIdentity{
+			UserID:   "1234567",
+			Username: "github-username",
+		},
+		CriticalOptions: map[string]string{},
+	}, profileStatus)
 }

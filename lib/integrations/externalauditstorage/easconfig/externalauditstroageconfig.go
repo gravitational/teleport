@@ -25,6 +25,12 @@ type ExternalAuditStorageConfiguration struct {
 	Bootstrap bool
 	// Region is the AWS Region used.
 	Region string
+	// ClusterName is the Teleport cluster name.
+	// Used for resource tagging.
+	ClusterName string
+	// IntegrationName is the Teleport AWS OIDC Integration name.
+	// Used for resource tagging.
+	IntegrationName string
 	// Role is the AWS IAM Role associated with the OIDC integration.
 	Role string
 	// Policy is the name to use for the IAM policy.
@@ -43,4 +49,6 @@ type ExternalAuditStorageConfiguration struct {
 	GlueTable string
 	// Partition is the AWS partition to use (default: aws).
 	Partition string
+	// AccountID is the AWS account ID.
+	AccountID string
 }

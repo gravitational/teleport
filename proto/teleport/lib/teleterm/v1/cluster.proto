@@ -20,22 +20,35 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "teleport/legacy/types/trusted_device_requirement.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
-// Cluster describes cluster fields
+// Cluster describes cluster fields.
 message Cluster {
-  // uri is the cluster resource URI
+  // uri is the cluster resource URI.
+  // For root clusters, it has the form of /clusters/:rootClusterId where rootClusterId is the
+  // name of the profile, that is the hostname of the proxy used to connect to the root cluster.
+  // rootClusterId is not equal to the name of the root cluster.
+  //
+  // For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
+  // leafClusterId is equal to the name property of the cluster.
   string uri = 1;
   // name is used throughout the Teleport Connect codebase as the cluster name.
   string name = 2;
-  // proxy address (only for root clusters)
+  // proxy_host is address of the proxy used to connect to this cluster.
+  // Always includes port number. Present only for root clusters.
+  //
+  // Example: "teleport-14-ent.example.com:3090"
   string proxy_host = 3;
   // connected indicates if connection to the cluster can be established, that is if we have a
   // cert for the cluster that hasn't expired
   bool connected = 4;
   // leaf indicates if this is a leaf cluster
   bool leaf = 5;
-  // User is the cluster access control list of the logged-in user
+  // logged_in_user is present if the user has logged in to the cluster at least once, even
+  // if the cert has since expired. If the cluster was added to the app but the
+  // user is yet to log in, logged_in_user is not present.
   LoggedInUser logged_in_user = 7;
   // features describes the auth servers features.
   // Only present when detailed information is queried from the auth server.
@@ -47,6 +60,21 @@ message Cluster {
   // ProxyVersion is the cluster proxy's service version.
   // Only present when detailed information is queried from the proxy server.
   string proxy_version = 10;
+  // show_resources tells if the cluster can show requestable resources on the resources page.
+  // Controlled by the cluster config.
+  ShowResources show_resources = 11;
+  // profile_status_error is set if there was an error when reading the profile.
+  // This allows the app to be usable, when one or more profiles cannot be read.
+  string profile_status_error = 12;
+  // sso_host is the host of the SSO provider used to log in.
+  string sso_host = 13;
+}
+
+// ShowResources tells if the cluster can show requestable resources on the resources page.
+enum ShowResources {
+  SHOW_RESOURCES_UNSPECIFIED = 0;
+  SHOW_RESOURCES_REQUESTABLE = 1;
+  SHOW_RESOURCES_ACCESSIBLE_ONLY = 2;
 }
 
 // LoggedInUser describes a logged-in user
@@ -57,7 +85,8 @@ message LoggedInUser {
   repeated string roles = 2;
   // ssh_logins is the user ssh logins
   repeated string ssh_logins = 3;
-  // acl is the user acl
+  // acl is a user access control list.
+  // It is available only after the cluster details are fetched, as it is not stored on disk.
   ACL acl = 4;
   // active_requests is an array of request-id strings of active requests
   repeated string active_requests = 5;
@@ -75,6 +104,10 @@ message LoggedInUser {
     USER_TYPE_SSO = 2;
   }
   UserType user_type = 8;
+  // Indicates if the profile contains all required device extensions.
+  bool is_device_trusted = 9;
+  // Indicates whether access may be hindered by the lack of a trusted device.
+  types.TrustedDeviceRequirement trusted_device_requirement = 10;
 }
 
 // ACL is the access control list of the user
@@ -108,6 +141,8 @@ message ACL {
   ResourceAccess recorded_sessions = 13;
   // active_sessions defines access to active sessions.
   ResourceAccess active_sessions = 14;
+  // review_requests defines the ability to review requests
+  bool review_requests = 15;
 }
 
 // ResourceAccess describes access verbs

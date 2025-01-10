@@ -79,3 +79,7 @@ func (dm *DestinationNop) MarshalYAML() (interface{}, error) {
 	type raw DestinationNop
 	return withTypeHeader((*raw)(dm), DestinationNopType)
 }
+
+func (dm *DestinationNop) IsPersistent() bool {
+	return false
+}

@@ -39,6 +39,9 @@ type AccessCapabilities struct {
 	RequestableRoles []string `json:"requestableRoles"`
 	// SuggestedReviewers is a list of reviewers that the user can select when creating a request.
 	SuggestedReviewers []string `json:"suggestedReviewers"`
+	// RequireReason indicates whether the reason is required for the user to create an Access
+	// Request.
+	RequireReason bool `json:"requireReason"`
 }
 
 type authType string
@@ -67,6 +70,8 @@ type UserContext struct {
 	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 	// AllowedSearchAsRoles is the SearchAsRoles the user has access to for creating access requests.
 	AllowedSearchAsRoles []string `json:"allowedSearchAsRoles"`
+	// PasswordState specifies whether the user has a password set or not.
+	PasswordSate types.PasswordState `json:"passwordState"`
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {
@@ -102,9 +107,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	authType := authLocal
 
 	// check for any SSO identities
-	isSSO := len(user.GetOIDCIdentities()) > 0 ||
-		len(user.GetGithubIdentities()) > 0 ||
-		len(user.GetSAMLIdentities()) > 0
+	isSSO := user.GetUserType() == types.UserTypeSSO
 
 	if isSSO {
 		// SSO user
@@ -116,5 +119,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		ACL:            acl,
 		AuthType:       authType,
 		AccessStrategy: accessStrategy,
+		PasswordSate:   user.GetPasswordState(),
 	}, nil
 }

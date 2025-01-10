@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import DeleteTrustedCluster from './DeleteTrust';
 
 export default {
   title: 'Teleport/TrustedClusters/Delete',
 };
 
-export const Comfirm = () => <DeleteTrustedCluster {...props} />;
+export const Confirm = () => <DeleteTrustedCluster {...props} />;
 
 const props = {
   name: 'sample-trusted-cluster',

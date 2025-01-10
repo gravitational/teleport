@@ -1,0 +1,128 @@
+should match the snapshot:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-event-handler
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-event-handler-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-event-handler
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-plugin-event-handler
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: teleport-plugin-event-handler
+        spec:
+          containers:
+          - command:
+            - /usr/local/bin/teleport-plugin
+            - start
+            - --config
+            - /etc/teleport-event-handler.toml
+            env:
+            - name: TELEPORT_PLUGIN_FAIL_FAST
+              value: "true"
+            image: gcr.io/overridden/repository:v98.76.54
+            imagePullPolicy: IfNotPresent
+            name: teleport-plugin-event-handler
+            ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+            resources: {}
+            securityContext: {}
+            volumeMounts:
+            - mountPath: /etc/teleport-event-handler.toml
+              name: config
+              subPath: teleport-event-handler.toml
+            - mountPath: /var/lib/teleport/plugins/event-handler/teleport-identity
+              name: teleport-identity
+            - mountPath: /var/lib/teleport/plugins/event-handler/ca.crt
+              name: certificate
+              subPath: ca.crt
+            - mountPath: /var/lib/teleport/plugins/event-handler/client.crt
+              name: certificate
+              subPath: client.crt
+            - mountPath: /var/lib/teleport/plugins/event-handler/client.key
+              name: certificate
+              subPath: client.key
+          securityContext: {}
+          volumes:
+          - configMap:
+              defaultMode: 384
+              name: RELEASE-NAME-teleport-plugin-event-handler
+            name: config
+          - name: teleport-identity
+            secret:
+              defaultMode: 384
+              secretName: ""
+          - name: certificate
+            secret:
+              defaultMode: 384
+              secretName: ""
+should mount tls.existingCASecretName and set environment when set in values:
+  1: |
+    containers:
+    - command:
+      - /usr/local/bin/teleport-plugin
+      - start
+      - --config
+      - /etc/teleport-event-handler.toml
+      env:
+      - name: TELEPORT_PLUGIN_FAIL_FAST
+        value: "true"
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/ca.pem
+      image: public.ecr.aws/gravitational/teleport-plugin-event-handler:18.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: teleport-plugin-event-handler
+      ports:
+      - containerPort: 80
+        name: http
+        protocol: TCP
+      resources: {}
+      securityContext: {}
+      volumeMounts:
+      - mountPath: /etc/teleport-event-handler.toml
+        name: config
+        subPath: teleport-event-handler.toml
+      - mountPath: /var/lib/teleport/plugins/event-handler/teleport-identity
+        name: teleport-identity
+      - mountPath: /var/lib/teleport/plugins/event-handler/ca.crt
+        name: certificate
+        subPath: ca.crt
+      - mountPath: /var/lib/teleport/plugins/event-handler/client.crt
+        name: certificate
+        subPath: client.crt
+      - mountPath: /var/lib/teleport/plugins/event-handler/client.key
+        name: certificate
+        subPath: client.key
+      - mountPath: /etc/teleport-tls-ca
+        name: teleport-tls-ca
+        readOnly: true
+    securityContext: {}
+    volumes:
+    - configMap:
+        defaultMode: 384
+        name: RELEASE-NAME-teleport-plugin-event-handler
+      name: config
+    - name: teleport-identity
+      secret:
+        defaultMode: 384
+        secretName: ""
+    - name: certificate
+      secret:
+        defaultMode: 384
+        secretName: ""
+    - name: teleport-tls-ca
+      secret:
+        secretName: helm-lint-existing-tls-secret-ca

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,15 +50,16 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function ArrowRight({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const ArrowRight = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-arrowright"
       {...otherProps}
+      ref={ref}
     >
       <path d="M14.0303 4.71967C13.7374 4.42678 13.2626 4.42678 12.9697 4.71967C12.6768 5.01256 12.6768 5.48744 12.9697 5.78033L18.4393 11.25H3.75C3.33579 11.25 3 11.5858 3 12C3 12.4142 3.33579 12.75 3.75 12.75H18.4393L12.9697 18.2197C12.6768 18.5126 12.6768 18.9874 12.9697 19.2803C13.2626 19.5732 13.7374 19.5732 14.0303 19.2803L20.7803 12.5303C20.9268 12.3839 21 12.1919 21 12C21 11.8983 20.9798 11.8013 20.9431 11.7129C20.9065 11.6245 20.8522 11.5416 20.7803 11.4697L14.0303 4.71967Z" />
     </Icon>
-  );
-}
+  )
+);

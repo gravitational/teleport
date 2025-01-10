@@ -1,0 +1,22 @@
+kind: role
+spec:
+  allow:
+    # app_labels: a user with this role will be allowed to connect to
+    # applications with labels matching below.
+    app_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - integration
+      verbs:
+      - list
+      - create
+      - use
+      - read
+    - resources:
+      - app_server
+      verbs:
+      - create
+      - update
+      - list
+      - read

@@ -60,7 +60,12 @@ func (p *playFromFileStreamer) StreamSessionEvents(
 			}
 
 			if i >= startIndex {
-				evts <- evt
+				select {
+				case evts <- evt:
+				case <-ctx.Done():
+					errs <- trace.Wrap(ctx.Err())
+					return
+				}
 			}
 		}
 	}()

@@ -20,17 +20,23 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestUpdateBotLogins(t *testing.T) {
@@ -117,7 +123,7 @@ func TestUpdateBotLogins(t *testing.T) {
 				setLogins: tt.set,
 			}
 
-			err = cmd.updateBotLogins(bot, fieldMask)
+			err = cmd.updateBotLogins(context.Background(), bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
@@ -225,4 +231,66 @@ func TestUpdateBotRoles(t *testing.T) {
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
+}
+
+func TestAddAndListBotInstancesJSON(t *testing.T) {
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	ctx := context.Background()
+	client := testenv.MakeDefaultAuthClient(t, process)
+
+	tokens, err := client.GetTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, tokens)
+
+	// Create an initial bot
+	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{},
+		},
+	})
+	require.NoError(t, err)
+
+	// Attempt to add a new instance and ensure a new token was created.
+	buf := strings.Builder{}
+	cmd := BotsCommand{
+		stdout:  &buf,
+		format:  teleport.JSON,
+		botName: bot.Metadata.Name,
+	}
+	require.NoError(t, cmd.AddBotInstance(ctx, client))
+
+	response := botJSONResponse{}
+	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response))
+
+	_, err = client.GetToken(ctx, response.TokenID)
+	require.NoError(t, err)
+
+	// Run the command again to ensure multiple distinct tokens can be created.
+	buf.Reset()
+	require.NoError(t, cmd.AddBotInstance(ctx, client))
+
+	response2 := botJSONResponse{}
+	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response2))
+
+	require.NotEqual(t, response.TokenID, response2.TokenID)
+
+	_, err = client.GetToken(ctx, response2.TokenID)
+	require.NoError(t, err)
+
+	buf.Reset()
 }

@@ -1,0 +1,37 @@
+# buf-legacy.yaml is used so we can apply tighter settings to legacy protos.
+# This should be used exclusively to lint legacy protos, all other actions
+# should use the default buf.yaml file.
+version: v2
+
+modules:
+  - path: api/proto
+
+deps:
+  # gogo/protobuf v1.3.2, keep in sync with build.assets/versions.mk.
+  - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
+  - buf.build/googleapis/googleapis:beb34b4050abfcfff72ff5cc6a28f0afa4043ce0
+
+lint:
+  use:
+    - STANDARD
+    - PACKAGE_NO_IMPORT_CYCLE
+    # Top-level types require comments.
+    # TODO(codingllama): Fix messages and enable linters below.
+    # - COMMENT_ENUM
+    # - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+  except:
+    # MINIMAL
+    - PACKAGE_DIRECTORY_MATCH
+    # BASIC
+    - ENUM_VALUE_UPPER_SNAKE_CASE
+    - FIELD_LOWER_SNAKE_CASE
+    - ONEOF_LOWER_SNAKE_CASE
+    # STANDARD
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+    - PACKAGE_VERSION_SUFFIX
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME

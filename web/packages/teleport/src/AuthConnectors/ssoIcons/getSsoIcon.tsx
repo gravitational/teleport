@@ -16,108 +16,137 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
+
+import { Box, Flex, ResourceIcon } from 'design';
 import { AuthProviderType } from 'shared/services';
-import { GitHubIcon } from 'design/SVGIcon';
-import { Box, Flex, Image } from 'design';
 
-import iconAuth0 from './assets/saml-auth0.svg';
-import iconAzureAD from './assets/saml-azuread.svg';
-import iconOkta from './assets/saml-okta.svg';
-import iconOneLogin from './assets/saml-one.svg';
-import iconAmazon from './assets/oidc-amazon.svg';
-import iconGitlab from './assets/oidc-gitlab.svg';
-import iconGoogle from './assets/oidc-google.svg';
-import iconWindows from './assets/oidc-windows.svg';
-
-export default function getSsoIcon(kind: AuthProviderType) {
-  const desc = formatConnectorTypeDesc(kind);
+export default function getSsoIcon(
+  kind: AuthProviderType,
+  name?: string
+): () => JSX.Element {
+  const guessedIcon = guessIconFromName(name || '');
+  if (guessedIcon) {
+    return guessedIcon;
+  }
 
   switch (kind) {
     case 'github':
-      return {
-        SsoIcon: props => (
-          <Flex height="72px" alignItems="center">
-            <GitHubIcon
-              style={{ textAlign: 'center' }}
-              size={48}
-              color="text.main"
-              {...props}
-            />
-          </Flex>
-        ),
-        desc,
-        info: 'Sign in using your GitHub account',
-      };
+      return () => (
+        <Flex height="61px" alignItems="center" justifyContent="center">
+          <ResourceIcon name="github" width="61px" />
+        </Flex>
+      );
     case 'saml':
-      return {
-        SsoIcon: () => (
-          <MultiIconContainer>
-            <SmIcon>
-              <Image src={iconOneLogin} />
-            </SmIcon>
-            <SmIcon>
-              <Image src={iconOkta} />
-            </SmIcon>
-            <SmIcon mt="1">
-              <Image src={iconAuth0} />
-            </SmIcon>
-            <SmIcon mt="1">
-              <Image src={iconAzureAD} />
-            </SmIcon>
-          </MultiIconContainer>
-        ),
-        desc,
-        info: 'Okta, OneLogin, Azure Active Directory, etc.',
-      };
+      return () => (
+        <MultiIconContainer>
+          <SmIcon>
+            <StyledResourceIcon name="onelogin" />
+          </SmIcon>
+          <SmIcon>
+            <StyledResourceIcon name="oktaAlt" />
+          </SmIcon>
+          <SmIcon>
+            <StyledResourceIcon name="auth0" />
+          </SmIcon>
+          <SmIcon>
+            <StyledResourceIcon name="entraid" />
+          </SmIcon>
+        </MultiIconContainer>
+      );
     case 'oidc':
     default:
-      return {
-        SsoIcon: () => (
-          <MultiIconContainer>
-            <SmIcon>
-              <Image src={iconAmazon} />
-            </SmIcon>
-            <SmIcon>
-              <Image src={iconGoogle} />
-            </SmIcon>
-            <SmIcon mt="1">
-              <Image src={iconGitlab} />
-            </SmIcon>
-            <SmIcon mt="1">
-              <Image src={iconWindows} />
-            </SmIcon>
-          </MultiIconContainer>
-        ),
-        desc,
-        info: 'Google, GitLab, Amazon and more',
-      };
+      return () => (
+        <MultiIconContainer>
+          <SmIcon>
+            <StyledResourceIcon name="aws" />
+          </SmIcon>
+          <SmIcon>
+            <StyledResourceIcon name="google" />
+          </SmIcon>
+          <SmIcon>
+            <StyledResourceIcon name="gitlab" />
+          </SmIcon>
+          <SmIcon>
+            <StyledResourceIcon name="microsoft" />
+          </SmIcon>
+        </MultiIconContainer>
+      );
   }
 }
 
-function formatConnectorTypeDesc(kind) {
-  kind = kind || '';
-  if (kind == 'github') {
-    return `GitHub`;
+function guessIconFromName(connectorName: string) {
+  const name = connectorName.toLocaleLowerCase();
+
+  if (name.includes('okta')) {
+    return () => (
+      <Flex height="61px" alignItems="center" justifyContent="center">
+        <ResourceIcon name="okta" width="61px" />
+      </Flex>
+    );
   }
-  return kind.toUpperCase();
+  if (
+    name.includes('entra') ||
+    name.includes('active directory') ||
+    name.includes('microsoft') ||
+    name.includes('azure')
+  ) {
+    return () => (
+      <Flex height="61px" alignItems="center" justifyContent="center">
+        <ResourceIcon name="entraid" width="61px" />
+      </Flex>
+    );
+  }
+  if (name.includes('google')) {
+    return () => (
+      <Flex height="61px" alignItems="center" justifyContent="center">
+        <ResourceIcon name="google" width="61px" />
+      </Flex>
+    );
+  }
+  if (name.includes('gitlab')) {
+    return () => (
+      <Flex height="61px" alignItems="center" justifyContent="center">
+        <ResourceIcon name="gitlab" width="61px" />
+      </Flex>
+    );
+  }
+  if (name.includes('onelogin')) {
+    return () => (
+      <Flex height="61px" alignItems="center" justifyContent="center">
+        <ResourceIcon name="onelogin" width="61px" />
+      </Flex>
+    );
+  }
+  if (name.includes('auth0') || name.includes('authzero')) {
+    return () => (
+      <Flex height="61px" alignItems="center" justifyContent="center">
+        <ResourceIcon name="auth0" width="61px" />
+      </Flex>
+    );
+  }
 }
 
 const MultiIconContainer = styled(Flex)`
-  width: 67px;
+  width: 61px;
+  height: 61px;
   flex-wrap: wrap;
   gap: 3px;
-  padding: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: ${p => p.theme.space[2]}px;
+  border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[2]};
   border-radius: 8px;
 `;
 
 const SmIcon = styled(Box)`
-  width: ${p => p.theme.space[4]}px;
-  height: ${p => p.theme.space[4]}px;
-  line-height: ${p => p.theme.space[4]}px;
-  background: white;
-  color: black;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
+const StyledResourceIcon = styled(ResourceIcon).attrs({
+  width: '20px',
+})`
+  line-height: 0px !important;
 `;

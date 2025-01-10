@@ -1,0 +1,145 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// GitlabSyncOperation is a request to sync Gitlab resources
+message GitlabSyncOperation {}
+
+// GitlabResourceList is a request that contains resources to be sync.
+message GitlabResourceList {
+  // resources is a list of gitlab resources to sync.
+  repeated GitlabResource resources = 1;
+}
+
+// GitlabResource represents a Gitlab resource
+message GitlabResource {
+  oneof resource {
+    // group represents a gitlab group or subgroup in an organization.
+    GitlabGroup group = 1;
+    // project represents a gitlab repository.
+    GitlabProject project = 2;
+    // project_member represents a user with certain access levels to a project.
+    GitlabProjectMember project_member = 3;
+    // group_member represents a user with certain access levels to a group and all subgroups/projects within.
+    GitlabGroupMember group_member = 4;
+    // user represents a gitlab user.
+    GitlabUser user = 5;
+  }
+}
+
+// GitlabGroup represents a Gitlab group
+message GitlabGroup {
+  // name is the group name.
+  string name = 1;
+  // path is the universal identifier for the group location.
+  string path = 2;
+  // full_name is the group full name.
+  string full_name = 3;
+  // description is the group description.
+  string description = 4;
+}
+
+// GitlabProject represents a Gitlab project
+message GitlabProject {
+  // name is the repository name.
+  string name = 1;
+  // path is the universal identifier for the project location.
+  string path = 2;
+  // description is the project description.
+  string description = 3;
+}
+
+// GitlabProjectMember represents a Gitlab project member
+message GitlabProjectMember {
+  // username is the username of the user.
+  string username = 1;
+  // access_level defines the permissions the user has to the project.
+  AccessLevelType access_level = 2;
+  // project identifies the project that the user is member of.
+  GitlabProject project = 3;
+}
+
+// GitlabGroupMember represents a Gitlab group member
+message GitlabGroupMember {
+  // username is the username of the user.
+  string username = 1;
+  // access_level defines the permissions the user has to the group and all projects within.
+  AccessLevelType access_level = 2;
+  // project identifies the project that the user is member of.
+  GitlabGroup group = 3;
+}
+
+// GitlabGroupMember represents a Gitlab user.
+message GitlabUser {
+  // username is the username of the user.
+  string username = 1;
+  // email is the user's email.
+  string email = 2;
+  // name is the user's name.
+  string name = 3;
+  // is_admin indicates if a user is admin.
+  bool is_admin = 4;
+  // organization is the user's organization.
+  string organization = 5;
+  // last_sign_in_at identifies the last sign in date.
+  google.protobuf.Timestamp last_sign_in_at = 6;
+  // can_create_group identifies if the user can create groups.
+  bool can_create_group = 7;
+  // can_create_project identifies if the user can create projects.
+  bool can_create_project = 8;
+  // two_factor_enabled identifies if the user has two factor authentication enabled.
+  bool two_factor_enabled = 9;
+  // identities represents the identity source for the user.
+  repeated GitlabUserIdentity identities = 10;
+}
+
+// GitlabUserIdentity identifies the external identity of the user.
+message GitlabUserIdentity {
+  // provider identifies the identity provider.
+  string provider = 1;
+  // extern_uid identifies the external uid of the identity.
+  string extern_uid = 2;
+}
+
+// AccessLevelType defines the access level a user has
+// to a project or Gitlab group.
+enum AccessLevelType {
+  // ACCESS_LEVEL_TYPE_UNSPECIFIED is an unspecified permissions.
+  ACCESS_LEVEL_TYPE_UNSPECIFIED = 0;
+  // ACCESS_LEVEL_TYPE_NO_PERMISSIONS represents no permissions.
+  ACCESS_LEVEL_TYPE_NO_PERMISSIONS = 1;
+  // ACCESS_LEVEL_TYPE_MINIMAL represents "minimal" permissions to a project/group.
+  ACCESS_LEVEL_TYPE_MINIMAL = 2;
+  // ACCESS_LEVEL_TYPE_GUEST represents "guest" permissions to a project/group.
+  ACCESS_LEVEL_TYPE_GUEST = 3;
+  // ACCESS_LEVEL_TYPE_REPORTER represents "reporter" permissions to a project/group.
+  ACCESS_LEVEL_TYPE_REPORTER = 4;
+  // ACCESS_LEVEL_TYPE_DEVELOPER represents "developer" permissions to a project/group.
+  ACCESS_LEVEL_TYPE_DEVELOPER = 5;
+  // ACCESS_LEVEL_TYPE_MAINTAINER represents "master" permissions to a project/group.
+  ACCESS_LEVEL_TYPE_MAINTAINER = 6;
+  // ACCESS_LEVEL_TYPE_OWNER represents "owner" permissions to a project/group.
+  ACCESS_LEVEL_TYPE_OWNER = 7;
+}

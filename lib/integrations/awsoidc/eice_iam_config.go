@@ -20,13 +20,16 @@ package awsoidc
 
 import (
 	"context"
+	"io"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/provisioning"
+	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 )
 
 const (
@@ -46,6 +49,15 @@ type EICEIAMConfigureRequest struct {
 	// IntegrationRoleEICEPolicy is the Policy Name that is created to allow access to call AWS APIs.
 	// Defaults to EC2InstanceConnectEndpoint
 	IntegrationRoleEICEPolicy string
+
+	// AccountID is the AWS Account ID.
+	AccountID string
+
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+
+	// stdout is used to override stdout output in tests.
+	stdout io.Writer
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -67,11 +79,12 @@ func (r *EICEIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // EICEIAMConfigureClient describes the required methods to create the IAM Policies required for accessing EC2 instances usine EICE.
 type EICEIAMConfigureClient interface {
-	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
-	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
+	CallerIdentityGetter
+	awsactions.RolePolicyPutter
 }
 
 type defaultEICEIAMConfigureClient struct {
+	CallerIdentityGetter
 	*iam.Client
 }
 
@@ -87,7 +100,8 @@ func NewEICEIAMConfigureClient(ctx context.Context, region string) (EICEIAMConfi
 	}
 
 	return &defaultEICEIAMConfigureClient{
-		Client: iam.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
+		Client:               iam.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -123,25 +137,24 @@ func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req EICEI
 		return trace.Wrap(err)
 	}
 
-	ec2ICEPolicyDocument, err := awslib.NewPolicyDocument(
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	policy := awslib.NewPolicyDocument(
 		awslib.StatementForEC2InstanceConnectEndpoint(),
-	).Marshal()
+	)
+	putRolePolicy, err := awsactions.PutRolePolicy(clt, req.IntegrationRoleEICEPolicy, req.IntegrationRole, policy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     &req.IntegrationRoleEICEPolicy,
-		RoleName:       &req.IntegrationRole,
-		PolicyDocument: &ec2ICEPolicyDocument,
-	})
-	if err != nil {
-		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("role %q not found.", req.IntegrationRole)
-		}
-		return trace.Wrap(err)
-	}
-
-	logrus.Infof("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleEICEPolicy, req.IntegrationRole)
-	return nil
+	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
+		Name: "eice-iam",
+		Actions: []provisioning.Action{
+			*putRolePolicy,
+		},
+		AutoConfirm: req.AutoConfirm,
+		Output:      req.stdout,
+	}))
 }

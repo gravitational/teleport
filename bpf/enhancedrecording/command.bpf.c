@@ -165,7 +165,7 @@ static int exit_execve(int ret)
 }
 
 SEC("tp/syscalls/sys_execve")
-int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_execve(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char *)tp->args[0];
     const char *const *argv = (const char *const *)tp->args[1];
@@ -175,13 +175,13 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *tp)
 }
 
 SEC("tp/syscalls/sys_exit_execve")
-int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_execve(struct syscall_trace_exit *tp)
 {
     return exit_execve(tp->ret);
 }
 
 SEC("tp/syscalls/sys_execveat")
-int tracepoint__syscalls__sys_enter_execveat(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_execveat(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char *)tp->args[1];
     const char *const *argv = (const char *const *)tp->args[2];
@@ -191,7 +191,7 @@ int tracepoint__syscalls__sys_enter_execveat(struct trace_event_raw_sys_enter *t
 }
 
 SEC("tp/syscalls/sys_exit_execveat")
-int tracepoint__syscalls__sys_exit_execveat(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_execveat(struct syscall_trace_exit *tp)
 {
     return exit_execve(tp->ret);
 }

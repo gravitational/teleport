@@ -20,6 +20,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -45,4 +46,24 @@ func TestMarshalPluginStaticCredentialsRoundTrip(t *testing.T) {
 	unmarshaled, err := UnmarshalPluginStaticCredentials(payload)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(creds, unmarshaled))
+
+	// TODO(greedy52) PluginStaticCredentials uses protojson for marshaling
+	// and unmarshaling. Unfortunately Expires (*time.Time) is not supported
+	// and becomes zero after the marshaling. Unlikely Expires will ever be
+	// needed for PluginStaticCredentials in production but this can cause
+	// unexpected issues in other places (like resource.SetExpiry in cache
+	// tests).
+	t.Run("with expires", func(t *testing.T) {
+		t.Skip("PluginStaticCredentials does not marshal Expires")
+		now := time.Now()
+
+		creds.SetExpiry(now)
+		payload, err := MarshalPluginStaticCredentials(creds)
+		require.NoError(t, err)
+
+		unmarshaled, err := UnmarshalPluginStaticCredentials(payload)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(creds, unmarshaled))
+		require.Equal(t, now, unmarshaled.Expiry())
+	})
 }

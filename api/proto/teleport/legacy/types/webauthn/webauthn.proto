@@ -38,17 +38,6 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
 // -----------------------------------------------------------------------------
-// WebAuthn messages used by server storage.
-// -----------------------------------------------------------------------------
-
-// User represents a WebAuthn user.
-// Used mainly to correlated a WebAuthn user handle with a Teleport user.
-message User {
-  // Teleport user ID.
-  string teleport_user = 1;
-}
-
-// -----------------------------------------------------------------------------
 // Assertion (aka login).
 // -----------------------------------------------------------------------------
 
@@ -184,6 +173,10 @@ message AuthenticationExtensionsClientInputs {
   // Only available if using U2F compatibility mode.
   // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
   string app_id = 1;
+
+  // Enables the credProps extension.
+  // https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension
+  bool cred_props = 2;
 }
 
 // Extensions supplied by the authenticator to the Relying Party, during
@@ -194,6 +187,18 @@ message AuthenticationExtensionsClientOutputs {
   // the rpIdHash accordingly.
   // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
   bool app_id = 1;
+
+  // Credential properties per credProps extension.
+  // https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension.
+  CredentialPropertiesOutput cred_props = 2;
+}
+
+// CredentialPropertiesOutput is the output of the credProps extension.
+message CredentialPropertiesOutput {
+  // If true, the created credential is a resident key (regardless of the
+  // AuthenticatorSelection.require_resident_key value).
+  // OPTIONAL by specification.
+  bool rk = 1;
 }
 
 // Authenticator selection criteria.

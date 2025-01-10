@@ -45,9 +45,10 @@ func TestValidateHeadlessAuthentication(t *testing.T) {
 					Expires: &expires,
 				},
 			},
-			State:     types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
-			User:      "user",
-			PublicKey: []byte(sshPubKey),
+			State:        types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+			User:         "user",
+			SshPublicKey: []byte(sshPubKey),
+			TlsPublicKey: []byte(tlsPubKey),
 		}
 		if modify != nil {
 			modify(ha)
@@ -96,11 +97,11 @@ func TestValidateHeadlessAuthentication(t *testing.T) {
 			}),
 			wantErr: "headless authentication resource state must be specified",
 		}, {
-			name: "NOK public key missing",
+			name: "NOK SSH public key missing",
 			ha: newHA(func(ha *types.HeadlessAuthentication) {
-				ha.PublicKey = nil
+				ha.SshPublicKey = nil
 			}),
-			wantErr: "headless authentication resource must have non-empty publicKey",
+			wantErr: "headless authentication resource must have non-empty SSH public key",
 		},
 	}
 
@@ -119,3 +120,9 @@ func TestValidateHeadlessAuthentication(t *testing.T) {
 
 // sshPubKey is a randomly-generated public key used for login tests.
 const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGv+gN2C23P08ieJRA9gU/Ik4bsOh3Kw193UYscJDw41mATj+Kqyf45Rmj8F8rs3i7mYKRXXu1IjNRBzNgpXxqc=`
+
+// tlsPubKey is a randomly-generated public key used for login tests.
+const tlsPubKey = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/Jn3tYhc60M2IOen1yRht6r8xX3h
+v7nNLYBIfxaKxXf+dAFVllYzVUrSzAQxi1LSAplOJVgOtHv0J69dRSUSzA==
+-----END PUBLIC KEY-----`

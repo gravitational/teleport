@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function AddCircle({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const AddCircle = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-addcircle"
       {...otherProps}
+      ref={ref}
     >
       <path d="M6.46154 12C6.46154 11.4902 6.87481 11.0769 7.38462 11.0769H11.0769V7.38462C11.0769 6.87481 11.4902 6.46154 12 6.46154C12.5098 6.46154 12.9231 6.87481 12.9231 7.38462V11.0769H16.6154C17.1252 11.0769 17.5385 11.4902 17.5385 12C17.5385 12.5098 17.1252 12.9231 16.6154 12.9231H12.9231V16.6154C12.9231 17.1252 12.5098 17.5385 12 17.5385C11.4902 17.5385 11.0769 17.1252 11.0769 16.6154V12.9231H7.38462C6.87481 12.9231 6.46154 12.5098 6.46154 12Z" />
       <path
@@ -65,5 +66,5 @@ export function AddCircle({ size = 24, color, ...otherProps }: IconProps) {
         d="M0 12C0 5.37258 5.37258 0 12 0C18.6274 0 24 5.37258 24 12C24 18.6274 18.6274 24 12 24C5.37258 24 0 18.6274 0 12ZM12 1.84615C6.39219 1.84615 1.84615 6.39219 1.84615 12C1.84615 17.6078 6.39219 22.1538 12 22.1538C17.6078 22.1538 22.1538 17.6078 22.1538 12C22.1538 6.39219 17.6078 1.84615 12 1.84615Z"
       />
     </Icon>
-  );
-}
+  )
+);

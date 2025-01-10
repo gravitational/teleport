@@ -16,12 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import FormLogin, { Props } from './FormLogin';
 
 const props: Props = {
-  title: 'Custom Title',
   attempt: {
     isFailed: false,
     isSuccess: false,
@@ -74,7 +71,6 @@ export const LocalWithOnAndPwdless = () => (
 export const Cloud = () => (
   <FormLogin
     {...props}
-    title="Teleport Cloud"
     auth2faType="on"
     isRecoveryEnabled={true}
     onRecover={() => null}
@@ -89,7 +85,7 @@ export const ServerError = () => {
       'invalid credentials with looooooooooooooooooooooooooooooooong text',
   };
 
-  return <FormLogin {...props} title="Welcome!" attempt={attempt} />;
+  return <FormLogin {...props} attempt={attempt} />;
 };
 
 export const LocalWithSso = () => {
@@ -98,7 +94,7 @@ export const LocalWithSso = () => {
     { name: 'google', type: 'oidc', url: '' } as const,
   ];
 
-  return <FormLogin {...props} title="Welcome!" authProviders={ssoProvider} />;
+  return <FormLogin {...props} authProviders={ssoProvider} />;
 };
 
 export const LocalWithSsoAndPwdless = () => {
@@ -114,7 +110,6 @@ export const LocalWithSsoAndPwdless = () => {
   return (
     <FormLogin
       {...props}
-      title="Welcome!"
       authProviders={ssoProvider}
       isPasswordlessEnabled={true}
     />
@@ -130,7 +125,6 @@ export const LocalDisabledWithSso = () => {
   return (
     <FormLogin
       {...props}
-      title="Welcome!"
       authProviders={ssoProvider}
       isLocalAuthEnabled={false}
     />
@@ -138,17 +132,27 @@ export const LocalDisabledWithSso = () => {
 };
 
 export const LocalDisabledNoSso = () => (
-  <FormLogin {...props} title="Welcome!" isLocalAuthEnabled={false} />
+  <FormLogin {...props} isLocalAuthEnabled={false} />
 );
 
 export const PrimarySso = () => {
   const ssoProvider = [
-    { name: 'github', type: 'oidc', url: '' } as const,
-    { name: 'google', type: 'oidc', url: '' } as const,
-    { name: 'bitbucket', type: 'oidc', url: '' } as const,
+    { name: 'github', displayName: 'GitHub', type: 'oidc', url: '' } as const,
+    { name: 'google', displayName: 'Google', type: 'oidc', url: '' } as const,
+    {
+      name: 'bitbucket',
+      displayName: 'Bitbucket',
+      type: 'oidc',
+      url: '',
+    } as const,
     {
       name: 'Mission Control',
       type: 'oidc',
+      url: '',
+    } as const,
+    {
+      name: 'Okta',
+      type: 'saml',
       url: '',
     } as const,
     {
@@ -160,12 +164,7 @@ export const PrimarySso = () => {
   ];
 
   return (
-    <FormLogin
-      {...props}
-      title="Welcome!"
-      primaryAuthType="sso"
-      authProviders={ssoProvider}
-    />
+    <FormLogin {...props} primaryAuthType="sso" authProviders={ssoProvider} />
   );
 };
 
@@ -178,7 +177,6 @@ export const PrimarySsoWithPwdless = () => {
   return (
     <FormLogin
       {...props}
-      title="Welcome!"
       primaryAuthType="sso"
       authProviders={ssoProvider}
       isPasswordlessEnabled={true}
@@ -195,7 +193,6 @@ export const PrimarySsoWithSecondFactor = () => {
   return (
     <FormLogin
       {...props}
-      title="Welcome!"
       primaryAuthType="sso"
       auth2faType="on"
       authProviders={ssoProvider}
@@ -212,7 +209,6 @@ export const PrimaryPwdless = () => {
   return (
     <FormLogin
       {...props}
-      title="Welcome!"
       primaryAuthType="passwordless"
       auth2faType="webauthn"
       authProviders={ssoProvider}
@@ -224,7 +220,6 @@ export const PrimaryPwdlessWithNoSso = () => {
   return (
     <FormLogin
       {...props}
-      title="Welcome!"
       primaryAuthType="passwordless"
       auth2faType="optional"
     />

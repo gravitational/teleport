@@ -84,16 +84,6 @@ func (n *Namespace) SetSubKind(sk string) {
 	n.SubKind = sk
 }
 
-// GetResourceID returns resource ID
-func (n *Namespace) GetResourceID() int64 {
-	return n.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (n *Namespace) SetResourceID(id int64) {
-	n.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (n *Namespace) GetRevision() string {
 	return n.Metadata.GetRevision()
@@ -153,3 +143,17 @@ func IsValidNamespace(s string) bool {
 }
 
 var validNamespace = regexp.MustCompile(`^[A-Za-z0-9]+$`)
+
+// ValidateNamespaceDefault ensures that the namespace is the "default"
+// namespace.
+// This is a precursor to a hard-removal of namespaces.
+func ValidateNamespaceDefault(ns string) error {
+	if ns == defaults.Namespace {
+		return nil
+	}
+
+	const message = "" +
+		"namespace %q invalid, custom namespaces are deprecated; " +
+		"the namespace field should be omitted or set to %q"
+	return trace.BadParameter(message, ns, defaults.Namespace)
+}

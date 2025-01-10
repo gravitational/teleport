@@ -41,9 +41,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // TopCommand implements `tctl top` group of commands.
@@ -57,7 +58,7 @@ type TopCommand struct {
 }
 
 // Initialize allows TopCommand to plug itself into the CLI parser.
-func (c *TopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *TopCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information.")
 	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").String()
@@ -65,7 +66,7 @@ func (c *TopCommand) Initialize(app *kingpin.Application, config *servicecfg.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TopCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (c *TopCommand) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case c.top.FullCommand():
 		diagClient, err := roundtrip.NewClient(*c.diagURL, "")

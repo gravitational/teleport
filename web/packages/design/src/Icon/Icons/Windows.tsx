@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Windows({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Windows = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-windows"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -79,5 +80,5 @@ export function Windows({ size = 24, color, ...otherProps }: IconProps) {
         d="M10.5 5.65919C10.5 5.43679 10.4013 5.22586 10.2305 5.08336C10.0598 4.94086 9.83461 4.88149 9.6158 4.92129L3.6158 6.01254C3.2592 6.0774 3 6.38799 3 6.75044V10.5004C3 10.9146 3.33579 11.2504 3.75 11.2504H9.75C10.1642 11.2504 10.5 10.9146 10.5 10.5004V5.65919ZM4.5 9.75044V7.37633L9 6.5579V9.75044H4.5Z"
       />
     </Icon>
-  );
-}
+  )
+);

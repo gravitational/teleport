@@ -1,12 +1,17 @@
 {
   "compilerOptions": {
+    "outDir": "build.assets/.cache/ts",
     "composite": true,
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "emitDeclarationOnly": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true
   },
   "include": [
     "e/web/**/*.mts",
-    "web/**/*.mts"
+    "web/**/*.mts",
+    "web/packages/build/vite",
+    "web/packages/teleterm/csp.ts"
   ]
 }

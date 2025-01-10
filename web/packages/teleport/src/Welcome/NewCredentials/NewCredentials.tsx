@@ -16,23 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { NewFlow, StepSlider } from 'design/StepSlider';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { useState } from 'react';
 
 import { Box } from 'design';
+import { NewFlow, StepSlider } from 'design/StepSlider';
 
-import RecoveryCodes from 'teleport/components/RecoveryCodes';
+import { OnboardCard } from 'teleport/components/Onboard';
+import OSSRecoveryCodes from 'teleport/components/RecoveryCodes';
 import cfg from 'teleport/config';
-
 import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';
 
 import useToken from '../useToken';
-
 import { Expired } from './Expired';
-import { LoginFlow, NewCredentialsProps } from './types';
 import { RegisterSuccess } from './Success';
+import { LoginFlow, NewCredentialsProps } from './types';
 
 /**
  *
@@ -69,6 +66,7 @@ export function NewCredentials(props: NewCredentialsProps) {
     displayInviteCollaborators = false,
     setDisplayInviteCollaborators = null,
     InviteCollaborators = undefined,
+    RecoveryCodes,
   } = props;
 
   // Check which flow to render as default.
@@ -135,8 +133,11 @@ export function NewCredentials(props: NewCredentialsProps) {
   }
 
   if (recoveryCodes) {
+    // TODO(bl-nero): Remove OSSRecoveryCodes once the enterprise code passes
+    // the RecoveryCodesComponent through props.
+    const Component = RecoveryCodes || OSSRecoveryCodes;
     return (
-      <RecoveryCodes
+      <Component
         recoveryCodes={recoveryCodes}
         onContinue={finishedRegister}
         isNewCodes={resetMode}

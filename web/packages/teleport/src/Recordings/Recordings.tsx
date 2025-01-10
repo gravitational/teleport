@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
+import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-import { Indicator, Box } from 'design';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
+import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
   FeatureBox,
@@ -30,10 +31,7 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 
-import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
-
 import RecordingsList from './RecordingsList';
-
 import useRecordings, { State } from './useRecordings';
 
 export function RecordingsContainer() {
@@ -67,13 +65,12 @@ export function Recordings({
       </FeatureHeader>
       <ExternalAuditStorageCta />
       {!errorMessage && (
-        <Box mb={4}>
-          <ClusterDropdown
-            clusterLoader={ctx.clusterService}
-            clusterId={clusterId}
-            onError={setErrorMessage}
-          />
-        </Box>
+        <ClusterDropdown
+          clusterLoader={ctx.clusterService}
+          clusterId={clusterId}
+          onError={setErrorMessage}
+          mb={2}
+        />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}

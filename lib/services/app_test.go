@@ -137,20 +137,51 @@ func TestGetAppName(t *testing.T) {
 	}
 }
 
+func TestGetKubeClusterDomain(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "k8s")
+	tests := []struct {
+		name     string
+		envVar   string
+		expected string
+	}{
+		{
+			name:     "service1 fallback to cluster.local",
+			expected: "cluster.local",
+		},
+		{
+			name:     "service1 dns resolution",
+			envVar:   "k8s.com",
+			expected: "k8s.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envVar != "" {
+				t.Setenv("TELEPORT_KUBE_CLUSTER_DOMAIN", tt.envVar)
+			}
+			require.Equal(t, tt.expected, getClusterDomain())
+		})
+	}
+}
+
 func TestGetServiceFQDN(t *testing.T) {
 	tests := []struct {
 		name         string
+		serviceName  string
 		namespace    string
 		externalName string
 		expected     string
 	}{
 		{
-			name:      "service1",
-			namespace: "ns1",
-			expected:  "service1.ns1.svc.cluster.local",
+			name:        "service1 fallback to cluster.local",
+			serviceName: "service1",
+			namespace:   "ns1",
+			expected:    "service1.ns1.svc.cluster.local",
 		},
 		{
 			name:         "service2",
+			serviceName:  "service2",
 			externalName: "external-service2",
 			namespace:    "ns2",
 			expected:     "external-service2",
@@ -158,10 +189,10 @@ func TestGetServiceFQDN(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			service := v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      tt.name,
+					Name:      tt.serviceName,
 					Namespace: tt.namespace,
 				},
 				Spec: v1.ServiceSpec{
@@ -171,7 +202,7 @@ func TestGetServiceFQDN(t *testing.T) {
 			if tt.externalName != "" {
 				service.Spec.Type = v1.ServiceTypeExternalName
 			}
-			require.Equal(t, tt.expected, getServiceFQDN(service))
+			require.Equal(t, tt.expected, GetServiceFQDN(service))
 		})
 	}
 }

@@ -208,7 +208,7 @@ func TestRDSFetchers(t *testing.T) {
 
 func makeRDSInstance(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBInstance)) (*rds.DBInstance, types.Database) {
 	instance := mocks.RDSInstance(name, region, labels, opts...)
-	database, err := services.NewDatabaseFromRDSInstance(instance)
+	database, err := common.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return instance, database
@@ -217,7 +217,7 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 func makeRDSCluster(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) (*rds.DBCluster, *rds.DBInstance, types.Database) {
 	cluster := mocks.RDSCluster(name, region, labels, opts...)
 	dbInstanceMember := makeRDSMemberForCluster(t, name, region, "vpc-123", *cluster.Engine, labels)
-	database, err := services.NewDatabaseFromRDSCluster(cluster, []*rds.DBInstance{dbInstanceMember})
+	database, err := common.NewDatabaseFromRDSCluster(cluster, []*rds.DBInstance{dbInstanceMember})
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return cluster, dbInstanceMember, database
@@ -257,16 +257,16 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 			IsClusterWriter: aws.Bool(true), // Add writer.
 		})
 
-		primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster, dbInstanceMembers)
+		primaryDatabase, err := common.NewDatabaseFromRDSCluster(cluster, dbInstanceMembers)
 		require.NoError(t, err)
 		databases = append(databases, primaryDatabase)
 	}
 
-	readerDatabase, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster, dbInstanceMembers)
+	readerDatabase, err := common.NewDatabaseFromRDSClusterReaderEndpoint(cluster, dbInstanceMembers)
 	require.NoError(t, err)
 	databases = append(databases, readerDatabase)
 
-	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster, dbInstanceMembers)
+	customDatabases, err := common.NewDatabasesFromRDSClusterCustomEndpoints(cluster, dbInstanceMembers)
 	require.NoError(t, err)
 	databases = append(databases, customDatabases...)
 

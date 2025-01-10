@@ -1,0 +1,115 @@
+---
+title: Protect Infrastructure with Teleport
+description: Deploy Agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per Agent.
+---
+
+You can use Teleport to protect infrastructure resources like servers and
+databases by deploying **Teleport Agents**. 
+
+Teleport Agents are Teleport instances that are configured to proxy traffic to
+resources in your infrastructure, such as servers, databases, and Kubernetes
+clusters. 
+
+This section shows you how to use Teleport Agents to enable secure access to
+your infrastructure.
+
+## Enroll infrastructure resources
+
+To protect infrastructure resources with Teleport, you deploy Teleport Agents
+and configure them to proxy traffic to and from the resources.
+
+We recommend getting started with [Teleport
+Auto-Discovery](../auto-discovery/auto-discovery.mdx), in which the Teleport
+Discovery Service registers infrastructure resources with your cluster by
+polling service discovery endpoints. For information on enrolling a specific
+type of infrastructure resource, read the following sections of the
+documentation:
+
+- [Servers](../server-access/introduction.mdx)
+- [Databases](../database-access/database-access.mdx)
+- [Kubernetes clusters](../kubernetes-access/introduction.mdx)
+- [Windows desktops](../desktop-access/introduction.mdx)
+- [Applications](../application-access/introduction.mdx)
+
+## Architecture overview
+
+This section provides a brief outline of how Teleport Agents run in a Teleport
+cluster. For more information on the architecture of Teleport Agents, read
+[Teleport Agent Architecture](../../reference/architecture/agents.mdx).
+
+### Services
+
+Each Teleport process can run one or more **services**. A Teleport instance runs
+a service if it is enabled within the instance's configuration file. See the
+[Teleport Configuration
+Reference](../../reference/config.mdx#enabling-teleport-services) for which
+services are enabled by default and how to enable a particular service.
+
+### Agent pools
+
+Agents typically run in the same private networks as the resources they proxy.
+They should be the only clients that can access a resource without Teleport.
+
+In this setup, Agents dial the Teleport Proxy Service in order to establish
+reverse SSH tunnels. While the Proxy Service remains open to the public internet
+via its HTTPS port, Agents require only outbound network access to the Proxy
+Service, and can run behind a firewall.
+
+The Teleport Proxy Service uses these reverse tunnels to forward traffic in
+Teleport's supported protocols to an available Agent. Agents apply RBAC
+rules and forward the traffic to resources in your infrastructure.
+
+![Diagram showing the architecture of an Agent pool](../../../img/agent-pool-diagram.png)
+
+Read our guide for how to use Terraform to [deploy a pool of
+Agents](../../admin-guides/infrastructure-as-code/terraform-starter/enroll-resources.mdx). 
+
+## Joining Agents
+
+Teleport Agents run one or more services, such as the Teleport SSH Service and
+Teleport Database Service. To establish trust between an Agent and your Teleport
+cluster, you use one of several **join methods**. When joining an Agent, you can
+configure the services that run on the agent. You can also edit the
+configuration of an Agent to change the services that run on it.
+
+### Initially joining a cluster
+
+Teleport Agents need to establish trust with the Teleport Auth Service in order
+to join a cluster. There are several ways to join an Agent to your Teleport
+cluster, making it possible to automate the join process for your environment.
+Read about the available join methods in our [Join Services to your
+Cluster](join-services-to-your-cluster/join-services-to-your-cluster.mdx) guides.
+
+When a Teleport process first runs, it checks its configuration file to
+determine which services are enabled. Each service then connects separately to
+the Teleport Auth Service, which checks whether it has created a **join token**
+for that service. If so, the Auth Service issues the Agent credentials signed
+for that service. 
+
+### Joining a new service on an existing Agent
+
+The credentials that the Auth Service issues to Agents are signed for specific
+services. To run new services on an Agent, you must repeat the initial join
+procedure for those services.
+
+Generate a new join token for all services running on an Agent, including the
+new services. Then make the new join token available to the Agent. The method to
+use depends on the value of either `teleport.join_params` or
+`teleport.auth_token` in the Agent's configuration file:
+
+- If the value of the configuration field is a token, update the token.
+- If the value is a file path, edit the file at that path to refer to the new
+  token.
+
+Delete the Agent's state directory, which is `/var/lib/teleport` by default.
+(Check the `teleport.data_dir` field of the Agent's configuration file.) With no
+data directory, the Agent will obtain its initial credentials from the Auth
+Service instead of reading existing credentials.
+
+Finally, restart the Agent.
+
+We recommend deploying Teleport Agents via infrastructure-as-code approaches,
+e.g., [using a Terraform module](../../admin-guides/infrastructure-as-code/terraform-starter/enroll-resources.mdx). To modify the
+services that an Agent runs, you can edit the configuration of your Agents
+within your infrastructure-as-code project, then redeploy the Agents.
+

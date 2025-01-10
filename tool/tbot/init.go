@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -45,7 +46,7 @@ const aclTestFailedMessage = "ACLs are not usable for destination %s; " +
 	"Change the destination's ACL mode to `off` to silence this warning."
 
 // getInitArtifacts returns a map of all desired artifacts for the destination
-func getInitArtifacts(output config.Output) map[string]bool {
+func getInitArtifacts(target config.Initable) map[string]bool {
 	// true = directory, false = regular file
 	toCreate := map[string]bool{}
 
@@ -57,7 +58,7 @@ func getInitArtifacts(output config.Output) map[string]bool {
 	}
 
 	// Collect all config template artifacts.
-	for _, fd := range output.Describe() {
+	for _, fd := range target.Describe() {
 		toCreate[fd.Name] = fd.IsDir
 	}
 
@@ -111,12 +112,16 @@ func testACL(directory string, ownerUser *user.User, opts *botfs.ACLOptions) err
 	defer func() {
 		err := os.Remove(testFile)
 		if err != nil {
-			log.Debugf("Failed to delete ACL test file %q", testFile)
+			log.DebugContext(
+				context.TODO(),
+				"Failed to delete ACL test file",
+				"path", testFile,
+			)
 		}
 	}()
 
 	//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
-	if err := botfs.ConfigureACL(testFile, ownerUser, opts); err != nil {
+	if err := botfs.ConfigureLegacyACL(testFile, ownerUser, opts); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -148,7 +153,12 @@ type ensurePermissionsParams struct {
 
 // ensurePermissions verifies permissions on the given path and, when
 // possible, attempts to fix permissions / ACLs on any misconfigured paths.
-func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) error {
+func ensurePermissions(
+	ctx context.Context,
+	params *ensurePermissionsParams,
+	key string,
+	isDir bool,
+) error {
 	path := filepath.Join(params.dirPath, key)
 
 	//nolint:staticcheck // this entirely innocuous line generates "related
@@ -181,9 +191,11 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		case botfs.SymlinksInsecure:
 			// do nothing
 		default:
-			log.Warnf("Path %q contains symlinks and may be subject to symlink "+
-				"attacks. If this is intentional, consider setting `symlinks: "+
-				"insecure` in destination config.", path)
+			log.WarnContext(
+				ctx,
+				"Path contains symlinks and may be subject to symlink attacks. If this is intentional, consider setting `symlinks: insecure` in destination config",
+				"path", path,
+			)
 		}
 	}
 
@@ -199,10 +211,20 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		return trace.Wrap(err)
 	}
 
-	// Correct ownership.
-	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, params.ownerUser)
+	uid, err := strconv.Atoi(params.ownerUser.Uid)
 	if err != nil {
-		log.WithError(err).Debugf("Could not determine file ownership of %q", path)
+		return trace.Wrap(err)
+	}
+
+	gid, err := strconv.Atoi(params.ownerGroup.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Correct ownership.
+	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, uid)
+	if err != nil {
+		log.DebugContext(ctx, "Could not determine file ownership", "path", path, "error", err)
 
 		// Can't read file ownership on this platform (e.g. Windows), so always
 		// attempt to chown (which does work on Windows)
@@ -212,21 +234,16 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 	if !ownedByDesiredOwner {
 		// If we're not running as root, this will probably fail.
 		if currentUser.Uid != RootUID && runtime.GOOS != constants.WindowsOS {
-			log.Warnf("Not running as root, ownership change is likely to fail.")
-		}
-
-		uid, err := strconv.Atoi(params.ownerUser.Uid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		gid, err := strconv.Atoi(params.ownerGroup.Gid)
-		if err != nil {
-			return trace.Wrap(err)
+			log.WarnContext(ctx, "Not running as root, ownership change is likely to fail")
 		}
 
 		if verboseLogging {
-			log.Warnf("Ownership of %q is incorrect and will be corrected to %s", path, params.ownerUser.Username)
+			log.WarnContext(
+				ctx,
+				"Ownership of file is incorrect and will be corrected",
+				"path", path,
+				"username", params.ownerUser.Username,
+			)
 		}
 
 		err = os.Chown(path, uid, gid)
@@ -242,18 +259,27 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		// are incorrect.
 
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
-		err = botfs.VerifyACL(path, params.aclOptions)
+		err = botfs.VerifyLegacyACL(path, params.aclOptions)
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
-				log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
+				log.WarnContext(
+					ctx,
+					"ACL for file is not correct and will be corrected",
+					"path", path,
+					"error", err,
+				)
 			}
 
-			return trace.Wrap(botfs.ConfigureACL(path, params.ownerUser, params.aclOptions))
+			return trace.Wrap(botfs.ConfigureLegacyACL(path, params.ownerUser, params.aclOptions))
 		} else if err != nil {
-			log.Errorf("ACL for %q is incorrect but `tbot init` must be run "+
-				"as root or the owner (%s) to correct it: %v",
-				path, params.ownerUser.Username, err)
+			log.ErrorContext(
+				ctx,
+				"ACL for file is incorrect but `tbot init` must be run as root or the owner to correct it",
+				"path", path,
+				"username", params.ownerUser.Username,
+				"error", err,
+			)
 			return trace.AccessDenied("Elevated permissions required")
 		}
 
@@ -272,7 +298,13 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 			return trace.Wrap(err, "Could not fix permissions on file %q, expected %#o", path, desiredMode)
 		}
 
-		log.Infof("Corrected permissions on %q from %#o to %#o", path, stat.Mode().Perm(), botfs.DefaultMode)
+		log.InfoContext(
+			ctx,
+			"Corrected permissions for file",
+			"path", path,
+			"from", stat.Mode().Perm(),
+			"to", botfs.DefaultMode,
+		)
 	}
 
 	return nil
@@ -305,17 +337,25 @@ func parseOwnerString(owner string) (*user.User, *user.Group, error) {
 func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 	if cliOwner != "" {
 		// If --owner is set, always use it.
-		log.Debugf("Attempting to use explicitly requested owner: %s", cliOwner)
+		log.DebugContext(
+			context.TODO(),
+			"Attempting to use explicitly requested owner",
+			"requested", cliOwner,
+		)
 		return parseOwnerString(cliOwner)
 	}
 
 	if defaultOwner != "" {
-		log.Debugf("Attempting to use default owner: %s", defaultOwner)
+		log.DebugContext(
+			context.TODO(),
+			"Attempting to use default owner",
+			"default", defaultOwner,
+		)
 		// If a default owner is specified, try it instead.
 		return parseOwnerString(defaultOwner)
 	}
 
-	log.Debugf("Will use current user as owner.")
+	log.DebugContext(context.TODO(), "Will use current user as owner")
 	// Otherwise, return the current user and group
 	currentUser, err := user.Current()
 	if err != nil {
@@ -333,16 +373,16 @@ func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 // getAndTestACLOptions gets options needed to configure an ACL from CLI
 // options and attempts to configure a test ACL to validate them. Ownership is
 // not validated here.
-func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user.Group, *botfs.ACLOptions, error) {
-	if cf.BotUser == "" {
+func getAndTestACLOptions(initCmd *cli.InitCommand, destDir string) (*user.User, *user.Group, *botfs.ACLOptions, error) {
+	if initCmd.BotUser == "" {
 		return nil, nil, nil, trace.BadParameter("--bot-user must be set")
 	}
 
-	if cf.ReaderUser == "" {
+	if initCmd.ReaderUser == "" {
 		return nil, nil, nil, trace.BadParameter("--reader-user must be set")
 	}
 
-	botUser, err := user.Lookup(cf.BotUser)
+	botUser, err := user.Lookup(initCmd.BotUser)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -352,7 +392,7 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	readerUser, err := user.Lookup(cf.ReaderUser)
+	readerUser, err := user.Lookup(initCmd.ReaderUser)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -366,7 +406,7 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 	// know the bot user definitely exists and is a reasonable owner choice.
 	defaultOwner := fmt.Sprintf("%s:%s", botUser.Username, botGroup.Name)
 
-	ownerUser, ownerGroup, err := getOwner(cf.Owner, defaultOwner)
+	ownerUser, ownerGroup, err := getOwner(initCmd.Owner, defaultOwner)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -381,48 +421,50 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 	return ownerUser, ownerGroup, &opts, nil
 }
 
-func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
+	botConfig, err := cli.LoadConfigWithMutators(globals, init)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var output config.Output
-	var err error
-	// First, resolve the correct output. If using a config file with only
-	// 1 destination we can assume we want to init that one; otherwise,
+	initables := botConfig.GetInitables()
+	var target config.Initable
+	// First, resolve the correct output/service. If using a config file with
+	// only 1 destination we can assume we want to init that one; otherwise,
 	// --init-dir is required.
-	if cf.InitDir == "" {
-		if len(botConfig.Outputs) == 1 {
-			output = botConfig.Outputs[0]
+	if init.InitDir == "" {
+		if len(initables) == 1 {
+			target = initables[0]
 		} else {
-			return trace.BadParameter("An output to initialize must be specified with --init-dir")
+			return trace.BadParameter("An output or service to initialize must be specified with --init-dir")
 		}
 	} else {
-		output, err = botConfig.GetOutputByPath(cf.InitDir)
-		if err != nil {
-			return trace.WrapWithMessage(err, "Could not find specified destination %q", cf.InitDir)
+		for _, v := range initables {
+			d := v.GetDestination()
+			dirDest, ok := d.(*config.DestinationDirectory)
+			if ok && dirDest.Path == init.InitDir {
+				target = v
+				break
+			}
 		}
-
-		if output == nil {
-			// TODO: in the future if/when other backends are supported,
-			// destination might be nil because the user tried to enter a non
-			// filesystem path, so this error message could be misleading.
-			return trace.NotFound("Cannot initialize destination %q because "+
-				"it has not been configured.", cf.InitDir)
+		if target == nil {
+			return trace.NotFound("Initial directory %q must match a destination directory from the configuration file or --destination-dir parameter", init.InitDir)
 		}
 	}
 
-	destImpl := output.GetDestination()
-
-	destDir, ok := destImpl.(*config.DestinationDirectory)
+	destDir, ok := target.GetDestination().(*config.DestinationDirectory)
 	if !ok {
 		return trace.BadParameter("`tbot init` only supports directory destinations")
 	}
 
-	log.Infof("Initializing destination: %s", destImpl)
+	log.InfoContext(ctx, "Initializing destination", "destination", destDir)
 
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := output.Init(ctx); err != nil {
+	if err := target.Init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -434,41 +476,44 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	switch destDir.ACLs {
 	case botfs.ACLRequired, botfs.ACLTry:
-		log.Debug("Testing for ACL support...")
+		log.DebugContext(ctx, "Testing for ACL support")
 
 		// Awkward control flow here, but we want these to fail together.
-		ownerUser, ownerGroup, aclOpts, err = getAndTestACLOptions(cf, destDir.Path)
+		ownerUser, ownerGroup, aclOpts, err = getAndTestACLOptions(init, destDir.Path)
 		if err != nil {
 			if destDir.ACLs == botfs.ACLRequired {
 				// ACLs were specifically requested (vs "try" mode), so fail.
-				return trace.Wrap(err, aclTestFailedMessage, destImpl)
+				return trace.Wrap(err, aclTestFailedMessage, destDir)
 			}
 
 			// Otherwise, fall back to no ACL with a warning.
-			log.WithError(err).Warnf(aclTestFailedMessage, destImpl)
+			log.WarnContext(ctx, aclTestFailedMessage, "destination", destDir, "error", err)
 			aclOpts = nil
 
 			// We'll also need to re-fetch the owner as the defaults are
 			// different in the fallback case.
-			ownerUser, ownerGroup, err = getOwner(cf.Owner, "")
+			ownerUser, ownerGroup, err = getOwner(init.Owner, "")
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		} else if aclOpts.ReaderUser.Uid == ownerUser.Uid {
-			log.Warnf("The destination owner (%s) and reader (%s) are the "+
-				"same. This will break OpenSSH.", aclOpts.ReaderUser.Username,
-				ownerUser.Username)
+			log.WarnContext(
+				ctx,
+				"The destination owner and reader are the same. This will break OpenSSH",
+				"reader", aclOpts.ReaderUser.Username,
+				"owner", ownerUser.Username,
+			)
 		}
 	default:
-		log.Info("ACLs disabled for this destination.")
-		ownerUser, ownerGroup, err = getOwner(cf.Owner, "")
+		log.InfoContext(ctx, "ACLs disabled for this destination")
+		ownerUser, ownerGroup, err = getOwner(init.Owner, "")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	// Next, resolve what we want and what we already have.
-	desired := getInitArtifacts(output)
+	desired := getInitArtifacts(target)
 	existing, err := getExistingArtifacts(destDir.Path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -479,7 +524,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// Based on this, create any new files.
 	if len(toCreate) > 0 {
-		log.Infof("Attempting to create: %v", toCreate)
+		log.InfoContext(ctx, "Attempting to create", "path", toCreate)
 
 		for key, isDir := range toCreate {
 			path := filepath.Join(destDir.Path, key)
@@ -487,15 +532,15 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			log.Infof("Created: %s", path)
+			log.InfoContext(ctx, "Created", "path", path)
 		}
 	} else {
-		log.Info("Nothing to create.")
+		log.InfoContext(ctx, "Nothing to create.")
 	}
 
 	// ... and warn about / remove any unneeded files.
-	if len(toRemove) > 0 && cf.Clean {
-		log.Infof("Attempting to remove: %v", toRemove)
+	if len(toRemove) > 0 && init.Clean {
+		log.InfoContext(ctx, "Attempting to remove", "path", toRemove)
 
 		var errors []error
 
@@ -505,7 +550,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 			if err := os.RemoveAll(path); err != nil {
 				errors = append(errors, err)
 			} else {
-				log.Infof("Removed: %s", path)
+				log.InfoContext(ctx, "Removed", "path", path)
 			}
 		}
 
@@ -513,11 +558,12 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 			return trace.Wrap(err)
 		}
 	} else if len(toRemove) > 0 {
-		log.Warnf("Unexpected files found in destination directory, consider " +
-			"removing it manually or rerunning `tbot init` with the `--clean` " +
-			"flag.")
+		log.WarnContext(
+			ctx,
+			"Unexpected files found in destination directory, consider removing it manually or rerunning `tbot init` with the `--clean` flag",
+		)
 	} else {
-		log.Info("Nothing to remove.")
+		log.InfoContext(ctx, "Nothing to remove")
 	}
 
 	params := ensurePermissionsParams{
@@ -530,20 +576,22 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	// Check and set permissions on the directory itself.
-	if err := ensurePermissions(&params, "", true); err != nil {
+	if err := ensurePermissions(ctx, &params, "", true); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Lastly, set and check permissions on all the desired files.
 	for key, isDir := range desired {
-		if err := ensurePermissions(&params, key, isDir); err != nil {
+		if err := ensurePermissions(ctx, &params, key, isDir); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	log.Infof("destination %s has been initialized. Note that these files "+
-		"will be empty and invalid until the bot issues certificates.",
-		destImpl)
+	log.InfoContext(
+		ctx,
+		"Destination has been initialized. Note that these files will be empty and invalid until the bot issues certificates",
+		"destination", destDir,
+	)
 
 	return nil
 }

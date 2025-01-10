@@ -1,0 +1,13 @@
+clusterName: test-aws-cluster
+chartMode: aws
+aws:
+  region: us-west-2
+  backendTable: test-dynamodb-backend-table
+  sessionRecordingBucket: test-s3-session-storage-bucket
+  athenaURL: 'athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name'
+
+  accessMonitoring:
+    enabled: true
+    reportResults: "s3://example-athena-long-term/report_results"
+    roleARN: "arn:aws:iam::123456789012:role/example_AccessMonitoringRole"
+    workgroup: "example_access_monitoring_workgroup"

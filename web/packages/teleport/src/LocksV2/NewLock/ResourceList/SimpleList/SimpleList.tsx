@@ -16,22 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
-import useTeleport from 'teleport/useTeleport';
-import { User } from 'teleport/services/user';
 import { MfaDevice } from 'teleport/services/mfa';
-import { KindRole, Resource } from 'teleport/services/resources';
+import { User } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
-import { TableWrapper, SimpleListProps } from '../common';
 import { CommonListProps, LockResourceKind } from '../../common';
-
-import { Roles } from './Roles';
-import Users from './Users';
+import { SimpleListProps, TableWrapper } from '../common';
 import { MfaDevices } from './MfaDevices';
+import Users from './Users';
 
 export type SimpleListOpts = {
-  getFetchFn(selectedResourceKind: LockResourceKind): (p: any) => Promise<any>;
+  getFetchFn(
+    selectedResourceKind: LockResourceKind
+  ): (p: any, signal?: AbortSignal) => Promise<any>;
   getTable(
     selectedResourceKind: LockResourceKind,
     resources: any[],
@@ -46,9 +45,6 @@ export function SimpleList(props: CommonListProps & { opts: SimpleListOpts }) {
   useEffect(() => {
     let fetchFn;
     switch (props.selectedResourceKind) {
-      case 'role':
-        fetchFn = ctx.resourceService.fetchRoles;
-        break;
       case 'user':
         fetchFn = ctx.userService.fetchUsers;
         break;
@@ -85,10 +81,6 @@ export function SimpleList(props: CommonListProps & { opts: SimpleListOpts }) {
       toggleSelectResource: props.toggleSelectResource,
     };
     switch (props.selectedResourceKind) {
-      case 'role':
-        return (
-          <Roles roles={resources as Resource<KindRole>[]} {...listProps} />
-        );
       case 'user':
         return <Users users={resources as User[]} {...listProps} />;
       case 'mfa_device':

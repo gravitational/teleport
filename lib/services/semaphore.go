@@ -20,12 +20,12 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -80,12 +80,35 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 
 // SemaphoreLock provides a convenient interface for managing
 // semaphore lease keepalive operations.
+// SemaphoreLock implements the [context.Context] interface
+// and can be used to propagate cancellation when the parent
+// context is canceled or when the lease expires.
+//
+//		lease,err := AcquireSemaphoreLock(ctx, cfg)
+//		if err != nil {
+//			... handle error ...
+//		}
+//		defer func(){
+//			lease.Stop()
+//			err := lease.Wait()
+//			if err != nil {
+//				... handle error ...
+//			}
+//		}()
+//
+//	 newCtx,cancel := context.WithCancel(ctx)
+//	 defer cancel()
+//	 ... do work with newCtx ...
 type SemaphoreLock struct {
+	// ctx is the parent context for the lease keepalive operation.
+	// it's used to propagate deadline cancellations from the parent
+	// context and to carry values for the context interface.
+	ctx       context.Context
+	cancelCtx context.CancelFunc
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
 	retry     retryutils.Retry
 	ticker    clockwork.Ticker
-	doneC     chan struct{}
 	closeOnce sync.Once
 	renewalC  chan struct{}
 	cond      *sync.Cond
@@ -107,8 +130,27 @@ func (l *SemaphoreLock) finish(err error) {
 
 // Done signals that lease keepalive operations
 // have stopped.
+// If the parent context is canceled, the lease
+// will be released and done will be closed.
 func (l *SemaphoreLock) Done() <-chan struct{} {
-	return l.doneC
+	return l.ctx.Done()
+}
+
+// Deadline returns the deadline of the parent context if it exists.
+func (l *SemaphoreLock) Deadline() (time.Time, bool) {
+	return l.ctx.Deadline()
+}
+
+// Value returns the value associated with the key in the parent context.
+func (l *SemaphoreLock) Value(key interface{}) interface{} {
+	return l.ctx.Value(key)
+}
+
+// Error returns the final error value.
+func (l *SemaphoreLock) Err() error {
+	l.cond.L.Lock()
+	defer l.cond.L.Unlock()
+	return l.err
 }
 
 // Wait blocks until the final result is available.  Note that
@@ -127,7 +169,7 @@ func (l *SemaphoreLock) Wait() error {
 func (l *SemaphoreLock) Stop() {
 	l.closeOnce.Do(func() {
 		l.ticker.Stop()
-		close(l.doneC)
+		l.cancelCtx()
 	})
 }
 
@@ -141,9 +183,8 @@ func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 	var nodrop bool
 	var err error
 	lease := l.lease0
-	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
-		cancel()
+		l.cancelCtx()
 		l.Stop()
 		defer l.finish(err)
 		if nodrop {
@@ -159,10 +200,17 @@ func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 			defer cancel()
 			err = l.cfg.Service.CancelSemaphoreLease(cancelContext, lease)
 			if err != nil {
-				log.Warnf("Failed to cancel semaphore lease %s/%s: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
+				slog.WarnContext(cancelContext, "Failed to cancel semaphore lease %s/%s: %v",
+					"semaphore_kind", lease.SemaphoreKind,
+					"semaphore_name", lease.SemaphoreName,
+					"error", err,
+				)
 			}
 		} else {
-			log.Errorf("Semaphore lease expired: %s/%s", lease.SemaphoreKind, lease.SemaphoreName)
+			slog.ErrorContext(context.Background(), "Semaphore lease expired",
+				"semaphore_kind", lease.SemaphoreKind,
+				"semaphore_name", lease.SemaphoreName,
+			)
 		}
 	}()
 Outer:
@@ -178,7 +226,11 @@ Outer:
 					leaseCancel()
 					// semaphore and/or lease no longer exist; best to log the error
 					// and exit immediately.
-					log.Warnf("Halting keepalive on semaphore %s/%s early: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
+					slog.WarnContext(leaseContext, "Halting keepalive on semaphore",
+						"semaphore_kind", lease.SemaphoreKind,
+						"semaphore_name", lease.SemaphoreName,
+						"error", err,
+					)
 					nodrop = true
 					return
 				}
@@ -192,7 +244,11 @@ Outer:
 					}
 					continue Outer
 				}
-				log.Debugf("Failed to renew semaphore lease %s/%s: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
+				slog.DebugContext(leaseContext, "Failed to renew semaphore lease",
+					"semaphore_kind", lease.SemaphoreKind,
+					"semaphore_name", lease.SemaphoreName,
+					"error", err,
+				)
 				l.retry.Inc()
 				select {
 				case <-l.retry.After():
@@ -257,7 +313,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Max:    cfg.Expiry / 4,
 		Step:   cfg.Expiry / 16,
-		Jitter: retryutils.NewJitter(),
+		Jitter: retryutils.DefaultJitter,
 		Clock:  cfg.Clock,
 	})
 	if err != nil {
@@ -267,17 +323,47 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(ctx)
 	lock := &SemaphoreLock{
-		cfg:      cfg,
-		lease0:   *lease,
-		retry:    retry,
-		ticker:   cfg.Clock.NewTicker(cfg.TickRate),
-		doneC:    make(chan struct{}),
-		renewalC: make(chan struct{}),
-		cond:     sync.NewCond(&sync.Mutex{}),
+		ctx:       ctx,
+		cancelCtx: cancel,
+		cfg:       cfg,
+		lease0:    *lease,
+		retry:     retry,
+		ticker:    cfg.Clock.NewTicker(cfg.TickRate),
+		renewalC:  make(chan struct{}),
+		cond:      sync.NewCond(&sync.Mutex{}),
 	}
 	go lock.keepAlive(ctx)
 	return lock, nil
+}
+
+// SemaphoreLockConfigWithRetry contains parameters for acquiring a semaphore lock
+// until it succeeds or context expires.
+type SemaphoreLockConfigWithRetry struct {
+	SemaphoreLockConfig
+	// Retry is the retry configuration.
+	Retry retryutils.LinearConfig
+}
+
+// AcquireSemaphoreLockWithRetry attempts to acquire and hold a semaphore lease. If successfully acquired,
+// background keepalive processes are started and an associated lock handle is returned.
+// If the lease cannot be acquired, the operation is retried according to the retry schedule until
+// it succeeds or the context expires.  Canceling the supplied context releases the semaphore.
+func AcquireSemaphoreLockWithRetry(ctx context.Context, cfg SemaphoreLockConfigWithRetry) (*SemaphoreLock, error) {
+	retry, err := retryutils.NewLinear(cfg.Retry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var lease *SemaphoreLock
+	err = retry.For(ctx, func() (err error) {
+		lease, err = AcquireSemaphoreLock(ctx, cfg.SemaphoreLockConfig)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return lease, nil
 }
 
 // UnmarshalSemaphore unmarshals the Semaphore resource from JSON.
@@ -302,9 +388,6 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, e
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		semaphore.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		semaphore.SetRevision(cfg.Revision)
 	}
@@ -327,7 +410,7 @@ func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte,
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, semaphore))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, semaphore))
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", semaphore)
 	}

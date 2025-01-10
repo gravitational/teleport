@@ -16,35 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
+import {
   createContext,
-  useCallback,
   PropsWithChildren,
+  useCallback,
   useContext,
-  useRef,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
+import { Indicator } from 'design';
+import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { Indicator } from 'design';
-
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-
-import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
-
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
-import { StyledIndicator } from 'teleport/Main';
-
-import * as service from 'teleport/services/userPreferences';
 import cfg from 'teleport/config';
-
+import { StyledIndicator } from 'teleport/Main';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
-
-import { deprecatedThemeToThemePreference } from 'teleport/services/userPreferences/types';
-
+import * as service from 'teleport/services/userPreferences';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 export interface UserContextValue {
@@ -75,9 +65,6 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
   const getClusterPinnedResources = useCallback(async (clusterId: string) => {
     if (clusterPreferences.current[clusterId]) {
-      // we know that pinned resources is supported because we've already successfully
-      // fetched their pinned resources once before
-      window.localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
       return clusterPreferences.current[clusterId].pinnedResources.resourceIds;
     }
     const prefs = await service.getUserClusterPreferences(clusterId);
@@ -108,43 +95,19 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
   async function loadUserPreferences() {
     const storedPreferences = storageService.getUserPreferences();
-    const theme = storageService.getDeprecatedThemePreference();
 
     try {
       const preferences = await service.getUserPreferences();
       clusterPreferences.current[cfg.proxyCluster] =
         preferences.clusterPreferences;
-      if (!storedPreferences) {
-        // there are no mirrored user preferences in local storage so this is the first time
-        // the user has requested their preferences in this browser session
-
-        // if there is a legacy theme preference, update the preferences with it and remove it
-        if (theme) {
-          preferences.theme = deprecatedThemeToThemePreference(theme);
-
-          if (preferences.theme !== Theme.LIGHT) {
-            // the light theme is the default, so only update the backend if it is not light
-            updatePreferences(preferences);
-          }
-
-          storageService.clearDeprecatedThemePreference();
-        }
-      }
 
       setPreferences(preferences);
       storageService.setUserPreferences(preferences);
-    } catch (err) {
+    } catch {
       if (storedPreferences) {
         setPreferences(storedPreferences);
 
         return;
-      }
-
-      if (theme) {
-        setPreferences({
-          ...preferences,
-          theme: deprecatedThemeToThemePreference(theme),
-        });
       }
     }
   }
@@ -153,10 +116,6 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     const nextPreferences = {
       ...preferences,
       ...newPreferences,
-      assist: {
-        ...preferences.assist,
-        ...newPreferences.assist,
-      },
       onboard: {
         ...preferences.onboard,
         ...newPreferences.onboard,
@@ -168,6 +127,10 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       // updatePreferences only update the root cluster so we can only pass cluster
       // preferences from the root cluster
       clusterPreferences: clusterPreferences.current[cfg.proxyCluster],
+      accessGraph: {
+        ...preferences.accessGraph,
+        ...newPreferences.accessGraph,
+      },
     } as UserPreferences;
     setPreferences(nextPreferences);
     storageService.setUserPreferences(nextPreferences);

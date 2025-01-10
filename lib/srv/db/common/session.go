@@ -20,15 +20,17 @@ package common
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -57,11 +59,17 @@ type Session struct {
 	// StartupParameters define initial connection parameters such as date style.
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
 	// AuthContext is the identity context of the user.
 	AuthContext *authz.Context
+	// StartTime is the time the session started.
+	StartTime time.Time
+	// PostgresPID is the Postgres backend PID for the session.
+	PostgresPID uint32
+	// UserAgent identifies the type of client used on the session.
+	UserAgent string
 }
 
 // String returns string representation of the session parameters.
@@ -73,7 +81,7 @@ func (c *Session) String() string {
 
 // GetAccessState returns the AccessState based on the underlying
 // [services.AccessChecker] and [tlsca.Identity].
-func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+func (c *Session) GetAccessState(authPref readonly.AuthPreference) services.AccessState {
 	state := c.Checker.GetAccessState(authPref)
 	state.MFAVerified = c.Identity.IsMFAVerified()
 	state.EnableDeviceVerification = true
@@ -85,6 +93,14 @@ func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessS
 func (c *Session) WithUser(user string) *Session {
 	copy := *c
 	copy.DatabaseUser = user
+	return &copy
+}
+
+// WithDatabase returns a shallow copy of the session with overridden
+// database name.
+func (c *Session) WithDatabase(defaultDatabase string) *Session {
+	copy := *c
+	copy.DatabaseName = defaultDatabase
 	return &copy
 }
 
@@ -118,4 +134,9 @@ func (c *Session) CheckUsernameForAutoUserProvisioning() error {
 
 	return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
 		c.Identity.Username, c.DatabaseUser)
+}
+
+// GetExpiry returns the expiry time of current session.
+func (c *Session) GetExpiry() time.Time {
+	return c.Identity.Expires
 }

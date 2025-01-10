@@ -1,0 +1,309 @@
+
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+## `teleport`
+
+`teleport` contains the configuration describing how the plugin connects to
+your Teleport cluster.
+
+### `teleport.address`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleport.address` is the address of the Teleport cluster the plugin
+connects to. The address must contain both the domain name and the port of
+the Teleport cluster. It can be either the address of the auth servers or the
+proxy servers.
+
+For example:
+  - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
+  - joining an Auth: `teleport-auth.example.com:3025`
+
+### `teleport.identitySecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleport.identitySecretName` is the name of the Kubernetes secret
+that contains the credentials for the connection to your Teleport cluster.
+
+The secret should be in the following format:
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: teleport-plugin-identity
+data:
+  auth_id: #...
+```
+
+Check out the [Access Requests with
+Discord](../../admin-guides/access-controls/access-request-plugins/ssh-approval-discord.mdx) guide
+for more information about how to acquire these credentials.
+
+### `teleport.identitySecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"auth_id"` |
+
+`teleport.identitySecretPath` is the key in the Kubernetes secret
+specified by `teleport.identitySecretName` that holds the credentials for
+the connection to your Teleport cluster. If the secret has the path,
+`"auth_id"`, you can omit this field.
+
+## `discord`
+
+`discord` contains the configuration used by the plugin to authenticate to Discord.
+
+You can pass the Discord token:
+- via the chart Values by setting `discord.token`
+- via an existing Kubernetes Secret by setting `discord.tokenFromSecret`
+
+### `discord.token`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`discord.token` is the Discord token used by the plugin to interact
+with Discord. When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `discord.tokenFromSecret` is set.
+
+### `discord.tokenFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`discord.tokenFromSecret` is the name of the Kubernetes Secret
+containing the Discord token. When this value is set, you must create the
+Secret before creating the chart release.
+
+### `discord.tokenSecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"discordToken"` |
+
+`discord.tokenSecretPath` is the Kubernetes Secret key
+containing the Discord token. The secret name is set via `discord.tokenFromSecret`.
+
+## `roleToRecipients`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`roleToRecipients` is mapping the requested role name to a list of
+recipients the plugin will notify. Recipients must be Discord recipient IDs
+(either a shared channel ID or the ID of the DM conversation between the
+Discord bot and a user)..
+It must contain a mapping for `*` in case no matching roles are found.
+
+Example value:
+```yaml
+roleToRecipients:
+ "*": "0987654321"
+ dev:
+   - "1234567890"
+   - "0987654321"
+```
+
+## `log`
+
+`log` controls the plugin logging.
+
+### `log.severity`
+
+| Type | Default |
+|------|---------|
+| `string` | `"INFO"` |
+
+`log.severity` is the log level for the Teleport process.
+Available log levels are: `DEBUG`, `INFO`, `WARN`, `ERROR`.
+
+The default is `INFO`, which is recommended in production.
+`DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
+
+### `log.output`
+
+| Type | Default |
+|------|---------|
+| `string` | `"stdout"` |
+
+`log.output` sets the output destination for the Teleport process.
+This can be set to any of the built-in values: `stdout`, `stderr`.
+
+The value can also be set to a file path (such as `/var/log/teleport.log`)
+to write logs to a file. Bear in mind that a few service startup messages
+will still go to `stderr` for resilience.
+
+## `annotations`
+
+`annotations` contains annotations to apply to the different Kubernetes
+objects created by the chart. See [the Kubernetes annotation
+documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+for more details.
+
+### `annotations.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.config` contains the Kubernetes annotations
+put on the `ConfigMap` resource created by the chart.
+
+### `annotations.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.deployment` contains the Kubernetes annotations
+put on the `Deployment` or `StatefulSet` resource created by the chart.
+
+### `annotations.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.pod` contains the Kubernetes annotations
+put on the `Pod` resources created by the chart.
+
+### `annotations.secret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.secret` contains the Kubernetes annotations
+put on the `Secret` resource created by the chart.
+This has no effect when `joinTokenSecret.create` is `false`.
+
+## `image`
+
+`image` sets the container image used for plugin pods created by the chart.
+
+You can override this to use your own plugin image rather than a Teleport-published image.
+
+### `image.repository`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-discord"` |
+
+`image.repository` is the image repository.
+
+### `image.pullPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"IfNotPresent"` |
+
+`image.pullPolicy` is the [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy).
+
+### `image.tag`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`image.tag` Overrides the image tag whose default is the chart appVersion.
+
+Normally, the version of the Teleport plugin matches the
+version of the chart. If you install chart version 15.0.0, you'll use
+the plugin version 15.0.0. Upgrading the plugin is done by upgrading the chart.
+
+<Admonition type="warning">
+`image.tag` is intended for development and custom tags. This MUST NOT be
+used to control the plugin version in a typical deployment. This
+chart is designed to run a specific plugin version. You will face
+compatibility issues trying to run a different version with it.
+
+If you want to run the Teleport plugin version `X.Y.Z`, you should use
+`helm install --version X.Y.Z` instead.
+</Admonition>
+
+## `imagePullSecrets`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`imagePullSecrets` is a list of secrets containing authorization tokens
+which can be optionally used to access a private Docker registry.
+
+See the [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod) for more details.
+
+## `podSecurityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`podSecurityContext` sets the pod security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+for more details.
+
+To unset the security context, set it to `null` or `~`.
+
+## `securityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`securityContext` sets the container security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+To unset the security context, set it to `null` or `~`.
+
+## `resources`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`resources` sets the resource requests/limits for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+for more details.
+
+## `nodeSelector`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`nodeSelector` sets the node selector for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+for more details.
+
+## `tolerations`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`tolerations` sets the tolerations for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+for more details.
+
+## `affinity`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`affinity` sets the affinities for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+for more details.

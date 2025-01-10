@@ -16,18 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
-import { useAttemptNext } from 'shared/hooks';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { HoverTooltip } from 'shared/components/ToolTip';
-import { Alert, Box, ButtonPrimary, Indicator } from 'design';
 
+import { Alert, Box, Button, Indicator } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
+import { useAttemptNext } from 'shared/hooks';
+
+import { BotList } from 'teleport/Bots/List/BotList';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { BotList } from 'teleport/Bots/List/BotList';
+import cfg from 'teleport/config';
 import {
   deleteBot,
   editBot,
@@ -37,19 +39,21 @@ import {
 import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
-import cfg from 'teleport/config';
+import { EmptyState } from './EmptyState/EmptyState';
 
 export function Bots() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
   const hasAddBotPermissions = flags.addBots;
+  const canListBots = flags.listBots;
 
-  const [bots, setBots] = useState<FlatBot[]>();
-  const [roles, setRoles] = useState<string[]>();
+  const [bots, setBots] = useState<FlatBot[]>([]);
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
   const [selectedRoles, setSelectedRoles] = useState<string[]>();
   const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
-  const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
+  const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext(
+    canListBots ? 'processing' : 'success'
+  );
 
   useEffect(() => {
     const signal = new AbortController();
@@ -59,22 +63,23 @@ export function Bots() {
       return await fetchBots(signal, flags);
     }
 
-    async function roles(signal: AbortSignal) {
-      return await fetchRoles(signal, flags);
-    }
-
-    fetchRun(() =>
-      Promise.all([bots(signal.signal), roles(signal.signal)]).then(
-        ([botRes, roleRes]) => {
+    if (canListBots) {
+      fetchRun(() =>
+        bots(signal.signal).then(botRes => {
           setBots(botRes.bots);
-          setRoles(roleRes.map(r => r.name));
-        }
-      )
-    );
+        })
+      );
+    }
     return () => {
       signal.abort();
     };
-  }, [ctx, fetchRun]);
+  }, [ctx, fetchRun, canListBots]);
+
+  async function fetchRoleNames(search: string): Promise<string[]> {
+    const flags = ctx.getFeatureFlags();
+    const roles = await fetchRoles(search, flags);
+    return roles.items.map(r => r.name);
+  }
 
   function onDelete() {
     crudRun(() => deleteBot(flags, selectedBot.name)).then(() => {
@@ -109,6 +114,30 @@ export function Bots() {
     setSelectedRoles(null);
   }
 
+  if (fetchAttempt.status === 'processing') {
+    return (
+      <FeatureBox>
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      </FeatureBox>
+    );
+  }
+
+  if (fetchAttempt.status === 'success' && bots.length === 0) {
+    return (
+      <FeatureBox>
+        {!canListBots && (
+          <Alert kind="info" mt={4}>
+            You do not have permission to access Bots. Missing role permissions:{' '}
+            <code>bot.list</code>
+          </Alert>
+        )}
+        <EmptyState />
+      </FeatureBox>
+    );
+  }
+
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -122,7 +151,13 @@ export function Bots() {
     to request bot creation permissions.`
             }
           >
-            <ButtonPrimary
+            <Button
+              intent="primary"
+              fill={
+                fetchAttempt.status === 'success' && bots.length === 0
+                  ? 'filled'
+                  : 'border'
+              }
               ml="auto"
               width="240px"
               as={Link}
@@ -130,15 +165,10 @@ export function Bots() {
               disabled={!hasAddBotPermissions}
             >
               Enroll New Bot
-            </ButtonPrimary>
+            </Button>
           </HoverTooltip>
         </Box>
       </FeatureHeader>
-      {fetchAttempt.status == 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
       {fetchAttempt.status == 'failed' && (
         <Alert kind="danger" children={fetchAttempt.statusText} />
       )}
@@ -148,7 +178,7 @@ export function Bots() {
           bots={bots}
           disabledEdit={!flags.roles || !flags.editBots}
           disabledDelete={!flags.removeBots}
-          roles={roles}
+          fetchRoles={fetchRoleNames}
           onClose={onClose}
           onDelete={onDelete}
           onEdit={onEdit}

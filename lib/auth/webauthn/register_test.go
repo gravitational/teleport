@@ -27,8 +27,10 @@ import (
 	"testing"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -118,14 +120,16 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 			require.NotNil(t, gotDevice)
 			require.NotEmpty(t, gotDevice.PublicKeyCbor) // validated indirectly via authentication
 			wantDevice := &types.WebauthnDevice{
-				CredentialId:      dev.KeyHandle,
-				PublicKeyCbor:     gotDevice.PublicKeyCbor,
-				AttestationType:   gotDevice.AttestationType,
-				Aaguid:            make([]byte, 16), // 16 zeroes
-				SignatureCounter:  0,
-				AttestationObject: ccr.AttestationResponse.AttestationObject,
-				ResidentKey:       test.wantResidentKey,
-				CredentialRpId:    rpID,
+				CredentialId:             dev.KeyHandle,
+				PublicKeyCbor:            gotDevice.PublicKeyCbor,
+				AttestationType:          gotDevice.AttestationType,
+				Aaguid:                   make([]byte, 16), // 16 zeroes
+				SignatureCounter:         0,
+				AttestationObject:        ccr.AttestationResponse.AttestationObject,
+				ResidentKey:              test.wantResidentKey,
+				CredentialRpId:           rpID,
+				CredentialBackupEligible: &gogotypes.BoolValue{Value: false},
+				CredentialBackedUp:       &gogotypes.BoolValue{Value: false},
 			}
 			if diff := cmp.Diff(wantDevice, gotDevice); diff != "" {
 				t.Errorf("Finish() mismatch (-want +got):\n%s", diff)
@@ -143,32 +147,32 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 	const user = "llama"
 	const rpID = "localhost"
 
-	dev1ID := []byte{1, 1, 1} // U2F
-	web1ID := []byte{1, 1, 2} // WebAuthn / MFA
-	rk1ID := []byte{1, 1, 3}  // WebAuthn / passwordless
-	dev1 := &types.MFADevice{
+	u2fID := []byte{1, 1, 1}     // U2F
+	mfaID := []byte{1, 1, 2}     // WebAuthn / MFA
+	passkeyID := []byte{1, 1, 3} // WebAuthn / passwordless
+	u2fDev := &types.MFADevice{
 		Device: &types.MFADevice_U2F{
 			U2F: &types.U2FDevice{
-				KeyHandle: dev1ID,
+				KeyHandle: u2fID,
 			},
 		},
 	}
-	web1 := &types.MFADevice{
+	mfaDev := &types.MFADevice{
 		Device: &types.MFADevice_Webauthn{
 			Webauthn: &types.WebauthnDevice{
-				CredentialId: web1ID,
+				CredentialId: mfaID,
 			},
 		},
 	}
-	rk1 := &types.MFADevice{
+	passkeyDev := &types.MFADevice{
 		Device: &types.MFADevice_Webauthn{
 			Webauthn: &types.WebauthnDevice{
-				CredentialId: rk1ID,
+				CredentialId: passkeyID,
 				ResidentKey:  true,
 			},
 		},
 	}
-	identity := newFakeIdentity(user, dev1, web1, rk1)
+	identity := newFakeIdentity(user, u2fDev, mfaDev, passkeyDev)
 
 	rf := wanlib.RegistrationFlow{
 		Webauthn: &types.Webauthn{
@@ -184,13 +188,18 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 		wantExcludeList [][]byte
 	}{
 		{
-			name:            "MFA",
-			wantExcludeList: [][]byte{web1ID}, // U2F and resident excluded
+			name: "MFA",
+			wantExcludeList: [][]byte{
+				mfaID,
+				passkeyID, // Prevents "downgrades"
+			},
 		},
 		{
-			name:            "passwordless",
-			passwordless:    true,
-			wantExcludeList: [][]byte{rk1ID}, // U2F and MFA excluded
+			name:         "passwordless",
+			passwordless: true,
+			wantExcludeList: [][]byte{
+				passkeyID,
+			},
 		},
 	}
 	for _, test := range tests {
@@ -533,6 +542,46 @@ func TestIssue31187_errorParsingAttestationResponse(t *testing.T) {
 
 	_, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(body))
 	require.NoError(t, err, "ParseCredentialCreationResponseBody failed")
+}
+
+func TestRegistrationFlow_credProps(t *testing.T) {
+	key, err := mocku2f.Create()
+	require.NoError(t, err, "Create failed")
+
+	const user = "llama"
+	const origin = "https://localhost"
+	ctx := context.Background()
+
+	rf := &wanlib.RegistrationFlow{
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+		Identity: newFakeIdentity(user),
+	}
+
+	// Begin ceremony.
+	cc, err := rf.Begin(ctx, user, false /* passwordless */)
+	require.NoError(t, err, "Begin failed")
+
+	// Verify that the server requested credProps.
+	val, ok := cc.Response.Extensions[wantypes.CredPropsExtension]
+	require.True(t, ok, "CredentialCreation lacks credProps extension", cc.Response.Extensions)
+	credPropsRequested, ok := val.(bool)
+	require.True(t, ok && credPropsRequested, "CredentialCreation: credProps not set to true", cc.Response.Extensions)
+
+	// Sign with credProps.
+	key.ReplyWithCredProps = true
+	ccr, err := key.SignCredentialCreation(origin, cc)
+	require.NoError(t, err, "SignCredentialCreation failed")
+
+	// Finish ceremony and verify mfaDev.
+	mfaDev, err := rf.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "mydevice",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err, "Finish failed")
+	assert.True(t, mfaDev.GetWebauthn().ResidentKey, "mfaDev.ResidentKey flag mismatch")
 }
 
 func derToPEMs(certs [][]byte) []string {

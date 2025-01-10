@@ -43,7 +43,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
       options: --cap-add=SYS_ADMIN --privileged
       env:
         WEBASSETS_SKIP_BUILD: 1

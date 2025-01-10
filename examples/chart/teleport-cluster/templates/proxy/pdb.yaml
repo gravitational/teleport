@@ -9,7 +9,11 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ .Release.Name }}-proxy
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+    {{- if $proxy.extraLabels.podDisruptionBudget }}
+    {{- toYaml $proxy.extraLabels.podDisruptionBudget | nindent 4 }}
+    {{- end }}
 spec:
   minAvailable: {{ $proxy.highAvailability.podDisruptionBudget.minAvailable }}
   selector:

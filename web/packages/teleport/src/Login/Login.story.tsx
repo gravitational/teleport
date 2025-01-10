@@ -16,15 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect } from 'react';
+import { MemoryRouter } from 'react-router';
 
-import { LoginSuccess } from './LoginSuccess';
-import { LoginFailedComponent as LoginFailed } from './LoginFailed';
+import { Route } from 'teleport/components/Router';
+import cfg from 'teleport/config';
+
 import { LoginComponent as Login } from './Login';
+import { LoginFailedComponent as LoginFailed } from './LoginFailed';
+import { LoginSuccess } from './LoginSuccess';
+import { LoginTerminalRedirect } from './LoginTerminalRedirect';
 import { State } from './useLogin';
+
+const defaultEdition = cfg.edition;
 
 export default {
   title: 'Teleport/Login',
+  decorators: [
+    Story => {
+      useEffect(() => {
+        // Clean up
+        return () => {
+          cfg.edition = defaultEdition;
+        };
+      }, []);
+      return <Story />;
+    },
+  ],
 };
 
 export const MfaOff = () => <Login {...sample} />;
@@ -32,7 +50,27 @@ export const Otp = () => <Login {...sample} auth2faType="otp" />;
 export const Webauthn = () => <Login {...sample} auth2faType="webauthn" />;
 export const Optional = () => <Login {...sample} auth2faType="optional" />;
 export const On = () => <Login {...sample} auth2faType="on" />;
+export const CommunityAcknowledgement = () => {
+  cfg.edition = 'community';
+  return <Login {...sample} licenseAcknowledged={false} />;
+};
+export const MessageOfTheDay = () => {
+  return (
+    <Login
+      {...sample}
+      motd="One often meets his destiny on the road he takes to avoid it."
+      showMotd={true}
+    />
+  );
+};
 export const Success = () => <LoginSuccess />;
+export const TerminalRedirect = () => (
+  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
+    <Route path={cfg.routes.loginTerminalRedirect + '?auth=MyAuth'}>
+      <LoginTerminalRedirect />
+    </Route>
+  </MemoryRouter>
+);
 export const FailedDefault = () => <LoginFailed />;
 export const FailedCustom = () => <LoginFailed message="custom message" />;
 
@@ -57,4 +95,6 @@ const sample: State = {
   motd: '',
   showMotd: false,
   acknowledgeMotd: () => null,
+  licenseAcknowledged: true,
+  setLicenseAcknowledged: () => {},
 };

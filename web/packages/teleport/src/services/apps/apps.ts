@@ -16,9 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
-import cfg, { UrlAppParams, UrlResourcesParams } from 'teleport/config';
+import cfg, {
+  CreateAppSessionParams,
+  UrlAppParams,
+  UrlResourcesParams,
+} from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
+import api from 'teleport/services/api';
 
 import makeApp from './makeApps';
 import { App } from './types';
@@ -39,27 +43,36 @@ const service = {
     });
   },
 
-  createAppSession(params: UrlAppParams) {
-    const { fqdn, clusterId = '', publicAddr = '', arn = '' } = params;
-    return api
-      .post(cfg.api.appSession, {
-        fqdn,
-        cluster_name: clusterId,
-        public_addr: publicAddr,
-        arn: arn,
-      })
-      .then(json => ({
-        fqdn: json.fqdn as string,
-        cookieValue: json.cookie_value as string,
-        subjectCookieValue: json.subject_cookie_value as string,
-      }));
-  },
+  async createAppSession(params: CreateAppSessionParams) {
+    const createAppSession = {
+      ...params,
+      // TODO(Joerger): DELETE IN v19.0.0.
+      // We include a string version of the MFA response for backwards compatibility.
+      mfa_response: params.mfaResponse
+        ? JSON.stringify({
+            webauthnAssertionResponse: params.mfaResponse.webauthn_response,
+          })
+        : null,
+    };
 
-  getAppFqdn(params: UrlAppParams) {
-    return api.get(cfg.getAppFqdnUrl(params)).then(json => ({
+    return api.post(cfg.api.appSession, createAppSession).then(json => ({
       fqdn: json.fqdn as string,
+      cookieValue: json.cookie_value as string,
+      subjectCookieValue: json.subject_cookie_value as string,
     }));
   },
+
+  getAppDetails(params: UrlAppParams): Promise<AppDetails> {
+    return api.get(cfg.getAppDetailsUrl(params)).then(json => ({
+      fqdn: json.fqdn,
+      requiredAppFQDNs: json.requiredAppFQDNs,
+    }));
+  },
+};
+
+type AppDetails = {
+  fqdn: string;
+  requiredAppFQDNs?: string[];
 };
 
 export default service;

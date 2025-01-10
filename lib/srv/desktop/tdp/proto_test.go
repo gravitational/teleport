@@ -71,7 +71,7 @@ func TestEncodeDecode(t *testing.T) {
 }
 
 func FuzzDecode(f *testing.F) {
-	var corpus = []string{
+	corpus := []string{
 		"0",
 		"\x02",
 		"\x1b\xff\xff\x800",
@@ -125,7 +125,7 @@ func TestMFA(t *testing.T) {
 	c := NewConn(&fakeConn{Buffer: &buff})
 
 	mfaWant := &MFA{
-		Type: defaults.WebsocketWebauthnChallenge[0],
+		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
 			WebauthnChallenge: &wantypes.CredentialAssertion{
 				Response: wantypes.PublicKeyCredentialRequestOptions{
@@ -159,7 +159,7 @@ func TestMFA(t *testing.T) {
 	require.Equal(t, mfaWant, mfaGot)
 
 	respWant := &MFA{
-		Type: defaults.WebsocketWebauthnChallenge[0],
+		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: &wanpb.CredentialAssertionResponse{
@@ -223,14 +223,14 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		{
 			name: "rejects long Error",
 			msg: Error{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
+				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},
 		{
-			name: "rejects long Notification",
-			msg: Notification{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
+			name: "rejects long Alert",
+			msg: Alert{
+				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},

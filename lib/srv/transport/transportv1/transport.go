@@ -22,15 +22,17 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -41,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Dialer is the interface that groups basic dialing methods.
@@ -61,7 +64,7 @@ type ServerConfig struct {
 	// to run in FIPS mode.
 	FIPS bool
 	// Logger provides a mechanism to log output.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
@@ -91,7 +94,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = utils.NewLogger().WithField(teleport.ComponentKey, "transport")
+		c.Logger = slog.With(teleport.ComponentKey, "transport")
 	}
 
 	if c.agentGetterFn == nil {
@@ -244,8 +247,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) {
-					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
+				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+					s.cfg.Logger.ErrorContext(ctx, "ssh stream terminated unexpectedly", "error", err)
 				}
 
 				return
@@ -260,7 +263,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			case *transportv1pb.ProxySSHRequest_Agent:
 				agentStream.incomingC <- frame.Agent.Payload
 			default:
-				s.cfg.Logger.Errorf("received unexpected ssh frame: %T", frame)
+				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(frame))
 				continue
 			}
 		}
@@ -287,6 +290,10 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
 	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
+		// Return ambiguous errors unadorned so that clients can detect them easily.
+		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
+			return trace.Wrap(err)
+		}
 		return trace.Wrap(err, "failed to dial target host")
 	}
 

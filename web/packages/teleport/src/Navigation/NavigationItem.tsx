@@ -16,30 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback } from 'react';
-import styled from 'styled-components';
+import React, { useCallback, useMemo } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import styled, { css, keyframes } from 'styled-components';
 
-import { NavLink } from 'react-router-dom';
+import { ArrowSquareOut } from 'design/Icon';
 
-import { ExternalLinkIcon } from 'design/SVGIcon';
-
-import { getIcon } from 'teleport/Navigation/utils';
-import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
+import { useTeleport } from 'teleport';
 import {
   commonNavigationItemStyles,
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
+import { getIcon } from 'teleport/Navigation/utils';
+import { LocalNotificationKind } from 'teleport/services/notifications';
 import { storageService } from 'teleport/services/storageService';
-import { useTeleport } from 'teleport';
-import { NavTitle, RecommendationStatus } from 'teleport/types';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
-
-import type {
-  TeleportFeature,
-  TeleportFeatureNavigationItem,
+import {
+  NavTitle,
+  RecommendationStatus,
+  type TeleportFeature,
+  type TeleportFeatureNavigationItem,
 } from 'teleport/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 interface NavigationItemProps {
   feature: TeleportFeature;
@@ -56,9 +55,25 @@ const ExternalLink = styled.a`
   }
 `;
 
-const Link = styled(NavLink)`
+const highlight = keyframes`
+  to {
+    background: none;
+  }
+`;
+
+const Link = styled(NavLink)<{ isHighlighted?: boolean }>`
   ${commonNavigationItemStyles};
   color: ${props => props.theme.colors.text.main};
+  z-index: 1;
+  background: ${p =>
+    p.isHighlighted ? p.theme.colors.highlightedNavigationItem : 'none'};
+  animation: ${p =>
+    p.isHighlighted
+      ? css`
+          ${highlight} 10s forwards linear
+        `
+      : 'none'};
+  animation-delay: 2s;
 
   &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
@@ -96,8 +111,16 @@ export function NavigationItem(props: NavigationItemProps) {
     hideFromNavigation,
   } = props.feature;
 
+  const { search } = useLocation();
+
+  const params = useMemo(() => new URLSearchParams(search), [search]);
+
+  const highlighted =
+    props.feature.highlightKey &&
+    params.get('highlight') === props.feature.highlightKey;
+
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLAnchorElement>) => {
       switch (event.key) {
         case 'ArrowDown':
           let nextSibling = event.currentTarget.nextSibling as HTMLDivElement;
@@ -171,7 +194,7 @@ export function NavigationItem(props: NavigationItemProps) {
   function renderHighlightFeature(featureName: NavTitle): JSX.Element {
     if (featureName === NavTitle.AccessLists) {
       const hasNotifications = ctx.storeNotifications.hasNotificationsByKind(
-        NotificationKind.AccessList
+        LocalNotificationKind.AccessList
       );
 
       if (hasNotifications) {
@@ -224,7 +247,7 @@ export function NavigationItem(props: NavigationItemProps) {
             {navigationItem.title}
 
             <ExternalLinkIndicator>
-              <ExternalLinkIcon size={14} />
+              <ArrowSquareOut size="medium" />
             </ExternalLinkIndicator>
           </LinkContent>
         </ExternalLink>
@@ -254,6 +277,7 @@ export function NavigationItem(props: NavigationItemProps) {
           tabIndex={props.visible ? 0 : -1}
           to={navigationItemVersion.getLink(clusterId)}
           exact={navigationItemVersion.exact}
+          isHighlighted={highlighted}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
@@ -275,7 +299,7 @@ export function NavigationItem(props: NavigationItemProps) {
   );
 }
 
-const AttentionDot = styled.div.attrs(() => ({
+const AttentionDot = styled.div.attrs<{ 'data-testid'?: string }>(() => ({
   'data-testid': 'nav-item-attention-dot',
 }))`
   margin-left: 15px;

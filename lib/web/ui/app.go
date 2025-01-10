@@ -19,12 +19,13 @@
 package ui
 
 import (
+	"cmp"
+	"context"
+	"log/slog"
 	"sort"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -33,6 +34,9 @@ import (
 type App struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
 	Kind string `json:"kind"`
+	// SubKind is the subkind of the app resource. Used to differentiate different
+	// flavors of app.
+	SubKind string `json:"subKind,omitempty"`
 	// Name is the name of the application.
 	Name string `json:"name"`
 	// Description is the app description.
@@ -46,7 +50,7 @@ type App struct {
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// AWSConsole if true, indicates that the app represents AWS management console.
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
@@ -57,6 +61,17 @@ type App struct {
 	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
 	SAMLApp bool `json:"samlApp,omitempty"`
+	// SAMLAppPreset is the preset value of SAML IdP service provider. The SAML service provider
+	// preset value is used to process custom configuration for the service provider.
+	SAMLAppPreset string `json:"samlAppPreset,omitempty"`
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// Integration is the integration name that must be used to access this Application.
+	// Only applicable to AWS App Access.
+	Integration string `json:"integration,omitempty"`
+	// PermissionSets holds the permission sets that this app grants access to.
+	// Only valid for Identity Center Account apps
+	PermissionSets []IdentityCenterPermissionSet `json:"permissionSets,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -65,6 +80,19 @@ type UserGroupAndDescription struct {
 	Name string `json:"name"`
 	// Description is the description of the user group.
 	Description string `json:"description"`
+}
+
+// IdentityCenterPermissionSet holds information about Identity Center
+// Permission Sets for transmission to the UI
+type IdentityCenterPermissionSet struct {
+	// Name is the human-readable name of the permission set
+	Name string `json:"name"`
+	// ARN is the AWS-assigned ARN of the permission set
+	ARN string `json:"arn"`
+	// AssignmentID is the assignment resource ID that will provision an Account
+	// assignment for this permission set on the enclosing account.
+	AssignmentID    string `json:"assignmentId,omitempty"`
+	RequiresRequest bool   `json:"requiresRequest,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -79,23 +107,26 @@ type MakeAppsConfig struct {
 	AppsToUserGroups map[string]types.UserGroups
 	// AppServersAndSAMLIdPServiceProviders is a list of AppServers and SAMLIdPServiceProviders.
 	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
-	// Identity is identity of the logged in user.
-	Identity *tlsca.Identity
+	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
+	// Only used for AWS Console Apps.
+	AllowedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
+	// RequireRequest indicates if a returned resource is only accessible after an access request
+	RequiresRequest bool
 }
 
 // MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
-	labels := makeLabels(app.GetAllLabels())
+	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
 	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
 		if userGroup == nil {
-			c.Logger.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+			c.Logger.DebugContext(context.Background(), "Unable to find user group when creating user groups, skipping", "user_group", userGroupName)
 			continue
 		}
 
@@ -117,42 +148,68 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		description = oktaDescription
 	}
 
+	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
+
 	resultApp := App{
-		Kind:         types.KindApp,
-		Name:         app.GetName(),
-		Description:  description,
-		URI:          app.GetURI(),
-		PublicAddr:   app.GetPublicAddr(),
-		Labels:       labels,
-		ClusterID:    c.AppClusterName,
-		FQDN:         fqdn,
-		AWSConsole:   app.IsAWSConsole(),
-		FriendlyName: types.FriendlyName(app),
-		UserGroups:   userGroupAndDescriptions,
-		SAMLApp:      false,
+		Kind:            types.KindApp,
+		SubKind:         app.GetSubKind(),
+		Name:            app.GetName(),
+		Description:     description,
+		URI:             app.GetURI(),
+		PublicAddr:      app.GetPublicAddr(),
+		Labels:          labels,
+		ClusterID:       c.AppClusterName,
+		FQDN:            fqdn,
+		AWSConsole:      app.IsAWSConsole(),
+		FriendlyName:    types.FriendlyName(app),
+		UserGroups:      userGroupAndDescriptions,
+		SAMLApp:         false,
+		RequiresRequest: c.RequiresRequest,
+		Integration:     app.GetIntegration(),
+		PermissionSets:  permissionSets,
 	}
 
 	if app.IsAWSConsole() {
-		resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
 			app.GetAWSAccountID())
 	}
 
 	return resultApp
 }
 
+func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCenterPermissionSet {
+	if src == nil {
+		return nil
+	}
+	dst := make([]IdentityCenterPermissionSet, len(src))
+	for i, srcPS := range src {
+		dst[i] = IdentityCenterPermissionSet{
+			Name:         srcPS.Name,
+			ARN:          srcPS.ARN,
+			AssignmentID: srcPS.AssignmentID,
+		}
+	}
+	return dst
+}
+
 // MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.
 // Keep in sync with lib/teleterm/apiserver/handler/handler_apps.go.
+// Note: The SAMLAppPreset field is used in SAML service provider update flow in the
+// Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
-	labels := makeLabels(app.GetAllLabels())
+	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
 	resultApp := App{
-		Kind:         types.KindApp,
-		Name:         app.GetName(),
-		Description:  "SAML Application",
-		PublicAddr:   "",
-		Labels:       labels,
-		ClusterID:    c.AppClusterName,
-		FriendlyName: types.FriendlyName(app),
-		SAMLApp:      true,
+		Kind:            types.KindApp,
+		Name:            app.GetName(),
+		Description:     "SAML Application",
+		PublicAddr:      "",
+		Labels:          labels,
+		ClusterID:       c.AppClusterName,
+		FriendlyName:    types.FriendlyName(app),
+		SAMLApp:         true,
+		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
+		RequiresRequest: c.RequiresRequest,
 	}
 
 	return resultApp
@@ -165,7 +222,7 @@ func MakeApps(c MakeAppsConfig) []App {
 		if appOrSP.IsAppServer() {
 			app := appOrSP.GetAppServer().GetApp()
 			fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
-			labels := makeLabels(app.GetAllLabels())
+			labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
 
 			userGroups := c.AppsToUserGroups[app.GetName()]
 
@@ -193,13 +250,14 @@ func MakeApps(c MakeAppsConfig) []App {
 			}
 
 			if app.IsAWSConsole() {
-				resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+				allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+				resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
 					app.GetAWSAccountID())
 			}
 
 			result = append(result, resultApp)
 		} else {
-			labels := makeLabels(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
+			labels := ui.MakeLabelsWithoutInternalPrefixes(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
 			resultApp := App{
 				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),

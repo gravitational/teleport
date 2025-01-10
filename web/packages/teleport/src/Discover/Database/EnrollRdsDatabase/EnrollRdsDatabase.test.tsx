@@ -16,22 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render, screen, fireEvent, act } from 'design/utils/testing';
+import { act, fireEvent, render, screen } from 'design/utils/testing';
 
+import cfg from 'teleport/config';
+import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
+import DatabaseService from 'teleport/services/databases/databases';
+import * as discoveryService from 'teleport/services/discovery/discovery';
+import { DISCOVERY_GROUP_CLOUD } from 'teleport/services/discovery/discovery';
 import {
   AwsRdsDatabase,
   integrationService,
 } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
-import DatabaseService from 'teleport/services/databases/databases';
-import * as discoveryService from 'teleport/services/discovery/discovery';
-import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
-import cfg from 'teleport/config';
-import {
-  DISCOVERY_GROUP_CLOUD,
-  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
-} from 'teleport/services/discovery/discovery';
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 
@@ -60,12 +56,39 @@ describe('test EnrollRdsDatabase.tsx', () => {
     jest
       .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
       .mockResolvedValue({ services: [] });
+    jest.spyOn(integrationService, 'fetchAwsDatabasesVpcs').mockResolvedValue({
+      nextToken: '',
+      vpcs: [
+        {
+          name: 'vpc-name',
+          id: 'vpc-id',
+        },
+      ],
+    });
   });
 
   afterEach(() => {
     cfg.isCloud = defaultIsCloud;
     jest.restoreAllMocks();
   });
+
+  async function selectRegionAndVpc() {
+    // select a region
+    let selectEl = screen.getByLabelText(/aws region/i);
+    fireEvent.focus(selectEl);
+    fireEvent.keyDown(selectEl, { key: 'ArrowDown' });
+    fireEvent.click(screen.getByText('us-east-2'));
+
+    await screen.findByLabelText(/vpc id/i);
+
+    // select a vpc
+    selectEl = screen.getByText(/select a vpc id/i);
+    fireEvent.focus(selectEl);
+    fireEvent.keyDown(selectEl, { key: 'ArrowDown' });
+    fireEvent.keyDown(selectEl, { key: 'Enter' });
+
+    await screen.findByText(/selected VPC/i);
+  }
 
   test('without rds database result, does not attempt to fetch db servers', async () => {
     jest
@@ -74,14 +97,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
 
     render(<Component />);
 
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
-
-    // No results are rendered.
-    await screen.findByText(/no result/i);
+    await selectRegionAndVpc();
 
     expect(integrationService.fetchAwsRdsDatabases).toHaveBeenCalledTimes(1);
     expect(DatabaseService.prototype.fetchDatabases).not.toHaveBeenCalled();
@@ -94,11 +110,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
 
     render(<Component />);
 
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
+    await selectRegionAndVpc();
 
     // Rds results renders result.
     await screen.findByText(/rds-1/i);
@@ -107,32 +119,28 @@ describe('test EnrollRdsDatabase.tsx', () => {
     expect(DatabaseService.prototype.fetchDatabases).toHaveBeenCalledTimes(1);
   });
 
-  test('auto enroll (cloud) is on by default', async () => {
-    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
-      databases: mockAwsDbs,
-    });
+  test('auto enrolling with cloud should create discovery config', async () => {
     jest
-      .spyOn(integrationService, 'fetchAwsRdsRequiredVpcs')
-      .mockResolvedValue({});
+      .spyOn(integrationService, 'fetchAwsRdsDatabases')
+      .mockResolvedValue({ databases: [] });
+    jest
+      .spyOn(integrationService, 'fetchAllAwsRdsEnginesDatabases')
+      .mockResolvedValue({
+        databases: mockAwsDbs,
+      });
 
     render(<Component />);
 
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
+    await selectRegionAndVpc();
+
+    // Toggle on auto-enroll
+    act(() => screen.getByText(/auto-enroll all/i).click());
 
     // Rds results renders result.
     await screen.findByText(/rds-1/i);
-    // Cloud uses a default discovery group name.
-    expect(
-      screen.queryByText(/define a discovery group name/i)
-    ).not.toBeInTheDocument();
 
     act(() => screen.getByText('Next').click());
     await screen.findByText(/Creating Auto Discovery Config/i);
-    expect(integrationService.fetchAwsRdsRequiredVpcs).toHaveBeenCalledTimes(1);
     expect(discoveryService.createDiscoveryConfig).toHaveBeenCalledTimes(1);
 
     // 2D array:
@@ -146,95 +154,43 @@ describe('test EnrollRdsDatabase.tsx', () => {
     expect(DatabaseService.prototype.createDatabase).not.toHaveBeenCalled();
   });
 
-  test('auto enroll disabled (cloud), creates database', async () => {
-    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
-      databases: mockAwsDbs,
-    });
+  test('auto enrolling with self-hosted should not create discovery config (its done on the next step)', async () => {
+    cfg.isCloud = false;
+
+    jest
+      .spyOn(integrationService, 'fetchAwsRdsDatabases')
+      .mockResolvedValue({ databases: [] });
+    jest
+      .spyOn(integrationService, 'fetchAllAwsRdsEnginesDatabases')
+      .mockResolvedValue({
+        databases: mockAwsDbs,
+      });
 
     render(<Component />);
 
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
+    await selectRegionAndVpc();
 
+    // Toggle on auto-enroll
+    act(() => screen.getByText(/auto-enroll all/i).click());
+
+    // Rds results renders result.
     await screen.findByText(/rds-1/i);
 
-    // disable auto enroll
-    expect(screen.getByText('Next')).toBeEnabled();
-    act(() => screen.getByText(/auto-enroll all/i).click());
-    expect(screen.getByText('Next')).toBeDisabled();
-
-    act(() => screen.getByRole('radio').click());
-
     act(() => screen.getByText('Next').click());
-    await screen.findByText(/Database "rds-1" successfully registered/i);
-
     expect(discoveryService.createDiscoveryConfig).not.toHaveBeenCalled();
-    expect(
-      DatabaseService.prototype.fetchDatabaseServices
-    ).toHaveBeenCalledTimes(1);
-    expect(DatabaseService.prototype.createDatabase).toHaveBeenCalledTimes(1);
-  });
-
-  test('auto enroll (self-hosted) is on by default', async () => {
-    cfg.isCloud = false;
-    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
-      databases: mockAwsDbs,
-    });
-    jest
-      .spyOn(integrationService, 'fetchAwsRdsRequiredVpcs')
-      .mockResolvedValue({});
-
-    render(<Component />);
-
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
-
-    // Only self-hosted need to define a discovery group name.
-    await screen.findByText(/define a discovery group name/i);
-    // There should be no talbe rendered.
-    expect(screen.queryByText(/rds-1/i)).not.toBeInTheDocument();
-
-    act(() => screen.getByText('Next').click());
-    await screen.findByText(/Creating Auto Discovery Config/i);
-    expect(integrationService.fetchAwsRdsRequiredVpcs).toHaveBeenCalledTimes(1);
-    expect(discoveryService.createDiscoveryConfig).toHaveBeenCalledTimes(1);
-
-    // 2D array:
-    // First array is the array of calls, we are only interested in the first.
-    // Second array are the parameters that this api got called with,
-    // we are interested in the second parameter.
-    expect(createDiscoveryConfig.mock.calls[0][1]['discoveryGroup']).toBe(
-      DEFAULT_DISCOVERY_GROUP_NON_CLOUD
-    );
-
     expect(DatabaseService.prototype.createDatabase).not.toHaveBeenCalled();
   });
 
-  test('auto enroll disabled (self-hosted), creates database', async () => {
-    cfg.isCloud = false;
+  test('auto enroll disabled, creates database', async () => {
     jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
       databases: mockAwsDbs,
     });
 
     render(<Component />);
 
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
+    await selectRegionAndVpc();
 
-    await screen.findByText(/define a discovery group name/i);
-
-    // disable auto enroll
-    act(() => screen.getByText(/auto-enroll all/i).click());
-    expect(screen.getByText('Next')).toBeDisabled();
+    await screen.findByText(/rds-1/i);
 
     act(() => screen.getByRole('radio').click());
 
@@ -259,6 +215,7 @@ const mockAwsDbs: AwsRdsDatabase[] = [
     accountId: 'account-id-1',
     resourceId: 'resource-id-1',
     vpcId: 'vpc-123',
+    securityGroups: ['sg-1', 'sg-2'],
     region: 'us-east-2',
     subnets: ['subnet1', 'subnet2'],
   },

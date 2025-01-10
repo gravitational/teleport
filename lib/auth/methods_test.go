@@ -26,19 +26,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
 
 func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 	ctx := context.Background()
 	emitter := &eventstest.MockRecorderEmitter{}
-	r := AuthenticateUserRequest{
-		ClientMetadata: &ForwardedClientMetadata{
+	r := authclient.AuthenticateUserRequest{
+		ClientMetadata: &authclient.ForwardedClientMetadata{
 			UserAgent: strings.Repeat("A", maxUserAgentLen+1),
 		},
 	}
 	// Ignoring the error here because we really just care that the event was logged.
-	(&Server{emitter: emitter}).AuthenticateUser(ctx, r)
+	(&Server{emitter: emitter}).authenticateUserLogin(ctx, r)
 	event := emitter.LastEvent()
 	loginEvent, ok := event.(*apievents.UserLogin)
 	require.True(t, ok)

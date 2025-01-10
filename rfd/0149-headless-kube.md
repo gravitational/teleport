@@ -1,6 +1,6 @@
 ---
-authors:  Anton Miniailo (anton@goteleport.com)
-state: Draft
+authors: Anton Miniailo (anton@goteleport.com)
+state: implemented (v14.1)
 ---
 
 # RFD 0149 - Headless Kubernetes Access
@@ -204,7 +204,7 @@ Teleport Cluster Name Kube Cluster Name
 tele.port             main_kube_cluster
 
 Started local proxy for Kubernetes on 127.0.0.1:1234 in the background
-and kubectl is set up to work with it. Try issuing a commnd, for example "kubectl get namespaces"
+and kubectl is set up to work with it. Try issuing a command, for example "kubectl get namespaces"
 
 $ kubectl get pods
 NAMESPACE        NAME                                READY   STATUS    RESTARTS      AGE

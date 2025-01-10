@@ -52,7 +52,7 @@ func mockEnvGetter(data map[string]string) envGetter {
 
 func TestSendTelemetry(t *testing.T) {
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	t.Run("sends telemetry when enabled", func(t *testing.T) {
 		mockClient := &mockReportingServiceClient{}
@@ -66,7 +66,7 @@ func TestSendTelemetry(t *testing.T) {
 			Onboarding: config.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
-			Outputs: []config.Output{
+			Services: config.ServiceConfigs{
 				&config.IdentityOutput{
 					Destination: &config.DestinationDirectory{},
 				},

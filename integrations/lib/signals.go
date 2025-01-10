@@ -20,12 +20,11 @@ package lib
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Terminable interface {
@@ -41,15 +40,16 @@ func ServeSignals(app Terminable, shutdownTimeout time.Duration) {
 	signal.Notify(sigC,
 		syscall.SIGTERM, // graceful shutdown
 		syscall.SIGINT,  // graceful-then-fast shutdown
+		syscall.SIGUSR1, // capture pprof profiles
 	)
 	defer signal.Stop(sigC)
 
 	gracefulShutdown := func() {
 		tctx, tcancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer tcancel()
-		log.Infof("Attempting graceful shutdown...")
+		slog.InfoContext(tctx, "Attempting graceful shutdown")
 		if err := app.Shutdown(tctx); err != nil {
-			log.Infof("Graceful shutdown failed. Trying fast shutdown...")
+			slog.InfoContext(tctx, "Graceful shutdown failed, attempting fast shutdown")
 			app.Close()
 		}
 	}
@@ -67,6 +67,10 @@ func ServeSignals(app Terminable, shutdownTimeout time.Duration) {
 			}
 			go gracefulShutdown()
 			alreadyInterrupted = true
+		case syscall.SIGUSR1:
+			if p, ok := app.(interface{ Profile() }); ok {
+				go p.Profile()
+			}
 		}
 	}
 }

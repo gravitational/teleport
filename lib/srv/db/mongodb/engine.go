@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // NewEngine create new MongoDB engine.
@@ -93,7 +94,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer func() {
 		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.WithError(err).Error("Failed to deactivate the user.")
+			e.Log.ErrorContext(ctx, "Failed to deactivate the user.", "error", err)
 		}
 	}()
 	// Establish connection to the MongoDB server.
@@ -196,7 +197,7 @@ func (e *Engine) processHandshakeResponse(ctx context.Context, respMessage proto
 	// OP_REPLY is used on legacy handshake messages (deprecated on MongoDB 5.0)
 	case *protocol.MessageOpReply:
 		if len(resp.Documents) == 0 {
-			e.Log.Warn("Empty MongoDB handshake response.")
+			e.Log.WarnContext(ctx, "Empty MongoDB handshake response.")
 			return
 		}
 
@@ -206,7 +207,7 @@ func (e *Engine) processHandshakeResponse(ctx context.Context, respMessage proto
 	case *protocol.MessageOpMsg:
 		rawMessage = bson.Raw(resp.BodySection.Document)
 	default:
-		e.Log.Warn("Unabled to process MongoDB handshake response. Unexpected message type %T", respMessage)
+		e.Log.WarnContext(ctx, "Unable to process MongoDB handshake response. Unexpected message type.", "message_type", log.TypeAttr(respMessage))
 		return
 	}
 
@@ -307,7 +308,7 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 func (e *Engine) waitForAnyClientMessage(clientConn net.Conn) protocol.Message {
 	clientMessage, err := protocol.ReadMessage(clientConn, e.maxMessageSize)
 	if err != nil {
-		e.Log.Warnf("Failed to read a message for reply: %v.", err)
+		e.Log.WarnContext(e.Context, "Failed to read a message for reply.", "error", err)
 	}
 	return clientMessage
 }
@@ -328,7 +329,7 @@ func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err e
 		case clientMessage := <-waitChan:
 			replyTo = clientMessage
 		case <-e.Clock.After(common.DefaultMongoDBServerSelectionTimeout):
-			e.Log.Warnf("Timed out waiting for client message to reply err %v.", err)
+			e.Log.WarnContext(e.Context, "Timed out waiting for client message to reply err.", "error", err)
 			// Make sure the connection is closed so waitForAnyClientMessage
 			// doesn't get stuck.
 			defer clientConn.Close()
@@ -337,6 +338,6 @@ func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err e
 
 	errSend := protocol.ReplyError(clientConn, replyTo, err)
 	if errSend != nil {
-		e.Log.WithError(errSend).Errorf("Failed to send error message to MongoDB client: %v.", err)
+		e.Log.ErrorContext(e.Context, "Failed to send error message to MongoDB client.", "send_error", errSend, "orig_error", err)
 	}
 }

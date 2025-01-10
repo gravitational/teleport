@@ -16,32 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Text, Box } from 'design';
-import Validation, { Validator } from 'shared/components/Validation';
+import { useState } from 'react';
+
+import { Box, H3, Subtitle3 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
-import ReAuthenticate from 'teleport/components/ReAuthenticate';
-
+import type { KubeImpersonation } from 'teleport/services/agents';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
   ActionButtons,
-  HeaderSubtitle,
-  Header,
   ConnectionDiagnosticResult,
+  Header,
+  HeaderSubtitle,
   StyledBox,
 } from '../../Shared';
-
-import { useTestConnection, State } from './useTestConnection';
-
 import type { AgentStepProps } from '../../types';
-import type { KubeImpersonation } from 'teleport/services/agents';
+import { State, useTestConnection } from './useTestConnection';
 
 /**
  * @deprecated Refactor Discover/Kubernetes/TestConnection away from the container component
@@ -101,7 +99,9 @@ export function TestConnection({
         <Box>
           {showMfaDialog && (
             <ReAuthenticate
-              onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
+              onMfaResponse={async res =>
+                testConnection(makeTestConnRequest(), res)
+              }
               onClose={cancelMfaDialog}
               challengeScope={MfaChallengeScope.USER_SESSION}
             />
@@ -112,10 +112,10 @@ export function TestConnection({
             Kubernetes cluster you just added.
           </HeaderSubtitle>
           <StyledBox mb={5}>
-            <Text bold>Step 1</Text>
-            <Text typography="subtitle1" mb={3}>
-              Define the namespace to test.
-            </Text>
+            <header>
+              <H3>Step 1</H3>
+              <Subtitle3 mb={3}>Define the namespace to test.</Subtitle3>
+            </header>
             <Box width="500px">
               <FieldInput
                 label="Namespace"
@@ -128,10 +128,10 @@ export function TestConnection({
             </Box>
           </StyledBox>
           <StyledBox mb={5}>
-            <Text bold>Step 2</Text>
-            <Text typography="subtitle1" mb={3}>
-              Select groups and a user to test.
-            </Text>
+            <header>
+              <H3>Step 2</H3>
+              <Subtitle3 mb={3}>Select groups and a user to test.</Subtitle3>
+            </header>
             <Box width="500px">
               <FieldSelect
                 label="Kubernetes Groups"
@@ -154,7 +154,7 @@ export function TestConnection({
             <Box width="500px">
               <FieldSelect
                 label={'Kubernetes User'}
-                labelTip={
+                helperText={
                   userOpts.length === 0
                     ? 'Defaulted to your teleport username'
                     : ''
@@ -180,9 +180,7 @@ export function TestConnection({
             stepDescription="Verify that the Kubernetes is accessible"
           />
           <StyledBox>
-            <Text bold mb={3}>
-              To Access your Kubernetes cluster
-            </Text>
+            <H3 mb={3}>To Access your Kubernetes cluster</H3>
             <Box mb={2}>
               Log into your Teleport cluster
               <TextSelectCopy

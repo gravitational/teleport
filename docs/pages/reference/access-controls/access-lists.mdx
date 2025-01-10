@@ -1,0 +1,187 @@
+---
+title: Access List Reference
+description: An explanation and overview of Access Lists in Teleport.
+---
+
+Access Lists allow Teleport users to be granted long term access to resources
+managed within Teleport. With Access Lists, administrators and Access List
+owners can regularly audit and control membership to specific roles and
+traits, which then tie easily back into Teleport's existing RBAC system.
+
+<Admonition type="tip" title="Audit reviews coming in a future release">
+Audit reviews are coming in a future release of Teleport.
+</Admonition>
+
+## What do Access Lists do?
+
+Access Lists grant roles and traits to users on a long lived basis. Users who are added
+to Access Lists and meet membership requirements will be granted these roles
+and traits when they sign into Teleport. By combining this functionality with the Access Lists'
+built in regular auditing and access reviews, Teleport administrators will have an audit trail
+for long lived access granted to users of Teleport.
+
+## How do Access Lists compare to Access Requests?
+
+Access Lists are intended for longer lived access to Teleport resources and Access Requests
+are intended for temporary elevation of privileges. Access conveyed by an Access List is
+expected to live on the order of months and access conveyed by an Access Request is intended
+to live on the order of hours or days.
+
+## Access List Ownership
+
+Access List owners are Teleport users or nested Access Lists who are granted special privileges over
+an Access List. These owners are defined explicitly as part of the Access List, and
+must be added by a Teleport user who has RBAC access to Access Lists, which the preset `editor`
+role has. Owners must meet requirements in order for their ownership to be effective.
+
+Provided owners meet requirements, owners are able to do the following:
+
+- Control membership requirements.
+- List Access List members.
+- Provision and revoke membership to Access Lists.
+- Audit Access Lists.
+
+Owners are not able to add or remove owners from an Access List or control what roles
+and traits are granted by the Access List.
+
+## Access List Membership
+
+Access List members are Teleport users or nested Access Lists who are granted the roles
+and traits specified by the Access List. Upon login, users will be granted these
+roles and traits along with their statically defined user permissions. These roles and
+traits will then tie into Teleport's existing RBAC system. Members can be optionally
+granted an expiry date, after which their membership will no longer confer any
+grants to the user.
+
+Members must meet requirements in order for their membership to be effective.
+
+## Nested Access Lists
+
+Access Lists can be nested within other Access Lists as members or owners. This enables
+hierarchical permission structures where permissions can be inherited from multiple levels of
+parent Access Lists. Inheritance is recursive – members of a child Access List can
+themselves be Access Lists with their own members, and so on.
+
+### Membership Inheritance
+
+If an Access List is a member of another Access List, members of the nested Access List will
+inherit the member grants (roles and traits) of the parent Access List.
+
+Users granted membership through inheritance must meet both the nested Access List's membership
+requirements, and the parent Access List's membership requirements in order for the
+membership to be valid.
+
+### Ownership Inheritance
+
+If an Access List is an owner of another Access List, members of the nested Access List will
+inherit the owner grants (roles and traits), as well as ownership of, the parent Access List.
+
+Users granted ownership through inheritance must meet both the nested Access List's
+membership requirements, and the parent Access List's ownership requirements in order
+for the ownership to be valid.
+
+### Limitations
+
+- **Circular Nesting**: Circular nesting is not allowed. Access Lists' membership and
+ownership cannot be self-referential, directly or indirectly.
+- **Nesting Depth**: Nesting is limited to a maximum depth of 10 levels. This means that
+a child Access List cannot be more than 10 levels removed from the root Access List in
+the hierarchy.
+- **Deletion**: Deleting Access Lists that are members or owners of other Access Lists
+is not allowed. Access Lists must be removed from all parent Access Lists before they
+can be deleted.
+
+## Access List Auditing
+
+Access Lists must be defined with an audit frequency, which specifies how often the
+Access List must be audited. If the Access List is not audited on time, owners will
+be notified in the web UI until the audit review occurs.
+
+## Overview of an Access List Resource
+
+```yaml
+version: v1
+kind: access_list
+metadata:
+  name: ea6cccbe-ceac-4776-8a89-4b1365fc03f5
+spec:
+  title: "Access List Title"
+  # audit defines how frequently an Access List and its membership must be audited, along
+  # with the next audit date.
+  audit:
+    recurrence:
+      # Frequency is the frequency between access list reviews.
+      # Defaults to 6months.
+      # Possible values are: 1month, 3months, 6months, 1year
+      frequency: 6months
+      # DayOfMonth is the day of month subsequent reviews will be scheduled on.
+      # Defaults to 1.
+      # Possible values are: 1, 15, last
+      day_of_month: "1"
+    # The next time this Access List must be audited by.
+    # If not set, the next audit date will be picked up automatically.
+    notifications:
+      # When the access-request plugins will start to notify before the audit
+      # deadline.  Format to golang's time.ParseDuration function:
+      # https://pkg.go.dev/time#ParseDuration
+      # Defaults to two weeks.
+      start: 336h # two weeks
+    next_audit_date: "2025-01-01T00:00:00Z"
+  description: "A description of the Access List and its purpose"
+  # owners are a list of Teleport users or Access Lists who own the Access List.
+  # Provided the owners meet the ownership requirements, these users can control
+  # membership requirements and membership to the Access List.
+  owners:
+  - description: test user 1
+    name: teleport-admin
+    membership_kind: MEMBERSHIP_KIND_USER
+  # ownership_requires defines roles and traits that are required for an owner to be
+  # able to manage the Access List and its membership.
+  ownership_requires:
+    roles:
+    - access
+  # grants controls which roles and traits are granted to users who are owners
+  # of this Access List.
+  owner_grants:
+    roles:
+    - access
+    traits:
+      trait1:
+      - value1
+  # grants controls which roles and traits are granted to users who are members
+  # of this Access List.
+  grants:
+    roles:
+    - access
+    traits:
+      trait1:
+      - value1
+  # membership_requires defines roles and traits that are required for a member
+  # to be granted the above roles and traits. Even if a user has been added as a
+  # member of an Access List, if they do not meet these requirements, the membership
+  # will have no effect.
+  membership_requires:
+    roles:
+    - required_role1
+    traits:
+      required_trait1:
+      - required_value1
+```
+
+## Access Lists and Deny Rules
+
+Use of [deny rules](./roles.mdx) in Access List roles is discouraged.
+Access Lists are not intended to be used as a tool for privilege reduction,
+and Teleport may assume it is safe to ignore Access Lists under certain conditions.
+Roles intended to reduce privileges should be assigned directly to users.
+
+## Managing Access Lists from the CLI
+
+In addition to using the web UI, Access Lists can be created and managed from the CLI
+as well. To create an Access List from the CLI, create an Access List YAML file (as described
+above) and run `tctl create <filename>`. Access Lists can be updated by using `tctl create -f <filename>`.
+
+`tctl` also supports a subset of Access List focused commands under the `tctl acl` subcommand.
+Through these you can list Access Lists, get information about a particular Access Lists, and manage
+Access List users. To see more details, run `tctl acl --help`. More detail can be seen in the
+[CLI Reference](../cli/cli.mdx).

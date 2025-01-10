@@ -1,0 +1,45 @@
+---
+title: GitHub Actions
+description: Reference for GitHub Actions joining
+---
+
+This document acts a reference for GitHub Actions and Machine ID. You will find
+links to in-depth guides on using GitHub Actions and a full explanation of the
+configuration options available when using the GitHub join method.
+
+## Guides
+
+You can read step-by-step guides on using Machine ID and GitHub Actions:
+
+- [Using Machine ID with GitHub Actions](../../enroll-resources/machine-id/deployment/github-actions.mdx): How to
+  use Machine ID to SSH into Teleport nodes from GitHub Actions.
+
+## GitHub join token
+
+The `token` resource sets out rules for what is allowed to join a Teleport
+cluster. Joining clients must specify which `token` they want to use, and then
+information included in their join request is compared to the rules contained
+within the token by the Auth Service to determine whether or not they should be
+admitted.
+
+The following snippet shows all available options in the `token` resource when
+used for GitHub joining with Machine ID:
+
+(!docs/pages/includes/provision-token/github-spec.mdx!)
+
+## GitHub Actions helpers
+
+We offer a series of off-the-shelf GitHub Actions to use in your workflows when
+utilizing Teleport Machine ID and GitHub Actions.
+
+More information about these individual actions can be found in their GitHub
+repositories:
+
+- [https://github.com/teleport-actions/setup](https://github.com/teleport-actions/setup)
+- [https://github.com/teleport-actions/auth](https://github.com/teleport-actions/auth)
+- [https://github.com/teleport-actions/auth-k8s](https://github.com/teleport-actions/auth-k8s)
+- [https://github.com/teleport-actions/auth-application](https://github.com/teleport-actions/auth-application)
+
+If you experience problems when using these actions, please raise an issue in
+their source repository:
+[https://github.com/teleport-actions/root](https://github.com/teleport-actions/root).

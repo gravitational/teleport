@@ -24,8 +24,10 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // ExternalAuditStorageCommand implements "tctl externalauditstorage" group of commands.
@@ -42,7 +44,7 @@ type ExternalAuditStorageCommand struct {
 }
 
 // Initialize allows ExternalAuditStorageCommand to plug itself into the CLI parser.
-func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	externalAuditStorage := app.Command("externalauditstorage", "Operate on External Audit Storage configuration.").Hidden()
@@ -55,27 +57,34 @@ func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, confi
 }
 
 // TryRun attempts to run subcommands.
-func (c *ExternalAuditStorageCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (c *ExternalAuditStorageCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.promote.FullCommand():
-		err = c.Promote(ctx, client)
+		commandFunc = c.Promote
 	case c.generate.FullCommand():
-		err = c.Generate(ctx, client)
+		commandFunc = c.Generate
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 
 // Promote calls PromoteToClusterExternalAuditStorage, which results in enabling
 // External Audit Storage in the cluster based on existing draft.
-func (c *ExternalAuditStorageCommand) Promote(ctx context.Context, clt *auth.Client) error {
+func (c *ExternalAuditStorageCommand) Promote(ctx context.Context, clt *authclient.Client) error {
 	return trace.Wrap(clt.ExternalAuditStorageClient().PromoteToClusterExternalAuditStorage(ctx))
 }
 
 // Generate creates an External Audit Storage configuration with randomized
 // resource names and saves it as the current draft.
-func (c *ExternalAuditStorageCommand) Generate(ctx context.Context, clt *auth.Client) error {
+func (c *ExternalAuditStorageCommand) Generate(ctx context.Context, clt *authclient.Client) error {
 	_, err := clt.ExternalAuditStorageClient().GenerateDraftExternalAuditStorage(ctx, c.integrationName, c.region)
 	return trace.Wrap(err)
 }

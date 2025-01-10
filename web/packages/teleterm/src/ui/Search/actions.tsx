@@ -16,19 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IAppContext } from 'teleterm/ui/types';
-import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import { SearchContext } from 'teleterm/ui/Search/SearchContext';
+import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import {
+  connectToApp,
   connectToDatabase,
   connectToKube,
   connectToServer,
-  connectToApp,
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin, assertUnreachable } from 'teleterm/ui/utils';
+import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
+import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
+import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
 
 export interface SimpleAction {
   type: 'simple-action';
@@ -70,11 +71,20 @@ export type SearchAction = SimpleAction | ParametrizedAction;
 
 export function mapToAction(
   ctx: IAppContext,
+  launchVnet: () => Promise<[void, Error]>,
   searchContext: SearchContext,
   result: SearchResult
 ): SearchAction {
   switch (result.kind) {
     case 'server': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -103,6 +113,14 @@ export function mapToAction(
       };
     }
     case 'kube': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
       return {
         type: 'simple-action',
         searchResult: result,
@@ -119,6 +137,14 @@ export function mapToAction(
       };
     }
     case 'app': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
       if (result.resource.awsConsole) {
         return {
           type: 'parametrized-action',
@@ -136,6 +162,7 @@ export function mapToAction(
           perform: parameter =>
             connectToApp(
               ctx,
+              launchVnet,
               result.resource,
               {
                 origin: 'search_bar',
@@ -148,17 +175,20 @@ export function mapToAction(
         type: 'simple-action',
         searchResult: result,
         perform: () =>
-          connectToApp(
-            ctx,
-            result.resource,
-            {
-              origin: 'search_bar',
-            },
-            { launchInBrowserIfWebApp: true }
-          ),
+          connectToApp(ctx, launchVnet, result.resource, {
+            origin: 'search_bar',
+          }),
       };
     }
     case 'database': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -262,5 +292,19 @@ export function mapToAction(
     }
     default:
       assertUnreachable(result);
+  }
+}
+
+async function addResourceToRequest(
+  ctx: IAppContext,
+  resource: ResourceRequest
+): Promise<void> {
+  const rootClusterUri = routing.ensureRootClusterUri(resource.resource.uri);
+  const { isAtDesiredWorkspace } =
+    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  if (isAtDesiredWorkspace) {
+    await ctx.workspacesService
+      .getWorkspaceAccessRequestsService(rootClusterUri)
+      .addResource(resource);
   }
 }

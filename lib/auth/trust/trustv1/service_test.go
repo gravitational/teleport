@@ -100,6 +100,18 @@ func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.Rota
 	return f.rotateCertAuthorityData[string(req.Type)]
 }
 
+func (f *fakeAuthServer) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
+func (f *fakeAuthServer) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
+func (f *fakeAuthServer) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	allow  map[check]bool
@@ -483,7 +495,7 @@ func TestGetCertAuthority(t *testing.T) {
 			assertion: func(t *testing.T, authority types.CertAuthority, err error) {
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(authority, ca,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
 					cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
 					cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
@@ -503,7 +515,7 @@ func TestGetCertAuthority(t *testing.T) {
 			},
 			assertion: func(t *testing.T, authority types.CertAuthority, err error) {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(authority, ca, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				require.Empty(t, cmp.Diff(authority, ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
 		},
 	}
@@ -576,7 +588,7 @@ func TestGetCertAuthorities(t *testing.T) {
 			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
 					cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
 					cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
@@ -598,7 +610,7 @@ func TestGetCertAuthorities(t *testing.T) {
 			},
 			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
 		},
 	}
@@ -653,7 +665,12 @@ func TestDeleteCertAuthority(t *testing.T) {
 				Domain: "unknown",
 			},
 			assertion: func(t *testing.T, err error) {
-				require.True(t, trace.IsNotFound(err))
+				// ca deletion doesn't generate not found errors. this is a quirk of
+				// the fact that deleting active and inactive CAs simultanesouly
+				// is difficult to do conditionally without introducing odd edge
+				// cases (e.g. having a delete fail while appearing to succeed if it
+				// races with a concurrent activation/deactivation).
+				require.NoError(t, err)
 			},
 		},
 		{

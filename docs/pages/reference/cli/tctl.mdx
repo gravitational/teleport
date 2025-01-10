@@ -34,7 +34,10 @@ If there is a Teleport configuration file on the host where `tctl` is run,
 `tctl` attempts to authenticate to the Auth Service named in the configuration
 file using an identity stored in its local backend.
 
-`tctl` only authenticates using this method if an identity file is not provided.
+`tctl` authenticates using this method if a configuration file exists at
+`/etc/teleport.yaml` or `TELEPORT_CONFIG_FILE` points to a configuration file
+in another location. If the `auth_service` is disabled in the configuration
+file, then the configuration file is ignored.
 
 <Admonition type="note">
 
@@ -43,7 +46,7 @@ file using an identity stored in its local backend.
 
   To provide an accurate audit trail, it is important to limit direct SSH access
   to the Auth Service with
-  [Access Controls](../../access-controls/introduction.mdx) and ensure that
+  [Access Controls](../../admin-guides/access-controls/access-controls.mdx) and ensure that
   admins use `tctl` remotely instead.
 
 </Admonition>
@@ -57,13 +60,6 @@ the cluster. The `tsh` profile is created when a user runs `tsh login`.
 `tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
 a Teleport configuration file is present. If you are using your `tsh` profile to
 authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
   </TabItem>
   <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
@@ -111,7 +107,7 @@ which could result in the error,
 
 ## tctl acl get
 
-Gets and displays information about a particular access list.
+Gets and displays information about a particular Access List.
 
 ```code
 $ tctl acl get <id>
@@ -127,7 +123,7 @@ $ tctl acl ls
 
 ## tctl acl users add
 
-Adds a user to an access list.
+Adds a user to an Access List.
 
 ```code
 $ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
@@ -135,7 +131,7 @@ $ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
 
 ## tctl acl users ls
 
-Lists the users in an access list.
+Lists the users in an Access List.
 
 ```code
 $ tctl acl users ls <access-list-name>
@@ -143,7 +139,7 @@ $ tctl acl users ls <access-list-name>
 
 ## tctl acl users rm
 
-Removes a user from an access list.
+Removes a user from an Access List.
 
 ```code
 $ tctl acl users rm <access-list-name> <user>
@@ -246,6 +242,15 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 | `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
 | `--labels` | none | Comma-separated strings | A list of labels to filter by |
 
+### Examples
+
+```code
+$ tctl alerts list
+ID                                   Severity Expires In Message
+------------------------------------ -------- ---------- ----------------------------------------------------------------
+da36b401-5688-426f-95b8-d0dd1ef27785 LOW      57m0s      "The system is under maintenance, functionality may be limited."
+```
+
 ## tctl auth export
 
 Exports public cluster CA certificates. This is useful for configuring
@@ -322,7 +327,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../machine-id/introduction.mdx) is a more secure alternative that
+[Machine ID](../../enroll-resources/machine-id/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -414,6 +419,95 @@ Create a new bot named `example` that may assume the `access` role and log in as
 
 ```code
 $ tctl bots add example --roles=access --logins=root
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots instances add
+
+Onboard a new instance of an existing bot with a one-time use join token:
+
+```code
+$ tctl bots instances add <name> [flags]
+```
+
+Note that a new instance will not be generated immediately; the bot will appear
+in `tctl bots instances list` as soon as it joins the cluster and is allocated a
+UUID.
+
+### Arguments
+
+- `<name>` - the name of the existing bot for which a new join token should be
+  generated
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--token` | none | String name of an existing join token. | Optional. Specifies an existing join token to be used rather than creating one as part of the Bot creation. |
+| `--format` | `text` | `text`, `json` | If set to `json`, return new bot information as a machine-readable JSON string. |
+
+### Examples
+
+This generates a new one-time use join token for the bot named "example",
+without modifying roles or other configuration:
+
+```code
+$ tctl bots instances add example
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots instances list
+
+List all current instances of a Machine ID bot:
+
+```code
+$ tctl bots instances list [<name>]
+```
+
+### Arguments
+
+- `[<name>]` - an optional bot name. If provided, filters the result to show
+  only instances for the named bot. Otherwise, shows all instances for all bots.
+
+### Examples
+
+This shows all known instances for the bot named "example":
+
+```code
+$ tctl bots instance list example
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots instances show
+
+Shows details about a particular instance of a bot, including join metadata and
+current status:
+
+```code
+$ tctl bots instances show <name>/<uuid>
+```
+
+### Arguments
+
+- `<name>` - the name of the existing bot
+- `<uuid>` - the UUID of the existing bot instance, as shown in `tctl bots instance list`
+
+### Examples
+
+```code
+$ tctl bots instances show example/28e605c9-2fe1-423f-afe1-5122335e1c75
 ```
 
 ### Global flags
@@ -758,6 +852,140 @@ Shows help:
 $ tctl help
 ```
 
+## tctl inventory list
+
+List Teleport instance inventory:
+
+```code
+$ tctl inventory list [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--older-than` | none | string | Filter for older teleport versions |
+| `--exact-version` | none | string | Filter output by teleport version |
+| `--services` | none | string | Filter output by service (node,kube,proxy,etc) |
+| `--upgrader` | none | `none`, `kube`, or `unit` | Filter output by upgrader (kube,unit,none) |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+List inventory
+
+```code
+$ tctl inventory ls
+Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
+------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
+00c3a1f7-5f24-47f9-b866-14401fbb5685 teleport-proxy-77df88c69        Proxy                      (=teleport.version=)       none     none
+065ab336-1ac2-4314-8b16-32fc06a172a7 server1                         Node                       (=teleport.version=)       unit     (=teleport.version=)
+a24d4ad4-ead8-4b15-9ea6-357a5350369e teleport-auth-fb68b5df7         Auth,Discovery             (=teleport.version=)       none     none
+```
+
+List inventory for a specific service and version
+
+```code
+$ tctl inventory ls --services=node --exact-version=(=teleport.version=)
+Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
+------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
+065ab336-1ac2-4314-8b16-32fc06a172a7 server1                         Node                       (=teleport.version=)       unit     (=teleport.version=)
+a24d4ad4-ead8-4b15-9ea6-357a5350369e server2                         Node,App                   (=teleport.version=)       unit     (=teleport.version=)
+```
+
+ Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
+
+## tctl inventory status
+
+Show inventory status summary:
+
+```code
+$ tctl inventory status [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |
+
+### Global flags
+
+These are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+<Tabs>
+ <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+List inventory status
+
+```code
+$ tctl inventory status
+Versions:
+  v(=teleport.version=): 16
+Upgraders:
+  kube: 6
+  unit: 6
+  none: 4
+Services:
+  Discovery:      2
+  Auth:           2
+  Db:             2
+  Kube:           2
+  App:            2
+  Node:           2
+  Proxy:          2
+  WindowsDesktop: 2
+Total Instances: 16
+```
+
+List inventory status for locally connected instances summary. This
+allows seeing connected instances on a specific Auth service.
+
+```code
+$ tctl inventory status --connected
+Server ID                            Services               Version Upgrader
+------------------------------------ ---------------------- ------- --------
+b48e6e81-63e0-498f-834b-1a8adea09d95 Auth                   (=teleport.version=)  none
+178d9301-2873-4020-895a-014edf067204 Node                   (=teleport.version=)  unit
+```
+
+ </TabItem>
+ <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
+
+List inventory status
+
+```code
+$ tctl inventory status
+Versions:
+  v(=cloud.version=): 19
+Upgraders:
+  kube: 1
+  unit: 1
+  none: 16
+Services:
+  App:            1
+  Node:           1
+  Proxy:          12
+  Discovery:      2
+  Auth:           2
+  Kube:           1
+Total Instances: 19
+```
+ </TabItem>
+ </Tabs>
+
+ Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
+
 ## tctl login_rule test
 
 Test a Login Rule resource without installing it in the cluster.
@@ -866,6 +1094,45 @@ $ tctl request approve [token]
 
 ```code
 $ tctl request approve request-id-1, request-id-2
+```
+
+## tctl request create
+
+Create a pending Access Request.
+
+```code
+$ tctl request create <username>
+```
+
+### Arguments
+
+- `<username>` - Name of target user (required).
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+|`roles`|none|Comma-separated list of strings|Roles to be requested|
+|`resource`|none|Comma-separated list of strings|Resource IDs to be requested|
+|`reason`|none|String|Optional reason message|
+|`dry-run`|none|Boolean|Don't actually generate the Access Request|
+
+Use the `dry-run` flag if you want to validate whether Teleport can create an
+Access Request for the user in the `username` argument, given the user's static
+roles.
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+Create an Access Request for user `myuser` for the `prod` role, providing a
+reason:
+
+```code
+$ tctl request create myuser --roles=prod --reason="Fix an outage"
 ```
 
 ## tctl request deny
@@ -1077,7 +1344,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../admin-guides/access-controls/sso/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags
@@ -1168,7 +1435,7 @@ Supported presets:
 |------------|--------------------------------------|-----------|
 | `okta`     | Okta                                 | Okta      |
 | `onelogin` | OneLogin                             | OneLogin  |
-| `ad`       | Azure Active Directory               | Microsoft |
+| `ad`       | Microsoft Entra ID                   | Microsoft |
 | `adfs`     | Active Directory Federation Services | ADFS      |
 
 ### Global flags
@@ -1283,7 +1550,7 @@ $ tctl get saml/your-connector-name --with-secrets | tctl sso test
 
 ## tctl status
 
-Report cluster status:
+Report cluster and Certificate Authority status:
 
 ```code
 $ tctl status
@@ -1293,9 +1560,26 @@ $ tctl status
 
 ```code
 # Checks status of cluster.
-$ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
-# pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
-# Checks remote auth status using exported identity.
+$ tctl status
+Cluster: example.teleport.sh
+Version: 17.0.0
+CA pins: sha256:a5322b9f89cb94fff13da4bc9c7b2e633626e35161a75f7662a179a01be84ccc
+
+authority rotation                                        protocol status algorithm   storage
+--------- ----------------------------------------------- -------- ------ ----------- --------
+host      standby (never rotated)                         SSH      active Ed25519     software
+                                                          TLS      active ECDSA P-256 software
+user      standby (last rotated: Oct 3 2024 22:12:09 UTC) SSH      active ECDSA P-256 AWS KMS
+                                                          TLS      active ECDSA P-256 AWS KMS
+db        standby (never rotated)                         TLS      active RSA 2048    software
+db_client standby (never rotated)                         TLS      active RSA 2048    software
+openssh   standby (never rotated)                         SSH      active Ed25519     software
+jwt       standby (never rotated)                         JWT      active ECDSA P-256 software
+saml_idp  standby (never rotated)                         TLS      active RSA 2048    software
+oidc_idp  standby (never rotated)                         JWT      active RSA 2048    software
+spiffe    standby (never rotated)                         JWT      active ECDSA P-256 software
+                                                          TLS      active ECDSA P-256 software
+okta      standby (never rotated)                         JWT      active ECDSA P-256 software
 $ tctl status \
     --auth-server=192.168.99.102:3025 \
     --identity=identity.pem
@@ -1446,11 +1730,9 @@ These flags are available for all commands `--debug, --config`. Run
 ### Examples
 
 ```code
-# Adds teleport user "joe" with mappings to
-# OS users and {{ internal.logins }} to "joe" and "ubuntu"
-$ tctl users add joe --roles=access,requester joe,ubuntu
-# Adds Teleport user "joe" with mappings to the editor role
-$ tctl users add joe --roles=editor,reviewer
+# Adds Teleport user "joe" with the "access" and "requester" roles and
+# permissions to assume the "joe" and "ubuntu" logins
+$ tctl users add joe --roles=access,requester --logins=joe,ubuntu
 ```
 
 ## tctl users ls
@@ -1463,7 +1745,7 @@ $ tctl users ls [<flags>]
 
 ## tctl users reset
 
-Reset local user account password and any associated second factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
+Reset local user account password and any associated multi-factor devices with expiring link to populate values. **Usage**: `tctl users reset <account>`
 
 ### Arguments
 

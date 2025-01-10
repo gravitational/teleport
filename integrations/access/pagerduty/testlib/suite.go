@@ -32,7 +32,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/pagerduty"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -44,30 +47,32 @@ const (
 	EscalationPolicyID2 = "escalation_policy-2"
 	EscalationPolicyID3 = "escalation_policy-3"
 	NotifyServiceName   = "Teleport Notifications"
+	NotifyServiceName2  = "Teleport Notifications Two"
 	ServiceName1        = "Service 1"
 	ServiceName2        = "Service 2"
 	ServiceName3        = "Service 3"
 )
 
-// PagerdutySuite is the Pagerduty access plugin test suite.
+// PagerdutyBaseSuite is the Pagerduty access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type PagerdutySuite struct {
+type PagerdutyBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig     pagerduty.Config
 	raceNumber    int
 	fakePagerduty *FakePagerduty
 
-	pdNotifyService pagerduty.Service
-	pdService1      pagerduty.Service
-	pdService2      pagerduty.Service
-	pdService3      pagerduty.Service
+	pdNotifyService  pagerduty.Service
+	pdNotifyService2 pagerduty.Service
+	pdService1       pagerduty.Service
+	pdService2       pagerduty.Service
+	pdService3       pagerduty.Service
 }
 
 // SetupTest starts a fake Pagerduty and generates the plugin configuration.
 // It also configures the role notifications for Pagerduty notifications and
 // automatic approval.
 // It is run for each test.
-func (s *PagerdutySuite) SetupTest() {
+func (s *PagerdutyBaseSuite) SetupTest() {
 	t := s.T()
 	ctx := context.Background()
 
@@ -87,6 +92,11 @@ func (s *PagerdutySuite) SetupTest() {
 		pagerduty.NotifyServiceDefaultAnnotation,
 		[]string{NotifyServiceName},
 	)
+
+	// Alternate notify service
+	s.pdNotifyService2 = s.fakePagerduty.StoreService(pagerduty.Service{
+		Name: NotifyServiceName2,
+	})
 
 	// Services 1 and 2 are configured to allow automatic approval if the
 	// requesting user is on-call.
@@ -113,6 +123,9 @@ func (s *PagerdutySuite) SetupTest() {
 
 	var conf pagerduty.Config
 	conf.Teleport = s.TeleportConfig()
+	clt, err := common.GetTeleportClient(ctx, conf.Teleport)
+	require.NoError(t, err)
+	conf.Client = clt
 	conf.Pagerduty.APIEndpoint = s.fakePagerduty.URL()
 	conf.Pagerduty.UserEmail = "bot@example.com"
 	conf.Pagerduty.RequestAnnotations.NotifyService = pagerduty.NotifyServiceDefaultAnnotation
@@ -122,18 +135,38 @@ func (s *PagerdutySuite) SetupTest() {
 }
 
 // startApp starts the Pagerduty plugin, waits for it to become ready and returns.
-func (s *PagerdutySuite) startApp() {
+func (s *PagerdutyBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := pagerduty.NewApp(s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
+}
+
+// PagerdutySuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type PagerdutySuiteOSS struct {
+	PagerdutyBaseSuite
+}
+
+// PagerdutySuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type PagerdutySuiteEnterprise struct {
+	PagerdutyBaseSuite
+}
+
+// SetupTest overrides PagerdutyBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *PagerdutySuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.PagerdutyBaseSuite.SetupTest()
 }
 
 // TestIncidentCreation validates that an incident is created to the service
 // specified in the role's annotation.
-func (s *PagerdutySuite) TestIncidentCreation() {
+func (s *PagerdutySuiteOSS) TestIncidentCreation() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -161,7 +194,7 @@ func (s *PagerdutySuite) TestIncidentCreation() {
 
 // TestApproval tests that when a request is approved, its corresponding incident
 // is updated to reflect the new request state and a note is added to the incident.
-func (s *PagerdutySuite) TestApproval() {
+func (s *PagerdutySuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -193,7 +226,7 @@ func (s *PagerdutySuite) TestApproval() {
 
 // TestDenial tests that when a request is denied, its corresponding incident
 // is updated to reflect the new request state and a note is added to the incident.
-func (s *PagerdutySuite) TestDenial() {
+func (s *PagerdutySuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -225,14 +258,10 @@ func (s *PagerdutySuite) TestDenial() {
 
 // TestReviewNotes tests that incident notes are sent after the access request
 // is reviewed. Each review should create a new note.
-func (s *PagerdutySuite) TestReviewNotes() {
+func (s *PagerdutySuiteEnterprise) TestReviewNotes() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -278,14 +307,10 @@ func (s *PagerdutySuite) TestReviewNotes() {
 
 // TestApprovalByReview tests that the incident is annotated and resolved after the
 // access request approval threshold is reached.
-func (s *PagerdutySuite) TestApprovalByReview() {
+func (s *PagerdutySuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -342,14 +367,10 @@ func (s *PagerdutySuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that the incident is annotated and resolved after the
 // access request denial threshold is reached.
-func (s *PagerdutySuite) TestDenialByReview() {
+func (s *PagerdutySuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -404,7 +425,74 @@ func (s *PagerdutySuite) TestDenialByReview() {
 	assert.Equal(t, "resolved", incidentUpdate.Status)
 }
 
-func (s *PagerdutySuite) assertNewEvent(ctx context.Context, watcher types.Watcher, opType types.OpType, resourceKind, resourceName string) types.Event {
+func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	const ruleName = "test-pagerduty-amr"
+	var collectedNames []string
+	var mu sync.Mutex
+	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(_ types.OpType, name string, _ *accessmonitoringrulesv1.AccessMonitoringRule) error {
+		mu.Lock()
+		collectedNames = append(collectedNames, name)
+		mu.Unlock()
+		return nil
+	}
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: ruleName,
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "pagerduty",
+					Recipients: []string{
+						NotifyServiceName2,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	// Incident creation may happen before plugins Access Monitoring Rule cache
+	// has been updated with new rule. Retry until the new cache picks up the rule.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		mu.Lock()
+		require.Contains(t, collectedNames, ruleName)
+		mu.Unlock()
+	}, 3*time.Second, time.Millisecond*100, "new access monitoring rule did not begin applying")
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// Validate the incident has been created in Pagerduty and its ID is stored
+	// in the plugin_data.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data pagerduty.PluginData) bool {
+		return data.IncidentID != ""
+	})
+
+	incident, err := s.fakePagerduty.CheckNewIncident(ctx)
+	assert.NoError(t, err, "no new incidents stored")
+	assert.Equal(t, incident.ID, pluginData.IncidentID)
+
+	assert.Equal(t, pagerduty.PdIncidentKeyPrefix+"/"+req.GetName(), incident.IncidentKey)
+	assert.Equal(t, "triggered", incident.Status)
+
+	assert.Equal(t, s.pdNotifyService2.ID, pluginData.ServiceID)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, ruleName))
+}
+
+func (s *PagerdutyBaseSuite) assertNewEvent(ctx context.Context, watcher types.Watcher, opType types.OpType, resourceKind, resourceName string) types.Event {
 	t := s.T()
 	t.Helper()
 
@@ -429,7 +517,7 @@ func (s *PagerdutySuite) assertNewEvent(ctx context.Context, watcher types.Watch
 	return ev
 }
 
-func (s *PagerdutySuite) assertNoNewEvents(ctx context.Context, watcher types.Watcher) {
+func (s *PagerdutyBaseSuite) assertNoNewEvents(ctx context.Context, watcher types.Watcher) {
 	t := s.T()
 	t.Helper()
 
@@ -442,9 +530,9 @@ func (s *PagerdutySuite) assertNoNewEvents(ctx context.Context, watcher types.Wa
 	}
 }
 
-func (s *PagerdutySuite) assertReviewSubmitted(ctx context.Context, userName string) {
+func (s *PagerdutyBaseSuite) assertReviewSubmitted(ctx context.Context, userName string) {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	watcher, err := s.Ruler().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
@@ -472,9 +560,9 @@ func (s *PagerdutySuite) assertReviewSubmitted(ctx context.Context, userName str
 	assert.Equal(t, integration.PluginUserName, reqReviews[0].Author)
 }
 
-func (s *PagerdutySuite) assertNoReviewSubmitted(ctx context.Context, userName string) {
+func (s *PagerdutyBaseSuite) assertNoReviewSubmitted(ctx context.Context, userName string) {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	watcher, err := s.Ruler().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
@@ -504,14 +592,10 @@ func (s *PagerdutySuite) assertNoReviewSubmitted(ctx context.Context, userName s
 
 // TestAutoApprovalWhenNotOnCall tests that access requests are not automatically
 // approved when the user is not on-call.
-func (s *PagerdutySuite) TestAutoApprovalWhenNotOnCall() {
+func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenNotOnCall() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -526,14 +610,10 @@ func (s *PagerdutySuite) TestAutoApprovalWhenNotOnCall() {
 
 // TestAutoApprovalWhenOnCall tests that access requests are automatically
 // approved when the user is on-call.
-func (s *PagerdutySuite) TestAutoApprovalWhenOnCall() {
+func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCall() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -553,14 +633,10 @@ func (s *PagerdutySuite) TestAutoApprovalWhenOnCall() {
 // TestAutoApprovalWhenOnCallInSecondPolicy tests that access requests are
 // automatically approved when the user is not on-call for the first service
 // escalation policy but is on-call for the second service.
-func (s *PagerdutySuite) TestAutoApprovalWhenOnCallInSecondPolicy() {
+func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCallInSecondPolicy() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -581,14 +657,10 @@ func (s *PagerdutySuite) TestAutoApprovalWhenOnCallInSecondPolicy() {
 // not automatically approved when the user is not on-call for a service
 // specified in the role annotations, but is on-call for a third unrelated\
 // service.
-func (s *PagerdutySuite) TestAutoApprovalWhenOnCallInSomeOtherPolicy() {
+func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCallInSomeOtherPolicy() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -607,7 +679,7 @@ func (s *PagerdutySuite) TestAutoApprovalWhenOnCallInSomeOtherPolicy() {
 
 // TestExpiration tests that when a request expires, its corresponding incident
 // is updated to reflect the new request state and a note is added to the incident.
-func (s *PagerdutySuite) TestExpiration() {
+func (s *PagerdutySuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -645,14 +717,10 @@ func (s *PagerdutySuite) TestExpiration() {
 // TestRace validates that the plugin behaves properly and performs all the
 // message updates when a lot of access requests are sent and reviewed in a very
 // short time frame.
-func (s *PagerdutySuite) TestRace() {
+func (s *PagerdutySuiteEnterprise) TestRace() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)

@@ -16,41 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { delay, http, HttpResponse } from 'msw';
+import { useEffect, useState } from 'react';
 import { MemoryRouter } from 'react-router';
-import { rest } from 'msw';
-import { mswLoader } from 'msw-storybook-addon';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { generateCmd } from 'teleport/Discover/Kubernetes/SelfHosted';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ContextProvider } from 'teleport';
-
-import {
-  INTERNAL_RESOURCE_ID_LABEL_KEY,
-  JoinToken,
-} from 'teleport/services/joinToken';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
+import {
+  INTERNAL_RESOURCE_ID_LABEL_KEY,
+  JoinToken,
+} from 'teleport/services/joinToken';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
-
-import { EnrollmentDialog } from './EnrollmentDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
+import { EnrollmentDialog } from './EnrollmentDialog';
 import { ManualHelmDialog } from './ManualHelmDialog';
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters/Dialogs',
-  loaders: [mswLoader],
 };
 
 export const EnrollmentDialogStory = () => (
@@ -89,8 +85,8 @@ AgentWaitingDialogStory.storyName = 'AgentWaitingDialog';
 AgentWaitingDialogStory.parameters = {
   msw: {
     handlers: [
-      rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-        return res(ctx.delay('infinite'));
+      http.get(cfg.api.kubernetesPath, () => {
+        return delay('infinite');
       }),
     ],
   },
@@ -118,8 +114,8 @@ export const AgentWaitingDialogSuccess = () => (
 AgentWaitingDialogSuccess.parameters = {
   msw: {
     handlers: [
-      rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-        return res(ctx.delay('infinite'));
+      http.get(cfg.api.kubernetesPath, () => {
+        return delay('infinite');
       }),
     ],
   },
@@ -172,8 +168,8 @@ export const ManualHelmDialogStory = () => {
     resourceSpec: {
       name: 'Eks',
       kind: ResourceKind.Kubernetes,
-      icon: 'Eks',
-      keywords: '',
+      icon: 'eks',
+      keywords: [],
       event: DiscoverEventResource.KubernetesEks,
     },
     exitFlow: () => null,
@@ -225,15 +221,13 @@ ManualHelmDialogStory.storyName = 'ManualHelmDialog';
 ManualHelmDialogStory.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
-        return res(
-          ctx.json({
-            id: 'token-id',
-            suggestedLabels: [
-              { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
-            ],
-          })
-        );
+      http.post(cfg.api.discoveryJoinToken.createV2, () => {
+        return HttpResponse.json({
+          id: 'token-id',
+          suggestedLabels: [
+            { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
+          ],
+        });
       }),
     ],
   },

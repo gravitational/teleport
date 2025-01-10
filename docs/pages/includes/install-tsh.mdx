@@ -1,26 +1,21 @@
 <Tabs>
   <TabItem label="Mac">
-    Download the signed macOS .pkg installer for `tsh`. In Finder double-click the `pkg` file to install it:
- 
+    Download the signed macOS .pkg installer for Teleport including `tsh`. In Finder double-click the `pkg` file to install it:
+
     ```code
-    $ curl -O https://cdn.teleport.dev/tsh-(=teleport.version=).pkg
+    $ curl -O https://cdn.teleport.dev/teleport-(=teleport.version=).pkg
     ```
 
   </TabItem>
 
   <TabItem label="Mac - Homebrew">
-    ```code
-    $ brew install teleport
-    ```
+    <Admonition type="danger">
+      Using Homebrew to install Teleport is not supported. The Teleport package in
+      Homebrew is not maintained by Teleport and we can't guarantee its reliability or
+      security.
 
-    <Admonition type="note">
-      The Teleport package in Homebrew is not maintained by Teleport and we can't
-      guarantee its reliability or security. We recommend the use of our [own Teleport packages](https://goteleport.com/download?os=mac).
-
-      If you choose to use Homebrew, you must verify that the versions of `tsh` and
-      `tctl` are compatible with the versions you run server-side. Homebrew usually
-      ships the latest release of Teleport, which may be incompatible with older
-      versions. See our [compatibility policy](../upgrading/overview.mdx) for details.
+      We recommend the use of our [own Teleport packages](https://goteleport.com/download?os=mac)
+      for any installations on macOS.
     </Admonition>
   </TabItem>
 
@@ -28,6 +23,8 @@
     ```code
     $ curl.exe -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
     # Unzip the archive and move `tsh.exe` to your %PATH%
+    # NOTE: Do not place tsh.exe in the System32 directory, as this can cause issues when using WinSCP.
+    # Use %SystemRoot% (C:\Windows) or %USERPROFILE% (C:\Users\<username>) instead.
     ```
   </TabItem>
 

@@ -23,6 +23,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,8 +32,14 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
@@ -40,12 +48,12 @@ const (
 	// batchSize is the maximum number of resources to send in a single
 	// request to the access graph service.
 	batchSize = 500
+	// defaultPollInterval is the default interval between polling for access graph resources
+	defaultPollInterval = 15 * time.Minute
 )
 
-var (
-	// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
-	errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
-)
+// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
+var errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
 
 func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
 	type fetcherResult struct {
@@ -60,15 +68,23 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, &aws_sync.Resources{})
 
 		if err := push(stream, upsert, toDel); err != nil {
-			s.Log.WithError(err).Error("Error pushing empty resources to TAGs")
+			s.Log.ErrorContext(ctx, "Error pushing empty resources to TAGs", "error", err)
 		}
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
+
+	s.awsSyncStatus.iterationStarted(allFetchers, s.clock.Now())
+	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
+	accountIds := map[string]struct{}{}
 	for _, fetcher := range allFetchers {
 		fetcher := fetcher
+		accountIds[fetcher.GetAccountID()] = struct{}{}
 		tokens <- struct{}{}
 		go func() {
 			defer func() {
@@ -95,18 +111,35 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	// Aggregate all errors into a single error.
 	err := trace.NewAggregate(errs...)
 	if err != nil {
-		s.Log.WithError(err).Error("Error polling TAGs")
+		s.Log.ErrorContext(ctx, "Error polling TAGs", "error", err)
 	}
 	result := aws_sync.MergeResources(results...)
 	// Merge all results into a single result
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
-	err = push(stream, upsert, toDel)
-	if err != nil {
-		s.Log.WithError(err).Error("Error pushing TAGs")
+	pushErr := push(stream, upsert, toDel)
+
+	s.awsSyncStatus.iterationFinished(allFetchers, pushErr, s.clock.Now())
+	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
+
+	if pushErr != nil {
+		s.Log.ErrorContext(ctx, "Error pushing TAGs", "error", pushErr)
 		return nil
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
 	*currentTAGResources = *result
+
+	if err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessGraphAwsScanEvent{
+				AccessGraphAwsScanEvent: result.UsageReport(len(accountIds)),
+			},
+		},
+	}); err != nil {
+		s.Log.ErrorContext(ctx, "Error submitting usage event", "error", err)
+	}
+
 	return nil
 }
 
@@ -197,13 +230,19 @@ func push(
 }
 
 // NewAccessGraphClient returns a new access graph service client.
-func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	opt, err := grpcCredentials(config, certs)
+func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate, error), config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	opt, err := grpcCredentials(config, getCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := grpc.DialContext(ctx, config.Addr, append(opts, opt)...)
+	opts = append(opts,
+		opt,
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+	)
+
+	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
 	return conn, trace.Wrap(err)
 }
 
@@ -230,7 +269,8 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	if !clusterFeatures.AccessGraph && (clusterFeatures.Policy == nil || !clusterFeatures.Policy.Enabled) {
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 
@@ -240,28 +280,44 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// AcquireSemaphoreLock will retry until the semaphore is acquired.
 	// This prevents multiple discovery services to push AWS resources in parallel.
 	// lease must be released to cleanup the resource in auth server.
-	lease, err := services.AcquireSemaphoreLock(
+	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
-		services.SemaphoreLockConfig{
-			Service: s.AccessPoint,
-			Params: types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.KindAccessGraph,
-				SemaphoreName: semaphoreName,
-				MaxLeases:     1,
-				Expires:       s.clock.Now().Add(semaphoreExpiration),
-				Holder:        s.Config.ServerID,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
 			},
-			Expiry: semaphoreExpiration,
-			Clock:  s.clock,
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.DefaultJitter,
+			},
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// once the lease parent context is canceled, the lease will be released.
+	// this will stop the access graph sync.
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).Warn("error cleaning up semaphore")
+			s.Log.WarnContext(ctx, "Error cleaning up semaphore", "error", err)
 		}
 	}()
 
@@ -269,7 +325,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 
 	accessGraphConn, err := newAccessGraphClient(
 		ctx,
-		s.ServerCredentials.Certificates,
+		s.GetClientCert,
 		config,
 		grpc.WithDefaultServiceConfig(serviceConfig),
 	)
@@ -282,12 +338,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 
 	stream, err := client.AWSEventsStream(ctx)
 	if err != nil {
-		s.Log.WithError(err).Error("Failed to get access graph service stream")
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
 		return trace.Wrap(err)
 	}
 	header, err := stream.Header()
 	if err != nil {
-		s.Log.WithError(err).Error("Failed to get access graph service stream header")
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream header", "error", err)
 		return trace.Wrap(err)
 	}
 	const (
@@ -299,40 +355,65 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	}
 	features := aws_sync.BuildFeatures(supportedKinds...)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
-			s.Log.Info("access graph service connection was closed")
+			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
 	}()
 
+	// Configure the poll interval
+	tickerInterval := defaultPollInterval
+	if s.Config.Matchers.AccessGraph != nil {
+		if s.Config.Matchers.AccessGraph.PollInterval > defaultPollInterval {
+			tickerInterval = s.Config.Matchers.AccessGraph.PollInterval
+		} else {
+			s.Log.WarnContext(ctx,
+				"Access graph service poll interval cannot be less than the default",
+				"default_poll_interval",
+				defaultPollInterval)
+		}
+	}
+	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
+
 	currentTAGResources := &aws_sync.Resources{}
-	ticker := time.NewTicker(15 * time.Minute)
-	defer ticker.Stop()
+	timer := time.NewTimer(tickerInterval)
+	defer timer.Stop()
 	for {
 		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
 		if errors.Is(err, errNoAccessGraphFetchers) {
 			// no fetchers, no need to continue.
 			// we will wait for the config to change and re-evaluate the fetchers
 			// before starting the sync.
-			return nil
+			_, err := stream.CloseAndRecv() /* signal the end of the stream  and wait for the response */
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
+			return trace.Wrap(err)
 		}
+		if !timer.Stop() {
+			select {
+			case <-timer.C: // drain
+			default:
+			}
+		}
+		timer.Reset(tickerInterval)
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-ticker.C:
+		case <-timer.C:
 		case <-reloadCh:
 		}
 	}
 }
 
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.DialOption, error) {
+func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate, error)) (grpc.DialOption, error) {
 	var pool *x509.CertPool
 	if len(config.CA) > 0 {
 		pool = x509.NewCertPool()
@@ -341,8 +422,15 @@ func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.Di
 		}
 	}
 
+	// TODO(espadolini): this doesn't honor the process' configured ciphersuites
 	tlsConfig := &tls.Config{
-		Certificates:       certs,
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			tlsCert, err := getCert()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return tlsCert, nil
+		},
 		MinVersion:         tls.VersionTLS13,
 		InsecureSkipVerify: config.Insecure,
 		RootCAs:            pool,
@@ -351,9 +439,9 @@ func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.Di
 }
 
 func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error {
-	fetchers, err := s.accessGraphFetchersFromMatchers(ctx, cfg.Matchers)
+	fetchers, err := s.accessGraphFetchersFromMatchers(ctx, cfg.Matchers, "" /* discoveryConfigName */)
 	if err != nil {
-		s.Log.WithError(err).Error("Error initializing access graph fetchers")
+		s.Log.ErrorContext(ctx, "Error initializing access graph fetchers", "error", err)
 	}
 	s.staticTAGSyncFetchers = fetchers
 
@@ -366,7 +454,7 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.Debug("No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return
@@ -377,10 +465,10 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 				}
 				// reset the currentTAGResources to force a full sync
 				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
-					s.Log.Warn("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
-					s.Log.Warnf("Error initializing and watching access graph: %v", err)
+					s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
 				}
 
 				select {
@@ -395,7 +483,7 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 }
 
 // accessGraphFetchersFromMatchers converts Matchers into a set of AWS Sync Fetchers.
-func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers Matchers) ([]aws_sync.AWSSync, error) {
+func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers Matchers, discoveryConfigName string) ([]aws_sync.AWSSync, error) {
 	var fetchers []aws_sync.AWSSync
 	var errs []error
 	if matchers.AccessGraph == nil {
@@ -413,10 +501,13 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 		fetcher, err := aws_sync.NewAWSFetcher(
 			ctx,
 			aws_sync.Config{
-				CloudClients: s.CloudClients,
-				AssumeRole:   assumeRole,
-				Regions:      awsFetcher.Regions,
-				Integration:  awsFetcher.Integration,
+				CloudClients:        s.CloudClients,
+				GetEKSClient:        s.GetAWSSyncEKSClient,
+				GetEC2Client:        s.GetEC2Client,
+				AssumeRole:          assumeRole,
+				Regions:             awsFetcher.Regions,
+				Integration:         awsFetcher.Integration,
+				DiscoveryConfigName: discoveryConfigName,
 			},
 		)
 		if err != nil {

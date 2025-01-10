@@ -16,27 +16,52 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
-import { ButtonPrimary } from 'design';
+
+import { Button } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
+import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 
 import cfg from 'teleport/config';
 
 export function IntegrationsAddButton({
-  canCreate = false,
+  requiredPermissions,
 }: {
-  canCreate: boolean;
+  requiredPermissions: { value: boolean; label: string }[];
 }) {
+  const canCreateIntegrations = requiredPermissions.some(v => v.value);
+  const missingPermissions = requiredPermissions
+    .filter(perm => !perm.value)
+    .map(perm => perm.label);
+
   return (
-    <ButtonPrimary
-      as={Link}
-      ml="auto"
-      width="240px"
-      disabled={!canCreate}
-      to={cfg.getIntegrationEnrollRoute()}
-      title={canCreate ? '' : 'You do not have access to add new integrations'}
+    <HoverTooltip
+      position="bottom"
+      tipContent={
+        canCreateIntegrations ? null : (
+          <MissingPermissionsTooltip
+            requiresAll={false}
+            missingPermissions={missingPermissions}
+          />
+        )
+      }
     >
-      Enroll new integration
-    </ButtonPrimary>
+      <Button
+        intent="primary"
+        fill="border"
+        as={Link}
+        ml="auto"
+        width="240px"
+        disabled={!canCreateIntegrations}
+        to={cfg.getIntegrationEnrollRoute()}
+        title={
+          canCreateIntegrations
+            ? ''
+            : 'You do not have access to add new integrations'
+        }
+      >
+        Enroll New Integration
+      </Button>
+    </HoverTooltip>
   );
 }

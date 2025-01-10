@@ -56,7 +56,7 @@ func makeAppGateway(cfg Config) (Gateway, error) {
 	}
 
 	middleware := &appMiddleware{
-		log: a.cfg.Log,
+		logger: a.cfg.Logger,
 		onExpiredCert: func(ctx context.Context) (tls.Certificate, error) {
 			cert, err := a.cfg.OnExpiredCert(ctx, a)
 			return cert, trace.Wrap(err)
@@ -75,7 +75,7 @@ func makeAppGateway(cfg Config) (Gateway, error) {
 	lp, err := alpnproxy.NewLocalProxy(
 		localProxyConfig,
 		alpnproxy.WithALPNProtocol(alpnProtocolForApp(a.cfg.Protocol)),
-		alpnproxy.WithClientCerts(a.cfg.Cert),
+		alpnproxy.WithClientCert(a.cfg.Cert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.closeContext, a.cfg.RootClusterCACertPoolFunc),
 		alpnproxy.WithMiddleware(middleware),
 	)

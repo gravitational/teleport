@@ -17,21 +17,22 @@
  */
 
 import 'whatwg-fetch';
+
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import websession from 'teleport/services/websession';
 
+import { MfaChallengeResponse } from '../mfa';
 import { storageService } from '../storageService';
-import { WebauthnAssertionResponse } from '../auth';
-
-import parseError, { ApiError } from './parseError';
+import parseError, { ApiError, parseProxyVersion } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url, abortSignal?) {
+  get(url: string, abortSignal?: AbortSignal) {
     return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 
-  post(url, data?, abortSignal?, webauthnResponse?: WebauthnAssertionResponse) {
+  post(url, data?, abortSignal?, mfaResponse?: MfaChallengeResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
@@ -39,11 +40,11 @@ const api = {
         method: 'POST',
         signal: abortSignal,
       },
-      webauthnResponse
+      mfaResponse
     );
   },
 
-  postFormData(url, formData, webauthnResponse?: WebauthnAssertionResponse) {
+  postFormData(url, formData, mfaResponse?: MfaChallengeResponse) {
     if (formData instanceof FormData) {
       return api.fetchJsonWithMfaAuthnRetry(
         url,
@@ -59,32 +60,67 @@ const api = {
             // 2) https://stackoverflow.com/a/64653976
           },
         },
-        webauthnResponse
+        mfaResponse
       );
     }
 
     throw new Error('data for body is not a type of FormData');
   },
 
-  delete(url, data?, webauthnResponse?: WebauthnAssertionResponse) {
+  delete(url, data?, mfaResponse?: MfaChallengeResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'DELETE',
       },
-      webauthnResponse
+      mfaResponse
     );
   },
 
-  put(url, data, webauthnResponse?: WebauthnAssertionResponse) {
+  deleteWithHeaders(
+    url,
+    headers?: Record<string, string>,
+    signal?,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        method: 'DELETE',
+        headers,
+        signal,
+      },
+      mfaResponse
+    );
+  },
+
+  // TODO (avatus) add abort signal to this
+  put(url, data, mfaResponse?: MfaChallengeResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'PUT',
       },
-      webauthnResponse
+      mfaResponse
+    );
+  },
+
+  putWithHeaders(
+    url,
+    data,
+    headers?: Record<string, string>,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'PUT',
+        headers,
+      },
+      mfaResponse
     );
   },
 
@@ -104,48 +140,67 @@ const api = {
   async fetchJsonWithMfaAuthnRetry(
     url: string,
     customOptions: RequestInit,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ): Promise<any> {
-    const response = await api.fetch(url, customOptions, webauthnResponse);
+    const response = await api.fetch(url, customOptions, mfaResponse);
 
     let json;
     try {
       json = await response.json();
     } catch (err) {
+      // error reading JSON
       const message = response.ok
         ? err.message
         : `${response.status} - ${response.url}`;
-      throw new ApiError(message, response, { cause: err });
+      throw new ApiError({ message, response, opts: { cause: err } });
     }
 
     if (response.ok) {
       return json;
     }
 
+    /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
+    const isRoleNotFoundErr = isRoleNotFoundError(parseError(json));
+    if (isRoleNotFoundErr) {
+      websession.logoutWithoutSlo({
+        /* Don't remember location after login, since they may no longer have access to the page they were on. */
+        rememberLocation: false,
+        /* Show "access changed" notice on login page. */
+        withAccessChangedMessage: true,
+      });
+      return;
+    }
+
     // Retry with MFA if we get an admin action missing MFA error.
     const isAdminActionMfaError = isAdminActionRequiresMfaError(
       parseError(json)
     );
-    const shouldRetry = isAdminActionMfaError && !webauthnResponse;
+    const shouldRetry = isAdminActionMfaError && !mfaResponse;
     if (!shouldRetry) {
-      throw new ApiError(parseError(json), response, undefined, json.messages);
+      throw new ApiError({
+        message: parseError(json),
+        response,
+        proxyVersion: parseProxyVersion(json),
+        messages: json.messages,
+      });
     }
 
-    let webauthnResponseForRetry;
+    let mfaResponseForRetry;
     try {
-      webauthnResponseForRetry = await auth.getWebauthnResponse(
-        MfaChallengeScope.ADMIN_ACTION
-      );
-    } catch (err) {
+      const challenge = await auth.getMfaChallenge({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+      });
+      mfaResponseForRetry = await auth.getMfaChallengeResponse(challenge);
+    } catch {
       throw new Error(
-        'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
+        'Failed to fetch MFA challenge. Please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
       );
     }
 
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       customOptions,
-      webauthnResponseForRetry
+      mfaResponseForRetry
     );
   },
 
@@ -188,13 +243,13 @@ const api = {
    * If customOptions field is not provided, only fields defined in
    * `defaultRequestOptions` will be used.
    *
-   * @param webauthnResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
-   * will add a custom MFA header field that will hold the webauthn response.
+   * @param mfaResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
+   * will add a custom MFA header field that will hold the mfaResponse.
    */
   fetch(
     url: string,
     customOptions: RequestInit = {},
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     url = window.location.origin + url;
     const options = {
@@ -207,9 +262,12 @@ const api = {
       ...getAuthHeaders(),
     };
 
-    if (webauthnResponse) {
+    if (mfaResponse) {
       options.headers[MFA_HEADER] = JSON.stringify({
-        webauthnAssertionResponse: webauthnResponse,
+        ...mfaResponse,
+        // TODO(Joerger): DELETE IN v19.0.0.
+        // We include webauthnAssertionResponse for backwards compatibility.
+        webauthnAssertionResponse: mfaResponse.webauthn_response,
       });
     }
 
@@ -264,6 +322,12 @@ function isAdminActionRequiresMfaError(errMessage) {
   return errMessage.includes(
     'admin-level API request requires MFA verification'
   );
+}
+
+/** isRoleNotFoundError returns true if the error message is due to a role not being found. */
+export function isRoleNotFoundError(errMessage: string): boolean {
+  // This error message format should be kept in sync with the NotFound error message returned in lib/services/local/access.GetRole
+  return /role \S+ is not found/.test(errMessage);
 }
 
 export default api;

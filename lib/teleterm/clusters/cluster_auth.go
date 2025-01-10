@@ -20,18 +20,19 @@ package clusters
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"sort"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -40,9 +41,15 @@ import (
 
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile
 func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigAuthSettings, error) {
-	_, err := c.clusterClient.Ping(ctx)
+	pingResponse, err := c.clusterClient.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	pingResponseJSON, err := json.Marshal(pingResponse)
+	if err != nil {
+		c.Logger.DebugContext(ctx, "Could not marshal ping response to JSON", "error", err)
+	} else {
+		c.Logger.DebugContext(ctx, "Got ping response", "response", string(pingResponseJSON))
 	}
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
@@ -82,39 +89,9 @@ func (c *Cluster) Logout(ctx context.Context) error {
 
 // LocalLogin processes local logins for this cluster
 func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken string) error {
-	pingResp, err := c.updateClientFromPingResponse(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	c.clusterClient.AuthConnector = constants.LocalConnector
 
-	var sshLoginFunc client.SSHLoginFunc
-	switch pingResp.Auth.SecondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		sshLoginFunc = c.localLogin(user, password, otpToken)
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
-		sshLoginFunc = c.localMFALogin(user, password)
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// tsh always uses client.SSHAgentMFALogin for any `second_factor` option other than `off` and
-		// `otp`. If it's set to `on` or `optional` and it turns out the user wants to use an OTP, it
-		// bails out to stdin to ask them for it.
-		//
-		// Connect cannot do that, but it still wants to use the auth code from lib/client that it
-		// shares with tsh. So to temporarily work around this problem, we check if the OTP token was
-		// submitted. If yes, then we use client.SSHAgentLogin, which lets us provide the token and skip
-		// asking for it over stdin. If not, we use client.SSHAgentMFALogin which should handle auth
-		// methods that don't use OTP.
-		if otpToken != "" {
-			sshLoginFunc = c.localLogin(user, password, otpToken)
-		} else {
-			sshLoginFunc = c.localMFALogin(user, password)
-		}
-	default:
-		return trace.BadParameter("unsupported second factor type: %q", pingResp.Auth.SecondFactor)
-	}
-
-	if err := c.login(ctx, sshLoginFunc); err != nil {
+	if err := c.login(ctx, c.localMFALogin(user, password)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -123,11 +100,12 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 
 // SSOLogin logs in a user to the Teleport cluster using supported SSO provider
 func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName string) error {
+	// Get the ping response for the given auth connector.
+	c.clusterClient.AuthConnector = providerName
+
 	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	c.clusterClient.AuthConnector = providerName
 
 	if err := c.login(ctx, c.ssoLogin(providerType, providerName)); err != nil {
 		return trace.Wrap(err)
@@ -138,11 +116,12 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 
 // PasswordlessLogin processes passwordless logins for this cluster.
 func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
+	// Get the ping response for the given auth connector.
+	c.clusterClient.AuthConnector = constants.PasswordlessConnector
+
 	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	c.clusterClient.AuthConnector = constants.PasswordlessConnector
 
 	if err := c.login(ctx, c.passwordlessLogin(stream)); err != nil {
 		return trace.Wrap(err)
@@ -170,7 +149,7 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 	return pingResp, nil
 }
 
-type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*auth.SSHLoginResponse, error)
+type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginResponse, error)
 
 func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) error {
 	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
@@ -215,42 +194,17 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 }
 
 func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				RouteToCluster:    c.clusterClient.SiteName,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
-			User:      user,
-			Password:  password,
-			PromptMFA: c.clusterClient.NewMFAPrompt(),
-		})
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return response, nil
-	}
-}
 
-func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-		response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
-			User:     user,
-			Password: password,
-			OTPToken: otpToken,
+		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
+			SSHLogin:             sshLogin,
+			User:                 user,
+			Password:             password,
+			MFAPromptConstructor: c.clusterClient.NewMFAPrompt,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -260,42 +214,20 @@ func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFun
 }
 
 func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-		response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
-			ConnectorID: providerName,
-			Protocol:    providerType,
-			BindAddr:    c.clusterClient.BindAddr,
-			Browser:     c.clusterClient.Browser,
-		}, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return response, nil
-	}
+	return c.clusterClient.SSOLoginFn(providerName, providerName, providerType)
 }
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				RouteToCluster:    c.clusterClient.SiteName,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
+			SSHLogin:                sshLogin,
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
-			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
+			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Logger, stream),
 			WebauthnLogin:           c.clusterClient.WebauthnLogin,
 		})
 		if err != nil {
@@ -307,11 +239,11 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 
 // pwdlessLoginPrompt is a implementation for wancli.LoginPrompt for teleterm passwordless logins.
 type pwdlessLoginPrompt struct {
-	log    *logrus.Entry
+	log    *slog.Logger
 	Stream api.TerminalService_LoginPasswordlessServer
 }
 
-func newPwdlessLoginPrompt(ctx context.Context, log *logrus.Entry, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
+func newPwdlessLoginPrompt(ctx context.Context, log *slog.Logger, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
 	return &pwdlessLoginPrompt{
 		log:    log,
 		Stream: stream,
@@ -351,7 +283,7 @@ func (p *pwdlessLoginPrompt) ackTouch() error {
 	// The current gRPC message type switch in teleterm client code will reject
 	// any new message types, making this difficult to add without breaking
 	// older clients.
-	p.log.Debug("Detected security key tap")
+	p.log.DebugContext(context.Background(), "Detected security key tap")
 	return nil
 }
 

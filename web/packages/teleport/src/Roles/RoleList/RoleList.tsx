@@ -16,23 +16,54 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { SearchPanel } from 'shared/components/Search';
 
-import { State as ResourceState } from 'teleport/components/useResources';
+import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';
+import { RoleResource } from 'teleport/services/resources';
+import { Access } from 'teleport/services/user';
 
-import { State as RolesState } from '../useRoles';
-
-export default function RoleList({
-  items = [],
-  pageSize = 20,
+export function RoleList({
   onEdit,
   onDelete,
-}: Props) {
+  onSearchChange,
+  search,
+  serversidePagination,
+  rolesAcl,
+}: {
+  onEdit(id: string): void;
+  onDelete(id: string): void;
+  onSearchChange(search: string): void;
+  search: string;
+  serversidePagination: SeversidePagination<RoleResource>;
+  rolesAcl: Access;
+}) {
+  const canView = rolesAcl.list && rolesAcl.read;
+  const canEdit = rolesAcl.edit;
+  const canDelete = rolesAcl.remove;
+
   return (
     <Table
-      data={items}
+      data={serversidePagination.fetchedData.agents}
+      fetching={{
+        fetchStatus: serversidePagination.fetchStatus,
+        onFetchNext: serversidePagination.fetchNext,
+        onFetchPrev: serversidePagination.fetchPrev,
+      }}
+      serversideProps={{
+        sort: undefined,
+        setSort: () => undefined,
+        serversideSearchPanel: (
+          <SearchPanel
+            updateSearch={onSearchChange}
+            updateQuery={null}
+            hideAdvancedSearch={true}
+            filter={{ search }}
+            disableSearch={serversidePagination.attempt.status === 'processing'}
+          />
+        ),
+      }}
       columns={[
         {
           key: 'name',
@@ -40,40 +71,45 @@ export default function RoleList({
         },
         {
           altKey: 'options-btn',
-          render: ({ id }) => (
-            <ActionCell id={id} onEdit={onEdit} onDelete={onDelete} />
+          render: (role: RoleResource) => (
+            <ActionCell
+              canView={canView}
+              canDelete={canDelete}
+              canEdit={canEdit}
+              onEdit={() => onEdit(role.id)}
+              onDelete={() => onDelete(role.id)}
+            />
           ),
         },
       ]}
       emptyText="No Roles Found"
-      pagination={{ pageSize }}
       isSearchable
     />
   );
 }
 
-const ActionCell = ({
-  id,
-  onEdit,
-  onDelete,
-}: {
-  id: string;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
+const ActionCell = (props: {
+  canView: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  onEdit(): void;
+  onDelete(): void;
 }) => {
+  if (!(props.canView || props.canDelete)) {
+    return <Cell align="right" />;
+  }
   return (
     <Cell align="right">
       <MenuButton>
-        <MenuItem onClick={() => onEdit(id)}>Edit...</MenuItem>
-        <MenuItem onClick={() => onDelete(id)}>Delete...</MenuItem>
+        {props.canView && (
+          <MenuItem onClick={props.onEdit}>
+            {props.canEdit ? 'Edit' : 'View Details'}
+          </MenuItem>
+        )}
+        {props.canDelete && (
+          <MenuItem onClick={props.onDelete}>Delete</MenuItem>
+        )}
       </MenuButton>
     </Cell>
   );
-};
-
-type Props = {
-  items: RolesState['items'];
-  onEdit: ResourceState['edit'];
-  onDelete: ResourceState['remove'];
-  pageSize?: number;
 };

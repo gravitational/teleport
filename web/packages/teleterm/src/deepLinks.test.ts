@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import { DeepURL, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
 import {
   DeepLinkParseResult,
   DeepLinkParseResultSuccess,
   parseDeepLink,
-  DeepURL,
 } from './deepLinks';
 
 describe('parseDeepLink', () => {
@@ -39,6 +38,39 @@ describe('parseDeepLink', () => {
           port: '',
           pathname: '/connect_my_computer',
           username: '',
+          searchParams: {},
+        },
+      },
+      {
+        input:
+          'teleport://cluster.example.com/authenticate_web_device?id=123&token=234',
+        expectedURL: {
+          host: 'cluster.example.com',
+          hostname: 'cluster.example.com',
+          port: '',
+          pathname: '/authenticate_web_device',
+          username: '',
+          searchParams: {
+            id: '123',
+            token: '234',
+            redirect_uri: null,
+          },
+        },
+      },
+      {
+        input:
+          'teleport://cluster.example.com/authenticate_web_device?id=123&token=234&redirect_uri=http://cluster.example.com/web/users',
+        expectedURL: {
+          host: 'cluster.example.com',
+          hostname: 'cluster.example.com',
+          port: '',
+          pathname: '/authenticate_web_device',
+          username: '',
+          searchParams: {
+            id: '123',
+            token: '234',
+            redirect_uri: 'http://cluster.example.com/web/users',
+          },
         },
       },
       {
@@ -49,6 +81,7 @@ describe('parseDeepLink', () => {
           port: '',
           pathname: '/connect_my_computer',
           username: 'alice',
+          searchParams: {},
         },
       },
       {
@@ -60,6 +93,7 @@ describe('parseDeepLink', () => {
           port: '1337',
           pathname: '/connect_my_computer',
           username: 'alice.bobson@example.com',
+          searchParams: {},
         },
       },
       // The example below is a bit contrived, usernames in URL should be percent-encoded. However,
@@ -74,6 +108,7 @@ describe('parseDeepLink', () => {
           port: '',
           pathname: '/connect_my_computer',
           username: 'alice.bobson@example.com',
+          searchParams: {},
         },
       },
     ];
@@ -100,21 +135,21 @@ describe('parseDeepLink', () => {
         input: 'teleport:///clusters/foo',
         output: {
           status: 'error',
-          reason: 'unsupported-uri',
+          reason: 'unsupported-url',
         },
       },
       {
         input: 'teleport://cluster.example.com/foo',
         output: {
           status: 'error',
-          reason: 'unsupported-uri',
+          reason: 'unsupported-url',
         },
       },
       {
         input: 'teleport:///foo/bar',
         output: {
           status: 'error',
-          reason: 'unsupported-uri',
+          reason: 'unsupported-url',
         },
       },
       {
@@ -123,6 +158,16 @@ describe('parseDeepLink', () => {
           status: 'error',
           reason: 'unknown-protocol',
           protocol: 'foobar:',
+        },
+      },
+      {
+        input: 'teleport://cluster.example.com/authenticate_web_device',
+        output: {
+          error: new TypeError(
+            'id and token must be included in the deep link for authenticating a web device'
+          ),
+          status: 'error',
+          reason: 'malformed-url',
         },
       },
     ];
@@ -138,18 +183,40 @@ describe('makeDeepLinkWithSafeInput followed by parseDeepLink gives the same res
   const inputs: Array<Parameters<typeof makeDeepLinkWithSafeInput>[0]> = [
     {
       proxyHost: 'cluster.example.com',
-      path: Path.ConnectMyComputer,
+      path: '/connect_my_computer',
       username: undefined,
+      searchParams: {},
     },
     {
       proxyHost: 'cluster.example.com',
-      path: Path.ConnectMyComputer,
+      path: '/connect_my_computer',
       username: 'alice',
+      searchParams: {},
     },
     {
       proxyHost: 'cluster.example.com:1337',
-      path: Path.ConnectMyComputer,
+      path: '/connect_my_computer',
       username: 'alice.bobson@example.com',
+      searchParams: {},
+    },
+    {
+      proxyHost: 'cluster.example.com:1337',
+      path: '/authenticate_web_device',
+      username: 'alice.bobson@example.com',
+      searchParams: {
+        token: '123',
+        id: '123',
+      },
+    },
+    {
+      proxyHost: 'cluster.example.com:1337',
+      path: '/authenticate_web_device',
+      username: 'alice.bobson@example.com',
+      searchParams: {
+        token: '123',
+        id: '123',
+        redirect_uri: 'http://cluster.example.com:1337/web/users',
+      },
     },
   ];
 
@@ -160,8 +227,9 @@ describe('makeDeepLinkWithSafeInput followed by parseDeepLink gives the same res
       status: 'success',
       url: {
         host: input.proxyHost,
-        pathname: '/' + input.path,
+        pathname: input.path,
         username: input.username === undefined ? '' : input.username,
+        searchParams: input.searchParams,
       },
     });
   });
@@ -172,6 +240,8 @@ describe('parseDeepLink followed by makeDeepLinkWithSafeInput gives the same res
     'teleport://cluster.example.com/connect_my_computer',
     'teleport://alice@cluster.example.com/connect_my_computer',
     'teleport://alice.bobson%40example.com@cluster.example.com:1337/connect_my_computer',
+    'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234',
+    'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234&redirect_uri=http%3A%2F%2Fcluster.example.com%2Fweb%2Fusers',
   ];
 
   test.each(inputs)('%s', input => {
@@ -180,8 +250,9 @@ describe('parseDeepLink followed by makeDeepLinkWithSafeInput gives the same res
     const { url } = parseResult as DeepLinkParseResultSuccess;
     const deepLink = makeDeepLinkWithSafeInput({
       proxyHost: url.host,
-      path: url.pathname.substring(1) as Path, // Remove the leading slash.
+      path: url.pathname,
       username: url.username,
+      searchParams: url.searchParams,
     });
     expect(deepLink).toEqual(input);
   });

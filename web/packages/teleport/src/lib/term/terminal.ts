@@ -16,21 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'xterm/css/xterm.css';
-import { ITheme, Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import { WebglAddon } from 'xterm-addon-webgl';
-import { debounce, isInteger } from 'shared/utils/highbar';
-import { WebLinksAddon } from 'xterm-addon-web-links';
-import { CanvasAddon } from 'xterm-addon-canvas';
+import '@xterm/xterm/css/xterm.css';
+
+import { CanvasAddon } from '@xterm/addon-canvas';
+import { FitAddon } from '@xterm/addon-fit';
+import { ImageAddon } from '@xterm/addon-image';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { ITheme, Terminal } from '@xterm/xterm';
+
+import {
+  SearchAddon,
+  TerminalSearcher,
+} from 'shared/components/TerminalSearch';
 import Logger from 'shared/libs/logger';
+import { debounce, isInteger, type DebouncedFunc } from 'shared/utils/highbar';
 
 import cfg from 'teleport/config';
 
 import { TermEvent } from './enums';
 import Tty from './tty';
-
-import type { DebouncedFunc } from 'shared/utils/highbar';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
@@ -39,31 +44,38 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 /**
  * TtyTerminal is a wrapper on top of xtermjs
  */
-export default class TtyTerminal {
+export default class TtyTerminal implements TerminalSearcher {
   term: Terminal;
   tty: Tty;
 
+  // TODO (avatus): migrate all of these to using `private` instead of underscore
   _el: HTMLElement;
   _scrollBack: number;
   _fontFamily: string;
   _fontSize: number;
+  _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
+  _imageAddon = new ImageAddon();
+  _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon;
   _canvasAddon = new CanvasAddon();
+
+  private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
   constructor(
     tty: Tty,
     private options: Options
   ) {
-    const { el, scrollBack, fontFamily, fontSize } = options;
+    const { el, scrollBack, fontFamily, fontSize, convertEol } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
     this._fontSize = fontSize || 14;
     // Passing scrollback will overwrite the default config. This is to support ttyplayer.
     // Default to the config when not passed anything, which is the normal usecase
     this._scrollBack = scrollBack || cfg.ui.scrollbackLines;
+    this._convertEol = convertEol || false;
     this.tty = tty;
     this.term = null;
 
@@ -72,19 +84,30 @@ export default class TtyTerminal {
     }, WINDOW_RESIZE_DEBOUNCE_DELAY);
   }
 
+  registerCustomKeyEventHandler(customHandler: (e: KeyboardEvent) => boolean) {
+    this.customKeyEventHandlers.add(customHandler);
+    return {
+      unregister: () => this.customKeyEventHandlers.delete(customHandler),
+    };
+  }
+
   open() {
     this.term = new Terminal({
       lineHeight: 1,
       fontFamily: this._fontFamily,
       fontSize: this._fontSize,
       scrollback: this._scrollBack,
+      convertEol: this._convertEol,
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
       theme: this.options.theme,
+      allowProposedApi: true, // required for customizing SearchAddon properties
     });
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
+    this.term.loadAddon(this._imageAddon);
+    this.term.loadAddon(this._searchAddon);
     // handle context loss and load webgl addon
     try {
       // try to create a new WebglAddon. If webgl is not supported, this
@@ -101,13 +124,13 @@ export default class TtyTerminal {
         this.fallbackToCanvas();
       });
       this.term.loadAddon(this._webglAddon);
-    } catch (err) {
+    } catch {
       this.fallbackToCanvas();
     }
 
     this.term.open(this._el);
     this._fitAddon.fit();
-    this.term.focus();
+    this.focus();
     this.term.onData(data => {
       this.tty.send(data);
     });
@@ -123,6 +146,21 @@ export default class TtyTerminal {
 
     // subscribe to window resize events
     window.addEventListener('resize', this._debouncedResize);
+
+    this.term.attachCustomKeyEventHandler(e => {
+      for (const eventHandler of this.customKeyEventHandlers) {
+        if (!eventHandler(e)) {
+          // The event was handled, we can return early.
+          return false;
+        }
+      }
+      // The event wasn't handled, pass it to xterm.
+      return true;
+    });
+  }
+
+  focus() {
+    this.term.focus();
   }
 
   fallbackToCanvas() {
@@ -131,7 +169,7 @@ export default class TtyTerminal {
     this._webglAddon = undefined;
     try {
       this.term.loadAddon(this._canvasAddon);
-    } catch (err) {
+    } catch {
       logger.error(
         'Canvas renderer could not be loaded. Falling back to default'
       );
@@ -152,12 +190,18 @@ export default class TtyTerminal {
     this._disconnect();
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
+    this._imageAddon.dispose();
+    this._searchAddon?.dispose();
     this._webglAddon?.dispose();
     this._canvasAddon?.dispose();
     this._el.innerHTML = null;
     this.term?.dispose();
 
     window.removeEventListener('resize', this._debouncedResize);
+  }
+
+  getSearchAddon() {
+    return this._searchAddon;
   }
 
   reset() {
@@ -233,4 +277,5 @@ type Options = {
   scrollBack?: number;
   fontFamily?: string;
   fontSize?: number;
+  convertEol?: boolean;
 };

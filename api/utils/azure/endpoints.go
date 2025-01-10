@@ -178,7 +178,7 @@ func ParseMSSQLEndpoint(endpoint string) (name string, err error) {
 
 const (
 	// DatabaseEndpointSuffix is the Azure database endpoint suffix. Used for
-	// MySQL, PostgresSQL, etc.
+	// MySQL, PostgreSQL, etc.
 	DatabaseEndpointSuffix = ".database.azure.com"
 
 	// RedisEndpointSuffix is the endpoint suffix for Redis.

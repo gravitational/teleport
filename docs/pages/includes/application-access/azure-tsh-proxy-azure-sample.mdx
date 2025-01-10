@@ -1,0 +1,12 @@
+```text
+Started Azure proxy on http://127.0.0.1:54321.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+  export AZURE_CONFIG_DIR=/Users/myuser/.tsh/azure/my.teleport.cluster/azure
+  export HTTPS_PROXY=http://127.0.0.1:54321
+  export HTTP_PROXY=http://127.0.0.1:54321
+  export MSI_ENDPOINT=https://azure-msi.teleport.dev/123456789abcdef01234
+  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
+```

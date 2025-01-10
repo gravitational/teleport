@@ -165,7 +165,7 @@ message ProvisionTokenSpecV2TPM {
       // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
       string EKPubHash = 2 [(gogoproto.jsontag) = "ekpub_hash,omitempty"];
       // EKCertSerial is the serial number of the EKCert in hexadecimal with
-      // colon seperated nibbles.
+      // colon separated nibbles.
       // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
       string EKCertSerial = 3 [(gogoproto.jsontag) = "ekcert_serial,omitempty"];
     }

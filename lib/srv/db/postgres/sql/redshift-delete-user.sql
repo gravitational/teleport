@@ -10,7 +10,7 @@ BEGIN
         RAISE EXCEPTION 'TP000: User has active connections';
     ELSE
         BEGIN
-            EXECUTE 'DROP USER ' || QUOTE_IDENT(username);
+            EXECUTE 'DROP USER IF EXISTS ' || QUOTE_IDENT(username);
         EXCEPTION WHEN OTHERS THEN
             -- Redshift only support OTHERS as exception condition, so we handle
             -- any error that might happen.

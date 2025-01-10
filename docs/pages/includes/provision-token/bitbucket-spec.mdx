@@ -1,0 +1,47 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example-bot
+spec:
+  roles: [Bot]
+  join_method: bitbucket
+  bot_name: example
+  bitbucket:
+    # The URL of the workspace-specific OIDC identity provider. This can be
+    # found in the repository settings under "Pipelines" and "OpenID Connect".
+    identity_provider_url: $IDENTITY_PROVIDER_URL
+
+    # The audience of the OIDC tokens issued by Bitbucket. This can be found in
+    # the repository settings under "Pipelines" and "OpenID Connect".
+    audience: $AUDIENCE
+
+    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # should be allowed to join. All parameters in a given allow entry must
+    # match for the join attempt to succeed, but many allow rules may be
+    # provided. One or both of `workspace_uuid` and `repository_uuid` are
+    # required; all other fields are optional.
+    allow:
+      - # The UUID of a workspace whose runs should be allowed to connect. This
+        # value can be found in the repository settings under "Pipelines" and
+        # "OpenID Connect". It must be enclosed in braces, i.e. `{...}`. At
+        # least `workspace_uuid` or `repository_uuid` must be provided.
+        workspace_uuid: '{WORKSPACE_UUID}'
+
+        # The UUID of a repository whose runs should be allowed to connect. This
+        # value can be found in the repository settings under "Pipelines" and
+        # "OpenID Connect". It must be enclosed in braces, i.e. `{...}`. At
+        # least `workspace_uuid` or `repository_uuid` must be provided.
+        repository_uuid: '{REPOSITORY_UUID}'
+
+        # If set, only steps tagged with the deployment environment linked to
+        # this UUID will be allowed to connect. This value can be found in the
+        # repository settings under "Pipelines" and "OpenID Connect" when a
+        # deployment environment is selected from the drop-down menu. It must be
+        # enclosed in braces, i.e. `{...}`. Optional.
+        deployment_environment_uuid: '{DEPLOYMENT_ENVIRONMENT_UUID}'
+
+        # If set, only workflows running on the named branch will be allowed to
+        # connect. Optional.
+        branch_name: "main"
+```

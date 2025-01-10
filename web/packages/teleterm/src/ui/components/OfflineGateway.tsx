@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { ButtonPrimary, Flex, Text } from 'design';
+import { useState } from 'react';
 
+import { ButtonPrimary, Flex, H2, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -55,21 +55,19 @@ export function OfflineGateway(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
-      maxWidth="500px"
+      px={4}
       css={`
         top: 11%;
         position: relative;
       `}
     >
-      <Text typography="h4" bold>
-        {props.targetName}
-      </Text>
+      <H2 mb={1}>{props.targetName}</H2>
       <Text>
         The {props.gatewayKind} connection is {statusDescription}
       </Text>
       {props.connectAttempt.status === 'error' && (
-        <Alerts.Danger mt={2} mb={0}>
-          {props.connectAttempt.statusText}
+        <Alerts.Danger mt={2} mb={0} details={props.connectAttempt.statusText}>
+          Could not establish the connection
         </Alerts.Danger>
       )}
       <Flex

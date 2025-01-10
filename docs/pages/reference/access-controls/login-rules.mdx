@@ -1,0 +1,791 @@
+---
+title: Login Rules Reference 
+description: Reference documentation for Login Rules
+tocDepth: 3
+---
+
+This page provides details on the expression language that powers Login Rules.
+To learn how to add the first login rule to your cluster, checkout out the
+[Login Rules Guide](../../admin-guides/access-controls/login-rules/guide.mdx).
+
+## YAML specification
+
+(!docs/pages/includes/login-rule-spec.mdx!)
+
+## `traits_map` vs `traits_expression`
+
+Every login rule spec must contain either the `traits_map` field or a `traits_expression` field.
+
+They both serve the same purpose of transforming user traits.
+The logic difference lies only in the syntax you prefer for your use case, since you can write
+every `traits_map` as an equivalent `traits_expression`.
+
+`traits_map` will remove any traits not specifically included, while the
+`traits_expression` syntax allows you add or modify only specific traits
+while keeping the rest unchanged.
+The `traits_map` behavior can be useful if you want to keep only a handful
+of necessary traits while filtering out all others.
+If lower priority Login Rules set traits, those traits must be also included with higher priority `traits_map`
+to remain populated. For example, the following configuration keeps the `groups` trait unmodified.
+
+```yaml
+  traits_map:
+    groups:
+      - external["groups"]
+```
+
+### `traits_map`
+
+Here is an example Login Rule that uses a `traits_map` to implement the
+following rules:
+
+- Every user with the `groups: devs` trait should receive an extra trait
+   `access: [staging]`.
+- Every user with the `groups: admins` trait should receive an extra trait
+   `access: [staging, prod]`.
+- Every user should receive a `logins` trait with the value of their incoming
+   `username` trait converted to lowercase.
+- All traits other than `groups`, `logins`, and `access` should be filtered
+   out.
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: my_expression_rule
+spec:
+  priority: 0
+
+  traits_map:
+    # the groups trait will be copied unmodified. Do the same for all other
+    # traits which should not be changed, any traits omitted here will *not* be
+    # set for your users and will *not* be used for role mapping.
+    groups:
+      - external["groups"]
+
+    # the logins traits will be set to the username trait converted to
+    # lowercase.
+    logins:
+      - 'strings.lower(external.username)'
+
+    # the access trait is determined conditionally based on the incoming groups trait.
+    access:
+      - 'ifelse(external.groups.contains("devs"), set("staging"), set())'
+      - 'ifelse(external.groups.contains("admins"), set("staging", "prod"), set())'
+```
+
+### `traits_expression`
+
+Here is an example login rule using the `traits_expression` field implementing
+the same rules as the above example:
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: my_expression_rule
+spec:
+  priority: 0
+
+  traits_expression: |
+    dict(
+      pair("groups", external.groups),
+      pair("logins", strings.lower(external.username)),
+      pair("access",
+        choose(
+          option(external.groups.contains("devs"), set("staging")),
+          option(external.groups.contains("admins"), set("staging", "prod")),
+          option(true, set()),
+        ),
+      ),
+    )
+```
+
+Every traits expression must return a value of type [`dict`](#dict-type) which will
+be used as the complete set of output traits.
+It is possible to construct a `dict` from scratch as shown above, or you can
+make modifications to the incoming traits stored in the `external` dict like the
+following:
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: uppercase_logins
+spec:
+  priority: 0
+
+  # This example expression will return all incoming traits unmodified except
+  # for the "logins" trait which will be converted to lowercase.
+  traits_expression: |
+    external.put("logins", strings.lower(external.logins))
+```
+
+## `dict` type
+
+### Description
+
+`dict` is a dictionary type mapping from `string` keys to [`set`](#set-type) values.
+When Login Rule expressions access input traits with the
+`external.<trait>` or `external[<trait>]` syntax, `external` is a value of type
+`dict`.
+Values of type `dict` can also be constructed and accessed within expressions.
+Expressions used for the `traits_expression` field **must** return a value of
+type `dict`.
+
+### Constructor
+
+#### Signature
+
+```go
+func dict(pairs ...pair) dict
+```
+
+#### Description
+
+The `dict` constructor returns a new `dict` populated with initial key-value pairs
+from the `pairs` argument.
+Each `pair` must hold a `string` and a `set`.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`pairs` | `...pair` | Zero or more key-value pairs to initialize the `dict`.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`dict`  | A new `dict`.
+
+#### Examples
+
+Expression | Result
+---------- | ------
+`dict()` | `{}`
+`dict(pair("a", set("x", "y")))` | `{"a": ("x", "y")}`
+
+### Accessors
+
+Syntax | Example | Description
+------ | ------- | -----------
+`dict.key` | `external.username` | The "dot" accessor returns the `set` for the given key, or the empty `set` if there is not value for that key.
+`dict["key"]` | `external["user-name"]` | The square brace accessor has the same behavior as the "dot" accessor, but supports keys with special characters (including `-`, `.`, ` `, etc) which must be quoted for parsing.
+
+### `dict.add_values`
+
+#### Signature
+
+```go
+func (dict) add_values(key string, values ...string) dict
+```
+
+#### Description
+
+`dict.add_values` returns a copy of the `dict` with the given values added to
+the `set` at `dict[key]`.
+If there is no `set` already present at `dict[key]` a new one will be created.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`key` | `string` | Key where the new values should be added.
+`values` | `...string` | One or more string values to add at `dict[key]`.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`dict`  | A copy of the given `dict` with `values` added at key `key`.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`dict().add_values("logins", "ubuntu", "ec2-user")` | `{"logins": ("ubuntu", "ec2-user")}`
+`dict(pair("a", set("x"))).add_values("a", "y", "z")` | `{"a": ("x", "y", "z")}`
+
+### `dict.remove`
+
+#### Signature
+
+```go
+func (dict) remove(keys ...string) dict
+```
+
+#### Description
+
+`dict.remove` returns a copy of the `dict` with the given keys removed.
+Any given keys not present in the `dict` have no effect.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`keys` | `...string` | One or more keys to remove from the `dict`.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`dict`  | A copy of the given `dict` with given keys removed.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`dict(pair("a", set("x"))).remove("a", "b")` | `{}`
+`dict(pair("a", set("x")), pair("b", set("c"))).remove("b")` | `{"a": ("x")}`
+
+### `dict.put`
+
+#### Signature
+
+```go
+func (dict) put(key string, value set) dict
+```
+
+#### Description
+
+`dict.put` returns a copy of the `dict` with `dict[key]` set to `value`.
+If there is already a value present for the given key it is overwritten.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`key` | `string` | key at which to set the new value
+`value` | `set` | set of strings to set at the given key
+
+#### Returns
+
+Type | Description
+---- | ----------
+`dict`  | a copy of the given `dict` with `dict[key]` set to `value`.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`dict(pair("a", set("x"))).put("a", set("y"))` | `{"a": ("y")}`
+`dict().put("b", set("z"))` | `{"b": ("z")}`
+
+## `set` type
+
+### Description
+
+`set` holds a set of unique strings.
+
+### Constructor
+
+#### Signature
+
+```go
+func set(values ...string) set
+```
+
+#### Description
+
+The `set` constructor returns a new `set` initialized with the given `values`.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`values` | `...string` | Zero or more strings to initialize the set.
+
+#### Returns
+
+Type | Description
+---- | -----------
+`set` | A new set initialized with the given values.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`set()` | `()`
+`set("a", "b", "a")` | `("a", "b")`
+
+### `set.contains`
+
+#### Signature
+
+```go
+func (set) contains(value) bool
+```
+
+#### Description
+
+`set.contains` returns `true` if the set contains an exact match for `value`,
+else it returns `false`.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`value` | `string` | A string to check for in the set.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`bool` | `true` if the set contains an exact match for `value`, else `false`.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`set("a", "b").contains("a")` | `true`
+`set("a", "b").contains("x")` | `false`
+
+### `set.add`
+
+#### Signature
+
+```go
+func (set) add(values ...string) set
+```
+
+#### Description
+
+`set.add` returns a new set that is a copy of the given set with the new
+`values` added.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`values` | `...string` | Values to add to the set.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set` | A new set that is a copy of the given set with `values` added.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`set("a", "b").add("b", "c")` | `("a", "b", "c")`
+
+### `set.remove`
+
+#### Signature
+
+```go
+func (set) remove(values ...string) set
+```
+
+#### Description
+
+`set.remove` returns a new set that is a copy of the given set with all
+`values` removed.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`values` | `...string` | Values to remove from the set.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set` | A new set that is a copy of the given set with `values` removed.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`set("a", "b").remove("b", "c")` | `("a")`
+
+## `pair` type
+
+### Description
+
+`pair` can hold two values of any type.
+Currently its only use is in the `dict` constructor where it must hold key-value
+pairs of type `string` and `set`.
+
+### Constructor
+
+#### Signature
+
+```go
+func pair(first, second any) pair
+```
+
+#### Description
+
+The `pair` constructor returns a new `pair` holding `first` and `second`.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`first` | `any` | A value of any type.
+`second` | `any` | A value of any type.
+
+#### Returns
+
+Type | Description
+---- | -----------
+`pair` | A new `pair` holding `first` and `second`.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`pair("logins", set("root", "user"))` | `{"logins", ("root", "user")}`
+
+## `option` type
+
+### Description
+
+`option` is meant to be used exclusively as an argument to [`choose`](#choose).
+It holds a Boolean condition that may cause the `option` to be selected and a
+value which should be returned by the `choose` expression if that `option` is in
+fact selected.
+
+### Constructor
+
+#### Signature
+
+```go
+func option(cond bool, value any) option
+```
+
+#### Description
+
+Returns a new `option` holding `cond` and `value`.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`cond` | `bool` | A Boolean condition which may cause this `option` to be selected. |
+`value` | `any` | A value which should be returned by `choose` if this `option` is selected. |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`option` | An `option` type which should be passed as an argument to `choose`.
+
+#### Examples
+
+See the examples for [`choose`](#choose).
+
+## Helper functions
+
+### `strings.upper`
+
+#### Signature
+
+```go
+func strings.upper(input set) set
+```
+
+#### Description
+
+`strings.upper` returns a copy of the given set of strings converted to
+uppercase.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings to convert to uppercase |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a copy of `input` where each string has been converted to uppercase
+
+#### Examples
+
+Expression | Result
+------- | ------
+`strings.upper(set("Alice"))` | `("ALICE")`
+`strings.upper(set("AbCdE", "fGhIj))` | `("ABCDE", "FGHIJ")`
+
+### `strings.lower`
+
+#### Signature
+
+```go
+func strings.lower(input set) set
+```
+
+#### Description
+
+`strings.lower` returns a copy of the given set of strings converted to
+lowercase.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings to convert to lowercase |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a copy of `input` where each string has been converted to lowercase
+
+#### Examples
+
+Expression | Result
+------- | ------
+`strings.lower(set("Alice"))` | `("alice")`
+`strings.lower(set("AbCdE", "fGhIj))` | `("abcde", "fghij")`
+
+### `strings.replaceall`
+
+#### Signature
+
+```go
+func strings.replaceall(input set, match string, replacement string) set
+```
+
+#### Description
+
+`strings.replaceall` implements substring replacement on sets of strings.
+The return value is a copy of `input` where each substring match of `match`
+found in each element of `input` will be replaced with `replacement`.
+The matching is literal and does not support regular expressions.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings where replacements are needed |
+`match` | `string` | literal substring to be replaced |
+`replacement` | `string` | literal string to replace all instances of `match` |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a copy of `input` where each instance of `match` found in each element of `input` has been replaced with `replacement`.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`strings.replaceall(set("user-name"), "-", "_")` | `("user_name")`
+`strings.replaceall(set("user-alice", "user-bob"), "user-", "")` | `("alice", "bob")`
+
+### `strings.split`
+
+#### Signature
+
+```go
+func strings.split(input set, separator string) set
+```
+
+#### Description
+
+`strings.split` splits each element of `input` at each match of `separator` and
+returns a set containing the union of all split strings.
+This may be useful when an IdP does not have the ability to pass multi-valued
+claims, a Login Rule with this helper function can split a single claim value
+into a Teleport trait with multiple values.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings which should be split |
+`sep` | `string` | literal string separator |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | the union of all split strings |
+
+#### Examples
+
+Expression | Result
+------- | ------
+`strings.split(set("alice,bob,charlie"), ",")` | `("alice", "bob", "charlie")`
+`strings.split(set("devs security"), " ")` | `("devs", "security")`
+
+### `email.local`
+
+#### Signature
+
+```go
+func email.local(input set) set
+```
+
+#### Description
+
+`email.local` maps each email in the input set to its local part.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input emails |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a copy of `input` where each email has been converted to its local part.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`email.local(set("alice@example.com"))` | `("alice")`
+`email.local(set("Alice <alice@example.com>"))` | `("alice")`
+
+### `regexp.replace`
+
+#### Signature
+
+```go
+func regexp.replace(input set, expression string, replacement string) set
+```
+
+#### Description
+
+`regexp.replace` finds all matches of `expression` in each element of `input`
+and replaces them with `replacement`.
+Values which do not match the expression will be filtered out.
+The replacement supports expansion of capture groups from `expression`.
+`$N` is used to refer to the Nth captured group, starting at `$1`.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a copy of `input` where each string has had all matches of `expression` replaced with `replacement`.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`regexp.replace(set("team-devs"), "^team-(.*)$", "$1")` | `("devs")`
+`regexp.replace(set("team-dev-security"), "^team-(.*)-(.*)$", "$1.$2")` | `("dev.security")`
+
+### `ifelse`
+
+#### Signature
+
+```go
+func ifelse(cond bool, valueIfTrue any, valueIfFalse any) any
+```
+
+#### Description
+
+`ifelse` implements the classic if-else branch in a pure functional style.
+If the first argument evaluates to `true` the second argument is returned, else
+the third argument is returned.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`cond` | `bool` | A Boolean condition that determines which of the following two arguments is returned.
+`valueIfTrue` | `any` | The value to return if `cond` is true, of any type.
+`valueIfFalse` | `any` | The value to return if `cond` is false, of any type.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`any`  | The second or third argument will be returned.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`ifelse(set("a", "b").contains("a"), set("x", "y"), set("z"))` | `("x", "y")`
+`ifelse(set("a", "b").contains("c"), set("x", "y"), set("z"))` | `("z")`
+
+### `choose`
+
+#### Signature
+
+```go
+func choose(options ...option) any
+```
+
+#### Description
+
+`choose` implements a functional style of switch statement, returning the first
+[`option`](#option-type) argument with a condition evaluating to `true`.
+
+If no option can be selected at runtime, this will return an error and the login
+will not succeed.
+It is recommended to add a final option with the condition hardcoded to `true`
+to implement a default option and avoid this scenario.
+For example `choose(..., option(true, set()))` would return the empty set if no
+other option can be selected.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`options` | `...option` | One or more `option`s.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`any`  | The value of the first `option` argument with a condition evaluating to `true`, which may be of any type.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`choose(option(false, set("x")), option(true, set("y")), option(true, set("z")))` | `("y")`
+`choose(option(set("a", "b").contains("a"), set("x")), option(true, set("y")))` | `("x")`
+
+### `union`
+
+#### Signature
+
+```go
+func union(sets ...set) set
+```
+
+#### Description
+
+`union` returns a new [`set`](#set-type) containing the union of all elements in the
+given sets.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`sets` | `...set` | Zero or more sets to union.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | A new `set` containing the union of all given `set`s.
+
+#### Examples
+
+Expression | Result
+---------- | ------
+`union(set("a"), set("b"))` | `("a", "b")`
+`union(set("a", "b"), set("b", "c"))` | `("a", "b", "c")`

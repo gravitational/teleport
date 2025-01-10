@@ -20,9 +20,9 @@ package dbobjectimportrulev1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +43,7 @@ type Backend interface {
 type DatabaseObjectImportRuleServiceConfig struct {
 	Authorizer authz.Authorizer
 	Backend    Backend
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 }
 
 // NewDatabaseObjectImportRuleService returns a new instance of the DatabaseObjectImportRuleService.
@@ -55,7 +55,7 @@ func NewDatabaseObjectImportRuleService(cfg DatabaseObjectImportRuleServiceConfi
 		return nil, trace.BadParameter("backend service is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "db_obj_import_rule")
+		cfg.Logger = slog.With(teleport.ComponentKey, "db_obj_import_rule")
 	}
 	return &DatabaseObjectImportRuleService{
 		logger:     cfg.Logger,
@@ -72,7 +72,7 @@ type DatabaseObjectImportRuleService struct {
 
 	backend    Backend
 	authorizer authz.Authorizer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 }
 
 func (rs *DatabaseObjectImportRuleService) authorize(ctx context.Context, adminAction bool, verb string, additionalVerbs ...string) error {
@@ -87,7 +87,7 @@ func (rs *DatabaseObjectImportRuleService) authorize(ctx context.Context, adminA
 	}
 
 	if adminAction {
-		err = authCtx.AuthorizeAdminAction()
+		err = authCtx.AuthorizeAdminActionAllowReusedMFA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -153,7 +153,6 @@ func (rs *DatabaseObjectImportRuleService) CreateDatabaseObjectImportRule(
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
-
 }
 
 // UpsertDatabaseObjectImportRule creates a new DatabaseObjectImportRule or forcefully updates an existing DatabaseObjectImportRule.

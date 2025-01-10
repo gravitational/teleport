@@ -28,29 +28,36 @@ use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
 use client::{ClientHandle, ClientResult, ConnectParams};
+use ironrdp_session::x224::DisconnectDescription;
 use log::{error, trace, warn};
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
     SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryWriteResponse,
-    TdpErrCode,
+    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryTruncateResponse,
+    SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::ffi::CString;
 use std::fmt::Debug;
+use std::io::ErrorKind;
 use std::os::raw::c_char;
 use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod network_client;
 mod piv;
 mod rdpdr;
 mod ssl;
 mod util;
 
+/// rdpclient_init_log should be called at initialization time to set up
+/// logging on the rdpclient side.
 #[no_mangle]
-pub extern "C" fn init() {
-    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
+pub extern "C" fn rdpclient_init_log() {
+    if let Err(e) = env_logger::try_init() {
+        eprintln!("failed to initialize Rust logger: {e}");
+    }
 }
 
 /// free_string is used to free memory for strings that were passed back to Go side.
@@ -81,21 +88,37 @@ pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
 /// # Safety
 ///
 /// The caller must ensure that cgo_handle is a valid handle and that
-/// go_addr, go_username, cert_der, key_der point to valid buffers.
+/// go_addr, go_domain, go_kdc, cert_der, key_der point to valid buffers.
 #[no_mangle]
 pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOResult {
     trace!("client_run");
     // Convert from C to Rust types.
+    let username = from_c_string(params.go_username);
     let addr = from_c_string(params.go_addr);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
+    let kdc = from_c_string(params.go_kdc_addr);
+    let kdc = if kdc.is_empty() { None } else { Some(kdc) };
+
+    let computer_name = from_c_string(params.go_computer_name);
+    let computer_name = if computer_name.is_empty() {
+        None
+    } else {
+        Some(computer_name)
+    };
+
     match Client::run(
         cgo_handle,
         ConnectParams {
+            ad: params.ad,
+            nla: params.nla,
+            username,
             addr,
+            computer_name,
             cert_der,
             key_der,
+            kdc_addr: kdc,
             screen_width: params.screen_width,
             screen_height: params.screen_height,
             allow_clipboard: params.allow_clipboard,
@@ -106,24 +129,43 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         Ok(res) => CGOResult {
             err_code: CGOErrCode::ErrCodeSuccess,
             message: match res {
-                Some(reason) => CString::new(reason.description().to_string())
-                    .map(|c| c.into_raw())
-                    .unwrap_or(ptr::null_mut()),
+                Some(DisconnectDescription::McsDisconnect(reason)) => {
+                    CString::new(reason.description().to_string())
+                        .map(|c| c.into_raw())
+                        .unwrap_or(ptr::null_mut())
+                }
+                Some(DisconnectDescription::ErrorInfo(info)) => {
+                    CString::new(info.description().to_string())
+                        .map(|c| c.into_raw())
+                        .unwrap_or(ptr::null_mut())
+                }
                 None => ptr::null_mut(),
             },
         },
-
         Err(e) => {
             error!("client_run failed: {:?}", e);
+            let message = match e {
+                client::ClientError::Tcp(io_err) if io_err.kind() == ErrorKind::TimedOut => {
+                    String::from(TIMEOUT_ERROR_MESSAGE)
+                }
+                _ => format!("{}", e),
+            };
             CGOResult {
                 err_code: CGOErrCode::ErrCodeFailure,
-                message: CString::new(format!("{}", e))
+                message: CString::new(message)
                     .map(|c| c.into_raw())
                     .unwrap_or(ptr::null_mut()),
             }
         }
     }
 }
+
+const TIMEOUT_ERROR_MESSAGE: &str = "Connection Timed Out\n\n\
+Teleport could not connect to the host within the timeout period. \
+This could be due to a firewall blocking connections, an overloaded system, \
+or network congestion. To resolve this issue, ensure that the Teleport agent \
+has connectivity to the Windows host.\n\n\
+Use \"nc -vz HOST 3389\" to help debug this issue.";
 
 fn handle_operation<T>(cgo_handle: CgoHandle, ctx: &'static str, f: T) -> CGOErrCode
 where
@@ -347,6 +389,24 @@ pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
     )
 }
 
+/// client_handle_tdp_sd_truncate_response handles a TDP Shared Directory Truncate Response
+/// message
+///
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_truncate_response(
+    cgo_handle: CgoHandle,
+    res: CGOSharedDirectoryTruncateResponse,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_truncate_response",
+        move |client_handle| client_handle.handle_tdp_sd_truncate_response(res),
+    )
+}
+
 /// client_handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU
 /// created by the ironrdp client on the frontend and sends it directly to the RDP server.
 ///
@@ -415,9 +475,31 @@ pub unsafe extern "C" fn client_write_rdp_sync_keys(
     )
 }
 
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_write_screen_resize(
+    cgo_handle: CgoHandle,
+    width: u32,
+    height: u32,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_write_screen_resize",
+        move |client_handle| client_handle.write_screen_resize(width, height),
+    )
+}
+
 #[repr(C)]
 pub struct CGOConnectParams {
+    ad: bool,
+    nla: bool,
+    go_username: *const c_char,
     go_addr: *const c_char,
+    go_domain: *const c_char,
+    go_kdc_addr: *const c_char,
+    go_computer_name: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,
@@ -450,19 +532,6 @@ pub enum CGODisconnectCode {
     DisconnectCodeClient = 1,
     /// DisconnectCodeServer is for when the RDP server initiated a disconnect.
     DisconnectCodeServer = 2,
-}
-
-#[repr(C)]
-pub struct CGOReadRdpOutputReturns {
-    user_message: *const c_char,
-    disconnect_code: CGODisconnectCode,
-    err_code: CGOErrCode,
-}
-
-#[repr(C)]
-pub struct CGOClientOrError {
-    client: u64,
-    err: CGOErrCode,
 }
 
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -651,12 +720,22 @@ pub struct CGOSharedDirectoryListRequest {
     pub path: *const c_char,
 }
 
+#[repr(C)]
+pub struct CGOSharedDirectoryTruncateRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+    pub end_of_file: u32,
+}
+
+pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;
+
 // These functions are defined on the Go side.
 // Look for functions with '//export funcname' comments.
 extern "C" {
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
-    fn cgo_handle_rdp_connection_initialized(
+    fn cgo_handle_rdp_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
@@ -694,6 +773,10 @@ extern "C" {
     fn cgo_tdp_sd_move_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryMoveRequest,
+    ) -> CGOErrCode;
+    fn cgo_tdp_sd_truncate_request(
+        cgo_handle: CgoHandle,
+        req: *mut CGOSharedDirectoryTruncateRequest,
     ) -> CGOErrCode;
 }
 

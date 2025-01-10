@@ -1,0 +1,247 @@
+---
+title: Database Access Configuration Reference
+description: Configuration reference for Teleport database access.
+---
+
+This guide explains configuration options for the Teleport Database Service,
+which proxies user traffic between Teleport users and protected databases. 
+
+## Database service configuration
+
+The following snippet shows full YAML configuration of a Database Service
+appearing in `teleport.yaml` configuration file:
+
+```yaml
+(!docs/pages/includes/config-reference/database-config.yaml!)
+```
+
+## Proxy configuration
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+The following Proxy service configuration is relevant for database access:
+
+<Admonition
+type="warning"
+title="TLS for database connections"
+>
+The `--insecure-no-tls` `tsh` flag is only supported for MySQL/MariaDB and PostgreSQL
+connections using a unique port, specified with `mysql_public_addr` or `postgres_public_addr`.
+</Admonition>
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  # Database proxy is listening on the regular web proxy port.
+  web_listen_addr: "0.0.0.0:443"
+  # MySQL proxy is listening on a separate port and needs to be enabled
+  # on the proxy server.
+  mysql_listen_addr: "0.0.0.0:3036"
+  # MySQL Server version allows you to overwrite the default Teleport Proxy Service MySQL version (8.0.0-Teleport)
+  # Note that if the MySQL client connection is using TLS Routing the dynamic MySQL Server Version takes
+  # precedence over the mysql_server_version proxy settings.
+  # mysql_server_version: "8.0.4"
+  # Postgres proxy listening address. If provided, proxy will use a separate listener
+  # instead of multiplexing Postgres protocol on web_listener_addr.
+  # postgres_listen_addr: "0.0.0.0:5432"
+  # Mongo proxy listening address. If provided, proxy will use a separate listener
+  # instead of multiplexing Mongo protocol on web_listener_addr.
+  # mongo_listen_addr: "0.0.0.0:27017"
+  # By default database clients will be connecting to the Proxy over this
+  # hostname. To override public address for specific database protocols
+  # use postgres_public_addr and mysql_public_addr.
+  public_addr: "teleport.example.com:443"
+  # Address advertised to MySQL clients. If not set, public_addr is used.
+  mysql_public_addr: "mysql.teleport.example.com:3306"
+  # Address advertised to PostgreSQL clients. If not set, public_addr is used.
+  postgres_public_addr: "postgres.teleport.example.com:443"
+  # Address advertised to Mongo clients. If not set, public_addr is used.
+  mongo_public_addr: "mongo.teleport.example.com:443"
+```
+
+</TabItem>
+<TabItem label="Cloud-Hosted">
+
+Teleport Enterprise Cloud automatically configures the Teleport Proxy Service
+with the following settings that are relevant to database access. This reference
+configuration uses `example.teleport.sh` in place of your Teleport Enterprise
+Cloud tenant address:
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  # Database proxy is listening on the regular web proxy port.
+  web_listen_addr: "0.0.0.0:3080"
+  # MySQL proxy is listening on a separate port.
+  mysql_listen_addr: "0.0.0.0:3036"
+  # Database clients will connect to the Proxy Service over this hostname.
+  public_addr: "mytenant.teleport.sh:443"
+  # Address advertised to MySQL clients.
+  mysql_public_addr: "mytenant.teleport.sh:3036"
+  # Address advertised to PostgreSQL clients.
+  postgres_public_addr: "mytenant.teleport.sh:443"
+  # Address advertised to Mongo clients. If not set, public_addr is used.
+  mongo_public_addr: "mongo.teleport.example.com:443
+```
+
+</TabItem>
+</Tabs>
+
+## Database resource
+
+Full YAML spec of database resources managed by `tctl` resource commands:
+
+```yaml
+kind: db
+version: v3
+metadata:
+  # Database resource name.
+  name: example
+
+  # Database resource description.
+  description: "Example database"
+
+  # Database resource static labels.
+  labels:
+    env: example
+
+spec:
+  # Database protocol. Valid options are:
+  # "cassandra"
+  # "clickhouse"
+  # "clickhouse-http"
+  # "cockroachdb"
+  # "dynamodb"
+  # "elasticsearch"
+  # "mongodb"
+  # "mysql"
+  # "oracle"
+  # "postgres"
+  # "redis"
+  # "snowflake"
+  # "spanner"
+  # "sqlserver"
+  protocol: "postgres"
+
+  # Database connection endpoint.
+  uri: "localhost:5432"
+
+  # Optional TLS configuration.
+  tls:
+    # TLS verification mode. Valid options are:
+    # 'verify-full' - performs full certificate validation (default).
+    # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+    # 'insecure' - accepts any certificate provided by database (not recommended).
+    mode: verify-full
+    # Optional database DNS server name. It allows to override the DNS name on
+    # a client certificate when connecting to a database.
+    # Use only with 'verify-full' mode.
+    server_name: db.example.com
+    # Optional CA for validating the database certificate.
+    ca_cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    # Optional configuration that allows Teleport to trust certificate
+    # authorities available on the host system. If not set (by default),
+    # Teleport only trusts self-signed databases with TLS certificates signed
+    # by Teleport's Database Server CA or the ca_cert specified in this TLS
+    # setting. For cloud-hosted databases, Teleport downloads the corresponding
+    # required CAs for validation.
+    trust_system_cert_pool: false
+
+  # Database admin user for automatic user provisioning.
+  admin_user:
+    # Database admin user name.
+    name: "teleport-admin"
+
+  # MySQL only options.
+  mysql:
+    # The MySQL server version reported by the Teleport Proxy Service.
+    # Teleport uses this string when reporting the server version to a 
+    # connecting client.
+    #
+    # When this option is not set, the Database Service will try to connect to
+    # a MySQL instance on startup and fetch the server version. Otherwise, 
+    # it will use the provided value without connecting to a database. 
+    #
+    # In both cases, the MySQL server version reported to a client will be 
+    # updated on the first successful connection made by a user.
+    # Teleport uses that string instead of default '8.0.0-Teleport' version when reporting
+    # the server version to a connecting client. When this option is not set, the Database Service will try
+    # to connect to MySQL instance on startup and fetch the server version.
+    # Otherwise, it will use the provided value without connecting to a database.
+    # In both cases MySQL server version reported to a client will be updated on the first successful
+    # connection made by a user.
+    server_version: 8.0.28
+
+  # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
+  aws:
+    # Region the database is deployed in.
+    region: "us-east-1"
+    # Optional AWS role that the Database Service will assume to access
+    # this database.
+    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+    # Optional AWS external ID that the Database Service will use to assume
+    # a role in an external AWS account.
+    external_id: "example-external-id"
+    # Redshift specific configuration.
+    redshift:
+      # Redshift cluster identifier.
+      cluster_id: "redshift-cluster-1"
+
+  # GCP configuration (required for Cloud SQL and Spanner databases).
+  gcp:
+    # GCP project ID.
+    project_id: "xxx-1234"
+    # Cloud SQL instance ID.
+    instance_id: "example"
+
+  # Settings specific to Active Directory authentication e.g. for SQL Server.
+  ad:
+    # Path to Kerberos keytab file.
+    keytab_file: /path/to/keytab
+    # Active Directory domain name.
+    domain: EXAMPLE.COM
+    # Service Principal Name to obtain Kerberos tickets for.
+    spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
+    # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
+    krb5_file: /etc/krb5.conf
+
+  # Optional dynamic labels.
+  dynamic_labels:
+  - name: "hostname"
+    command: ["hostname"]
+    period: 1m0s
+```
+
+You can create a new `db` resource by running the following commands, which
+assume that you have created a YAML file called `db.yaml` with your configuration:
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
+# Create the resource
+$ tctl create -f db.yaml
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+# Log in to your Teleport cluster so you can use tctl from your local machine.
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+# Create the resource
+$ tctl create -f db.yaml
+```
+
+</TabItem>
+
+</Tabs>
+

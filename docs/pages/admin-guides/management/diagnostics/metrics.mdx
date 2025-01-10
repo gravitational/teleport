@@ -1,0 +1,205 @@
+---
+title: Key Metrics for Self-Hosted Clusters
+description: Describes important metrics to monitor if you are self-hosting Teleport.
+tocDepth: 3
+---
+
+This guide explains the metrics you should use to get started monitoring your
+self-hosted Teleport cluster, focusing on metrics reported by the Auth Service
+and Proxy Service. If you use Teleport Enterprise (Cloud), the Teleport team
+monitors and responds to these metrics for you.
+
+For a reference of all available metrics, see the [Teleport Metrics
+Reference](../../../reference/monitoring/metrics.mdx).
+
+This guide assumes that you already monitor compute resources on all instances
+that run the Teleport Auth Service and Proxy Service (e.g., CPU, memory, disk,
+bandwidth, and open file descriptors).
+
+## Enabling metrics
+
+(!docs/pages/includes/diagnostics/diag-addr-prereqs-tabs.mdx!)
+
+This will enable the `http://127.0.0.1:3000/metrics` endpoint, which serves the
+metrics that Teleport tracks. It is compatible with [Prometheus](https://prometheus.io/) collectors.
+
+## Backend operations
+
+A Teleport cluster cannot function if the Auth Service does not have a healthy
+cluster state backend. You need to track the ability of the Auth Service to read
+from and write to its backend. 
+
+The Auth Service can connect to [several possible
+backends](../../../reference/backends.mdx). In addition to Teleport backend
+metrics, you should set up monitoring for your backend of choice so that, if
+these metrics show problematic values, you can correlate them with metrics on
+your backend infrastructure.
+
+### Backend operation throughput and availability
+
+On each backend operation, the Auth Service increments a metric. Backend
+operation metrics have the following format:
+
+```text
+teleport_backend_<METRIC_NAME>[_failed]_total
+```
+
+If an operation results in an error, the Auth Service adds the `_failed` segment
+to the metric name. For example, successfully creating a record increments the
+`teleport_backend_write_requests_total` metric. If the create operation fails,
+the Auth Service increments `teleport_backend_write_requests_failed_total`
+instead.
+
+The following backend operation metrics are available:
+
+|Operation|Incremented metric name|
+|---|---|
+|Create an item|`write_requests`|
+|Modify an item, creating it if it does not exist|`write_requests`|
+|Update an item|`write_requests`|
+|Conditionally update an item if versions match|`write_requests`|
+|List a range of items|`batch_read_requests`|
+|Get a single item|`read_requests`|
+|Compare and swap items|`write_requests`|
+|Delete an item|`write_requests`|
+|Conditionally delete an item if versions match|`write_requests`|
+|Write a batch of updates atomically, failing the write if any update fails|Both `write_requests` and `atomic_write_requests`|
+|Delete a range of items|`batch_write_requests`|
+|Update the keepalive status of an item|`write_requests`|
+
+During failed backend writes, a Teleport process also increments the
+`backend_write_requests_failed_precondition_total` metric if the cause of the
+failure is expected. For example, the metric increments during a create
+operation if a record already exists, during an update or delete operation if
+the record is not found, and during an atomic write if the resource was modified
+concurrently. All of these conditions can hold in a well-functioning Teleport
+cluster. 
+
+`backend_write_requests_failed_precondition_total`  increments whenever
+`backend_write_requests_failed_total` increments, and you can use it to
+distinguish potentially expected write failures from unexpected, problematic
+ones.
+
+You can use backend operation metrics to define an availability formula, i.e.,
+the percentage of reads or writes that succeeded. For example, in Prometheus,
+you can define a query similar to the following. This takes the percentage of
+write requests that failed for unexpected reasons and subtracts it from 1 to get
+a percentage of successful writes:
+
+```
+1- (sum(rate(backend_write_requests_failed_total -sum(rate(teleport_backend_write_requests_failed_precondition_total)) / sum(rate(backend_write_requests_total))
+```
+
+If your backend begins to appear unavailable, you can investigate your backend
+infrastructure.
+
+### Backend operation performance
+
+To help you track backend operation performance, the Auth Service also exposes
+Prometheus [histogram metrics](https://prometheus.io/docs/practices/histograms/)
+for read and write operations:
+
+- `teleport_backend_read_seconds_bucket`
+- `teleport_backend_write_seconds_bucket`
+- `teleport_backend_batch_write_seconds_bucket`
+- `teleport_backend_batch_read_seconds_bucket`
+- `teleport_backend_atomic_write_seconds_bucket`
+
+The backend throughput metrics discussed in the previous section map on to
+latency metrics. Whenever the Auth Service increments one of the throughput
+metrics, it reports one of the corresponding latency metrics. See the table
+below for which throughput metrics map to which latency metrics. Each metric
+name excludes the standard prefixes and suffixes.
+
+|Throughput|Latency|
+|---|---|
+|`read_requests`|`read_seconds_bucket`|
+|`read_requests`|`write_seconds_bucket`|
+|`batch_read_requests`|`batch_write_seconds_bucket`|
+|`batch_write_requests`|`batch_read_seconds_bucket`|
+|`atomic_write_requests`|`atomic_write_seconds_bucket`|
+
+## Agents and connected resources
+
+To enable users to access most infrastructure with Teleport, you must join a
+[Teleport Agent](../../../enroll-resources/agents/agents.mdx) to your Teleport
+cluster and configure it to proxy your infrastructure. In a typical setup, an
+Agent establishes an SSH reverse tunnel with the Proxy Service. User traffic to
+Teleport-protected resources flows through the Proxy Service, an Agent, and
+finally the infrastructure resource the Agent proxies. Return traffic from the
+resource takes this path in reverse.
+
+### Number of connected resources by type
+
+Teleport-connected resources periodically send heartbeat (keepalive) messages to
+the Auth Service. The Auth Service uses these heartbeats to track the number of
+Teleport-protected resources by type with the `teleport_connected_resources`
+metric. 
+
+The Auth Service tracks this metric for the following resources:
+
+- SSH servers
+- Kubernetes clusters
+- Applications
+- Databases
+- Teleport Database Service instances
+- Windows desktops
+
+You can use this metric to:
+- Compare the number of resources that are protected by Teleport with those that
+  are not so you can plan your Teleport rollout, e.g., by configuring [Auto
+  Discovery](../../../enroll-resources/auto-discovery/auto-discovery.mdx).
+- Correlate changes in Teleport usage with resource utilization on Auth Service
+  and Proxy Service compute instances to determine scaling needs.
+
+You can include this query in your Grafana configuration to break this metric
+down by resource type:
+
+```text
+sum(teleport_connected_resources) by (type)
+```
+
+### Reverse tunnels by type
+
+Every Teleport service that starts up establishes an SSH reverse tunnel to the
+Proxy Service. (Self-hosted clusters can configure Agent services to connect to
+the Auth Service directly without establishing a reverse tunnel.) The Proxy
+Service tracks the number of reverse tunnels using the metric,
+`teleport_reverse_tunnels_connected`.
+
+With an improperly scaled Proxy Service pool, the Proxy Service can become a
+bottleneck for traffic to Teleport-protected resources. If Proxy Service
+instances display heavy utilization of compute resources while the number of
+connected infrastructure resources is high, you can consider scaling out your
+Proxy Service pool and using [Proxy Peering](../operations/proxy-peering.mdx).
+
+Use the following Grafana query to track the maximum number of reverse tunnels
+by type over a given interval:
+
+```text
+max(teleport_reverse_tunnels_connected) by (type))
+```
+
+## Teleport instance versions
+
+At regular intervals (around 7 seconds with jitter), the Auth Service refreshes
+its count of registered Teleport instances, including Agents and Teleport
+processes that run the Auth Service and Proxy Service. You can measure this
+count with the metric, `teleport_registered_servers`. To get the number of
+registered instances by version, you can use this query in Grafana:
+
+```text
+sum by (version)(teleport_registered_servers)
+```
+
+You can use this metric to tell how many of your registered Teleport instances
+are behind the version of the Auth Service and Proxy Service, which can help you
+identify any that are at risk of violating the Teleport [version compatibility
+guarantees](../../../upgrading/overview.mdx). 
+
+We strongly encourage self-hosted Teleport users to enroll their Agents in
+automatic updates. You can track the count of Teleport Agents that are not
+enrolled in automatic updates using the metric, `teleport_enrolled_in_upgrades`.
+[Read the documentation](../../../upgrading/automatic-agent-updates.mdx) for how
+to enroll Agents in automatic updates.
+

@@ -1,6 +1,6 @@
 Each Redis user must be protected by a strong password. We recommend using OpenSSL to generate passwords:
 
-```shell
+```code
 openssl rand -hex 32
 ```
 
@@ -17,7 +17,7 @@ and sets of ACL rules. Redis allows you to provide passwords in plaintext or an 
 We strongly recommend using an SHA256 hash instead of plaintext passwords.
 
 You can use the command below to generate an SHA256 hash from a password.
-```shell
+```code
 echo -n STRONG_GENERATED_PASSWORD | sha256sum
 ```
 

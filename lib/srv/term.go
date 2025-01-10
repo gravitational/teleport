@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -33,7 +34,6 @@ import (
 	"github.com/creack/pty"
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -80,8 +80,8 @@ type Terminal interface {
 	// PTY returns the PTY backing the terminal.
 	PTY() io.ReadWriter
 
-	// TTY returns the TTY backing the terminal.
-	TTY() *os.File
+	// TTYName returns the name of TTY backing the terminal.
+	TTYName() string
 
 	// PID returns the PID of the Teleport process that was re-execed.
 	PID() int
@@ -131,13 +131,14 @@ type terminal struct {
 	wg sync.WaitGroup
 	mu sync.Mutex
 
-	log *log.Entry
+	log *slog.Logger
 
 	cmd           *exec.Cmd
 	serverContext *ServerContext
 
-	pty *os.File
-	tty *os.File
+	pty     *os.File
+	tty     *os.File
+	ttyName string
 
 	// terminateFD when closed informs the terminal that
 	// the process running in the shell should be killed.
@@ -151,28 +152,29 @@ type terminal struct {
 
 // NewLocalTerminal creates and returns a local PTY.
 func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
-	var err error
-
-	t := &terminal{
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentLocalTerm,
-		}),
-		serverContext: ctx,
-		terminateFD:   ctx.killShellw,
-	}
+	logger := ctx.Logger.With(teleport.ComponentKey, teleport.ComponentLocalTerm)
 
 	// Open PTY and corresponding TTY.
-	t.pty, t.tty, err = pty.Open()
+	pty, tty, err := pty.Open()
 	if err != nil {
-		log.Warnf("Could not start PTY: %v", err)
+		logger.WarnContext(ctx.CancelContext(), "Could not start PTY", "error", err)
 		return nil, err
+	}
+
+	t := &terminal{
+		log:           logger,
+		serverContext: ctx,
+		terminateFD:   ctx.killShellw,
+		pty:           pty,
+		tty:           tty,
+		ttyName:       tty.Name(),
 	}
 
 	// Set the TTY owner. Failure is not fatal, for example Teleport is running
 	// on a read-only filesystem, but logging is useful for diagnostic purposes.
 	err = t.setOwner()
 	if err != nil {
-		log.Debugf("Unable to set TTY owner: %v.\n", err)
+		t.log.DebugContext(ctx.CancelContext(), "Unable to set TTY owner", "error", err)
 	}
 
 	return t, nil
@@ -201,23 +203,30 @@ func (t *terminal) Run(ctx context.Context) error {
 
 	// we need the lock here to protect from concurrent calls to Close()
 	t.mu.Lock()
-	pty, tty := t.pty, t.tty
+	tty := t.tty
 	t.mu.Unlock()
 
-	// Pass PTY and TTY to child as well since a terminal is attached.
-	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, pty)
+	// Intentionally passing a nil value instead of the PTY. The child
+	// process does not need the PTY, but for compatibility purposes the
+	// first ExtraFiles is left for the PTY descriptor.
+	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, nil)
+	// Pass the TTY to the child since a terminal is attached.
 	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, tty)
 
+	// Close the TTY before returning to ensure that our half of the pipe is
+	// closed. This ensures that reading from the PTY will unblock when the
+	// child process exits.
+	defer t.closeTTY()
+
 	// Start the process.
-	err = t.cmd.Start()
-	if err != nil {
+	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
 	if err := t.serverContext.readyw.Close(); err != nil {
-		t.serverContext.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+		t.log.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
 	}
 	t.serverContext.readyw = nil
 
@@ -262,7 +271,7 @@ func (t *terminal) WaitForChild() error {
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
 	if err := t.serverContext.contw.Close(); err != nil {
-		t.log.Warnf("failed to close server context")
+		t.log.WarnContext(t.serverContext.CancelContext(), "failed to close server context")
 	}
 }
 
@@ -270,7 +279,7 @@ func (t *terminal) Continue() {
 func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
 	if err := t.terminateFD.Close(); err != nil {
 		if !errors.Is(err, os.ErrClosed) {
-			t.log.WithError(err).Debug("Failed to close the shell file descriptor")
+			t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
 		}
 	}
 
@@ -289,7 +298,7 @@ func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
 		}
 
 		if err := proc.Signal(syscall.Signal(0)); errors.Is(err, os.ErrProcessDone) {
-			t.log.Debugf("Terminal child process has been stopped")
+			t.log.DebugContext(t.serverContext.CancelContext(), "Terminal child process has been stopped")
 			return nil
 		}
 
@@ -317,11 +326,9 @@ func (t *terminal) PTY() io.ReadWriter {
 	return t.pty
 }
 
-// TTY returns the TTY backing the terminal.
-func (t *terminal) TTY() *os.File {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.tty
+// TTYName returns the name of the TTY backing the terminal.
+func (t *terminal) TTYName() string {
+	return t.ttyName
 }
 
 // PID returns the PID of the Teleport process that was re-execed.
@@ -339,29 +346,28 @@ func (t *terminal) Close() error {
 }
 
 func (t *terminal) closeTTY() error {
-	t.log.Debugf("Closing TTY")
-	defer t.log.Debugf("Closed TTY")
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.tty == nil {
-		t.log.Debugf("TTY already closed")
+		t.log.DebugContext(t.serverContext.CancelContext(), "TTY already closed")
 		return nil
 	}
 
+	t.log.DebugContext(t.serverContext.CancelContext(), "Closing TTY")
+	defer t.log.DebugContext(t.serverContext.CancelContext(), "Closed TTY")
 	err := t.tty.Close()
 	t.tty = nil
 
 	if err != nil {
-		t.log.Warnf("Failed to close TTY: %v", err)
+		t.log.WarnContext(t.serverContext.CancelContext(), "Failed to close TTY", "error", err)
 	}
 
 	return trace.Wrap(err)
 }
 
 func (t *terminal) closePTY() {
-	defer t.log.Debugf("Closed PTY")
+	defer t.log.DebugContext(t.serverContext.CancelContext(), "Closed PTY")
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -374,7 +380,7 @@ func (t *terminal) closePTY() {
 	}
 
 	if err := t.pty.Close(); err != nil {
-		t.log.Warnf("Failed to close PTY: %v", err)
+		t.log.WarnContext(t.serverContext.CancelContext(), "Failed to close PTY", "error", err)
 	}
 	t.pty = nil
 }
@@ -484,7 +490,7 @@ func (t *terminal) setOwner() error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Set permissions on %v to %v:%v with mode %v.", t.tty.Name(), uid, gid, mode)
+	t.log.DebugContext(t.serverContext.CancelContext(), "Set permissions on tty", "tty_name", t.tty.Name(), "uid", uid, "gid", gid, "mode", mode)
 
 	return nil
 }
@@ -493,7 +499,7 @@ type remoteTerminal struct {
 	wg sync.WaitGroup
 	mu sync.Mutex
 
-	log *log.Entry
+	log *slog.Logger
 
 	ctx *ServerContext
 
@@ -510,9 +516,7 @@ func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
 	}
 
 	t := &remoteTerminal{
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentRemoteTerm,
-		}),
+		log:       ctx.Logger.With(teleport.ComponentKey, teleport.ComponentRemoteTerm),
 		ctx:       ctx,
 		session:   ctx.RemoteSession,
 		ptyBuffer: &ptyBuffer{},
@@ -570,7 +574,7 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 
 	// we want to run a "exec" command within a pty
 	if execRequest, err := t.ctx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
-		t.log.Debugf("Running exec request within a PTY")
+		t.log.DebugContext(ctx, "Running exec request within a PTY")
 
 		if err := t.session.Start(ctx, execRequest.GetCommand()); err != nil {
 			return trace.Wrap(err)
@@ -580,7 +584,7 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	}
 
 	// we want an interactive shell
-	t.log.Debugf("Requesting an interactive terminal of type %v", t.termType)
+	t.log.DebugContext(ctx, "Requesting an interactive terminal", "term_type", t.termType)
 	if err := t.session.Shell(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -640,8 +644,8 @@ func (t *remoteTerminal) PTY() io.ReadWriter {
 	return t.ptyBuffer
 }
 
-func (t *remoteTerminal) TTY() *os.File {
-	return nil
+func (t *remoteTerminal) TTYName() string {
+	return ""
 }
 
 // PID returns the PID of the Teleport process that was re-execed. Always
@@ -651,7 +655,6 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
-	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
@@ -659,8 +662,12 @@ func (t *remoteTerminal) Close() error {
 		return trace.Wrap(err)
 	}
 
-	t.log.Debugf("Closed remote terminal and underlying SSH session")
+	// Wait for parties to be relased after closing the remote session. This
+	// avoid cases where the parties are blocked, reading from the remote
+	// session.
+	t.wg.Wait()
 
+	t.log.DebugContext(t.ctx.CancelContext(), "Closed remote terminal and underlying SSH session")
 	return nil
 }
 
@@ -721,6 +728,6 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {
-		t.log.WithError(err).Debug("Unable to set environment variables")
+		t.log.DebugContext(ctx, "Unable to set environment variables", "error", err)
 	}
 }

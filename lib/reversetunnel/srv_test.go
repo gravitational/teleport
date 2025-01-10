@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"testing"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -38,9 +36,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -65,7 +64,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log:    utils.NewLoggerForTests(),
+		logger: utils.NewSlogLoggerForTests(),
 		Config: Config{Clock: clockwork.NewRealClock()},
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
@@ -105,15 +104,17 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "user cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ta.GenerateUserCert(services.UserCertParams{
+				rawCert, err := ta.GenerateUserCert(sshca.UserCertificateRequest{
 					CASigner:          caSigner,
 					PublicUserKey:     pub,
-					Username:          con.User(),
-					AllowedLogins:     []string{con.User()},
-					Roles:             []string{"dev", "admin"},
-					RouteToCluster:    "user-cluster-name",
 					CertificateFormat: constants.CertificateFormatStandard,
 					TTL:               time.Minute,
+					Identity: sshca.Identity{
+						Username:       con.User(),
+						AllowedLogins:  []string{con.User()},
+						Roles:          []string{"dev", "admin"},
+						RouteToCluster: "user-cluster-name",
+					},
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -158,92 +159,12 @@ func (mockSSHConnMetadata) User() string         { return "conn-user" }
 func (mockSSHConnMetadata) RemoteAddr() net.Addr { return &net.TCPAddr{} }
 
 type mockAccessPoint struct {
-	auth.ProxyAccessPoint
+	authclient.ProxyAccessPoint
 	ca types.CertAuthority
 }
 
 func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return ap.ca, nil
-}
-
-func TestCreateRemoteAccessPoint(t *testing.T) {
-	cases := []struct {
-		name           string
-		version        string
-		assertion      require.ErrorAssertionFunc
-		oldRemoteProxy bool
-	}{
-		{
-			name:      "invalid version",
-			assertion: require.Error,
-		},
-		{
-			name:      "remote running 13.0.0",
-			assertion: require.NoError,
-			version:   "13.0.0",
-		},
-		{
-			name:           "remote running 12.0.0",
-			assertion:      require.NoError,
-			version:        "12.0.0",
-			oldRemoteProxy: true,
-		},
-		{
-			name:           "remote running 11.0.0",
-			assertion:      require.NoError,
-			version:        "11.0.0",
-			oldRemoteProxy: true,
-		},
-		{
-			name:           "remote running 10.0.0",
-			assertion:      require.NoError,
-			version:        "10.0.0",
-			oldRemoteProxy: true,
-		},
-		{
-			name:           "remote running 9.0.0",
-			assertion:      require.NoError,
-			version:        "9.0.0",
-			oldRemoteProxy: true,
-		},
-		{
-			name:           "remote running 6.0.0",
-			assertion:      require.NoError,
-			version:        "6.0.0",
-			oldRemoteProxy: true,
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			newProxyFn := func(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
-				if tt.oldRemoteProxy {
-					return nil, errors.New("expected to create an old remote proxy")
-				}
-
-				return nil, nil
-			}
-
-			oldProxyFn := func(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
-				if !tt.oldRemoteProxy {
-					return nil, errors.New("expected to create an new remote proxy")
-				}
-
-				return nil, nil
-			}
-
-			clt := &mockAuthClient{}
-			srv := &server{
-				log: utils.NewLoggerForTests(),
-				Config: Config{
-					NewCachingAccessPoint:         newProxyFn,
-					NewCachingAccessPointOldProxy: oldProxyFn,
-				},
-			}
-			_, err := createRemoteAccessPoint(srv, clt, tt.version, "test")
-			tt.assertion(t, err)
-		})
-	}
 }
 
 func Test_ParseDialReq(t *testing.T) {
@@ -285,8 +206,8 @@ func TestOnlyAuthDial(t *testing.T) {
 	badListenerAddr := acceptAndCloseListener(t, true)
 
 	srv := &server{
-		log: logrus.StandardLogger(),
-		ctx: ctx,
+		logger: utils.NewSlogLoggerForTests(),
+		ctx:    ctx,
 		Config: Config{
 			LocalAuthAddresses: []string{goodListenerAddr},
 		},

@@ -23,7 +23,7 @@ interface DocumentBase {
   title?: string;
   clusterId?: string;
   url: string;
-  kind: 'terminal' | 'nodes' | 'blank';
+  kind: 'terminal' | 'nodes' | 'kubeExec' | 'db' | 'blank';
   created: Date;
 }
 
@@ -34,6 +34,7 @@ export interface DocumentBlank extends DocumentBase {
 export interface DocumentSsh extends DocumentBase {
   status: 'connected' | 'disconnected';
   kind: 'terminal';
+  kubeExec?: boolean;
   sid?: string;
   mode?: ParticipantMode;
   serverId: string;
@@ -50,6 +51,30 @@ export interface DocumentNodes extends DocumentBase {
   kind: 'nodes';
 }
 
-export type Document = DocumentNodes | DocumentSsh | DocumentBlank;
+export interface DocumentKubeExec extends DocumentBase {
+  status: 'connected' | 'disconnected';
+  kind: 'kubeExec';
+  sid?: string;
+  mode?: ParticipantMode;
+  kubeCluster: string;
+  kubeNamespace: string;
+  pod: string;
+  container: string;
+  isInteractive: boolean;
+  command: string;
+}
+
+export interface DocumentDb extends DocumentBase {
+  kind: 'db';
+  sid?: string;
+  name: string;
+}
+
+export type Document =
+  | DocumentNodes
+  | DocumentSsh
+  | DocumentKubeExec
+  | DocumentDb
+  | DocumentBlank;
 
 export type Parties = Record<string, Participant[]>;

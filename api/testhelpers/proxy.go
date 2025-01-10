@@ -21,7 +21,6 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -88,9 +87,9 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go replicate(sconn, dconn)
 	go replicate(dconn, io.MultiReader(buf, sconn))
 
-	// Wait until done, error, or 10 second.
+	// Wait until done.
 	select {
-	case <-time.After(10 * time.Second):
+	case <-r.Context().Done():
 	case <-errc:
 	}
 }

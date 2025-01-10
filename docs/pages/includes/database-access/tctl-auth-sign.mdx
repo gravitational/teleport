@@ -3,11 +3,10 @@ databases must be configured with Teleport's certificate authority to be
 able to verify client certificates. They also need a certificate/key pair that
 Teleport can verify.
 
-If you are using Teleport Cloud, your Teleport user must be allowed to
-impersonate the system role `Db` in order to be able to generate the database
-certificate.
+To use issue certificates from your workstation with `tctl`, your Teleport user
+must be allowed to impersonate the system role `Db`.
 
-Include the following `allow` rule in in your Teleport Cloud user's role:
+Include the following `allow` rule in in your Teleport user's role:
 
 ```yaml
 allow:

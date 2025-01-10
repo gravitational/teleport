@@ -1,0 +1,158 @@
+---
+title: Getting Started with Device Trust
+description: Get started with Teleport Device Trust
+videoBanner: gBQyj_X1LVw
+---
+
+(!docs/pages/includes/device-trust/support-notice.mdx!)
+
+Device Trust requires two of the following steps to have been configured:
+
+- Device enforcement mode configured via either a role or a cluster-wide config.
+- Trusted device registered and enrolled with Teleport.
+
+In this guide, you will update an existing user profile to assign the preset `require-trusted-device`
+role and then enroll a trusted device into Teleport to access a resource (a test linux server)
+protected with Teleport.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/device-trust/prereqs.mdx!)
+
+- User with `editor` role.
+  ```code
+  $ tsh status
+  > Profile URL:      (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=)
+  Roles:              access, auditor, editor
+  Logins:             root, ubuntu, ec2-user
+  Kubernetes:         disabled
+  Valid until:        2023-08-22 03:30:24 -0400 EDT [valid for 11h52m0s]
+  Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+  ```
+- Access to a linux server (any Linux server you can access via `tsh ssh` will do).
+  ```code
+  $ tsh ls
+  Node Name        Address        Labels
+  ---------------- -------------- --------------------------------------
+  (=clusterDefaults.nodeIP=) ⟵ Tunnel
+
+  # test connection to (=clusterDefaults.nodeIP=)
+  $ tsh ssh root@(=clusterDefaults.nodeIP=)
+  root@(=clusterDefaults.nodeIP=):~#
+  ```
+
+Once the above prerequisites are met, begin with the following step.
+
+## Step 1/2. Update user profile to enforce Device Trust
+
+To enforce Device Trust, a user must be assigned with a role with Device Trust mode "required".
+
+For this guide, we will use the preset `require-trusted-device` role to update current user profile.
+
+Open the user resource in your editor so we can update it with the preset `require-trusted-device` role.
+
+```code
+$ tctl edit users/(=clusterDefaults.username=)
+```
+
+Edit the profile:
+
+```diff
+kind: user
+metadata:
+  id: 1692716146877042322
+  name: (=clusterDefaults.username=)
+spec:
+  created_by:
+    time: "2023-08-14T13:42:22.291972449Z"
+  expires: "0001-01-01T00:00:00Z"
+  roles:
+  - access
+  - auditor
+  - editor
++ - require-trusted-device # add this line
+  status:
+    is_locked: false
+  ...
+```
+
+Update the user by saving and closing the file in your editor.
+
+Now that the user profile is updated to enforce Device Trust, try to access the test server
+again.
+
+```code
+$ tsh logout; tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=)
+$ tsh ssh root@(=clusterDefaults.nodeIP=)
+ERROR: access denied to root connecting to (=clusterDefaults.nodeIP=):0
+```
+
+As you can verify from the above step, access to `(=clusterDefaults.nodeIP=)` ssh server,
+which was previously accessible, is now forbidden.
+
+## Step 2/2. Enroll device
+
+To access `(=clusterDefaults.nodeIP=)` server again, you will have to enroll your device.
+
+Enrolling your device is easy, and can be done using `tsh` client:
+
+```code
+$ tsh device enroll --current-device
+Device "(=devicetrust.asset_tag=)"/macOS registered and enrolled
+```
+
+<Admonition type="tip" title="self enrollment">
+  The `--current-device` flag tells `tsh` to enroll the current device. The user must have the preset `editor`
+  or `device-admin` role to be able to self-enroll their device. For users without the `editor` or
+  `device-admin` roles, a device admin must generate the an enrollment token, which can then be
+  used to enroll the device. Learn more about manual device enrollment in the
+  [device management guide](./device-management.mdx#register-a-trusted-device).
+</Admonition>
+
+Relogin to fetch updated certificate with device extension:
+
+```code
+$ tsh logout; tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=)
+
+$ tsh status
+> Profile URL:        (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=):443
+  Roles:              access, auditor, editor
+  Logins:             root
+  Kubernetes:         enabled
+  Valid until:        2023-08-22 04:06:53 -0400 EDT [valid for 12h0m0s]
+  Extensions:         login-ip, ... teleport-device-asset-tag, teleport-device-credential-id, teleport-device-id
+```
+
+The presence of the `teleport-device-*` extensions shows that the device was successfully authenticated.
+
+Now, let's try to access server (`(=clusterDefaults.nodeIP=)`) again:
+
+```code
+$ tsh ssh root@(=clusterDefaults.nodeIP=)
+root@(=clusterDefaults.nodeIP=):~#
+```
+
+Congratulations! You have successfully configured a Trusted Device and accessed a resource protected with
+Device Trust enforcement.
+
+## Troubleshooting
+
+(!docs/pages/includes/device-trust/troubleshooting.mdx!)
+
+## Next steps
+
+- [Device Management](./device-management.mdx)
+- [Enforcing Device Trust](./enforcing-device-trust.mdx)
+- [Jamf Pro Integration](./jamf-integration.mdx)
+- The role we illustrated in this guide uses the `internal.logins` trait,
+  which Teleport replaces with values from the Teleport local user
+  database. For full details on how traits work in Teleport roles,
+  see the [Teleport Access Controls
+  Reference](../../../reference/access-controls/roles.mdx).
+

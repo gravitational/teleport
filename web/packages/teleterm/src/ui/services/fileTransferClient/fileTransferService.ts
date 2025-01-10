@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
 
-import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import { FileTransferRequest, TshdClient } from 'teleterm/services/tshd/types';
-import { UsageService } from 'teleterm/ui/services/usage';
+import { TshdClient } from 'teleterm/services/tshd';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { FileTransferRequest } from 'teleterm/services/tshd/types';
+import { UsageService } from 'teleterm/ui/services/usage';
 
 export class FileTransferService {
   constructor(
@@ -31,23 +31,28 @@ export class FileTransferService {
   ) {}
 
   transferFile(
-    options: FileTransferRequest,
+    request: FileTransferRequest,
     abortController: AbortController
   ): FileTransferListeners {
-    const listeners = this.tshClient.transferFile(
-      options,
-      cloneAbortSignal(abortController.signal)
-    );
-    if (options.direction === FileTransferDirection.DOWNLOAD) {
-      this.usageService.captureFileTransferRun(options.serverUri, {
+    const stream = this.tshClient.transferFile(request, {
+      abort: cloneAbortSignal(abortController.signal),
+    });
+    if (request.direction === FileTransferDirection.DOWNLOAD) {
+      this.usageService.captureFileTransferRun(request.serverUri, {
         isUpload: false,
       });
     }
-    if (options.direction === FileTransferDirection.UPLOAD) {
-      this.usageService.captureFileTransferRun(options.serverUri, {
+    if (request.direction === FileTransferDirection.UPLOAD) {
+      this.usageService.captureFileTransferRun(request.serverUri, {
         isUpload: true,
       });
     }
-    return listeners;
+    return {
+      onProgress(callback: (progress: number) => void) {
+        stream.responses.onMessage(data => callback(data.percentage));
+      },
+      onComplete: stream.responses.onComplete,
+      onError: stream.responses.onError,
+    };
   }
 }

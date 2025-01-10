@@ -16,80 +16,148 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box, LabelInput, Text, TextArea } from 'design';
-import { TextAreaProps } from 'design/TextArea';
+import React, {
+  forwardRef,
+  HTMLInputAutoCompleteAttribute,
+  useId,
+} from 'react';
 
+import { Box, LabelInput, TextArea } from 'design';
+import { BoxProps } from 'design/Box';
+import { TextAreaSize } from 'design/TextArea';
+import { IconTooltip } from 'design/Tooltip';
 import { useRule } from 'shared/components/Validation';
 
-export interface FieldTextAreaProps
-  extends Pick<
-    TextAreaProps,
-    'onChange' | 'placeholder' | 'value' | 'readOnly' | 'autoFocus' | 'name'
-  > {
+import { HelperTextLine } from '../FieldInput/FieldInput';
+
+export type FieldTextAreaProps = BoxProps & {
+  id?: string;
+  name?: string;
+  value?: string;
   label?: string;
-  labelTip?: string;
-  autoComplete?: 'off' | 'on';
-  textAreaCss?: string;
+  helperText?: React.ReactNode;
+  size?: TextAreaSize;
+  placeholder?: string;
+  autoFocus?: boolean;
+  autoComplete?: HTMLInputAutoCompleteAttribute;
+  spellCheck?: boolean;
   rule?: (options: unknown) => () => unknown;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  onKeyPress?: React.KeyboardEventHandler<HTMLInputElement>;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  onFocus?: React.FocusEventHandler<HTMLInputElement>;
+  onBlur?: React.FocusEventHandler<HTMLInputElement>;
+  readonly?: boolean;
+  defaultValue?: string;
+  toolTipContent?: React.ReactNode;
+  disabled?: boolean;
+  // markAsError is a flag to highlight an
+  // input box as error color before validator
+  // runs (which marks it as error)
+  markAsError?: boolean;
+  textAreaCss?: string;
   resizable?: boolean;
+};
 
-  // TS: temporary handles ...styles
-  [key: string]: any;
-}
+export const FieldTextArea = forwardRef<
+  HTMLTextAreaElement,
+  FieldTextAreaProps
+>(
+  (
+    {
+      id,
+      label,
+      helperText,
+      size,
+      value,
+      onChange,
+      onKeyPress,
+      onKeyDown,
+      onFocus,
+      onBlur,
+      placeholder,
+      defaultValue,
+      rule = defaultRule,
+      name,
+      autoFocus = false,
+      autoComplete = 'off',
+      spellCheck,
+      readonly = false,
+      toolTipContent = null,
+      disabled = false,
+      markAsError = false,
+      resizable = true,
+      textAreaCss,
+      ...styles
+    },
+    ref
+  ) => {
+    const { valid, message } = useRule(rule(value));
+    const helperTextId = useId();
 
-export function FieldTextArea({
-  label,
-  labelTip,
-  value,
-  onChange,
-  placeholder,
-  rule = defaultRule,
-  autoFocus,
-  autoComplete = 'off',
-  readOnly,
-  textAreaCss,
-  name,
-  resizable = true,
-  ...styles
-}: FieldTextAreaProps) {
-  const { valid, message } = useRule(rule(value));
-  const hasError = !valid;
-  const labelText = hasError ? message : label;
+    const hasError = !valid;
+    const $textAreaElement = (
+      <TextArea
+        ref={ref}
+        id={id}
+        name={name}
+        hasError={hasError || markAsError}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        value={value}
+        autoComplete={autoComplete}
+        onChange={onChange}
+        onKeyPress={onKeyPress}
+        onKeyDown={onKeyDown}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        readOnly={readonly}
+        spellCheck={spellCheck}
+        defaultValue={defaultValue}
+        disabled={disabled}
+        size={size}
+        aria-invalid={hasError || markAsError}
+        aria-describedby={helperTextId}
+        css={textAreaCss}
+        resizable={resizable}
+      />
+    );
 
-  const $textAreaElement = (
-    <TextArea
-      mt={1}
-      name={name}
-      css={textAreaCss}
-      hasError={hasError}
-      placeholder={placeholder}
-      value={value}
-      autoComplete={autoComplete}
-      autoFocus={autoFocus}
-      onChange={onChange}
-      readOnly={readOnly}
-      resizable={resizable}
-    />
-  );
-
-  return (
-    <Box mb="4" {...styles}>
-      {label ? (
-        <LabelInput mb={0} hasError={hasError}>
-          {labelText}
-          {labelTip && <LabelTip text={labelTip} />}
-          {$textAreaElement}
-        </LabelInput>
-      ) : (
-        $textAreaElement
-      )}
-    </Box>
-  );
-}
+    return (
+      <Box mb="3" {...styles}>
+        {label ? (
+          <LabelInput mb={0}>
+            <Box mb={1}>
+              {toolTipContent ? (
+                <>
+                  <span
+                    css={{
+                      marginRight: '4px',
+                      verticalAlign: 'middle',
+                    }}
+                  >
+                    {label}
+                  </span>
+                  <IconTooltip children={toolTipContent} />
+                </>
+              ) : (
+                <>{label}</>
+              )}
+            </Box>
+            {$textAreaElement}
+          </LabelInput>
+        ) : (
+          $textAreaElement
+        )}
+        <HelperTextLine
+          hasError={hasError}
+          helperTextId={helperTextId}
+          helperText={helperText}
+          errorMessage={message}
+        />
+      </Box>
+    );
+  }
+);
 
 const defaultRule = () => () => ({ valid: true });
-
-const LabelTip = ({ text }) => (
-  <Text as="span" style={{ fontWeight: 'normal' }}>{` - ${text}`}</Text>
-);

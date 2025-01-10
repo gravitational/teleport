@@ -67,9 +67,10 @@ func TestPollAWSRDS(t *testing.T) {
 								Value: wrapperspb.String("val"),
 							},
 						},
-						Region:    "eu-west-1",
-						IsCluster: false,
-						AccountId: "12345678",
+						Region:     "eu-west-1",
+						IsCluster:  false,
+						AccountId:  "12345678",
+						ResourceId: "db1",
 					},
 					{
 						Arn:    "arn:us-west1:rds:cluster1",
@@ -86,9 +87,10 @@ func TestPollAWSRDS(t *testing.T) {
 								Value: wrapperspb.String("val"),
 							},
 						},
-						Region:    "eu-west-1",
-						IsCluster: true,
-						AccountId: "12345678",
+						Region:     "eu-west-1",
+						IsCluster:  true,
+						AccountId:  "12345678",
+						ResourceId: "cluster1",
 					},
 				},
 			},
@@ -134,6 +136,7 @@ func TestPollAWSRDS(t *testing.T) {
 						return a.Key < b.Key
 					},
 				),
+				protocmp.IgnoreFields(&accessgraphv1alpha.AWSRDSDatabaseV1{}, "last_sync_time"),
 			),
 			)
 
@@ -156,6 +159,7 @@ func dbInstances() []*rds.DBInstance {
 					Value: aws.String("val"),
 				},
 			},
+			DbiResourceId: aws.String("db1"),
 		},
 	}
 }
@@ -175,6 +179,7 @@ func dbClusters() []*rds.DBCluster {
 					Value: aws.String("val"),
 				},
 			},
+			DbClusterResourceId: aws.String("cluster1"),
 		},
 	}
 }

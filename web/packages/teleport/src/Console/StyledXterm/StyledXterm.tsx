@@ -17,9 +17,10 @@
  */
 
 import styled from 'styled-components';
+
 import { Box } from 'design';
 
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 
 const StyledXterm = styled(Box)(
   () => `

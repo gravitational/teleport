@@ -1,0 +1,24 @@
+2649 2422 0:419 / / rw,relatime master:943 - overlay overlay rw,lowerdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/434/fs,upperdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/448/fs,workdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/448/work
+2650 2649 0:421 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+2651 2649 0:422 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2652 2651 0:423 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+2653 2651 0:411 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw
+2654 2649 0:415 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro
+2655 2654 0:25 /../../kubepods-besteffort-pod61c266b0_6f75_4490_8d92_3c9ae4d02787.slice/cri-containerd-9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a.scope /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+2656 2649 8:1 /var/lib/kubelet/pods/61c266b0-6f75-4490-8d92-3c9ae4d02787/etc-hosts /etc/hosts rw,relatime - ext4 /dev/sda1 rw,commit=30
+2657 2651 8:1 /var/lib/kubelet/pods/61c266b0-6f75-4490-8d92-3c9ae4d02787/containers/ubuntu/32ca55fa /dev/termination-log rw,relatime - ext4 /dev/sda1 rw,commit=30
+2658 2649 8:1 /var/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/569976599cee4242e02a57be87909f6f08bc6615e346d57a1f07dfab7239c4ff/hostname /etc/hostname rw,nosuid,nodev,relatime - ext4 /dev/sda1 rw,commit=30
+2659 2649 8:1 /var/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/569976599cee4242e02a57be87909f6f08bc6615e346d57a1f07dfab7239c4ff/resolv.conf /etc/resolv.conf rw,nosuid,nodev,relatime - ext4 /dev/sda1 rw,commit=30
+2660 2651 0:408 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k
+2661 2649 0:407 / /run/secrets/kubernetes.io/serviceaccount ro,relatime - tmpfs tmpfs rw,size=2873312k
+2423 2650 0:421 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw
+2424 2650 0:421 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw
+2425 2650 0:421 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw
+2426 2650 0:421 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw
+2427 2650 0:421 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime - proc proc rw
+2428 2650 0:424 / /proc/acpi ro,relatime - tmpfs tmpfs ro
+2429 2650 0:422 /null /proc/kcore rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2430 2650 0:422 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2431 2650 0:422 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2432 2650 0:425 / /proc/scsi ro,relatime - tmpfs tmpfs ro
+2433 2654 0:426 / /sys/firmware ro,relatime - tmpfs tmpfs ro

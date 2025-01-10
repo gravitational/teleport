@@ -23,31 +23,28 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-mysql-org/go-mysql/client"
-	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -88,9 +85,6 @@ func TestDatabaseAccess(t *testing.T) {
 	t.Run("CassandraLeafCluster", pack.testCassandraLeafCluster)
 
 	t.Run("IPPinning", pack.testIPPinning)
-
-	// This test should go last because it rotates the Database CA.
-	t.Run("RotateTrustedCluster", pack.testRotateTrustedCluster)
 }
 
 // TestDatabaseAccessSeparateListeners tests the Mongo and Postgres separate port setup.
@@ -108,7 +102,11 @@ func TestDatabaseAccessSeparateListeners(t *testing.T) {
 func (p *DatabasePack) testIPPinning(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  modules.Features{DB: true},
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB: {Enabled: true},
+			},
+		},
 	})
 
 	type testCase struct {
@@ -255,184 +253,6 @@ func (p *DatabasePack) testPostgresLeafCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Close(context.Background())
 	require.NoError(t, err)
-}
-
-func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
-	// TODO(jakule): Fix flaky test
-	t.Skip("flaky test, skip for now")
-
-	var (
-		ctx             = context.Background()
-		rootCluster     = p.Root.Cluster
-		authServer      = rootCluster.Process.GetAuthServer()
-		clusterRootName = rootCluster.Secrets.SiteName
-		clusterLeafName = p.Leaf.Cluster.Secrets.SiteName
-	)
-
-	pw := phaseWatcher{
-		clusterRootName: clusterRootName,
-		pollingPeriod:   rootCluster.Process.Config.PollingPeriod,
-		clock:           p.clock,
-		siteAPI:         rootCluster.GetSiteAPI(clusterLeafName),
-		certType:        types.DatabaseCA,
-	}
-
-	currentDbCA, err := p.Root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterRootName,
-	}, false)
-	require.NoError(t, err)
-
-	rotationPhases := []string{
-		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
-	}
-
-	waitForEvent := func(process *service.TeleportProcess, event string) {
-		_, err := process.WaitForEventTimeout(20*time.Second, event)
-		require.NoError(t, err, "timeout waiting for service to broadcast event %s", event)
-	}
-
-	for _, phase := range rotationPhases {
-		errChan := make(chan error, 1)
-
-		go func() {
-			errChan <- pw.waitForPhase(phase, func() error {
-				return authServer.RotateCertAuthority(ctx, types.RotateRequest{
-					Type:        types.DatabaseCA,
-					TargetPhase: phase,
-					Mode:        types.RotationModeManual,
-				})
-			})
-		}()
-
-		err = <-errChan
-
-		if err != nil && strings.Contains(err.Error(), "context deadline exceeded") {
-			// TODO(jakule): Workaround for CertAuthorityWatcher failing to get the correct rotation status.
-			// Query auth server directly to see if the incorrect rotation status is a rotation or watcher problem.
-			dbCA, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
-				Type:       types.DatabaseCA,
-				DomainName: clusterRootName,
-			}, false)
-			require.NoError(t, err)
-			require.Equal(t, dbCA.GetRotation().Phase, phase)
-		} else {
-			require.NoError(t, err)
-		}
-
-		// Reload doesn't happen on Init
-		if phase == types.RotationPhaseInit {
-			continue
-		}
-
-		waitForEvent(p.Root.Cluster.Process, service.TeleportReloadEvent)
-		waitForEvent(p.Leaf.Cluster.Process, service.TeleportReadyEvent)
-
-		p.WaitForLeaf(t)
-	}
-
-	rotatedDbCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterRootName,
-	}, false)
-	require.NoError(t, err)
-
-	// Sanity check. Check if the CA was rotated.
-	require.NotEqual(t, currentDbCA.GetActiveKeys(), rotatedDbCA.GetActiveKeys())
-
-	// Connect to the database service in leaf cluster via root cluster.
-	dbClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
-		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
-		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
-		Address:    p.Root.Cluster.Web, // Connecting via root cluster.
-		Cluster:    p.Leaf.Cluster.Secrets.SiteName,
-		Username:   p.Root.User.GetName(),
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: p.Leaf.PostgresService.Name,
-			Protocol:    p.Leaf.PostgresService.Protocol,
-			Username:    "postgres",
-			Database:    "test",
-		},
-	})
-	require.NoError(t, err)
-
-	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
-	wantRootQueryCount := p.Root.postgres.QueryCount()
-
-	result, err := dbClient.Exec(context.Background(), "select 1").ReadAll()
-	require.NoError(t, err)
-	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
-	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
-	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
-
-	// Disconnect.
-	err = dbClient.Close(context.Background())
-	require.NoError(t, err)
-}
-
-// phaseWatcher holds all arguments required by rotation watcher.
-type phaseWatcher struct {
-	clusterRootName string
-	pollingPeriod   time.Duration
-	clock           clockwork.Clock
-	siteAPI         types.Events
-	certType        types.CertAuthType
-}
-
-// waitForPhase waits until rootCluster cluster detects the rotation. fn is a rotation function that is called after
-// watcher is created.
-func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
-	ctx, cancel := context.WithTimeout(context.Background(), p.pollingPeriod*10)
-	defer cancel()
-
-	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Clock:     p.clock,
-			Client:    p.siteAPI,
-		},
-		Types: []types.CertAuthType{p.certType},
-	})
-	if err != nil {
-		return err
-	}
-	defer watcher.Close()
-
-	if err := fn(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	sub, err := watcher.Subscribe(ctx, types.CertAuthorityFilter{
-		p.certType: p.clusterRootName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer sub.Close()
-
-	var lastPhase string
-	for i := 0; i < 10; i++ {
-		select {
-		case <-ctx.Done():
-			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
-		case <-sub.Done():
-			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, sub.Error())
-		case evt := <-sub.Events():
-			switch evt.Type {
-			case types.OpPut:
-				ca, ok := evt.Resource.(types.CertAuthority)
-				if !ok {
-					return trace.BadParameter("expected a ca got type %T", evt.Resource)
-				}
-				if ca.GetRotation().Phase == phase {
-					return nil
-				}
-				lastPhase = ca.GetRotation().Phase
-			}
-		}
-	}
-	return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 }
 
 // testMySQLRootCluster tests a scenario where a user connects
@@ -632,7 +452,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 
-	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
+	mkMySQLLeafDBClient := func(t *testing.T) mysql.TestClientConn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -668,7 +488,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+		}, time.Second*2, time.Millisecond*200, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
@@ -689,7 +509,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+		}, time.Second*2, time.Millisecond*200, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
@@ -788,7 +608,7 @@ func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	db.SetShuffleFunc(db.ShuffleSort)
+	db.SetShuffleFunc(dbconnect.ShuffleSort)
 }
 
 // testHARootCluster verifies that proxy falls back to a healthy

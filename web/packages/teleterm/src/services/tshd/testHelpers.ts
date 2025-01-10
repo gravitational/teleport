@@ -16,10 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as tsh from './types';
-import { TshdRpcError } from './cloneableClient';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import {
+  ACL,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import type { App } from 'teleterm/ui/services/clusters';
+import { TshdRpcError } from './cloneableClient';
+import * as tsh from './types';
 
 export const rootClusterUri = '/clusters/teleport-local';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
@@ -60,7 +64,7 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   ...props,
 });
 
-export const makeApp = (props: Partial<App> = {}): App => ({
+export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
   name: 'foo',
   labels: [],
   endpointUri: 'tcp://localhost:3000',
@@ -71,8 +75,8 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   fqdn: 'local-app.example.com:3000',
   samlApp: false,
   uri: appUri,
-  addrWithProtocol: 'tcp://local-app.example.com:3000',
   awsRoles: [],
+  tcpPorts: [],
   ...props,
 });
 
@@ -90,6 +94,9 @@ export const makeRootCluster = (
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
+  showResources: ShowResources.REQUESTABLE,
+  profileStatusError: '',
+  ssoHost: 'example.auth0.com',
   ...props,
 });
 
@@ -104,6 +111,118 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
+  profileStatusError: '',
+  showResources: ShowResources.UNSPECIFIED,
+  ssoHost: 'example.auth0.com',
+  ...props,
+});
+
+export const makeAcl = (props: Partial<ACL> = {}) => ({
+  recordedSessions: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  activeSessions: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  authConnectors: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  roles: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  users: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  trustedClusters: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  events: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  tokens: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  servers: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  apps: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  dbs: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  kubeservers: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  accessRequests: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  reviewRequests: true,
   ...props,
 });
 
@@ -111,119 +230,15 @@ export const makeLoggedInUser = (
   props: Partial<tsh.LoggedInUser> = {}
 ): tsh.LoggedInUser => ({
   activeRequests: [],
-  assumedRequests: {},
   name: 'alice',
-  acl: {
-    recordedSessions: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    activeSessions: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    authConnectors: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    roles: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    users: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    trustedClusters: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    events: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    tokens: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    servers: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    apps: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    dbs: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    kubeservers: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    accessRequests: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-  },
+  isDeviceTrusted: false,
+  trustedDeviceRequirement: TrustedDeviceRequirement.NOT_REQUIRED,
+  acl: makeAcl(),
   sshLogins: [],
   roles: [],
   requestableRoles: [],
   suggestedReviewers: [],
-  userType: tsh.UserType.LOCAL,
+  userType: tsh.LoggedInUser_UserType.LOCAL,
   ...props,
 });
 

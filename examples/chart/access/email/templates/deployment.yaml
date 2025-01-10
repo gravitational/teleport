@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "email.fullname" . }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "email.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "email.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "email.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/local/bin/teleport-plugin
+            - start
+            - "--config"
+            - "/etc/teleport-email.toml"
+          env:
+            - name: "TELEPORT_PLUGIN_FAIL_FAST"
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport-email.toml
+              subPath: teleport-email.toml
+            - name: teleport-identity
+              mountPath: /var/lib/teleport/plugins/email/teleport-identity
+            {{- if or .Values.mailgun.enabled .Values.smtp.enabled }}
+            - name: {{ .Values.secretVolumeName }}
+              {{- if .Values.mailgun.enabled }}
+              mountPath: "/var/lib/teleport/plugins/email/mailgun_private_key"
+              subPath: "{{ .Values.mailgun.privateKeySecretPath }}"
+              {{- end }}
+              {{- if .Values.smtp.enabled }}
+              mountPath: "/var/lib/teleport/plugins/email/smtp_password"
+              subPath: "{{ .Values.smtp.passwordSecretPath }}"
+              {{- end }}
+            {{- end }}
+            {{- with .Values.volumeMounts -}}
+              {{- toYaml . | nindent 12 }}
+            {{- end}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "email.fullname" . }}
+            defaultMode: 0600
+        - name: teleport-identity
+          secret:
+            secretName: "{{ .Values.teleport.identitySecretName }}"
+            defaultMode: 0600
+        {{- if or .Values.smtp.enabled .Values.mailgun.enabled }}
+        {{- if .Values.smtp.enabled }}
+        - name: {{ .Values.secretVolumeName }}
+          secret:
+            secretName: "{{ coalesce .Values.smtp.passwordFromSecret (printf "%s-secret" (include "email.fullname" .)) }}"
+            defaultMode: 0600
+        {{- end }}
+        {{- if .Values.mailgun.enabled }}
+        - name: {{ .Values.secretVolumeName }}
+          secret:
+            secretName: "{{ coalesce .Values.mailgun.privateKeyFromSecret (printf "%s-secret" (include "email.fullname" .)) }}"
+            defaultMode: 0600
+        {{- end }}
+        {{- end }}
+        {{- with .Values.volumes -}}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}

@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
 import { Context, ContextProvider } from 'teleport';
-
 import { makeRecording } from 'teleport/services/recordings/makeRecording';
 
 import { RecordingsContainer as Recordings } from './Recordings';
@@ -32,6 +30,7 @@ export default {
 
 export const Loaded = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () =>
     Promise.resolve({
       recordings: recordings.map(makeRecording),
@@ -43,6 +42,7 @@ export const Loaded = () => {
 
 export const LoadedFetchMore = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () =>
     Promise.resolve({
       recordings: recordings.map(makeRecording),
@@ -54,14 +54,17 @@ export const LoadedFetchMore = () => {
 
 export const Processing = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () => new Promise(() => null);
   return render(ctx);
 };
 
 export const Failed = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () =>
+    Promise.reject(new Error('fetch cluster error'));
   ctx.recordingsService.fetchRecordings = () =>
-    Promise.reject(new Error('server error'));
+    Promise.reject(new Error('fetch recording error'));
   return render(ctx);
 };
 

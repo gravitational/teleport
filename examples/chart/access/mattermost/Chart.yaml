@@ -1,0 +1,8 @@
+.version: &version "18.0.0-dev"
+
+apiVersion: v2
+name: teleport-plugin-mattermost
+description: A Helm chart for the Teleport Mattermost Plugin
+type: application
+version: *version
+appVersion: *version

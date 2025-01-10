@@ -18,9 +18,9 @@
 
 import styled from 'styled-components';
 
-import { borderRadius } from 'design/system';
+import { borderRadius, BorderRadiusProps } from 'design/system';
 
-export const StyledTable = styled.table`
+export const StyledTable = styled.table<BorderRadiusProps>`
   border-collapse: collapse;
   border-spacing: 0;
   border-style: hidden;
@@ -38,7 +38,7 @@ export const StyledTable = styled.table`
 
     &:first-child {
       // should match padding-left on StyledInput to align Search content to Table content
-      padding-left: ${props => props.theme.space[4]}px
+      padding-left: ${props => props.theme.space[4]}px;
     }
 
     &:last-child {
@@ -52,7 +52,8 @@ export const StyledTable = styled.table`
 
   & > thead > tr > th {
     color: ${props => props.theme.colors.text.main};
-    ${props => props.theme.typography.h6};
+    ${props => props.theme.typography.h3};
+    line-height: 24px;
     cursor: pointer;
     padding-bottom: 0;
     padding-top: 0;
@@ -72,15 +73,16 @@ export const StyledTable = styled.table`
   tbody tr {
     transition: all 150ms;
     position: relative;
-    border-top: ${props => props.theme.borders[2]} ${props => props.theme.colors.spotBackground[0]};
+    border-top: ${props => props.theme.borders[2]}
+      ${props => props.theme.colors.spotBackground[0]};
 
-    :hover {
+    &:hover {
       border-top: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
       background-color: ${props => props.theme.colors.levels.surface};
 
       // We use a pseudo element for the shadow with position: absolute in order to prevent
       // the shadow from increasing the size of the layout and causing scrollbar flicker.
-      :after {
+      &:after {
         box-shadow: ${props => props.theme.boxShadow[3]};
         content: '';
         position: absolute;
@@ -100,12 +102,12 @@ export const StyledTable = styled.table`
     ${borderRadius}
 `;
 
-export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
+export const StyledPanel = styled.nav`
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: ${props => props.theme.space[3]}px 0;
+  padding: 0 0 ${props => props.theme.space[3]}px 0;
   max-height: ${props => props.theme.space[6]}px;
-  margin-bottom: ${p => p.theme.space[2]}px;
+  margin-top: ${props => props.theme.space[1]}px;
 `;

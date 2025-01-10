@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -35,10 +36,16 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 // TestProxySSHHandler tests the ALPN routing. Connection with ALPN 'teleport-proxy-ssh' value should
 // be forwarded and handled by custom ProtocolProxySSH ALPN protocol handler.
@@ -90,7 +97,7 @@ func TestProxyKubeHandler(t *testing.T) {
 				kubeCert,
 			},
 		})
-		err := tlsConn.Handshake()
+		err := tlsConn.HandshakeContext(ctx)
 		require.NoError(t, err)
 		_, err = fmt.Fprint(tlsConn, kubernetesHandlerResponse)
 		require.NoError(t, err)
@@ -321,7 +328,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 
 	lw := NewMuxListenerWrapper(l, suite.serverListener)
 
-	mustStartHTTPServer(t, lw)
+	mustStartHTTPServer(lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
@@ -352,7 +359,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 
 	// Create a HTTP server and register the listener to ALPN server.
 	lw := NewMuxListenerWrapper(nil, suite.serverListener)
-	mustStartHTTPServer(t, lw)
+	mustStartHTTPServer(lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
@@ -398,7 +405,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	})
 	defer clientTLSConn.Close()
 
-	require.NoError(t, clientTLSConn.Handshake())
+	require.NoError(t, clientTLSConn.HandshakeContext(context.Background()))
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
 

@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Flex, Box } from 'design';
+
+import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
 import cfg from 'teleport/config';
-import TtyPlayer from 'teleport/lib/term/ttyPlayer';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
+import TtyPlayer from 'teleport/lib/term/ttyPlayer';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
@@ -34,7 +35,11 @@ export default function Player({ sid, clusterId, durationMs }) {
     clusterId,
     sid
   );
-  const isError = playerStatus === StatusEnum.ERROR;
+
+  // statusText is currently only set when an error happens, so for now we can assume
+  // if it is not empty, an error occured (even if the player is in COMPLETE state, which gets
+  // set on close)
+  const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;
@@ -70,8 +75,8 @@ export default function Player({ sid, clusterId, durationMs }) {
         onRestart={() => window.location.reload()}
         onStartMove={() => tty.suspendTimeUpdates()}
         move={pos => {
-          tty.move(pos);
           tty.resumeTimeUpdates();
+          tty.move(pos);
         }}
         toggle={() => {
           isPlaying ? tty.stop() : tty.play();
@@ -96,11 +101,11 @@ const StyledPlayer = styled.div`
 `;
 
 function useStreamingSshPlayer(clusterId: string, sid: string) {
-  const [playerStatus, setPlayerStatus] = React.useState(StatusEnum.LOADING);
-  const [statusText, setStatusText] = React.useState('');
-  const [time, setTime] = React.useState(0);
+  const [playerStatus, setPlayerStatus] = useState(StatusEnum.LOADING);
+  const [statusText, setStatusText] = useState('');
+  const [time, setTime] = useState(0);
 
-  const tty = React.useMemo(() => {
+  const tty = useMemo(() => {
     const url = cfg.api.ttyPlaybackWsAddr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
@@ -109,7 +114,7 @@ function useStreamingSshPlayer(clusterId: string, sid: string) {
     return new TtyPlayer({ url, setPlayerStatus, setStatusText, setTime });
   }, [clusterId, sid, setPlayerStatus, setStatusText, setTime]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     tty.connect();
     tty.play();
 

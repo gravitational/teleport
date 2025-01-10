@@ -5,7 +5,11 @@ kind: Job
 metadata:
   name: {{ .Release.Name }}-proxy-test
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+    {{- if $proxy.extraLabels.job }}
+    {{- toYaml $proxy.extraLabels.job | nindent 4 }}
+    {{- end }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "5"
@@ -13,6 +17,12 @@ metadata:
 spec:
   backoffLimit: 1
   template:
+    metadata:
+      labels:
+        {{- include "teleport-cluster.proxy.labels" . | nindent 8 }}
+        {{- if $proxy.extraLabels.jobPod }}
+        {{- toYaml $proxy.extraLabels.jobPod | nindent 8 }}
+        {{- end }}
     spec:
 {{- if $proxy.affinity }}
       affinity: {{- toYaml $proxy.affinity | nindent 8 }}
@@ -96,4 +106,5 @@ spec:
 {{- if $proxy.extraVolumes }}
   {{- toYaml $proxy.extraVolumes | nindent 6 }}
 {{- end }}
+      serviceAccountName: {{ include "teleport-cluster.proxy.hookServiceAccountName" . }}
 {{- end }}
