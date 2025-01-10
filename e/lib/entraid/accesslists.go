@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path"
-	"reflect"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +20,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
@@ -326,7 +326,7 @@ func convertGroupMember(ctx context.Context,
 		return alm, nil
 
 	default:
-		slog.WarnContext(ctx, "entra group member is not of a supported type: ", "directory_object", in, "type", reflect.TypeOf(in))
+		slog.WarnContext(ctx, "entra group member is not of a supported type: ", "directory_object", in, "type", logutils.TypeAttr(in))
 		return nil, nil
 	}
 }
