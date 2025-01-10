@@ -781,11 +781,6 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
-	switch loggerConfig.Output {
-	case "stderr", "error", "2", "stdout", "out", "1":
-		cfg.Console = io.Discard // disable console printing
-	}
-
 	logger, level, err := logutils.Initialize(logutils.Config{
 		Output:       loggerConfig.Output,
 		Severity:     loggerConfig.Severity,
@@ -2514,7 +2509,6 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = io.Discard
 		cfg.Debug = clf.Debug
 	}
 

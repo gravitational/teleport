@@ -195,7 +195,6 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 	nodeConfig := func() *servicecfg.Config {
 		tconf := servicecfg.MakeDefaultConfig()
-		tconf.Console = nil
 		tconf.Logger = utils.NewSlogLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
