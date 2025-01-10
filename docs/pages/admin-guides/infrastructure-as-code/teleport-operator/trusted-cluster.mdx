@@ -220,11 +220,11 @@ following:
 Before users from the root cluster can access the server in the
 leaf cluster using the `visitor` role, you must define a trust relationship
 between the clusters. Teleport establishes trust between the root cluster and a
-leaf cluster using an **invitation token**.
+leaf cluster using an **join token**.
 
-To set up trust between clusters, you must first create the invitation token using the
+To set up trust between clusters, you must first create the join token using the
 Teleport Auth Service in the root cluster. You can then use the Teleport Auth Service
-on the leaf cluster to create a `trusted_cluster` resource that includes the invitation token,
+on the leaf cluster to create a `trusted_cluster` resource that includes the join token,
 proving to the root cluster that the leaf cluster is the one you expect to register.
 
 To establish the trust relationship:
@@ -245,18 +245,18 @@ your Teleport username:
    Replace `rootcluster.example.com` with the Teleport root cluster domain and
    `myuser` with your Teleport username.
 
-1. Generate the invitation token by running the following command:
+1. Generate the join token by running the following command:
 
    ```code
    $ tctl tokens add --type=trusted_cluster --ttl=5m
-   The cluster invite token: (=presets.tokens.first=)
+   The cluster join token: (=presets.tokens.first=)
    ```
 
-   This command generates a trusted cluster invitation token to allow an inbound
+   This command generates a trusted cluster join token to allow an inbound
    connection from a leaf cluster. The token can be used multiple times. In this
    command example, the token has an expiration time of five minutes.
 
-   Note that the invitation token is only used to establish a
+   Note that the join token is only used to establish a
    connection for the first time. Clusters exchange certificates and
    don't use tokens to re-establish their connection afterward.
 
