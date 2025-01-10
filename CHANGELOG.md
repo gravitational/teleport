@@ -279,7 +279,7 @@ TOTP will continue to be accepted for the initial login.
 * Add a --labels flag to the tctl tokens ls command. [#50625](https://github.com/gravitational/teleport/pull/50625)
 * Fix a bug in the `tbot` Helm chart causing invalid configuration when both default and custom outputs were used. [#50527](https://github.com/gravitational/teleport/pull/50527)
 * Restore the ability to play session recordings in the web UI without specifying the session duration in the URL. [#50461](https://github.com/gravitational/teleport/pull/50461)
-* Fix missing roles in access lists causing users to be locked out of their account. [#50460](https://github.com/gravitational/teleport/pull/50460)
+* Fix missing roles in Access Lists causing users to be locked out of their account. [#50460](https://github.com/gravitational/teleport/pull/50460)
 * Fixed an issue that could cause some antivirus tools to block Teleport's Device Trust feature on Windows machines. [#50454](https://github.com/gravitational/teleport/pull/50454)
 * Reverted a change that caused the Kubernetes cluster name to be displayed at the end of the tab title in Teleport Connect. [#50390](https://github.com/gravitational/teleport/pull/50390)
 
