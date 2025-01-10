@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -142,10 +143,12 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		clusterNames = append(clusterNames, c.GetName())
 	}
 
+	clusterNames = utils.Deduplicate(clusterNames)
+
 	s.log.InfoContext(
 		ctx,
 		"Generated identity for Kubernetes access",
-		"matched_cluster_count", len(clusters),
+		"matched_cluster_count", len(clusterNames),
 		"identity", describeTLSIdentity(ctx, s.log, id),
 	)
 
@@ -163,18 +166,6 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(noah): It's likely the Kubernetes output does not really need to
-	// output these CAs - but - for backwards compat reasons, we output them.
-	// Revisit this at a later date and make a call.
-	// TODO(tim): If we don't need these, we'll drop them from V2.
-	// userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
-	// databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
 
 	keyRing, err := NewClientKeyRing(id, hostCAs)
 	if err != nil {
@@ -204,7 +195,7 @@ type kubernetesStatusV2 struct {
 
 // queryKubeClustersByLabels fetches a list of Kubernetes clusters matching the
 // given label selector.
-func queryKubeClustersByLabels(ctx context.Context, clt *authclient.Client, labels map[string]string) ([]types.KubeCluster, error) {
+func queryKubeClustersByLabels(ctx context.Context, clt apiclient.GetResourcesClient, labels map[string]string) ([]types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "queryKubeClustersByLabels")
 	defer span.End()
 
@@ -227,7 +218,7 @@ func queryKubeClustersByLabels(ctx context.Context, clt *authclient.Client, labe
 
 // fetchAllMatchingKubeClusters returns a list of all clusters matching the
 // given selectors.
-func fetchAllMatchingKubeClusters(ctx context.Context, clt *authclient.Client, selectors []*config.KubernetesSelector) ([]types.KubeCluster, error) {
+func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResourcesClient, selectors []*config.KubernetesSelector) ([]types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "findAllMatchingKubeClusters")
 	defer span.End()
 
@@ -281,6 +272,7 @@ func (s *KubernetesV2OutputService) render(
 	); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}
+
 	// In exec plugin mode, we write the credentials to disk and write a
 	// kubeconfig that execs `tbot` to load those credentials.
 
