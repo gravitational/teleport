@@ -477,6 +477,66 @@ func Test_evaluateRules(t *testing.T) {
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
+		{
+			name: "not_in: pass",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{
+								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+									{
+										Attribute: "user.name",
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_NotIn{
+											NotIn: &workloadidentityv1pb.WorkloadIdentityConditionNotIn{
+												Values: []string{"bar", "fizz"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			attrs:      attrs,
+			requireErr: require.NoError,
+		},
+		{
+			name: "in: fail",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{
+								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+									{
+										Attribute: "user.name",
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_NotIn{
+											NotIn: &workloadidentityv1pb.WorkloadIdentityConditionNotIn{
+												Values: []string{"bar", "foo"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			attrs:      attrs,
+			requireErr: noMatchRule,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
