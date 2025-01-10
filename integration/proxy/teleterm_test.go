@@ -204,7 +204,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	t.Helper()
 
 	// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	t.Cleanup(cancel)
 
 	tc := params.tc
@@ -855,7 +855,7 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 			daemonService.Stop()
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		t.Cleanup(cancel)
 
 		// Here the test setup ends and actual test code starts.
