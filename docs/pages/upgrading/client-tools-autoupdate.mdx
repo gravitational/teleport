@@ -5,21 +5,17 @@ description: Explains how to use Teleport client tools (`tsh` and `tctl`) auto-u
 
 This documentation explains how to keep Teleport client tools like `tsh` and `tctl` up-to-date.
 Updates can be automatic or self-managed, ensuring tools are secure, free from bugs,
-and compatible with your Teleport cluster.
+and compatible with your Teleport cluster. Available in versions: 17.0.1, 16.4.10, and 15.4.24.
 
-## Why Keep Client Tools Updated?
+Why keep client tools updated?
 
 - **Security**: Updates deliver patches for known vulnerabilities.
 - **Bug Fixes**: Resolved issues are pushed to endpoints.
 - **Compatibility**: Avoid manual understanding of [Teleport component compatibility rules](https://goteleport.com/docs/upgrading/overview/#component-compatibility).
 
----
+### How it works
 
-## Automatic Updates
-
-### How It Works
-
-When you run `tsh login`, the tool will check if updates are enabled for your cluster.
+When you run `tsh login`, the tsh tool will check if updates are enabled for your cluster.
 If your client version differs from the cluster's required version, it will:
 
 1. Download the updated version.
@@ -27,13 +23,14 @@ If your client version differs from the cluster's required version, it will:
 3. Validate the binary with a checksum.
 4. Re-execute using the updated version (with the same environment variables).
 
-### Key Features
+#### Key features:
 
 - **Binary Management**: Original binaries are preserved, and updates are stored separately.
 
-Updates are installed in the `$TELEPORT_HOME/.tsh/bin/` folder. When client tools (`tctl` or `tsh`) are executed
-from any other path, they consistently check for binaries in the update folder and re-execute them if found.
-After logging out from the cluster, the update folder is cleaned up, as each cluster might require its own version.
+Updates are installed in the `$TELEPORT_HOME/.tsh/bin/` folder (if `TELEPORT_HOME` is not defined, the home folder is used).
+When client tools (`tctl` or `tsh`) are executed from any other path, they consistently check for binaries in the update
+folder and re-execute them if found. After logging out from the cluster, the update folder is cleaned up, as each
+cluster might require its own version.
 
 - **Validation**: Downloaded packages are verified with a hash sum to ensure integrity.
 
@@ -48,7 +45,7 @@ The URL pattern is as follows:
 Only one process can acquire the lock to update client tools, while other processes wait for the lock to be released.
 If the first process cancels the update, the next process in line will initiate the update.
 
-### User Experience
+### User experience
 
 Updates are displayed with a progress bar:
 ```bash
@@ -59,7 +56,7 @@ Update progress: [▒▒▒▒▒▒     ] (Ctrl-C to cancel update)
 Cancel updates with Ctrl-C if needed due to bandwidth constraints or urgency. After cancellation command must
 be executed with current version.
 
-### Environment Variable: TELEPORT_TOOLS_VERSION
+### Environment variable: TELEPORT_TOOLS_VERSION
 Values:
 - `X.Y.Z`: Use a specific version.
 - `off`: Disable updates.
@@ -72,12 +69,56 @@ only version environment variable will be overridden to `TELEPORT_TOOLS_VERSION=
 
 Example of self-managed auto-update by setting the version with environment variable:
 ```bash
-$ TELEPORT_TOOLS_VERSION=17.0.5 ./build/tctl version
+$ TELEPORT_TOOLS_VERSION=17.0.5 tctl version
 Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
 Teleport v17.0.5 git:v17.0.5-0-g7cc4c2a go1.23.4
 ````
 
 ### Cluster auto-update configuration details
+
+#### Configuration by `tctl autoupdate` commands
+
+To enable or disable client tools automatic updates in the cluster, use the following command:
+
+```code
+$ tctl autoupdate client-tools enable
+client tools auto update mode has been changed
+
+$ tctl autoupdate client-tools disable
+client tools auto update mode has been changed
+```
+
+To set or remove the target version for automatic updates for all client tools:
+
+```code
+$ tctl autoupdate client-tools target X.Y.Z
+client tools auto update target version has been set
+
+tctl autoupdate client-tools target --clear
+client tools auto update target version has been cleared
+```
+
+If the target version is cleared, the cluster version will be used automatically, eliminating the need for manual
+updates each time the cluster version is upgraded."
+
+The `status` command retrieves the target version and mode configured for the logged-in cluster.
+To use an unauthenticated endpoint for this configuration, include the `--proxy` flag.
+
+```code
+$ tctl autoupdate client-tools status --format json
+{
+    "mode": "enabled",
+    "target_version": "X.Y.Z"
+}
+
+$ tctl autoupdate client-tools status --proxy proxy.example.com --format json
+{
+    "mode": "enabled",
+    "target_version": "X.Y.Z"
+}
+```
+
+#### Configuration using resource definitions
 
 To enable client tools automatic updates in cluster, first create a file named `autoupdate_config.yaml` with the following content:
 
@@ -85,7 +126,6 @@ To enable client tools automatic updates in cluster, first create a file named `
 kind: autoupdate_config
 metadata:
   name: autoupdate-config
-  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
   tools:
     mode: enabled
@@ -101,7 +141,6 @@ The next resource is responsible for setting target version `autoupdate_version.
 kind: autoupdate_version
 metadata:
   name: autoupdate-version
-  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
   tools:
     target_version: X.Y.Z
