@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -198,15 +199,17 @@ func makeUserCert(t *testing.T, caSigner ssh.Signer) ssh.Signer {
 	keygen := testauthority.New()
 	clientPrivateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clientCertBytes, err := keygen.GenerateUserCert(services.UserCertParams{
+	clientCertBytes, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:          caSigner,
 		PublicUserKey:     clientPrivateKey.MarshalSSHPublicKey(),
-		Username:          "alice",
-		AllowedLogins:     []string{"does-not-matter"},
-		GitHubUserID:      "1234567",
 		CertificateFormat: constants.CertificateFormatStandard,
-		Traits:            wrappers.Traits{},
-		Roles:             []string{"editor"},
+		Identity: sshca.Identity{
+			Username:      "alice",
+			AllowedLogins: []string{"does-not-matter"},
+			GitHubUserID:  "1234567",
+			Traits:        wrappers.Traits{},
+			Roles:         []string{"editor"},
+		},
 	})
 	require.NoError(t, err)
 	clientAuthorizedCert, _, _, _, err := ssh.ParseAuthorizedKey(clientCertBytes)
