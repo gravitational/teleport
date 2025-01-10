@@ -105,7 +105,7 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 				return trace.BadParameter("spec.rules.allow[%d].conditions[%d].attribute: must be non-empty", i, j)
 			}
 			if condition.Operator == nil {
-				return trace.BadParameter("spec.rules.allow[%d].conditions[%d]: at least one operator must be provided", i, j)
+				return trace.BadParameter("spec.rules.allow[%d].conditions[%d]: operator must be specified", i, j)
 			}
 		}
 	}
