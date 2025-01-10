@@ -34,6 +34,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -269,6 +270,12 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
+
+	// MetricsRegistry is the prometheus metrics registry used by the Teleport process to register its metrics.
+	// As of today, not every Teleport metric is registered against this registry. Some Teleport services
+	// and Teleport dependencies are using the global registry.
+	// Both the MetricsRegistry and the default global registry are gathered by Teleport's metric service.
+	MetricsRegistry *prometheus.Registry
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -528,6 +535,10 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.LoggerLevel == nil {
 		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
+	if cfg.MetricsRegistry == nil {
+		cfg.MetricsRegistry = prometheus.NewRegistry()
 	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from
