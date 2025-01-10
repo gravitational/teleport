@@ -28,11 +28,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -217,7 +216,7 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstance(t *testing.T) {
-	instance := &rds.DBInstance{
+	instance := &rdstypes.DBInstance{
 		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 		DBInstanceIdentifier:             aws.String("instance-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
@@ -225,11 +224,11 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 		Engine:                           aws.String(services.RDSEnginePostgres),
 		EngineVersion:                    aws.String("13.0"),
-		Endpoint: &rds.Endpoint{
+		Endpoint: &rdstypes.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int64(5432),
+			Port:    aws.Int32(5432),
 		},
-		TagList: []*rds.Tag{{
+		TagList: []rdstypes.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
@@ -268,7 +267,7 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 
 // TestDatabaseFromRDSV2Instance tests converting an RDS instance (from aws sdk v2/rds) to a database resource.
 func TestDatabaseFromRDSV2Instance(t *testing.T) {
-	instance := &rdsTypesV2.DBInstance{
+	instance := &rdstypes.DBInstance{
 		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 		DBInstanceIdentifier:             aws.String("instance-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
@@ -277,16 +276,16 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 		Engine:                           aws.String(services.RDSEnginePostgres),
 		EngineVersion:                    aws.String("13.0"),
-		Endpoint: &rdsTypesV2.Endpoint{
+		Endpoint: &rdstypes.Endpoint{
 			Address: aws.String("localhost"),
 			Port:    aws.Int32(5432),
 		},
-		TagList: []rdsTypesV2.Tag{{
+		TagList: []rdstypes.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
-		DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
-			Subnets: []rdsTypesV2.Subnet{
+		DBSubnetGroup: &rdstypes.DBSubnetGroup{
+			Subnets: []rdstypes.Subnet{
 				{SubnetIdentifier: aws.String("")},
 				{SubnetIdentifier: aws.String("subnet-1234567890abcdef0")},
 				{SubnetIdentifier: aws.String("subnet-1234567890abcdef1")},
@@ -294,7 +293,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			},
 			VpcId: aws.String("vpc-asd"),
 		},
-		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
+		VpcSecurityGroups: []rdstypes.VpcSecurityGroupMembership{
 			{VpcSecurityGroupId: aws.String("")},
 			{VpcSecurityGroupId: aws.String("sg-1")},
 			{VpcSecurityGroupId: aws.String("sg-2")},
@@ -348,7 +347,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			newName := "override-1"
 			instance := instance
 			instance.TagList = append(instance.TagList,
-				rdsTypesV2.Tag{
+				rdstypes.Tag{
 					Key:   aws.String(overrideLabel),
 					Value: aws.String(newName),
 				},
@@ -365,7 +364,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
-		instance := &rds.DBInstance{
+		instance := &rdstypes.DBInstance{
 			DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 			DBInstanceIdentifier:             aws.String("instance-1"),
 			DBClusterIdentifier:              aws.String("cluster-1"),
@@ -373,11 +372,11 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 			IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 			Engine:                           aws.String(services.RDSEnginePostgres),
 			EngineVersion:                    aws.String("13.0"),
-			Endpoint: &rds.Endpoint{
+			Endpoint: &rdstypes.Endpoint{
 				Address: aws.String("localhost"),
-				Port:    aws.Int64(5432),
+				Port:    aws.Int32(5432),
 			},
-			TagList: []*rds.Tag{
+			TagList: []rdstypes.Tag{
 				{Key: aws.String("key"), Value: aws.String("val")},
 				{Key: aws.String(overrideLabel), Value: aws.String("override-1")},
 			},
@@ -421,8 +420,8 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 // TestDatabaseFromRDSCluster tests converting an RDS cluster to a database resource.
 func TestDatabaseFromRDSCluster(t *testing.T) {
 	vpcid := uuid.NewString()
-	dbInstanceMembers := []*rds.DBInstance{{DBSubnetGroup: &rds.DBSubnetGroup{VpcId: aws.String(vpcid)}}}
-	cluster := &rds.DBCluster{
+	dbInstanceMembers := []rdstypes.DBInstance{{DBSubnetGroup: &rdstypes.DBSubnetGroup{VpcId: aws.String(vpcid)}}}
+	cluster := &rdstypes.DBCluster{
 		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbClusterResourceId:              aws.String("resource-1"),
@@ -431,12 +430,12 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		EngineVersion:                    aws.String("8.0.0"),
 		Endpoint:                         aws.String("localhost"),
 		ReaderEndpoint:                   aws.String("reader.host"),
-		Port:                             aws.Int64(3306),
-		CustomEndpoints: []*string{
-			aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
-			aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+		Port:                             aws.Int32(3306),
+		CustomEndpoints: []string{
+			"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
+			"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
 		},
-		TagList: []*rds.Tag{{
+		TagList: []rdstypes.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
@@ -549,9 +548,9 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 
 	t.Run("bad custom endpoints ", func(t *testing.T) {
 		badCluster := *cluster
-		badCluster.CustomEndpoints = []*string{
-			aws.String("badendpoint1"),
-			aws.String("badendpoint2"),
+		badCluster.CustomEndpoints = []string{
+			"badendpoint1",
+			"badendpoint2",
 		}
 		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster, dbInstanceMembers)
 		require.Error(t, err)
@@ -561,7 +560,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 // TestDatabaseFromRDSV2Cluster tests converting an RDS cluster to a database resource.
 // It uses the V2 of the aws sdk.
 func TestDatabaseFromRDSV2Cluster(t *testing.T) {
-	cluster := &rdsTypesV2.DBCluster{
+	cluster := &rdstypes.DBCluster{
 		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbClusterResourceId:              aws.String("resource-1"),
@@ -572,7 +571,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 		Endpoint:                         aws.String("localhost"),
 		ReaderEndpoint:                   aws.String("reader.host"),
 		Port:                             aws.Int32(3306),
-		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
+		VpcSecurityGroups: []rdstypes.VpcSecurityGroupMembership{
 			{VpcSecurityGroupId: aws.String("")},
 			{VpcSecurityGroupId: aws.String("sg-1")},
 			{VpcSecurityGroupId: aws.String("sg-2")},
@@ -581,7 +580,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
 			"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
 		},
-		TagList: []rdsTypesV2.Tag{{
+		TagList: []rdstypes.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
@@ -630,7 +629,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 				newName := "override-1"
 
 				cluster.TagList = append(cluster.TagList,
-					rdsTypesV2.Tag{
+					rdstypes.Tag{
 						Key:   aws.String(overrideLabel),
 						Value: aws.String(newName),
 					},
@@ -645,10 +644,10 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 	})
 
 	t.Run("DB Cluster uses network information from DB Instance when available", func(t *testing.T) {
-		instance := &rdsTypesV2.DBInstance{
-			DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
+		instance := &rdstypes.DBInstance{
+			DBSubnetGroup: &rdstypes.DBSubnetGroup{
 				VpcId: aws.String("vpc-123"),
-				Subnets: []rdsTypesV2.Subnet{
+				Subnets: []rdstypes.Subnet{
 					{SubnetIdentifier: aws.String("subnet-123")},
 					{SubnetIdentifier: aws.String("subnet-456")},
 				},
@@ -699,9 +698,9 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 
 // TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overridden name.
 func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
-	dbInstanceMembers := []*rds.DBInstance{{DBSubnetGroup: &rds.DBSubnetGroup{VpcId: aws.String("vpc-123")}}}
+	dbInstanceMembers := []rdstypes.DBInstance{{DBSubnetGroup: &rdstypes.DBSubnetGroup{VpcId: aws.String("vpc-123")}}}
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
-		cluster := &rds.DBCluster{
+		cluster := &rdstypes.DBCluster{
 			DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 			DBClusterIdentifier:              aws.String("cluster-1"),
 			DbClusterResourceId:              aws.String("resource-1"),
@@ -710,12 +709,12 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			EngineVersion:                    aws.String("8.0.0"),
 			Endpoint:                         aws.String("localhost"),
 			ReaderEndpoint:                   aws.String("reader.host"),
-			Port:                             aws.Int64(3306),
-			CustomEndpoints: []*string{
-				aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
-				aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+			Port:                             aws.Int32(3306),
+			CustomEndpoints: []string{
+				"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
+				"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
 			},
-			TagList: []*rds.Tag{
+			TagList: []rdstypes.Tag{
 				{Key: aws.String("key"), Value: aws.String("val")},
 				{Key: aws.String(overrideLabel), Value: aws.String("mycluster-2")},
 			},
@@ -831,9 +830,9 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 
 		t.Run("bad custom endpoints ", func(t *testing.T) {
 			badCluster := *cluster
-			badCluster.CustomEndpoints = []*string{
-				aws.String("badendpoint1"),
-				aws.String("badendpoint2"),
+			badCluster.CustomEndpoints = []string{
+				"badendpoint1",
+				"badendpoint2",
 			}
 			_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster, dbInstanceMembers)
 			require.Error(t, err)
@@ -896,7 +895,7 @@ func TestNewDatabasesFromDocumentDBCluster(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		inputCluster  *rds.DBCluster
+		inputCluster  *rdstypes.DBCluster
 		wantDatabases types.Databases
 	}{
 		{
@@ -929,26 +928,26 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 	}{
 		{
 			desc:         "mysql",
-			engineFamily: rds.EngineFamilyMysql,
+			engineFamily: string(rdstypes.EngineFamilyMysql),
 			wantProtocol: "mysql",
 			wantPort:     3306,
 		},
 		{
 			desc:         "postgres",
-			engineFamily: rds.EngineFamilyPostgresql,
+			engineFamily: string(rdstypes.EngineFamilyPostgresql),
 			wantProtocol: "postgres",
 			wantPort:     5432,
 		},
 		{
 			desc:         "sqlserver",
-			engineFamily: rds.EngineFamilySqlserver,
+			engineFamily: string(rdstypes.EngineFamilySqlserver),
 			wantProtocol: "sqlserver",
 			wantPort:     1433,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			dbProxy := &rds.DBProxy{
+			dbProxy := &rdstypes.DBProxy{
 				DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-abcdef"),
 				DBProxyName:  aws.String("testproxy"),
 				EngineFamily: aws.String(test.engineFamily),
@@ -956,15 +955,15 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 				VpcId:        aws.String("test-vpc-id"),
 			}
 
-			dbProxyEndpoint := &rds.DBProxyEndpoint{
+			dbProxyEndpoint := &rdstypes.DBProxyEndpoint{
 				Endpoint:            aws.String("custom.proxy.rds.test"),
 				DBProxyEndpointName: aws.String("custom"),
 				DBProxyName:         aws.String("testproxy"),
 				DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy-endpoint:prx-endpoint-abcdef"),
-				TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+				TargetRole:          rdstypes.DBProxyEndpointTargetRoleReadOnly,
 			}
 
-			tags := []*rds.Tag{{
+			tags := []rdstypes.Tag{{
 				Key:   aws.String("key"),
 				Value: aws.String("val"),
 			}}
@@ -1059,7 +1058,7 @@ func TestAuroraMySQLVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.engineVersion, func(t *testing.T) {
-			require.Equal(t, test.expectedMySQLVersion, libcloudaws.AuroraMySQLVersion(&rds.DBCluster{EngineVersion: aws.String(test.engineVersion)}))
+			require.Equal(t, test.expectedMySQLVersion, libcloudaws.AuroraMySQLVersion(&rdstypes.DBCluster{EngineVersion: aws.String(test.engineVersion)}))
 		})
 	}
 }
@@ -1099,7 +1098,7 @@ func TestIsRDSClusterSupported(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cluster := &rds.DBCluster{
+			cluster := &rdstypes.DBCluster{
 				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:test"),
 				DBClusterIdentifier: aws.String(test.name),
 				DbClusterResourceId: aws.String(uuid.New().String()),
@@ -1149,7 +1148,7 @@ func TestIsRDSInstanceSupported(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cluster := &rds.DBInstance{
+			cluster := &rdstypes.DBInstance{
 				DBInstanceArn:       aws.String("arn:aws:rds:us-east-1:123456789012:instance:test"),
 				DBClusterIdentifier: aws.String(test.name),
 				DbiResourceId:       aws.String(uuid.New().String()),

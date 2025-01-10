@@ -21,10 +21,9 @@ package cloud
 import (
 	"context"
 
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
 
@@ -82,22 +81,23 @@ func (c *urlChecker) logAWSAccessDeniedError(ctx context.Context, database types
 
 func (c *urlChecker) checkRDS(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRDSClient(awsCfg)
 
 	if meta.RDS.ClusterID != "" {
-		return trace.Wrap(c.checkRDSCluster(ctx, database, rdsClient, meta.RDS.ClusterID))
+		return trace.Wrap(c.checkRDSCluster(ctx, database, clt, meta.RDS.ClusterID))
 	}
-	return trace.Wrap(c.checkRDSInstance(ctx, database, rdsClient, meta.RDS.InstanceID))
+	return trace.Wrap(c.checkRDSInstance(ctx, database, clt, meta.RDS.InstanceID))
 }
 
-func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, instanceID string) error {
-	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
+func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Database, clt rdsClient, instanceID string) error {
+	rdsInstance, err := describeRDSInstance(ctx, clt, instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -107,12 +107,12 @@ func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Databa
 	return trace.Wrap(requireDatabaseAddressPort(database, rdsInstance.Endpoint.Address, rdsInstance.Endpoint.Port))
 }
 
-func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, clusterID string) error {
-	rdsCluster, err := describeRDSCluster(ctx, rdsClient, clusterID)
+func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Database, clt rdsClient, clusterID string) error {
+	rdsCluster, err := describeRDSCluster(ctx, clt, clusterID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databases, err := common.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
+	databases, err := common.NewDatabasesFromRDSCluster(rdsCluster, []rdstypes.DBInstance{})
 	if err != nil {
 		c.logger.WarnContext(ctx, "Could not convert RDS cluster to database resources",
 			"cluster", aws.StringValue(rdsCluster.DBClusterIdentifier),
@@ -130,21 +130,22 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 
 func (c *urlChecker) checkRDSProxy(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRDSClient(awsCfg)
 	if meta.RDSProxy.CustomEndpointName != "" {
-		return trace.Wrap(c.checkRDSProxyCustomEndpoint(ctx, database, rdsClient, meta.RDSProxy.CustomEndpointName))
+		return trace.Wrap(c.checkRDSProxyCustomEndpoint(ctx, database, clt, meta.RDSProxy.CustomEndpointName))
 	}
-	return trace.Wrap(c.checkRDSProxyPrimaryEndpoint(ctx, database, rdsClient, meta.RDSProxy.Name))
+	return trace.Wrap(c.checkRDSProxyPrimaryEndpoint(ctx, database, clt, meta.RDSProxy.Name))
 }
 
-func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, proxyName string) error {
-	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyName)
+func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database types.Database, clt rdsClient, proxyName string) error {
+	rdsProxy, err := describeRDSProxy(ctx, clt, proxyName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -153,8 +154,8 @@ func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database 
 	return requireDatabaseHost(database, aws.StringValue(rdsProxy.Endpoint))
 }
 
-func (c *urlChecker) checkRDSProxyCustomEndpoint(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, proxyEndpointName string) error {
-	_, err := describeRDSProxyCustomEndpointAndFindURI(ctx, rdsClient, proxyEndpointName, database.GetURI())
+func (c *urlChecker) checkRDSProxyCustomEndpoint(ctx context.Context, database types.Database, clt rdsClient, proxyEndpointName string) error {
+	_, err := describeRDSProxyCustomEndpointAndFindURI(ctx, clt, proxyEndpointName, database.GetURI())
 	return trace.Wrap(err)
 }
 
@@ -167,7 +168,7 @@ func (c *urlChecker) checkRedshift(ctx context.Context, database types.Database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	redshift := c.redshiftClientProviderFn(awsCfg)
+	redshift := c.awsClients.getRedshiftClient(awsCfg)
 	cluster, err := describeRedshiftCluster(ctx, redshift, meta.Redshift.ClusterID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -290,15 +291,16 @@ func (c *urlChecker) checkOpenSearchEndpoint(ctx context.Context, database types
 
 func (c *urlChecker) checkDocumentDB(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRDSClient(awsCfg)
 
-	cluster, err := describeRDSCluster(ctx, rdsClient, meta.DocumentDB.ClusterID)
+	cluster, err := describeRDSCluster(ctx, clt, meta.DocumentDB.ClusterID)
 	if err != nil {
 		return trace.Wrap(err)
 	}

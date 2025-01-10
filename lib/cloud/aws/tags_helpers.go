@@ -24,14 +24,13 @@ import (
 	"slices"
 
 	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"golang.org/x/exp/maps"
@@ -43,11 +42,10 @@ import (
 type ResourceTag interface {
 	// TODO Go generic does not allow access common fields yet. List all types
 	//  here and use a type switch for now.
-	rdsTypesV2.Tag |
+	rdstypes.Tag |
 		ec2TypesV2.Tag |
 		redshifttypes.Tag |
 		*ec2.Tag |
-		*rds.Tag |
 		*elasticache.Tag |
 		*memorydb.Tag |
 		*redshiftserverless.Tag |
@@ -76,8 +74,6 @@ func TagsToLabels[Tag ResourceTag](tags []Tag) map[string]string {
 
 func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 	switch v := any(tag).(type) {
-	case *rds.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *ec2.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *elasticache.Tag:
@@ -86,7 +82,7 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *redshiftserverless.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case rdsTypesV2.Tag:
+	case rdstypes.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case ec2TypesV2.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
@@ -122,23 +118,4 @@ func LabelsToTags[T any, PT SettableTag[T]](labels map[string]string) (tags []*T
 		tags = append(tags, (*T)(tag))
 	}
 	return
-}
-
-// LabelsToRDSV2Tags converts labels into [rdsTypesV2.Tag] list.
-func LabelsToRDSV2Tags(labels map[string]string) []rdsTypesV2.Tag {
-	keys := maps.Keys(labels)
-	slices.Sort(keys)
-
-	ret := make([]rdsTypesV2.Tag, 0, len(keys))
-	for _, key := range keys {
-		key := key
-		value := labels[key]
-
-		ret = append(ret, rdsTypesV2.Tag{
-			Key:   &key,
-			Value: &value,
-		})
-	}
-
-	return ret
 }

@@ -48,6 +48,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.23
 	github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue v1.14.58
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.22
+	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.2
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.45
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/athena v1.49.2

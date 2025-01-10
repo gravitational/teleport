@@ -320,7 +320,6 @@ func TestWatcherCloudFetchers(t *testing.T) {
 			reconcileCh <- d
 		},
 		CloudClients: &clients.TestCloudClients{
-			RDS: &mocks.RDSMockUnauth{}, // Access denied error should not affect other fetchers.
 			RedshiftServerless: &mocks.RedshiftServerlessMock{
 				Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
 			},
@@ -358,7 +357,7 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 		))
 	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+		require.FailNow(t, "Didn't receive reconcile event after 1s.")
 	}
 }
 

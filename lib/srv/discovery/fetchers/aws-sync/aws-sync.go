@@ -24,9 +24,9 @@ import (
 	"sync"
 	"time"
 
-	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
@@ -45,6 +45,8 @@ const pageSize int64 = 500
 
 // Config is the configuration for the AWS fetcher.
 type Config struct {
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// CloudClients is the cloud clients to use when fetching AWS resources.
 	CloudClients cloud.Clients
 	// GetEKSClient gets an AWS EKS client for the given region.
@@ -61,6 +63,32 @@ type Config struct {
 	Integration string
 	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
 	DiscoveryConfigName string
+
+	// awsClients provides AWS SDK clients.
+	awsClients awsClientProvider
+}
+
+func (c *Config) CheckAndSetDefaults() error {
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
+
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
+	}
+	return nil
+}
+
+// awsClientProvider provides AWS service API clients.
+type awsClientProvider interface {
+	// getRDSClient provides an [RDSClient].
+	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
+	return rds.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
@@ -184,6 +212,9 @@ func (r *Resources) UsageReport(numberAccounts int) *usageeventsv1.AccessGraphAW
 
 // NewAWSFetcher creates a new AWS fetcher.
 func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	a := &awsFetcher{
 		Config:     cfg,
 		lastResult: &Resources{},
@@ -337,7 +368,7 @@ func (a *awsFetcher) getAWSV2Options() []awsconfig.OptionsFn {
 		opts = append(opts, awsconfig.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
 	}
 	const maxRetries = 10
-	opts = append(opts, awsconfig.WithRetryer(func() awsv2.Retryer {
+	opts = append(opts, awsconfig.WithRetryer(func() aws.Retryer {
 		return retry.NewStandard(func(so *retry.StandardOptions) {
 			so.MaxAttempts = maxRetries
 			so.Backoff = retry.NewExponentialJitterBackoff(300 * time.Second)
@@ -363,7 +394,7 @@ func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return aws.StringValue(req.Account), nil
+	return aws.ToString(req.Account), nil
 }
 
 func (a *awsFetcher) DiscoveryConfigName() string {

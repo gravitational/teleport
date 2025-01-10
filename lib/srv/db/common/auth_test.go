@@ -609,7 +609,6 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		AccessPoint: new(accessPointMock),
 		Clients: &cloud.TestCloudClients{
 			STS: &fakeSTS.STSClientV1,
-			RDS: &mocks.RDSMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
@@ -617,10 +616,12 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
-		redshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-			GetClusterCredentialsOutput:        mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
-			GetClusterCredentialsWithIAMOutput: mocks.RedshiftGetClusterCredentialsWithIAMOutput("IAM:some-role", "some-password-for-some-role", clock),
-		}),
+		awsClients: fakeAWSClients{
+			redshiftClient: &mocks.RedshiftClient{
+				GetClusterCredentialsOutput:        mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
+				GetClusterCredentialsWithIAMOutput: mocks.RedshiftGetClusterCredentialsWithIAMOutput("IAM:some-role", "some-password-for-some-role", clock),
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -1020,8 +1021,10 @@ func (m *imdsMock) GetType() types.InstanceMetadataType {
 	return m.instanceType
 }
 
-func newFakeRedshiftClientProvider(c redshiftClient) redshiftClientProviderFunc {
-	return func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
-		return c
-	}
+type fakeAWSClients struct {
+	redshiftClient redshiftClient
+}
+
+func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)) redshiftClient {
+	return f.redshiftClient
 }

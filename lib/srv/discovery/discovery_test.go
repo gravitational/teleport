@@ -41,11 +41,12 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -2063,13 +2064,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSClientV1{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
-			},
-		},
+		STS:      &mocks.STSClientV1{},
 		MemoryDB: &mocks.MemoryDBMock{},
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
@@ -2407,9 +2402,17 @@ func TestDiscoveryDatabase(t *testing.T) {
 			dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
 				AWSConfigProvider: fakeConfigProvider,
 				CloudClients:      testCloudClients,
-				RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-					Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
-				}),
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
+						DBEngineVersions: []rdstypes.DBEngineVersion{
+							{Engine: aws.String(services.RDSEnginePostgres)},
+						},
+					},
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
+					},
+				},
 			})
 			require.NoError(t, err)
 
@@ -2503,15 +2506,25 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryConfigName: dc2Name, discoveryGroup: mainDiscoveryGroup})
 
+	fakeConfigProvider := &mocks.AWSConfigProvider{
+		STSClient: &mocks.STSClient{},
+	}
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSClientV1{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
+		STS: &fakeConfigProvider.STSClient.STSClientV1,
+	}
+	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+		AWSConfigProvider: fakeConfigProvider,
+		CloudClients:      testCloudClients,
+		AWSClients: fakeAWSClients{
+			rdsClient: &mocks.RDSClient{
+				DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
+				DBEngineVersions: []rdstypes.DBEngineVersion{
+					{Engine: aws.String(services.RDSEnginePostgres)},
+				},
 			},
 		},
-	}
+	})
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -2539,14 +2552,16 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	srv, err := New(
 		authz.ContextWithUser(ctx, identity.I),
 		&Config{
-			CloudClients:     testCloudClients,
-			ClusterFeatures:  func() proto.Features { return proto.Features{} },
-			KubernetesClient: fake.NewSimpleClientset(),
-			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-			Matchers:         Matchers{},
-			Emitter:          authClient,
-			DiscoveryGroup:   mainDiscoveryGroup,
-			clock:            clock,
+			AWSConfigProvider:         fakeConfigProvider,
+			AWSDatabaseFetcherFactory: dbFetcherFactory,
+			CloudClients:              testCloudClients,
+			ClusterFeatures:           func() proto.Features { return proto.Features{} },
+			KubernetesClient:          fake.NewSimpleClientset(),
+			AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+			Matchers:                  Matchers{},
+			Emitter:                   authClient,
+			DiscoveryGroup:            mainDiscoveryGroup,
+			clock:                     clock,
 		})
 
 	require.NoError(t, err)
@@ -2669,16 +2684,16 @@ func makeEKSCluster(t *testing.T, name, region string, discoveryParams rewriteDi
 	return eksAWSCluster, actual
 }
 
-func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rds.DBInstance, types.Database) {
-	instance := &rds.DBInstance{
+func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rdstypes.DBInstance, types.Database) {
+	instance := &rdstypes.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
 		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
 		DBInstanceStatus:     aws.String("available"),
-		Endpoint: &rds.Endpoint{
+		Endpoint: &rdstypes.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int64(5432),
+			Port:    aws.Int32(5432),
 		},
 	}
 	database, err := common.NewDatabaseFromRDSInstance(instance)
@@ -3748,8 +3763,15 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 	}
 }
 
-func newFakeRedshiftClientProvider(c redshift.DescribeClustersAPIClient) db.RedshiftClientProviderFunc {
-	return func(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
-		return c
-	}
+type fakeAWSClients struct {
+	rdsClient      db.RDSClient
+	redshiftClient db.RedshiftClient
+}
+
+func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {
+	return f.rdsClient
+}
+
+func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
+	return f.redshiftClient
 }
