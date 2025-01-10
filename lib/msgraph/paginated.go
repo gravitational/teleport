@@ -109,11 +109,11 @@ func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal 
 	return iterateSimple(c, ctx, "servicePrincipals", f)
 }
 
-// IterateUserMembership lists all group memberships for a given user ID as directory objects.
+// IterateUserMemberships lists all group memberships for a given user ID as directory objects.
 // `f` will be called for each directory object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-memberof].
-func (c *Client) IterateUserMembership(ctx context.Context, userID string, f func(object *DirectoryObject) bool) error {
+func (c *Client) IterateUserMemberships(ctx context.Context, userID string, f func(object *DirectoryObject) bool) error {
 	return iterateSimple(c, ctx, path.Join("users", userID, "memberOf"), f)
 }
 
