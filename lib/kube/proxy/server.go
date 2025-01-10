@@ -117,13 +117,13 @@ func (f *awsClientsGetter) GetConfig(ctx context.Context, region string, optFns 
 	return awsconfig.GetConfig(ctx, region, optFns...)
 }
 
-func (f *awsClientsGetter) GetAWSEKSClient(cfg aws.Config) (EKSClient, error) {
-	return eks.NewFromConfig(cfg), nil
+func (f *awsClientsGetter) GetAWSEKSClient(cfg aws.Config) EKSClient {
+	return eks.NewFromConfig(cfg)
 }
 
-func (f *awsClientsGetter) GetAWSSTSPresignClient(cfg aws.Config) (STSPresignClient, error) {
+func (f *awsClientsGetter) GetAWSSTSPresignClient(cfg aws.Config) STSPresignClient {
 	stsClient := sts.NewFromConfig(cfg)
-	return sts.NewPresignClient(stsClient), nil
+	return sts.NewPresignClient(stsClient)
 }
 
 // CheckAndSetDefaults checks and sets default values

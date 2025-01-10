@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -88,8 +87,9 @@ type kubeDetails struct {
 // clusterDetailsConfig contains the configuration for creating a proxied cluster.
 type clusterDetailsConfig struct {
 	// cloudClients is the cloud clients to use for dynamic clusters.
+	cloudClients cloud.Clients
+	// awsCloudClients provides AWS SDK clients.
 	awsCloudClients AWSClientGetter
-	cloudClients    cloud.Clients
 	// kubeCreds is the credentials to use for the cluster.
 	kubeCreds kubeCreds
 	// cluster is the cluster to create a proxied cluster for.
@@ -353,18 +353,13 @@ type EKSClient interface {
 	eks.DescribeClusterAPIClient
 }
 
-// STSClient is the subset of the STS Client interface we use.
-type STSClient interface {
-	stscreds.AssumeRoleAPIClient
-}
-
 // AWSClientGetter is an interface for getting an EKS client and an STS client.
 type AWSClientGetter interface {
 	awsconfig.Provider
 	// GetAWSEKSClient returns AWS EKS client for the specified config.
-	GetAWSEKSClient(aws.Config) (EKSClient, error)
+	GetAWSEKSClient(aws.Config) EKSClient
 	// GetAWSSTSPresignClient returns AWS STS presign client for the specified config.
-	GetAWSSTSPresignClient(aws.Config) (STSPresignClient, error)
+	GetAWSSTSPresignClient(aws.Config) STSPresignClient
 }
 
 // getAWSClientRestConfig creates a dynamicCredsClient that generates returns credentials to EKS clusters.
@@ -380,13 +375,10 @@ func getAWSClientRestConfig(cloudClients AWSClientGetter, clock clockwork.Clock,
 
 		cfg, err := cloudClients.GetConfig(ctx, region, opts...)
 		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err, "cloudClients.GetConfig")
-		}
-
-		regionalClient, err := cloudClients.GetAWSEKSClient(cfg)
-		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
 		}
+
+		regionalClient := cloudClients.GetAWSEKSClient(cfg)
 
 		eksCfg, err := regionalClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
 			Name: aws.String(cluster.GetAWSConfig().Name),
@@ -405,10 +397,7 @@ func getAWSClientRestConfig(cloudClients AWSClientGetter, clock clockwork.Clock,
 			return nil, time.Time{}, trace.BadParameter("invalid api endpoint for cluster %q", cluster.GetAWSConfig().Name)
 		}
 
-		stsPresignClient, err := cloudClients.GetAWSSTSPresignClient(cfg)
-		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err)
-		}
+		stsPresignClient := cloudClients.GetAWSSTSPresignClient(cfg)
 
 		token, exp, err := kubeutils.GenAWSEKSToken(ctx, stsPresignClient, cluster.GetAWSConfig().Name, clock)
 		if err != nil {

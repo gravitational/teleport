@@ -718,9 +718,10 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		vals["enterprise"] = true
 	}
 
-	eksTags := maps.Clone(cfg.eksCluster.Tags)
-
+	eksTags := make(map[string]string, len(cfg.eksCluster.Tags))
+	maps.Copy(eksTags, cfg.eksCluster.Tags)
 	eksTags[types.OriginLabel] = types.OriginCloud
+
 	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)

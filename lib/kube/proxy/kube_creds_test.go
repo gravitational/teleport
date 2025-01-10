@@ -21,7 +21,6 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"net/url"
 	"strings"
 	"testing"
@@ -56,12 +55,12 @@ type mockEKSClientGetter struct {
 	eksClient        *mockEKSAPI
 }
 
-func (e *mockEKSClientGetter) GetAWSEKSClient(aws.Config) (EKSClient, error) {
-	return e.eksClient, nil
+func (e *mockEKSClientGetter) GetAWSEKSClient(aws.Config) EKSClient {
+	return e.eksClient
 }
 
-func (e *mockEKSClientGetter) GetAWSSTSPresignClient(aws.Config) (kubeutils.STSPresignClient, error) {
-	return e.stsPresignClient, nil
+func (e *mockEKSClientGetter) GetAWSSTSPresignClient(aws.Config) kubeutils.STSPresignClient {
+	return e.stsPresignClient
 }
 
 type mockSTSPresignAPI struct {
@@ -80,11 +79,8 @@ type mockEKSAPI struct {
 }
 
 func (m *mockEKSAPI) ListClusters(ctx context.Context, req *eks.ListClustersInput, _ ...func(*eks.Options)) (*eks.ListClustersOutput, error) {
-	defer func() {
-		if m.notify != nil {
-			m.notify <- struct{}{}
-		}
-	}()
+	defer func() { m.notify <- struct{}{} }()
+
 	var names []string
 	for _, cluster := range m.clusters {
 		names = append(names, aws.ToString(cluster.Name))
@@ -95,11 +91,8 @@ func (m *mockEKSAPI) ListClusters(ctx context.Context, req *eks.ListClustersInpu
 }
 
 func (m *mockEKSAPI) DescribeCluster(_ context.Context, req *eks.DescribeClusterInput, _ ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
-	defer func() {
-		if m.notify != nil {
-			m.notify <- struct{}{}
-		}
-	}()
+	defer func() { m.notify <- struct{}{} }()
+
 	for _, cluster := range m.clusters {
 		if aws.ToString(cluster.Name) == aws.ToString(req.Name) {
 			return &eks.DescribeClusterOutput{
@@ -107,7 +100,7 @@ func (m *mockEKSAPI) DescribeCluster(_ context.Context, req *eks.DescribeCluster
 			}, nil
 		}
 	}
-	return nil, errors.New("cluster not found")
+	return nil, trace.NotFound("cluster %q not found", aws.ToString(req.Name))
 }
 
 // Test_DynamicKubeCreds tests the dynamic kube credrentials generator for

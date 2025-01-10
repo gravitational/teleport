@@ -291,7 +291,7 @@ func (a *awsFetcher) fetchAssociatedPolicies(ctx context.Context, eksClient EKSC
 			out, err := p.NextPage(ctx)
 			if err != nil {
 				errs = append(errs, err)
-				continue
+				break
 			}
 			for _, policy := range out.AssociatedAccessPolicies {
 				associatedPolicies = append(associatedPolicies,
