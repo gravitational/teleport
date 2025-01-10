@@ -115,14 +115,6 @@ linters-settings:
             desc: 'use "crypto" or "x/crypto" instead'
       # Prevent importing any additional logging libraries.
       logging:
-        files:
-          # Integrations are still allowed to use logrus becuase they haven't
-          # been converted to slog yet. Once they use slog, remove this exception.
-          - '!**/integrations/**'
-          # The log package still contains the logrus formatter consumed by the integrations.
-          # Remove this exception when said formatter is deleted.
-          - '!**/lib/utils/log/**'
-          - '!**/lib/utils/cli.go'
         deny:
           - pkg: github.com/sirupsen/logrus
             desc: 'use "log/slog" instead'
