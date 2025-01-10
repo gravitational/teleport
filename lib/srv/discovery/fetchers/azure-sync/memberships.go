@@ -30,6 +30,7 @@ import (
 
 const parallelism = 10 //nolint:unused // invoked in a dependent PR
 
+// expandMemberships adds membership data to AzurePrincipal objects by querying the Graph API for group memberships
 func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint:unused // invoked in a dependent PR
 	eg, _ := errgroup.WithContext(ctx)
 	eg.SetLimit(parallelism)
@@ -47,12 +48,6 @@ func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*a
 		})
 	}
 	_ = eg.Wait()
-	var errs []error
-	for chErr := range errCh {
-		errs = append(errs, chErr)
-	}
-	if len(errs) > 0 {
-		return nil, trace.NewAggregate(errs...)
-	}
-	return principals, nil
+	close(errCh)
+	return principals, trace.NewAggregateFromChannel(errCh, ctx)
 }
