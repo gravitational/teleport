@@ -119,7 +119,7 @@ func (c *ForwardServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("source address required to identify client")
 	}
 	if c.DstAddr == nil {
-		return trace.BadParameter("source address required to identify client")
+		return trace.BadParameter("destination address required to identify client")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -451,7 +451,7 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 	return nil
 }
 
-// handleEnv sets env on the target server. Comm
+// handleEnv sets env on the target server.
 func (s *ForwardServer) handleEnv(ctx context.Context, sctx *sessionContext, req *ssh.Request) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {

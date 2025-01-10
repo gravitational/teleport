@@ -3582,7 +3582,10 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
+// AuthPreferenceGetter defines an interface for getting the authentication
+// preferences.
 type AuthPreferenceGetter interface {
+	// GetAuthPreference fetches the cluster authentication preferences.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
