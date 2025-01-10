@@ -1,5 +1,3 @@
-//go:build !debug
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -18,29 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+import { ApiError } from '../api/parseError';
 
-import (
-	"context"
-	"log/slog"
-	"os"
-
-	"github.com/gogo/protobuf/vanity/command"
-
-	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-)
-
-func main() {
-	slog.SetDefault(slog.New(logutils.NewSlogTextHandler(os.Stderr,
-		logutils.SlogTextHandlerConfig{
-			Level: slog.LevelDebug,
-		},
-	)))
-
-	req := command.Read()
-	if err := crdgen.HandleCRDRequest(req); err != nil {
-		slog.ErrorContext(context.Background(), "Failed to generate schema", "error", err)
-		os.Exit(-1)
-	}
+export function withUnsupportedLabelFeatureErrorConversion(
+  err: unknown
+): never {
+  if (err instanceof ApiError && err.response.status === 404) {
+    throw new Error(
+      'We could not complete your request. ' +
+        'Your proxy may be behind the minimum required version ' +
+        `(v17.2.0) to support adding resource labels. ` +
+        'Ensure all proxies are upgraded or remove labels and try again.'
+    );
+  }
+  throw err;
 }

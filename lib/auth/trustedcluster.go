@@ -678,7 +678,9 @@ func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, va
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}
 
-	clt, err := roundtrip.NewClient(proxyAddr.String(), teleport.WebAPIVersion, opts...)
+	// We do not add the version prefix since web api endpoints will
+	// contain differing version prefixes.
+	clt, err := roundtrip.NewClient(proxyAddr.String(), "" /* version prefix */, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

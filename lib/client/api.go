@@ -2853,7 +2853,7 @@ type execResult struct {
 
 // sharedWriter is an [io.Writer] implementation that protects
 // writes with a mutex. This allows a single [io.Writer] to be shared
-// by both logrus and slog without their output clobbering each other.
+// by multiple command runners.
 type sharedWriter struct {
 	mu sync.Mutex
 	io.Writer

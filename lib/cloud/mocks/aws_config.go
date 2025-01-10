@@ -38,12 +38,12 @@ func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns
 	if stsClt == nil {
 		stsClt = &STSClient{}
 	}
-	optFns = append(optFns,
+	optFns = append([]awsconfig.OptionsFn{
 		awsconfig.WithOIDCIntegrationClient(f.OIDCIntegrationClient),
 		awsconfig.WithSTSClientProvider(
 			newAssumeRoleClientProviderFunc(stsClt),
 		),
-	)
+	}, optFns...)
 	return awsconfig.GetConfig(ctx, region, optFns...)
 }
 

@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,30 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package log
+import HelmChart, { generateCmd } from './HelmChart';
 
-import (
-	"io"
-	"sync"
-)
-
-// SharedWriter is an [io.Writer] implementation that protects
-// writes with a mutex. This allows a single [io.Writer] to be shared
-// by both logrus and slog without their output clobbering each other.
-type SharedWriter struct {
-	mu sync.Mutex
-	io.Writer
-}
-
-func (s *SharedWriter) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.Writer.Write(p)
-}
-
-// NewSharedWriter wraps the provided [io.Writer] in a writer that
-// is thread safe.
-func NewSharedWriter(w io.Writer) *SharedWriter {
-	return &SharedWriter{Writer: w}
-}
+export { HelmChart, generateCmd };

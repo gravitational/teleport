@@ -179,7 +179,6 @@ require (
 	github.com/sigstore/cosign/v2 v2.4.1
 	github.com/sigstore/sigstore v1.8.11
 	github.com/sijms/go-ora/v2 v2.8.22
-	github.com/sirupsen/logrus v1.9.3
 	github.com/snowflakedb/gosnowflake v1.12.1
 	github.com/spf13/cobra v1.8.1
 	github.com/spiffe/go-spiffe/v2 v2.4.0
@@ -501,6 +500,7 @@ require (
 	github.com/sigstore/protobuf-specs v0.3.2 // indirect
 	github.com/sigstore/rekor v1.3.6 // indirect
 	github.com/sigstore/timestamp-authority v1.2.2 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect

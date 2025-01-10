@@ -721,7 +721,7 @@ func (s *JiraSuiteOSS) TestRace() {
 			defer cancel()
 			var lastErr error
 			for {
-				logger.Get(ctx).Infof("Trying to approve issue %q", issue.Key)
+				logger.Get(ctx).InfoContext(ctx, "Trying to approve issue", "issue_key", issue.Key)
 				resp, err := s.postWebhook(ctx, s.webhookURL.String(), issue.ID, "Approved")
 				if err != nil {
 					if lib.IsDeadline(err) {
