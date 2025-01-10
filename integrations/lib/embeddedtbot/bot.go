@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -106,9 +105,9 @@ func (b *EmbeddedBot) start(ctx context.Context) {
 	go func() {
 		err := bot.Run(botCtx)
 		if err != nil {
-			log.Errorf("bot exited with error: %s", err)
+			slog.ErrorContext(botCtx, "bot exited with error", "error", err)
 		} else {
-			log.Infof("bot exited without error")
+			slog.InfoContext(botCtx, "bot exited without error")
 		}
 		b.errCh <- trace.Wrap(err)
 	}()
@@ -142,10 +141,10 @@ func (b *EmbeddedBot) waitForCredentials(ctx context.Context, deadline time.Dura
 
 	select {
 	case <-waitCtx.Done():
-		log.Warn("context canceled while waiting for the bot client")
+		slog.WarnContext(ctx, "context canceled while waiting for the bot client")
 		return nil, trace.Wrap(ctx.Err())
 	case <-b.credential.Ready():
-		log.Infof("credential ready")
+		slog.InfoContext(ctx, "credential ready")
 	}
 
 	return b.credential, nil
@@ -177,7 +176,7 @@ func (b *EmbeddedBot) StartAndWaitForCredentials(ctx context.Context, deadline t
 // buildClient reads tbot's memory disttination, retrieves the certificates
 // and builds a new Teleport client using those certs.
 func (b *EmbeddedBot) buildClient(ctx context.Context) (*client.Client, error) {
-	log.Infof("Building a new client to connect to %s", b.cfg.AuthServer)
+	slog.InfoContext(ctx, "Building a new client to connect to cluster", "auth_server_address", b.cfg.AuthServer)
 	c, err := client.New(ctx, client.Config{
 		Addrs:                    []string{b.cfg.AuthServer},
 		Credentials:              []client.Credentials{b.credential},

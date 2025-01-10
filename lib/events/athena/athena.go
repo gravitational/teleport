@@ -617,7 +617,7 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 			prometheus.HistogramOpts{
 				Namespace: teleport.MetricNamespace,
 				Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
-				Help:      "Duration of delation of events on SQS in parquetlog",
+				Help:      "Duration of deletion of events on SQS in parquetlog",
 				// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 				// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 				Buckets:     prometheus.ExponentialBuckets(0.001, 2, 16),

@@ -2962,14 +2962,14 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
 		if isRoleImpersonation(*req) {
-			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user wjile adding role requests",
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
 				"user", a.context.User.GetName(),
 				"requested_user", req.Username,
 			)
 			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
 		}
 		if len(req.AccessRequests) > 0 {
-			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user wihile adding access requests",
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding access requests",
 				"user", a.context.User.GetName(),
 				"requested_user", req.Username,
 			)
@@ -3453,6 +3453,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
 		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		// Propagate any join attributes from the current identity to the new
+		// identity.
+		joinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
 	}
 
 	if user.GetName() != a.context.User.GetName() {

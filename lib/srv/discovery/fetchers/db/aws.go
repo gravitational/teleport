@@ -55,9 +55,6 @@ type awsFetcherConfig struct {
 	AWSClients cloud.AWSClients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// IntegrationCredentialProviderFn is a required function that provides
-	// credentials via AWS OIDC integration.
-	IntegrationCredentialProviderFn awsconfig.IntegrationCredentialProviderFunc
 	// Type is the type of DB matcher, for example "rds", "redshift", etc.
 	Type string
 	// AssumeRole provides a role ARN and ExternalID to assume an AWS role

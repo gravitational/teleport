@@ -137,7 +137,7 @@ func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetch
 		return trace.Wrap(err)
 	}
 
-	m.logger.DebugContext(ctx, "Fetched metadata for dabase", "database", database, "metadata", logutils.StringerAttr(fetchedMeta))
+	m.logger.DebugContext(ctx, "Fetched metadata for database", "database", database, "metadata", logutils.StringerAttr(fetchedMeta))
 	fetchedMeta.AssumeRoleARN = meta.AssumeRoleARN
 	fetchedMeta.ExternalID = meta.ExternalID
 	database.SetStatusAWS(*fetchedMeta)

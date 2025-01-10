@@ -71,6 +71,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -2290,6 +2291,9 @@ type certRequest struct {
 	// botInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any
 	botInstanceID string
+	// joinAttributes holds attributes derived from attested metadata from the
+	// join process, should any exist.
+	joinAttributes *workloadidentityv1pb.JoinAttrs
 }
 
 // check verifies the cert request is valid.
@@ -3237,39 +3241,41 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			return nil, trace.Wrap(err)
 		}
 
-		params := services.UserCertParams{
-			CASigner:                sshSigner,
-			PublicUserKey:           req.sshPublicKey,
-			Username:                req.user.GetName(),
-			Impersonator:            req.impersonator,
-			AllowedLogins:           allowedLogins,
-			TTL:                     sessionTTL,
-			Roles:                   req.checker.RoleNames(),
-			CertificateFormat:       certificateFormat,
-			PermitPortForwarding:    req.checker.CanPortForward(),
-			PermitAgentForwarding:   req.checker.CanForwardAgents(),
-			PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
-			RouteToCluster:          req.routeToCluster,
-			Traits:                  req.traits,
-			ActiveRequests:          req.activeRequests,
-			MFAVerified:             req.mfaVerified,
-			PreviousIdentityExpires: req.previousIdentityExpires,
-			LoginIP:                 req.loginIP,
-			PinnedIP:                pinnedIP,
-			DisallowReissue:         req.disallowReissue,
-			Renewable:               req.renewable,
-			Generation:              req.generation,
-			BotName:                 req.botName,
-			BotInstanceID:           req.botInstanceID,
-			CertificateExtensions:   req.checker.CertificateExtensions(),
-			AllowedResourceIDs:      requestedResourcesStr,
-			ConnectionDiagnosticID:  req.connectionDiagnosticID,
-			PrivateKeyPolicy:        attestedKeyPolicy,
-			DeviceID:                req.deviceExtensions.DeviceID,
-			DeviceAssetTag:          req.deviceExtensions.AssetTag,
-			DeviceCredentialID:      req.deviceExtensions.CredentialID,
-			GitHubUserID:            githubUserID,
-			GitHubUsername:          githubUsername,
+		params := sshca.UserCertificateRequest{
+			CASigner:          sshSigner,
+			PublicUserKey:     req.sshPublicKey,
+			TTL:               sessionTTL,
+			CertificateFormat: certificateFormat,
+			Identity: sshca.Identity{
+				Username:                req.user.GetName(),
+				Impersonator:            req.impersonator,
+				AllowedLogins:           allowedLogins,
+				Roles:                   req.checker.RoleNames(),
+				PermitPortForwarding:    req.checker.CanPortForward(),
+				PermitAgentForwarding:   req.checker.CanForwardAgents(),
+				PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
+				RouteToCluster:          req.routeToCluster,
+				Traits:                  req.traits,
+				ActiveRequests:          req.activeRequests,
+				MFAVerified:             req.mfaVerified,
+				PreviousIdentityExpires: req.previousIdentityExpires,
+				LoginIP:                 req.loginIP,
+				PinnedIP:                pinnedIP,
+				DisallowReissue:         req.disallowReissue,
+				Renewable:               req.renewable,
+				Generation:              req.generation,
+				BotName:                 req.botName,
+				BotInstanceID:           req.botInstanceID,
+				CertificateExtensions:   req.checker.CertificateExtensions(),
+				AllowedResourceIDs:      requestedResourcesStr,
+				ConnectionDiagnosticID:  req.connectionDiagnosticID,
+				PrivateKeyPolicy:        attestedKeyPolicy,
+				DeviceID:                req.deviceExtensions.DeviceID,
+				DeviceAssetTag:          req.deviceExtensions.AssetTag,
+				DeviceCredentialID:      req.deviceExtensions.CredentialID,
+				GitHubUserID:            githubUserID,
+				GitHubUsername:          githubUsername,
+			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {
@@ -3370,7 +3376,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
-		UserType: req.user.GetUserType(),
+		UserType:       req.user.GetUserType(),
+		JoinAttributes: req.joinAttributes,
 	}
 
 	var signedTLSCert []byte

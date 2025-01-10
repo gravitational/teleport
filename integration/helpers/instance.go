@@ -40,7 +40,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -327,10 +326,6 @@ type InstanceConfig struct {
 	Priv []byte
 	// Pub is SSH public key of the instance
 	Pub []byte
-	// Log specifies the logger
-	// Deprecated: Use Logger instead
-	// TODO(tross): Delete when e is updated
-	Log utils.Logger
 	// Logger specifies the logger
 	Logger *slog.Logger
 	// Ports is a collection of instance ports.
@@ -352,10 +347,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 
 	if cfg.Listeners == nil {
 		cfg.Listeners = StandardListenerSetup(t, &cfg.Fds)
-	}
-
-	if cfg.Log == nil {
-		cfg.Log = logrus.New()
 	}
 
 	if cfg.Logger == nil {

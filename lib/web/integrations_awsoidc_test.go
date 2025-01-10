@@ -973,8 +973,6 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := newWebPack(t, 1)
-	clt := env.proxies[0].client
 
 	rdsVPC1 := mustCreateRDS(t, types.RDS{
 		VPCID:   "vpc-1",
@@ -993,11 +991,18 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 
 	rdss := []*types.DatabaseV3{rdsVPC1, rdsVPC1a, rdsVPC2}
 
-	resp, err := awsOIDCRequiredVPCSHelper(ctx, clt, ui.AWSOIDCRequiredVPCSRequest{Region: "us-east-1"}, rdss)
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, &mockGetResources{}, ui.AWSOIDCRequiredVPCSRequest{Region: "us-east-1"}, rdss)
 	require.NoError(t, err)
 	require.Len(t, resp.VPCMapOfSubnets, 2)
 	require.ElementsMatch(t, []string{"subnet1", "subnet2", "subnet3", "subnet4"}, resp.VPCMapOfSubnets["vpc-1"])
 	require.ElementsMatch(t, []string{"subnet8"}, resp.VPCMapOfSubnets["vpc-2"])
+}
+
+type mockGetResources struct {
+}
+
+func (m *mockGetResources) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	return &proto.ListResourcesResponse{}, nil
 }
 
 func mustCreateRDS(t *testing.T, awsRDS types.RDS) *types.DatabaseV3 {

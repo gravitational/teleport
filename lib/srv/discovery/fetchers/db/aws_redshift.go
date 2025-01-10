@@ -53,7 +53,6 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
 		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
 		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
-		awsconfig.WithIntegrationCredentialProvider(cfg.IntegrationCredentialProviderFn),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

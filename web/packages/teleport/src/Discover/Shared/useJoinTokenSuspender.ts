@@ -41,11 +41,25 @@ export function clearCachedJoinTokenResult(resourceKinds: ResourceKind[]) {
   joinTokenCache.delete(resourceKinds.sort().join());
 }
 
-export function useJoinTokenSuspender(
-  resourceKinds: ResourceKind[],
-  suggestedAgentMatcherLabels: ResourceLabel[] = [],
-  joinMethod: JoinMethod = 'token'
-): {
+export function useJoinTokenSuspender({
+  resourceKinds,
+  suggestedAgentMatcherLabels = [],
+  joinMethod = 'token',
+  suggestedLabels = [],
+}: {
+  resourceKinds: ResourceKind[];
+  /**
+   * labels used for the agent that will be created
+   * using a join token (eg: db agent)
+   */
+  suggestedAgentMatcherLabels?: ResourceLabel[];
+  joinMethod?: JoinMethod;
+  /**
+   * labels for a non-agent resource that will be created
+   * using a join token (currently only can be applied to server resource kind).
+   */
+  suggestedLabels?: ResourceLabel[];
+}): {
   joinToken: JoinToken;
   reloadJoinToken: () => void;
 } {
@@ -68,6 +82,7 @@ export function useJoinTokenSuspender(
             roles: resourceKinds.map(resourceKindToJoinRole),
             method: joinMethod,
             suggestedAgentMatcherLabels,
+            suggestedLabels,
           },
           abortController.signal
         )
