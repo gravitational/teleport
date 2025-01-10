@@ -263,28 +263,40 @@ func Test_evaluateRules(t *testing.T) {
 		User: &workloadidentityv1pb.UserAttrs{
 			Name: "foo",
 		},
-	}
-	wi := &workloadidentityv1pb.WorkloadIdentity{
-		Kind:    types.KindWorkloadIdentity,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "test",
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
-				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-					{
-						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-							{
-								Attribute: "user.name",
-								Equals:    "foo",
-							},
-						},
-					},
-				},
+		Workload: &workloadidentityv1pb.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
+				PodName:   "pod1",
+				Namespace: "default",
 			},
 		},
 	}
-	err := evaluateRules(wi, attrs)
-	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		wid        *workloadidentityv1pb.WorkloadIdentity
+		attrs      *workloadidentityv1pb.Attrs
+		requireErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "pass, no rules",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{},
+				},
+			},
+			attrs:      attrs,
+			requireErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := evaluateRules(tt.wid, tt.attrs)
+			tt.requireErr(t, err)
+		})
+	}
 }
