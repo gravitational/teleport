@@ -280,11 +280,11 @@ func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Confi
 }
 
 func getConfigForRoleChain(ctx context.Context, cfg aws.Config, roles []AssumeRole, newCltFn STSClientProviderFunc) (aws.Config, error) {
-	for _, r := range roles {
-		cfg.Credentials = getAssumeRoleProvider(ctx, newCltFn(cfg), r)
-	}
 	if len(roles) > 0 {
-		// no point caching every assumed role in the chain, we can just cache
+		for _, r := range roles {
+			cfg.Credentials = getAssumeRoleProvider(ctx, newCltFn(cfg), r)
+		}
+		// No point caching every assumed role in the chain, we can just cache
 		// the last one.
 		cfg.Credentials = aws.NewCredentialsCache(cfg.Credentials, awsCredentialsCacheOptions)
 		if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
