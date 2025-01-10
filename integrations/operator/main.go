@@ -75,8 +75,7 @@ func main() {
 
 	// Now that we parsed the flags, we can tune the log level.
 	var logLevel slog.Level
-	err = (&logLevel).UnmarshalText([]byte(config.logLevel))
-	if err != nil {
+	if err := (&logLevel).UnmarshalText([]byte(config.logLevel)); err != nil {
 		setupLog.Error(err, "Failed to parse log level", "level", config.logLevel)
 		os.Exit(1)
 	}
