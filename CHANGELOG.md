@@ -1,5 +1,16 @@
 # Changelog
 
+## 17.1.5 (1/10/25)
+
+* Fixes an issue causing Azure join method to fail due to throttling. [#50928](https://github.com/gravitational/teleport/pull/50928)
+* Fix Teleport Connect Oracle support. Requires updated Teleport database agents (v17.1.5+). [#50922](https://github.com/gravitational/teleport/pull/50922)
+* Prevent quoting errors in log messages. [#50821](https://github.com/gravitational/teleport/pull/50821)
+* Fixed an issue that could cause teleport event handlers to become stuck in an error loop upon upgrading to v17 (fix requires upgrading auth server). [#50820](https://github.com/gravitational/teleport/pull/50820)
+* Add `user_agent` field to `db.session.start` audit events. [#50806](https://github.com/gravitational/teleport/pull/50806)
+* Fix an issue "tsh aws ssm start-session" fails when KMS encryption is enabled. [#50796](https://github.com/gravitational/teleport/pull/50796)
+* Support wider range of Oracle clients and simplified configuration. [#50740](https://github.com/gravitational/teleport/pull/50740)
+* Added support for multi-port TCP apps to `tsh proxy app`. [#50691](https://github.com/gravitational/teleport/pull/50691)
+
 ## 17.1.4 (1/6/25)
 
 * Fixed a Postgres database-access auto-user provisioning syntax error that caused a misleading debug level error log in most cases, unless the database admin is not a superuser and the database was upgraded from Postgres v15 or lower to Postgres v16 or higher, in which case the role "teleport-auto-user" must be granted to the database admin with the ADMIN option manually. [#50782](https://github.com/gravitational/teleport/pull/50782)
