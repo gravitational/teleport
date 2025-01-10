@@ -1,5 +1,5 @@
 ---
-title: Deploy Trusted Clusters using Kubernetes Operator
+title: Deploy Trusted Clusters using the Kubernetes Operator
 description: Use Teleport's Kubernetes Operator to deploy Trusted Clusters
 ---
 
@@ -15,8 +15,8 @@ trusted clusters.
 The Teleport Kubernetes Operator provides a way for Kubernetes users to manage Teleport trusted clusters through
 Kubernetes, following [the Operator Pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
 
-The trusted cluster custom resource definitions are deployed alongside the Teleport
-Kubernetes Operator. Once deployed, users can use a Kubernetes client like `kubectl`
+Trusted cluster custom resource definitions are deployed alongside the Teleport
+Kubernetes Operator. Users can use a Kubernetes client like `kubectl`
 or their existing CI/CD Kubernetes pipelines to create and manage Teleport trusted
 clusters. The Teleport Kubernetes Operator watches for these trusted cluster resources
 and makes API calls to Teleport to reach the desired state.
@@ -27,6 +27,9 @@ and makes API calls to Teleport to reach the desired state.
 
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version
   behind the root cluster version.
+
+  Follow the [Run a Self-Hosted Demo Cluster](../../deploy-a-cluster/linux-demo.mdx)
+  guide to learn how to deploy a self-hosted Teleport cluster on a Linux server.
 
 - Read through the [Configure Trusted Clusters](../../management/admin/trustedclusters.mdx)
   guide to understand how trusted clusters works.
