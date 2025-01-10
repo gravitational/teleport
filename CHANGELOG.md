@@ -1,5 +1,25 @@
 # Changelog
 
+## 15.4.25 (1/10/2024)
+
+* Prevent quoting errors in log messages. [#50823](https://github.com/gravitational/teleport/pull/50823)
+* Fix an issue "tsh aws ssm start-session" fails when KMS encryption is enabled. [#50798](https://github.com/gravitational/teleport/pull/50798)
+* Updates the UI login redirection service to honor redirection to enterprise/saml-idp/sso path even if user is already authenticated with Teleport. [#50795](https://github.com/gravitational/teleport/pull/50795)
+* Fixed a Postgres database-access auto-user provisioning syntax error that caused a misleading debug level error log in most cases, unless the database admin is not a superuser and the database was upgraded from Postgres v15 or lower to Postgres v16 or higher, in which case the role "teleport-auto-user" must be granted to the database admin with the ADMIN option manually. [#50785](https://github.com/gravitational/teleport/pull/50785)
+* Fixes a bug where S3 bucket details fail to fetch due to incorrect bucket region. [#50765](https://github.com/gravitational/teleport/pull/50765)
+* Prevent panicking during shutdown when SQS consumer is disabled. [#50646](https://github.com/gravitational/teleport/pull/50646)
+* Fix a bug in the `tbot` Helm chart causing invalid configuration when both default and custom outputs were used. [#50528](https://github.com/gravitational/teleport/pull/50528)
+* Restore the ability to play session recordings in the web UI without specifying the session duration in the URL. [#50462](https://github.com/gravitational/teleport/pull/50462)
+* Fixed an issue that could cause some antivirus tools to block Teleport's Device. [#50455](https://github.com/gravitational/teleport/pull/50455)
+* Updated golang.org/x/net to v0.33.0 (addresses CVE-2024-45338). [#50399](https://github.com/gravitational/teleport/pull/50399)
+* Improved the performance of Teleport agents serving a large number of resources in Kubernetes. [#50281](https://github.com/gravitational/teleport/pull/50281)
+* Improve performance of Kubernetes App Auto Discover. [#50267](https://github.com/gravitational/teleport/pull/50267)
+* Properly close ssh port forwarding connections to prevent requests hanging indefinitely. [#50240](https://github.com/gravitational/teleport/pull/50240)
+
+Enterprise:
+* Fix missing cleanup actions if the Oracle db connection is closed in its initial phases.
+* Fixed an issue where the Access Graph HTTP endpoint resolution failed to retry after the initial failure.
+
 ## 15.4.24 (12/11/2024)
 
 * Updated golang.org/x/crypto to v0.31.0 (CVE-2024-45337). [#50080](https://github.com/gravitational/teleport/pull/50080)
