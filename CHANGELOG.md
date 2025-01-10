@@ -267,7 +267,27 @@ credential for per-session MFA.
 
 TOTP will continue to be accepted for the initial login.
 
-## 16.4.12 (12//18/2024)
+## 16.4.13 (1/10/2025)
+
+* Fixes an issue causing Azure join method to fail due to throttling. [#50929](https://github.com/gravitational/teleport/pull/50929)
+* Prevent quoting errors in log messages. [#50822](https://github.com/gravitational/teleport/pull/50822)
+* Fix an issue "tsh aws ssm start-session" fails when KMS encryption is enabled. [#50797](https://github.com/gravitational/teleport/pull/50797)
+* Updates the UI login redirection service to honor redirection to enterprise/saml-idp/sso path even if user is already authenticated with Teleport. [#50794](https://github.com/gravitational/teleport/pull/50794)
+* Fixed a Postgres database-access auto-user provisioning syntax error that caused a misleading debug level error log in most cases, unless the database admin is not a superuser and the database was upgraded from Postgres v15 or lower to Postgres v16 or higher, in which case the role "teleport-auto-user" must be granted to the database admin with the ADMIN option manually. [#50783](https://github.com/gravitational/teleport/pull/50783)
+* Fixes a bug where S3 bucket details fail to fetch due to incorrect bucket region. [#50764](https://github.com/gravitational/teleport/pull/50764)
+* Prevent panicking during shutdown when SQS consumer is disabled. [#50647](https://github.com/gravitational/teleport/pull/50647)
+* Add a --labels flag to the tctl tokens ls command. [#50625](https://github.com/gravitational/teleport/pull/50625)
+* Fix a bug in the `tbot` Helm chart causing invalid configuration when both default and custom outputs were used. [#50527](https://github.com/gravitational/teleport/pull/50527)
+* Restore the ability to play session recordings in the web UI without specifying the session duration in the URL. [#50461](https://github.com/gravitational/teleport/pull/50461)
+* Fix missing roles in access lists causing users to be locked out of their account. [#50460](https://github.com/gravitational/teleport/pull/50460)
+* Fixed an issue that could cause some antivirus tools to block Teleport's Device Trust feature on Windows machines. [#50454](https://github.com/gravitational/teleport/pull/50454)
+* Reverted a change that caused the Kubernetes cluster name to be displayed at the end of the tab title in Teleport Connect. [#50390](https://github.com/gravitational/teleport/pull/50390)
+
+Enterprise:
+* Fix missing cleanup actions if the Oracle db connection is closed in its initial phases.
+* Fixed an issue where the Access Graph HTTP endpoint resolution failed to retry after the initial failure.
+
+## 16.4.12 (12/18/2024)
 
 * Updated golang.org/x/net to v0.33.0 (addresses CVE-2024-45338). [#50398](https://github.com/gravitational/teleport/pull/50398)
 * Improved the performance of Teleport agents serving a large number of resources in Kubernetes. [#50280](https://github.com/gravitational/teleport/pull/50280)
