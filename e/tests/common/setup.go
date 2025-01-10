@@ -162,7 +162,6 @@ func newTeleportConfig() *servicecfg.Config {
 	serviceConfig := servicecfg.MakeDefaultConfig()
 	// Replace the default auth and proxy listeners with the ones so we can
 	// run multiple tests in parallel.
-	serviceConfig.Console = nil
 	serviceConfig.Proxy.DisableWebInterface = true
 	serviceConfig.PollingPeriod = 500 * time.Millisecond
 	serviceConfig.Testing.ClientTimeout = time.Second
