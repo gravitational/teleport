@@ -1258,9 +1258,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	workloadIdentityCmd := newSVIDCommands(app)
 
-	vnetCmd := newVnetCommand(app)
-	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
-	vnetDaemonCmd := newVnetDaemonCommand(app)
+	vnetCommand := newVnetCommand(app)
+	vnetAdminSetupCommand := newVnetAdminSetupCommand(app)
+	vnetDaemonCommand := newPlatformVnetDaemonCommand(app)
+	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
+	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
+	vnetServiceCommand := newVnetServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
 
@@ -1638,12 +1641,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issue.FullCommand():
 		err = workloadIdentityCmd.issue.run(&cf)
-	case vnetCmd.FullCommand():
-		err = vnetCmd.run(&cf)
-	case vnetAdminSetupCmd.FullCommand():
-		err = vnetAdminSetupCmd.run(&cf)
-	case vnetDaemonCmd.FullCommand():
-		err = vnetDaemonCmd.run(&cf)
+	case vnetCommand.FullCommand():
+		err = vnetCommand.run(&cf)
+	case vnetAdminSetupCommand.FullCommand():
+		err = vnetAdminSetupCommand.run(&cf)
+	case vnetDaemonCommand.FullCommand():
+		err = vnetDaemonCommand.run(&cf)
+	case vnetInstallServiceCommand.FullCommand():
+		err = vnetInstallServiceCommand.run(&cf)
+	case vnetUninstallServiceCommand.FullCommand():
+		err = vnetUninstallServiceCommand.run(&cf)
+	case vnetServiceCommand.FullCommand():
+		err = vnetServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():

@@ -1,6 +1,3 @@
-//go:build !darwin && !windows
-// +build !darwin,!windows
-
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -17,34 +14,34 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build !darwin && !windows
+// +build !darwin,!windows
+
 package common
 
 import (
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/vnet"
 )
 
-func newVnetCommand(app *kingpin.Application) vnetNotSupported {
-	return vnetNotSupported{}
+// Satisfy unused linter.
+var _ = newVnetAppProvider
+
+func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
+	return commandNotSupported{}
 }
 
-func newVnetAdminSetupCommand(app *kingpin.Application) vnetNotSupported {
-	return vnetNotSupported{}
+func newPlatformVnetDaemonCommand(app *kingpin.Application) vnetCLICommand {
+	return commandNotSupported{}
 }
 
-type vnetNotSupported struct{}
-
-func (vnetNotSupported) FullCommand() string {
-	return ""
-}
-func (vnetNotSupported) run(*CLIConf) error {
-	return trace.Wrap(vnet.ErrVnetNotImplemented)
+func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return commandNotSupported{}
 }
 
-var (
-	// Satisfy unused linter.
-	_ = (*vnetAppProvider)(nil)
-	_ = newVnetAppProvider
-)
+func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return commandNotSupported{}
+}
+
+func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return commandNotSupported{}
+}
