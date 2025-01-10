@@ -199,8 +199,11 @@ installed version of client tools on endpoints.
 By defining the `proxy` flag, we can use the get command without logging in.
 
 ```
-$ tctl autoupdate client-tools get --proxy proxy.example.com
-{"target_version": "2.0.0"}
+$ tctl autoupdate client-tools status --proxy proxy.example.com --format json
+{
+    "mode": "enabled",
+    "target_version": "X.Y.Z"
+}
 ```
 
 ##### Cluster configuration
@@ -234,12 +237,13 @@ spec:
     # cluster level. Disable client tools automatic updates only if self-managed
     # updates are in place.
     mode: enabled|disabled
+```
+```
+$ tctl autoupdate client-tools enable
+client tools auto update mode has been changed
 
-  [...]
-```
-```
-$ tctl autoupdate client-tools configure --set-mode=disabled
-Automatic updates configuration has been updated.
+$ tctl autoupdate client-tools disable
+client tools auto update mode has been changed
 ```
 
 By default, all Cloud clusters will be opted into `tools.mode: enabled`. All
@@ -254,8 +258,11 @@ spec:
     target_version: X.Y.Z
 ```
 ```
-$ tctl autoupdate client-tools configure --set-target-version=1.0.1
-Automatic updates configuration has been updated.
+$ tctl autoupdate client-tools target X.Y.Z
+client tools auto update target version has been set
+
+$ tctl autoupdate client-tools target --clear
+client tools auto update target version has been cleared
 ```
 
 For Cloud clusters, `target_version` will always be `X.Y.Z`, with the version
@@ -268,13 +275,10 @@ the proxy side to minimize requests to the auth service. In case of an unhealthy
 cache state, the last known version of the resources should be used for the response.
 
 ```
-$ curl https://proxy.example.com/v1/webapi/find | jq .
+$ curl https://proxy.example.com/v1/webapi/find | jq .auto_update
 {
-    "auto_update": {
-        "tools_mode": enabled,
-        "tools_version": "X.Y.Z",
-    }
-    [...]
+    "tools_auto_update": true,
+    "tools_version": "X.Y.Z",
 }
 ```
 
