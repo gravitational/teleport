@@ -1,18 +1,20 @@
 import 'whatwg-fetch';
 
 import websession from 'teleport/services/websession';
+import TeleportContext from 'teleport/teleportContext';
 
-import { AuthService } from '../auth/auth';
+import { AuthService, MfaChallengeScope } from '../auth/auth';
 import { MfaChallengeResponse } from '../mfa';
 import { storageService } from '../storageService';
 import parseError, { ApiError, parseProxyVersion } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
-export class Api {
-  authService: AuthService;
-  constructor(authService: AuthService) {
-    this.authService = authService;
+export class ApiService {
+  auth: AuthService;
+
+  constructor(ctx: TeleportContext) {
+    this.auth = ctx.authService;
   }
 
   static defaultRequestOptions: RequestInit = {
@@ -25,9 +27,9 @@ export class Api {
     cache: 'no-store',
   };
 
-  static getAuthHeaders(): Record<string, string> {
-    const accessToken = this.getAccessToken();
-    const csrfToken = this.getXCSRFToken();
+  getAuthHeaders(): Record<string, string> {
+    const accessToken = ApiService.getAccessToken();
+    const csrfToken = ApiService.getXCSRFToken();
     return {
       'X-CSRF-Token': csrfToken,
       Authorization: `Bearer ${accessToken}`,
@@ -188,7 +190,7 @@ export class Api {
       return json;
     }
 
-    if (Api.isRoleNotFoundError(parseError(json))) {
+    if (ApiService.isRoleNotFoundError(parseError(json))) {
       websession.logoutWithoutSlo({
         rememberLocation: false,
         withAccessChangedMessage: true,
@@ -196,7 +198,7 @@ export class Api {
       return;
     }
 
-    const isAdminActionMfaError = Api.isAdminActionRequiresMfaError(
+    const isAdminActionMfaError = ApiService.isAdminActionRequiresMfaError(
       parseError(json)
     );
     if (!isAdminActionMfaError || mfaResponse) {
@@ -208,10 +210,11 @@ export class Api {
       });
     }
 
-    const challenge = await auth.getMfaChallenge({
+    const challenge = await this.auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
     });
-    const mfaResponseForRetry = await auth.getMfaChallengeResponse(challenge);
+    const mfaResponseForRetry =
+      await this.auth.getMfaChallengeResponse(challenge);
 
     return this.fetchJsonWithMfaAuthnRetry(
       url,
@@ -228,11 +231,11 @@ export class Api {
     url = window.location.origin + url;
 
     const options: RequestInit = {
-      ...Api.defaultRequestOptions,
+      ...ApiService.defaultRequestOptions,
       ...customOptions,
       headers: {
-        ...Api.defaultRequestOptions.headers,
-        ...Api.getAuthHeaders(),
+        ...ApiService.defaultRequestOptions.headers,
+        ...this.getAuthHeaders(),
         ...customOptions.headers,
         ...(mfaResponse && {
           [MFA_HEADER]: JSON.stringify({

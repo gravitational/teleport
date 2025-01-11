@@ -36,6 +36,7 @@ import { StyledIndicator } from 'teleport/Main';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 import * as service from 'teleport/services/userPreferences';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import useTeleport from 'teleport/useTeleport';
 
 export interface UserContextValue {
   preferences: UserPreferences;
@@ -54,6 +55,7 @@ export function useUser(): UserContextValue {
 }
 
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
+  const { apiService } = useTeleport();
   const { attempt, run } = useAttempt('processing');
   // because we have to update cluster preferences with itself during the update
   // we useRef here to prevent infinite rerenders
@@ -67,7 +69,10 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     if (clusterPreferences.current[clusterId]) {
       return clusterPreferences.current[clusterId].pinnedResources.resourceIds;
     }
-    const prefs = await service.getUserClusterPreferences(clusterId);
+    const prefs = await service.getUserClusterPreferences(
+      clusterId,
+      apiService
+    );
     if (prefs) {
       clusterPreferences.current[clusterId] = prefs;
       return prefs.pinnedResources.resourceIds;
@@ -87,17 +92,21 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     clusterPreferences.current[clusterId].pinnedResources.resourceIds =
       pinnedResources;
 
-    return service.updateUserClusterPreferences(clusterId, {
-      ...preferences,
-      clusterPreferences: clusterPreferences.current[clusterId],
-    });
+    return service.updateUserClusterPreferences(
+      clusterId,
+      {
+        ...preferences,
+        clusterPreferences: clusterPreferences.current[clusterId],
+      },
+      apiService
+    );
   };
 
   async function loadUserPreferences() {
     const storedPreferences = storageService.getUserPreferences();
 
     try {
-      const preferences = await service.getUserPreferences();
+      const preferences = await service.getUserPreferences(apiService);
       clusterPreferences.current[cfg.proxyCluster] =
         preferences.clusterPreferences;
 
@@ -135,7 +144,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     setPreferences(nextPreferences);
     storageService.setUserPreferences(nextPreferences);
 
-    return service.updateUserPreferences(nextPreferences);
+    return service.updateUserPreferences(nextPreferences, apiService);
   }
 
   useEffect(() => {

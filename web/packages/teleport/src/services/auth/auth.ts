@@ -1,5 +1,4 @@
 import cfg from 'teleport/config';
-import api from 'teleport/services/api';
 import MfaService, {
   DeviceType,
   DeviceUsage,
@@ -8,7 +7,9 @@ import MfaService, {
   SsoChallenge,
 } from 'teleport/services/mfa';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import type TeleportContext from 'teleport/teleportContext';
 
+import { ApiService } from '../api/api';
 import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
@@ -26,12 +27,13 @@ import {
   UserCredentials,
 } from './types';
 
-export const auth = {};
 export class AuthService {
+  api: ApiService;
   mfaService: MfaService;
 
-  constructor(mfaService: MfaService) {
-    this.mfaService = mfaService;
+  constructor(ctx: TeleportContext) {
+    this.api = ctx.apiService;
+    this.mfaService = ctx.mfaService;
   }
 
   checkWebauthnSupport() {
@@ -50,7 +52,7 @@ export class AuthService {
     params: IsMfaRequiredRequest,
     abortSignal?: AbortSignal
   ): Promise<IsMfaRequiredResponse> {
-    return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+    return this.api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
   }
 
   createMfaRegistrationChallenge(
@@ -58,7 +60,7 @@ export class AuthService {
     deviceType: DeviceType,
     deviceUsage: DeviceUsage = 'mfa'
   ) {
-    return api
+    return this.api
       .post(cfg.getMfaCreateRegistrationChallengeUrl(tokenId), {
         deviceType,
         deviceUsage,
@@ -85,7 +87,7 @@ export class AuthService {
   }
 
   mfaLoginBegin(creds?: UserCredentials) {
-    return api
+    return this.api
       .post(cfg.api.mfaLoginBegin, {
         passwordless: !creds,
         user: creds?.username,
@@ -101,7 +103,7 @@ export class AuthService {
       second_factor_token: otpCode,
     };
 
-    return api.post(cfg.api.webSessionPath, data);
+    return this.api.post(cfg.api.webSessionPath, data);
   }
 
   async loginWithWebauthn(creds?: UserCredentials) {
@@ -119,13 +121,13 @@ export class AuthService {
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
         };
 
-        return api.post(cfg.api.mfaLoginFinish, request);
+        return this.api.post(cfg.api.mfaLoginFinish, request);
       });
   }
 
   fetchPasswordToken(tokenId: string) {
     const path = cfg.getPasswordTokenUrl(tokenId);
-    return api.get(path).then(makePasswordToken);
+    return this.api.get(path).then(makePasswordToken);
   }
 
   async resetPasswordWithWebauthn(
@@ -143,7 +145,7 @@ export class AuthService {
           deviceName: req.deviceName,
         };
 
-        return api.put(cfg.getPasswordTokenUrl(), request);
+        return this.api.put(cfg.getPasswordTokenUrl(), request);
       })
       .then(j => {
         if (eventMeta) {
@@ -173,7 +175,7 @@ export class AuthService {
       deviceName: req.deviceName,
     };
 
-    return api.put(cfg.getPasswordTokenUrl(), request).then(j => {
+    return this.api.put(cfg.getPasswordTokenUrl(), request).then(j => {
       if (eventMeta) {
         userEventService.capturePreUserEvent({
           event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
@@ -192,12 +194,12 @@ export class AuthService {
       webauthnAssertionResponse: mfaResponse.webauthn_response,
     };
 
-    return api.put(cfg.api.changeUserPasswordPath, data);
+    return this.api.put(cfg.api.changeUserPasswordPath, data);
   }
 
   async headlessSSOGet(transactionId: string) {
     return this.checkWebauthnSupport()
-      .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
+      .then(() => this.api.get(cfg.getHeadlessSsoPath(transactionId)))
       .then((json: any) => {
         json = json || {};
 
@@ -216,7 +218,7 @@ export class AuthService {
           webauthnAssertionResponse: res?.webauthn_response,
         };
 
-        return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+        return this.api.put(cfg.getHeadlessSsoPath(transactionId), request);
       });
   }
 
@@ -225,14 +227,14 @@ export class AuthService {
       action: 'denied',
     };
 
-    return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+    return this.api.put(cfg.getHeadlessSsoPath(transactionId), request);
   }
 
   async getMfaChallenge(
     req: CreateAuthenticateChallengeRequest,
     abortSignal?: AbortSignal
   ) {
-    return api
+    return this.api
       .post(
         cfg.api.mfaAuthnChallengePath,
         {
@@ -298,7 +300,7 @@ export class AuthService {
   }
 
   createPrivilegeToken(existingMfaResponse?: MfaChallengeResponse) {
-    return api.post(cfg.api.createPrivilegeTokenPath, {
+    return this.api.post(cfg.api.createPrivilegeTokenPath, {
       existingMfaResponse,
       secondFactorToken: existingMfaResponse?.totp_code,
       webauthnAssertionResponse: existingMfaResponse?.webauthn_response,
@@ -350,11 +352,13 @@ export class AuthService {
   }
 
   createPrivilegeTokenWithTotp(secondFactorToken: string) {
-    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
+    return this.api.post(cfg.api.createPrivilegeTokenPath, {
+      secondFactorToken,
+    });
   }
 
   createRestrictedPrivilegeToken() {
-    return api.post(cfg.api.createPrivilegeTokenPath, {});
+    return this.api.post(cfg.api.createPrivilegeTokenPath, {});
   }
 
   async getWebauthnResponse(

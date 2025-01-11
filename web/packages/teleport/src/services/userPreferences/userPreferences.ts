@@ -30,8 +30,9 @@ import {
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import cfg from 'teleport/config';
-import api from 'teleport/services/api';
 import { getPrefersDark } from 'teleport/ThemeProvider';
+
+import { ApiService } from '../api';
 
 interface BackendClusterUserPreferences {
   pinnedResources?: string[];
@@ -45,7 +46,9 @@ export interface BackendUserPreferences {
   unifiedResourcePreferences?: UnifiedResourcePreferences;
 }
 
-export async function getUserPreferences(): Promise<UserPreferences> {
+export async function getUserPreferences(
+  api: ApiService
+): Promise<UserPreferences> {
   const res: BackendUserPreferences = await api.get(
     cfg.api.userPreferencesPath
   );
@@ -54,7 +57,8 @@ export async function getUserPreferences(): Promise<UserPreferences> {
 }
 
 export async function getUserClusterPreferences(
-  clusterId: string
+  clusterId: string,
+  api: ApiService
 ): Promise<ClusterUserPreferences> {
   return await api
     .get(cfg.getUserClusterPreferencesUrl(clusterId))
@@ -63,7 +67,8 @@ export async function getUserClusterPreferences(
 
 export function updateUserClusterPreferences(
   clusterId: string,
-  preferences: UserPreferences
+  preferences: UserPreferences,
+  api: ApiService
 ) {
   return api.put(
     cfg.getUserClusterPreferencesUrl(clusterId),
@@ -71,7 +76,10 @@ export function updateUserClusterPreferences(
   );
 }
 
-export function updateUserPreferences(preferences: Partial<UserPreferences>) {
+export function updateUserPreferences(
+  preferences: Partial<UserPreferences>,
+  api: ApiService
+) {
   return api.put(
     cfg.api.userPreferencesPath,
     convertUserPreferences(preferences as UserPreferences)

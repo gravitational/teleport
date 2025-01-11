@@ -16,19 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api, {
-  getAccessToken,
-  getAuthHeaders,
-  getHostName,
-  getNoCacheHeaders,
-  getXCSRFToken,
-} from './api';
+// import api, {
+//   getAccessToken,
+//   getAuthHeaders,
+//   getHostName,
+//   getNoCacheHeaders,
+//   getXCSRFToken,
+// } from './api';
 
-export default api;
-export {
-  getAuthHeaders,
-  getNoCacheHeaders,
-  getAccessToken,
-  getHostName,
-  getXCSRFToken,
-};
+export { ApiService } from './api';
