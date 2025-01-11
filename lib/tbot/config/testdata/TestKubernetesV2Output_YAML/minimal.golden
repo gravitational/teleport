@@ -3,4 +3,3 @@ destination:
   type: memory
 selectors:
   - name: foo
-    labels: {}

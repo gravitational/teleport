@@ -21,9 +21,10 @@ package config
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 var (
@@ -140,5 +141,21 @@ func (s *KubernetesSelector) CheckAndSetDefaults() error {
 		s.Labels = map[string]string{}
 	}
 
+	return nil
+}
+
+func (s *KubernetesSelector) UnmarshalYAML(value *yaml.Node) error {
+	// A custom unmarshaler so Labels is consistently initialized to not-nil.
+	// Primarily needed for tests.
+	type temp KubernetesSelector
+	out := temp{
+		Labels: make(map[string]string),
+	}
+
+	if err := value.Decode(&out); err != nil {
+		return err
+	}
+
+	*s = KubernetesSelector(out)
 	return nil
 }

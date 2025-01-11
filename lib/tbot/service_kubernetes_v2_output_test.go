@@ -26,6 +26,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -37,8 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/golden"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // fakeKubeServerClient provides a minimal implementation of

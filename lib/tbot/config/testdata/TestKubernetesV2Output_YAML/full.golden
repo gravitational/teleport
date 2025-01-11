@@ -6,7 +6,5 @@ roles:
 disable_exec_plugin: true
 selectors:
   - name: foo
-    labels: {}
-  - name: ""
-    labels:
+  - labels:
       foo: bar
