@@ -169,7 +169,11 @@ func (s *Server) onCreate(ctx context.Context, database types.Database) error {
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
 	databaseCopy := database.Copy()
-	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// only apply resource matcher settings to dynamic resources.
+	if s.monitoredDatabases.isResource(database) {
+		s.applyResourceMatcherSettings(databaseCopy)
+	}
 
 	// Run DiscoveryResourceChecker after resource matchers are applied to make
 	// sure the correct AssumeRoleARN is used.
@@ -187,7 +191,11 @@ func (s *Server) onUpdate(ctx context.Context, database, _ types.Database) error
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
 	databaseCopy := database.Copy()
-	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// only apply resource matcher settings to dynamic resources.
+	if s.monitoredDatabases.isResource(database) {
+		s.applyResourceMatcherSettings(databaseCopy)
+	}
 	return s.updateDatabase(ctx, databaseCopy)
 }
 
@@ -209,12 +217,18 @@ func (s *Server) matcher(database types.Database) bool {
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database.GetAllLabels())
 }
 
-func applyResourceMatchersToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {
-	for _, matcher := range resourceMatchers {
+func (s *Server) applyResourceMatcherSettings(database types.Database) {
+	if !database.IsAWSHosted() {
+		// dynamic matchers only apply AWS settings (for now), so skip non-AWS
+		// databases.
+		return
+	}
+	dbLabels := database.GetAllLabels()
+	for _, matcher := range s.cfg.ResourceMatchers {
 		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
 			continue
 		}
-		if match, _, _ := services.MatchLabels(matcher.Labels, database.GetAllLabels()); !match {
+		if match, _, _ := services.MatchLabels(matcher.Labels, dbLabels); !match {
 			continue
 		}
 
