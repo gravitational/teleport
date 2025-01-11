@@ -20,11 +20,14 @@ package azureoidc
 
 import (
 	"context"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"io"
 	"maps"
 	"slices"
 	"strings"
 
+	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/google/uuid"
@@ -38,6 +41,9 @@ import (
 // graphAppID is the pre-defined application ID of the Graph API
 // Ref: [https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in#application-ids-of-commonly-used-microsoft-applications].
 const graphAppID = "00000003-0000-0000-c000-000000000000"
+
+// azureUserAgent defines the user agent for the Azure SDK to better identify misbehaving clients
+const azureUserAgent = "teleport"
 
 // requiredGraphRoleNames is the list of Graph API roles required for the managed identity to fetch resources from Azure
 var requiredGraphRoleNames = map[string]struct{}{
@@ -71,15 +77,27 @@ type azureConfigClient struct {
 // NewAzureConfigClient returns a new config client for granting the managed identity the necessary permissions
 // to fetch Azure resources
 func NewAzureConfigClient(subscriptionID string) (AccessGraphAzureConfigureClient, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	telemetryOpts := policy.TelemetryOptions{
+		ApplicationID: azureUserAgent,
+	}
+	opts := &armpolicy.ClientOptions{
+		ClientOptions: policy.ClientOptions{
+			Telemetry: telemetryOpts,
+		},
+	}
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azcore.ClientOptions{
+			Telemetry: telemetryOpts,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleDefCli, err := armauthorization.NewRoleDefinitionsClient(cred, nil)
+	roleDefCli, err := armauthorization.NewRoleDefinitionsClient(cred, opts)
 	if err != nil {
 		return nil, trace.BadParameter("failed to create role definitions client: %v", err)
 	}
-	roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, nil)
+	roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, trace.BadParameter("failed to create role assignments client: %v", err)
 	}
