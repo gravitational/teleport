@@ -490,6 +490,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
 
+	s.log.Debugf("------ Accepted SSH connection from %v.", conn.RemoteAddr().String())
+
 	hostSigners := s.getHostSigners()
 	if err := s.validateHostSigners(hostSigners); err != nil {
 		s.log.
