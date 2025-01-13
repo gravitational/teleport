@@ -20,7 +20,6 @@ package azuresync
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/msgraph"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -30,6 +29,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -85,6 +85,9 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	graphClient, err := msgraph.NewClient(msgraph.Config{
 		TokenProvider: cred,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
