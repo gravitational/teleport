@@ -139,6 +139,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindOktaImportRule, unrestricted),
 				types.NewRule(types.KindAccessList, unrestricted),
 				types.NewRule(types.KindNode, unrestricted),
+				types.NewRule(types.KindTrustedCluster, unrestricted),
 			},
 		},
 	})
