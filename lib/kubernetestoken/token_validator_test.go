@@ -28,9 +28,12 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	v1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/version"
@@ -39,6 +42,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	ctest "k8s.io/client-go/testing"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -169,6 +173,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		review            *v1.TokenReview
 		kubeVersion       *version.Info
 		wantResult        *ValidationResult
+		wantAttrs         *workloadidentityv1pb.JoinAttrsKubernetes
 		clusterAudiences  []string
 		expectedAudiences []string
 		expectedError     error
@@ -196,6 +201,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				Type:     types.KubernetesJoinTypeInCluster,
 				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
+			},
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+				Subject: "system:serviceaccount:namespace:my-service-account",
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+					Name: "podA",
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Name:      "my-service-account",
+					Namespace: "namespace",
+				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
 			expectedError: nil,
@@ -227,6 +242,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+				Subject: "system:serviceaccount:namespace:my-service-account",
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+					Name: "podA",
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Name:      "my-service-account",
+					Namespace: "namespace",
+				},
+			},
 			kubeVersion:      &boundTokenKubernetesVersion,
 			expectedError:    nil,
 			clusterAudiences: defaultKubeAudiences,
@@ -253,6 +278,13 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				Type:     types.KubernetesJoinTypeInCluster,
 				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
+			},
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+				Subject: "system:serviceaccount:namespace:my-service-account",
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Name:      "my-service-account",
+					Namespace: "namespace",
+				},
 			},
 			kubeVersion:   &legacyTokenKubernetesVersion,
 			expectedError: nil,
@@ -353,7 +385,19 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantResult, result)
+			require.Empty(t, cmp.Diff(
+				tt.wantResult,
+				result,
+				cmpopts.IgnoreUnexported(ValidationResult{}),
+			))
+			if tt.wantAttrs != nil {
+				gotAttrs := result.JoinAttrs()
+				require.Empty(t, cmp.Diff(
+					tt.wantAttrs,
+					gotAttrs,
+					protocmp.Transform(),
+				))
+			}
 		})
 	}
 }
@@ -441,6 +485,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		claims ServiceAccountClaims
 
 		wantResult *ValidationResult
+		wantAttrs  *workloadidentityv1pb.JoinAttrsKubernetes
 		wantErr    string
 	}{
 		{
@@ -459,6 +504,16 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			wantResult: &ValidationResult{
 				Type:     types.KubernetesJoinTypeStaticJWKS,
 				Username: "system:serviceaccount:default:my-service-account",
+			},
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+				Subject: "system:serviceaccount:default:my-service-account",
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+					Name: "my-pod-797959fdf-wptbj",
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Name:      "my-service-account",
+					Namespace: "default",
+				},
 			},
 		},
 		{
@@ -608,7 +663,19 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantResult, result)
+			require.Empty(t, cmp.Diff(
+				tt.wantResult,
+				result,
+				cmpopts.IgnoreUnexported(ValidationResult{}),
+			))
+			if tt.wantAttrs != nil {
+				gotAttrs := result.JoinAttrs()
+				require.Empty(t, cmp.Diff(
+					tt.wantAttrs,
+					gotAttrs,
+					protocmp.Transform(),
+				))
+			}
 		})
 	}
 }

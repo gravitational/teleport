@@ -68,6 +68,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -2179,6 +2180,9 @@ type certRequest struct {
 	// botInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any
 	botInstanceID string
+	// joinAttributes holds attributes derived from attested metadata from the
+	// join process, should any exist.
+	joinAttributes *workloadidentityv1pb.JoinAttrs
 }
 
 // check verifies the cert request is valid.
@@ -3230,7 +3234,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
-		UserType: req.user.GetUserType(),
+		UserType:       req.user.GetUserType(),
+		JoinAttributes: req.joinAttributes,
 	}
 
 	var signedTLSCert []byte
