@@ -404,11 +404,19 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "user.name",
-								Equals:    "dog",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "dog",
+									},
+								},
 							},
 							{
 								Attribute: "workload.kubernetes.namespace",
-								Equals:    "default",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "default",
+									},
+								},
 							},
 						},
 					},
@@ -770,7 +778,11 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "workload.kubernetes.namespace",
-								Equals:    "default",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "default",
+									},
+								},
 							},
 						},
 					},
@@ -800,7 +812,11 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "workload.kubernetes.namespace",
-								Equals:    "default",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "default",
+									},
+								},
 							},
 						},
 					},

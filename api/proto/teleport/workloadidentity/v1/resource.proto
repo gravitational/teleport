@@ -38,12 +38,46 @@ message WorkloadIdentity {
   WorkloadIdentitySpec spec = 5;
 }
 
+// The attribute casted to a string must be equal to the value.
+message WorkloadIdentityConditionEq {
+  // The value to compare the attribute against.
+  string value = 1;
+}
+
+// The attribute casted to a string must not be equal to the value.
+message WorkloadIdentityConditionNotEq {
+  // The value to compare the attribute against.
+  string value = 1;
+}
+
+// The attribute casted to a string must be in the list of values.
+message WorkloadIdentityConditionIn {
+  // The list of values to compare the attribute against.
+  repeated string values = 1;
+}
+
+// The attribute casted to a string must not be in the list of values.
+message WorkloadIdentityConditionNotIn {
+  // The list of values to compare the attribute against.
+  repeated string values = 1;
+}
+
 // The individual conditions that make up a rule.
 message WorkloadIdentityCondition {
+  reserved 2;
+  reserved "equals";
   // The name of the attribute to evaluate the condition against.
   string attribute = 1;
-  // An exact string that the attribute must match.
-  string equals = 2;
+  oneof operator {
+    // The attribute casted to a string must be equal to the value.
+    WorkloadIdentityConditionEq eq = 3;
+    // The attribute casted to a string must not be equal to the value.
+    WorkloadIdentityConditionNotEq not_eq = 4;
+    // The attribute casted to a string must be in the list of values.
+    WorkloadIdentityConditionIn in = 5;
+    // The attribute casted to a string must not be in the list of values.
+    WorkloadIdentityConditionNotIn not_in = 6;
+  }
 }
 
 // An individual rule that is evaluated during the issuance of a WorkloadIdentity.
