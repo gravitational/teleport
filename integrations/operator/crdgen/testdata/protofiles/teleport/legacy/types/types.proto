@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -971,6 +972,10 @@ message IdentityCenterPermissionSet {
 
   // Name is the human-readable name of the Permission Set.
   string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+
+  // AssignmentID is the ID of the Teelport Account Assignment resource that
+  // represents this permission being assigned on the enclosing Account.
+  string AssignmentID = 3 [(gogoproto.jsontag) = "assignment_name,omitempty"];
 }
 
 // AppIdentityCenter encapsulates information about an AWS Identity Center
@@ -1016,6 +1021,11 @@ message AppSpecV3 {
   // IdentityCenter encasulates AWS identity-center specific information. Only
   // valid for Identity Center account apps.
   AppIdentityCenter IdentityCenter = 12 [(gogoproto.jsontag) = "identity_center,omitempty"];
+  // TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+  // Only applicable to TCP App Access.
+  // If this field is not empty, URI is expected to contain no port number and start with the tcp
+  // protocol.
+  repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1055,6 +1065,20 @@ message Header {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // Value is the http header value.
   string Value = 2 [(gogoproto.jsontag) = "value"];
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+message PortRange {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Port describes the start of the range. It must be between 1 and 65535.
+  uint32 Port = 1 [(gogoproto.jsontag) = "port"];
+  // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+  // be greater than Port when describing a port range. When omitted or set to zero, it signifies
+  // that the port range defines a single port.
+  uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -2073,7 +2097,9 @@ message AuthPreferenceSpecV2 {
   string Type = 1 [(gogoproto.jsontag) = "type"];
 
   // SecondFactor is the type of mult-factor.
+  // Deprecated: Prefer using SecondFactors instead.
   string SecondFactor = 2 [
+    deprecated = true,
     (gogoproto.jsontag) = "second_factor,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.SecondFactorType"
   ];
@@ -2172,7 +2198,9 @@ message AuthPreferenceSpecV2 {
   // 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
 
-  // SecondFactors is a list of supported second factor types.
+  // SecondFactors is a list of supported multi-factor types.
+  // 1 is "otp", 2 is "webauthn", 3 is "sso",
+  // If unspecified, the current default value is [1], or ["otp"].
   repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
 }
 
@@ -3372,6 +3400,18 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
+
+  // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
+  // resources can be invoked. Further authorization controls exist on the
+  // WorkloadIdentity resource itself.
+  wrappers.LabelValues WorkloadIdentityLabels = 44 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "workload_identity_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // WorkloadIdentityLabelsExpression is a predicate expression used to
+  // allow/deny access to issuing a WorkloadIdentity.
+  string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -4244,19 +4284,6 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
-}
-
-// TrustedDeviceRequirement indicates whether access may be hindered by the lack
-// of a trusted device.
-enum TrustedDeviceRequirement {
-  // Device requirement not determined.
-  // Does not mean that a device is not required, only that the necessary data
-  // was not considered.
-  TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED = 0;
-  // Trusted device not required.
-  TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED = 1;
-  // Trusted device required by either cluster mode or user roles.
-  TRUSTED_DEVICE_REQUIREMENT_REQUIRED = 2;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
