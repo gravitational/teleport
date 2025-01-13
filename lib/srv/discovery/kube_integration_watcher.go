@@ -283,7 +283,11 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 					s.Log.DebugContext(ctx, "EKS cluster already has installed kube agent", "cluster_name", r.EksClusterName)
 				}
 
-				cluster := clustersByName[r.EksClusterName]
+				cluster, ok := clustersByName[r.EksClusterName]
+				if !ok {
+					s.Log.WarnContext(ctx, "Received an EnrollEKSCluster result for a cluster which was not part of the requested clusters", "cluster_name", r.EksClusterName, "clusters_install_request", clusterNames)
+					continue
+				}
 				s.awsEKSTasks.addFailedEnrollment(
 					awsEKSTaskKey{
 						integration:     integration,
