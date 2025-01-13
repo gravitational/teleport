@@ -712,31 +712,6 @@ message InstanceSpecV1 {
 
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
-
-  // LastMeasurement stores information about the latest measurement between services.
-  SystemClockMeasurement LastMeasurement = 9;
-}
-
-// SystemClockMeasurement represents the measurement state of the systems clock difference.
-message SystemClockMeasurement {
-  // ControllerSystemClock is the system clock of the inventory controller.
-  google.protobuf.Timestamp ControllerSystemClock = 1 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "controller_system_clock,omitempty"
-  ];
-  // SystemClock is the system clock of the upstream.
-  google.protobuf.Timestamp SystemClock = 2 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "system_clock,omitempty"
-  ];
-  // RequestDuration stores information about the request duration between auth and remote service.
-  google.protobuf.Duration RequestDuration = 3 [
-    (gogoproto.jsontag) = "request_duration",
-    (gogoproto.nullable) = false,
-    (gogoproto.stdduration) = true
-  ];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -868,9 +843,6 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
-  // GitHub contains info about GitHub proxies where each server represents a
-  // GitHub organization.
-  GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
 
   reserved 8;
   reserved 10;
@@ -902,15 +874,6 @@ message AWSInfo {
 message CloudMetadata {
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
-}
-
-// GitHubServerMetadata contains info about GitHub proxies where each server
-// represents a GitHub organization.
-message GitHubServerMetadata {
-  // Organization specifies the name of the organization for the GitHub integration.
-  string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
-  // Integration is the integration that is associated with this Server.
-  string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -2134,7 +2097,9 @@ message AuthPreferenceSpecV2 {
   string Type = 1 [(gogoproto.jsontag) = "type"];
 
   // SecondFactor is the type of mult-factor.
+  // Deprecated: Prefer using SecondFactors instead.
   string SecondFactor = 2 [
+    deprecated = true,
     (gogoproto.jsontag) = "second_factor,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.SecondFactorType"
   ];
@@ -2233,7 +2198,9 @@ message AuthPreferenceSpecV2 {
   // 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
 
-  // SecondFactors is a list of supported second factor types.
+  // SecondFactors is a list of supported multi-factor types.
+  // 1 is "otp", 2 is "webauthn", 3 is "sso",
+  // If unspecified, the current default value is [1], or ["otp"].
   repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
 }
 
@@ -2729,13 +2696,6 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
-
-  // ResourceExpiry is the time at which the access request resource will expire.
-  google.protobuf.Timestamp ResourceExpiry = 22 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "expiry,omitempty"
-  ];
 }
 
 enum AccessRequestScope {
@@ -2827,7 +2787,6 @@ message RequestKubernetesResource {
 }
 
 // ResourceID is a unique identifier for a teleport resource.
-// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
   string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];
@@ -3442,12 +3401,6 @@ message RoleConditions {
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
 
-  // GitHubPermissions defines GitHub integration related permissions.
-  repeated GitHubPermission git_hub_permissions = 43 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "github_permissions,omitempty"
-  ];
-
   // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
   // resources can be invoked. Further authorization controls exist on the
   // WorkloadIdentity resource itself.
@@ -3466,11 +3419,6 @@ message RoleConditions {
 message IdentityCenterAccountAssignment {
   string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
   string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
-}
-
-// GitHubPermission defines GitHub integration related permissions.
-message GitHubPermission {
-  repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3895,10 +3843,6 @@ message ExternalIdentity {
 
   // SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
   string SAMLSingleLogoutURL = 3 [(gogoproto.jsontag) = "samlSingleLogoutUrl,omitempty"];
-
-  // UserID is the ID of the identity. Some connectors like GitHub have an
-  // unique ID apart from the username.
-  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // LoginStatus is a login status of the user
@@ -5276,7 +5220,7 @@ message GithubAuthRequest {
   string KubernetesCluster = 13 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
   // SSOTestFlow indicates if the request is part of the test flow.
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
-  // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
+  // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // AttestationStatement is an attestation statement for the given public key.
   //
@@ -5300,10 +5244,6 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
-  // AuthenticatedUser is the username of an authenticated Teleport user. This
-  // OAuth flow is used to retrieve GitHub identity info which will be added to
-  // the existing user.
-  string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5474,12 +5414,6 @@ message GithubClaims {
 
   // Teams is the users team membership
   repeated string Teams = 3 [(gogoproto.jsontag) = "teams"];
-
-  // UserID is a global unique integer that is assigned to each GitHub user. The
-  // user ID is immutable (unlike the GitHub username) and can be found in APIs
-  // like get user.
-  // https://docs.github.com/en/rest/users/users
-  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // TeamMapping represents a single team membership mapping.
@@ -6477,8 +6411,6 @@ message PluginSpecV1 {
     PluginEmailSettings email = 17;
     // Settings for the Microsoft Teams plugin
     PluginMSTeamsSettings msteams = 18;
-    // Settings for the OpenTex NetIQ plugin.
-    PluginNetIQSettings net_iq = 19;
   }
 
   // generation contains a unique ID that should:
@@ -6905,18 +6837,6 @@ message PluginMSTeamsSettings {
   string default_recipient = 5;
 }
 
-// PluginNetIQSettings defines the settings for a NetIQ integration plugin
-message PluginNetIQSettings {
-  option (gogoproto.equal) = true;
-  // oauth_issuer_endpoint is the NetIQ Oauth Issuer endpoint.
-  // Usually, it's equal to https://osp.domain.ext/a/idm/auth/oauth2
-  string oauth_issuer_endpoint = 1;
-  // api_endpoint is the IDM PROV Rest API location.
-  string api_endpoint = 2;
-  // insecure_skip_verify controls whether the NetIQ certificate validation should be skipped.
-  bool insecure_skip_verify = 3;
-}
-
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
@@ -6955,8 +6875,6 @@ message PluginStatusV1 {
     PluginOktaStatusV1 okta = 7;
     // AWSIC holds status details for the AWS Identity Center plugin.
     PluginAWSICStatusV1 aws_ic = 8;
-    // NetIQ holds status details for the NetIQ plugin.
-    PluginNetIQStatusV1 net_iq = 9;
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
@@ -6964,18 +6882,6 @@ message PluginStatusV1 {
   // This can be useful for debugging purposes, providing detailed information about what went wrong
   // in the interaction with the external service.
   string last_raw_error = 6;
-}
-
-// PluginNetIQStatusV1 is the status details for the NetIQ plugin.
-message PluginNetIQStatusV1 {
-  // imported_users is the number of users imported from NetIQ eDirectory.
-  uint32 imported_users = 1;
-  // imported_groups is the number of groups imported from NetIQ eDirectory.
-  uint32 imported_groups = 2;
-  // imported_roles is the number of roles imported from NetIQ eDirectory.
-  uint32 imported_roles = 3;
-  // imported_resources is the number of resources imported from NetIQ eDirectory.
-  uint32 imported_resources = 4;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.
@@ -7240,7 +7146,6 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
-    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -7260,14 +7165,6 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
-}
-
-// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
-// for the integration or plugin.
-message PluginStaticCredentialsSSHCertAuthorities {
-  // CertAuthorities contains the active SSH CAs used for the integration or
-  // plugin.
-  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -7617,12 +7514,7 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
-    // GitHub contains the specific fields to handle the GitHub integration subkind.
-    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
-
-  // Credentials contains credentials for the integration.
-  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -7665,12 +7557,6 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
-}
-
-// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
-message GitHubIntegrationSpecV1 {
-  // Organization specifies the name of the organization for the GitHub integration.
-  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
@@ -8061,14 +7947,12 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
-  // PollInterval is the frequency at which to poll for resources
+  // PollInterval is the frequency at which to poll for AWS resources
   google.protobuf.Duration PollInterval = 2 [
     (gogoproto.jsontag) = "poll_interval,omitempty",
     (gogoproto.nullable) = false,
     (gogoproto.stdduration) = true
   ];
-  // Azure is a configuration for Azure Access Graph service poll service.
-  repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
@@ -8079,12 +7963,4 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
-}
-
-// AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
-message AccessGraphAzureSync {
-  // SubscriptionID Is the ID of the Azure subscription to sync resources from
-  string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
-  // Integration is the integration name used to generate credentials to interact with AWS APIs.
-  string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
