@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { GetAppResponse } from "./service_pb";
+import type { GetAppRequest } from "./service_pb";
 import type { AuthenticateWebDeviceResponse } from "./service_pb";
 import type { AuthenticateWebDeviceRequest } from "./service_pb";
 import type { UpdateUserPreferencesResponse } from "./service_pb";
@@ -394,6 +396,13 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
      */
     authenticateWebDevice(input: AuthenticateWebDeviceRequest, options?: RpcOptions): UnaryCall<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>;
+    /**
+     * GetApp returns details of an app resource. It does not include information about AWS roles and
+     * FQDN.
+     *
+     * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
+     */
+    getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -814,5 +823,15 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     authenticateWebDevice(input: AuthenticateWebDeviceRequest, options?: RpcOptions): UnaryCall<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse> {
         const method = this.methods[39], opt = this._transport.mergeOptions(options);
         return stackIntercept<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetApp returns details of an app resource. It does not include information about AWS roles and
+     * FQDN.
+     *
+     * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
+     */
+    getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse> {
+        const method = this.methods[40], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetAppRequest, GetAppResponse>("unary", this._transport, method, opt, input);
     }
 }

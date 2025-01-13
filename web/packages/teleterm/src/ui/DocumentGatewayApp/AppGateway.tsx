@@ -28,20 +28,25 @@ import styled from 'styled-components';
 
 import {
   Alert,
+  Box,
   ButtonSecondary,
   disappear,
   Flex,
   H1,
+  Indicator,
   Link,
   rotate360,
   Text,
 } from 'design';
 import { Check, Spinner } from 'design/Icon';
+import { PortRange } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
+
+import { formatPortRange } from 'teleterm/services/tshd/app';
 
 import { PortFieldInput } from '../components/FieldInputs';
 
@@ -53,6 +58,8 @@ export function AppGateway(props: {
   changeTargetPort(port: string): void;
   changeTargetPortAttempt: Attempt<void>;
   disconnect(): void;
+  getTcpPorts(): void;
+  tcpPortsAttempt: Attempt<PortRange[]>;
 }) {
   const { gateway } = props;
 
@@ -93,79 +100,105 @@ export function AppGateway(props: {
       mx="auto"
       mt="4"
       px="5"
-      gap={2}
+      gap={3}
     >
-      <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-        <H1>App Connection</H1>
-        <ButtonSecondary size="small" onClick={props.disconnect}>
-          Close Connection
-        </ButtonSecondary>
-      </Flex>
+      <Flex flexDirection="column" gap={2}>
+        <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
+          <H1>App Connection</H1>
+          <ButtonSecondary size="small" onClick={props.disconnect}>
+            Close Connection
+          </ButtonSecondary>
+        </Flex>
 
-      {disconnectAttempt.status === 'error' && (
-        <Alert details={disconnectAttempt.statusText} m={0}>
-          Could not close the connection
-        </Alert>
-      )}
+        {disconnectAttempt.status === 'error' && (
+          <Alert details={disconnectAttempt.statusText} m={0}>
+            Could not close the connection
+          </Alert>
+        )}
 
-      <Flex as="form" gap={2}>
-        <Validation>
-          <PortFieldInput
-            label={
-              <LabelWithAttemptStatus
-                text="Local Port"
-                attempt={changeLocalPortAttempt}
-              />
-            }
-            defaultValue={gateway.localPort}
-            onChange={handleLocalPortChange}
-            mb={0}
-          />
-          {isMultiPort && (
+        <Flex as="form" gap={2}>
+          <Validation>
             <PortFieldInput
               label={
                 <LabelWithAttemptStatus
-                  text="Target Port"
-                  attempt={changeTargetPortAttempt}
+                  text="Local Port"
+                  attempt={changeLocalPortAttempt}
                 />
               }
-              required
-              defaultValue={gateway.targetSubresourceName}
-              onChange={handleTargetPortChange}
+              defaultValue={gateway.localPort}
+              onChange={handleLocalPortChange}
               mb={0}
             />
-          )}
-        </Validation>
+            {isMultiPort && (
+              <PortFieldInput
+                label={
+                  <LabelWithAttemptStatus
+                    text="Target Port"
+                    attempt={changeTargetPortAttempt}
+                  />
+                }
+                required
+                defaultValue={gateway.targetSubresourceName}
+                onChange={handleTargetPortChange}
+                mb={0}
+              />
+            )}
+          </Validation>
+        </Flex>
+
+        {props.tcpPortsAttempt.status === 'success' && (
+          <Box>
+            Available target ports:{' '}
+            {props.tcpPortsAttempt.data.map(formatPortRange).join(', ')}.
+          </Box>
+        )}
+        {props.tcpPortsAttempt.status === 'processing' && (
+          <Box>
+            <Indicator size="small" />
+          </Box>
+        )}
       </Flex>
 
-      <div>
-        <Text>Access the app at:</Text>
-        <TextSelectCopy mt={1} text={address} bash={false} />
-      </div>
+      <Flex flexDirection="column" gap={2}>
+        <div>
+          <Text>Access the app at:</Text>
+          <TextSelectCopy mt={1} text={address} bash={false} />
+        </div>
 
-      {changeLocalPortAttempt.status === 'error' && (
-        <Alert details={changeLocalPortAttempt.statusText} m={0}>
-          Could not change the local port
-        </Alert>
-      )}
+        {changeLocalPortAttempt.status === 'error' && (
+          <Alert details={changeLocalPortAttempt.statusText} m={0}>
+            Could not change the local port
+          </Alert>
+        )}
 
-      {changeTargetPortAttempt.status === 'error' && (
-        <Alert details={changeTargetPortAttempt.statusText} m={0}>
-          Could not change the target port
-        </Alert>
-      )}
+        {changeTargetPortAttempt.status === 'error' && (
+          <Alert details={changeTargetPortAttempt.statusText} m={0}>
+            Could not change the target port
+          </Alert>
+        )}
 
-      <Text>
-        The connection is made through an authenticated proxy so no extra
-        credentials are necessary. See{' '}
-        <Link
-          href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
-          target="_blank"
-        >
-          the documentation
-        </Link>{' '}
-        for more details.
-      </Text>
+        {props.tcpPortsAttempt.status === 'error' && (
+          <Alert
+            kind="warning"
+            details={props.tcpPortsAttempt.statusText}
+            primaryAction={{ content: 'Retry', onClick: props.getTcpPorts }}
+          >
+            Could not fetch available target ports
+          </Alert>
+        )}
+
+        <Text>
+          The connection is made through an authenticated proxy so no extra
+          credentials are necessary. See{' '}
+          <Link
+            href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
+            target="_blank"
+          >
+            the documentation
+          </Link>{' '}
+          for more details.
+        </Text>
+      </Flex>
     </Flex>
   );
 }
