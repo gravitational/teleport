@@ -172,7 +172,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	cert, err := m.getCertForRequest(req)
 	// If the cert is cleared using m.ClearCerts(), it won't be found.
 	// This forces the middleware to issue a new cert on a new request.
-	// This is used in access requests where we want to refresh certs without closing the proxy.
+	// This is used in access requests in Connect where we want to refresh certs without closing the proxy.
 	if err != nil && !trace.IsNotFound(err) {
 		return false
 	}
