@@ -35,11 +35,10 @@ by the `device_trust_mode` authentication setting:
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-- We expect your Teleport cluster to be on version 13.3.6 and above, which has
-  the preset `require-trusted-device` role. The preset `require-trusted-device`
-  role does not enforce the use of a trusted device for
-  [Apps](#web-application-support) or [Desktops](#desktop-support).  Refer to
-  their corresponding sections for instructions.
+This guide makes use of the preset `require-trusted-device` role, which does not
+enforce the use of a trusted device for [Apps](#web-application-support) or
+[Desktops](#desktop-support). Refer to their corresponding sections for
+instructions.
 
 ## Role-based trusted device enforcement
 
@@ -111,7 +110,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: (=clusterDefaults.clusterName=)
   device_trust:
@@ -140,8 +139,8 @@ leaf clusters.
 
 ## Web application support
 
-The Teleport App Service may enforce Device Trust via [role-based enforcement](
-#role-based-trusted-device-enforcement).
+The Teleport App Service may enforce Device Trust via [role-based
+enforcement](#role-based-trusted-device-enforcement).
 
 To access apps protected by Device Trust using the Web UI (Teleport v16 or
 later), make sure your device is [registered and enrolled](

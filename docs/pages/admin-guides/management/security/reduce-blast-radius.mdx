@@ -73,7 +73,7 @@ Choose `on` if you would like to require MFA for all users while letting them ch
 If you have enabled SSO in your Teleport environment, MFA challenges at login only apply for local users, but the IdP may apply its own MFA checks.
 
 <Admonition type="warning">
-If your `second_factor` configuration is set to `off` and a user creates an account without a second factor, changing `second_factor` to a value that requires MFA will force that user to authenticate with a credential they have not registered. This will lock them out of their account. You have two ways to avoid this scenario:
+If your `second_factor` configuration is set to `off` and a user creates an account without a multi-factor credential, changing `second_factor` to a value that requires MFA will force that user to authenticate with a credential they have not registered. This will lock them out of their account. You have two ways to avoid this scenario:
 - Set `second_factor` to `optional` until you have confirmed that existing users have enrolled their MFA devices.
 - Run the `tctl users reset <account>` command to force a user to enter new credentials, including any required MFA device.
 </Admonition>
