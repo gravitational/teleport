@@ -259,9 +259,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			AccessPoint: c.AccessPoint,
-			Clients:     c.CloudClients,
-			HostID:      c.HostID,
+			AccessPoint:       c.AccessPoint,
+			AWSConfigProvider: c.AWSConfigProvider,
+			Clients:           c.CloudClients,
+			HostID:            c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)

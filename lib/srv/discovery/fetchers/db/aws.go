@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -55,9 +53,6 @@ type awsFetcherConfig struct {
 	AWSClients cloud.AWSClients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// IntegrationCredentialProviderFn is a required function that provides
-	// credentials via AWS OIDC integration.
-	IntegrationCredentialProviderFn awsconfig.IntegrationCredentialProviderFunc
 	// Type is the type of DB matcher, for example "rds", "redshift", etc.
 	Type string
 	// AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -77,8 +72,8 @@ type awsFetcherConfig struct {
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
 	DiscoveryConfigName string
 
-	// redshiftClientProviderFn provides an AWS Redshift client.
-	redshiftClientProviderFn RedshiftClientProviderFunc
+	// awsClients provides AWS SDK v2 clients.
+	awsClients AWSClientProvider
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -112,10 +107,8 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 		)
 	}
 
-	if cfg.redshiftClientProviderFn == nil {
-		cfg.redshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		}
+	if cfg.awsClients == nil {
+		cfg.awsClients = defaultAWSClients{}
 	}
 	return nil
 }

@@ -35,12 +35,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	rdsauth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -131,8 +131,16 @@ type redshiftClient interface {
 	GetClusterCredentials(context.Context, *redshift.GetClusterCredentialsInput, ...func(*redshift.Options)) (*redshift.GetClusterCredentialsOutput, error)
 }
 
-// redshiftClientProviderFunc provides a [redshiftClient].
-type redshiftClientProviderFunc func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+// awsClientProvider is an AWS SDK client provider.
+type awsClientProvider interface {
+	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
+	return redshift.NewFromConfig(cfg, optFns...)
+}
 
 // AuthConfig is the database access authenticator configuration.
 type AuthConfig struct {
@@ -149,10 +157,8 @@ type AuthConfig struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 
-	// redshiftClientProviderFn is an internal-only [redshiftClient] provider
-	// func that defaults to a func that provides a real Redshift client.
-	// The default is only overridden in tests.
-	redshiftClientProviderFn redshiftClientProviderFunc
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -176,10 +182,8 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		c.Logger = slog.With(teleport.ComponentKey, "db:auth")
 	}
 
-	if c.redshiftClientProviderFn == nil {
-		c.redshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		}
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -243,9 +247,9 @@ func (a *dbAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) Au
 // when connecting to RDS and Aurora databases.
 func (a *dbAuth) GetRDSAuthToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	meta := database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -254,11 +258,13 @@ func (a *dbAuth) GetRDSAuthToken(ctx context.Context, database types.Database, d
 		"database", database,
 		"database_user", databaseUser,
 	)
-	token, err := rdsutils.BuildAuthToken(
+	token, err := rdsauth.BuildAuthToken(
+		ctx,
 		database.GetURI(),
 		meta.Region,
 		databaseUser,
-		awsSession.Config.Credentials)
+		awsCfg.Credentials,
+	)
 	if err != nil {
 		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(database)
 		if getPolicyErr != nil {
@@ -316,7 +322,7 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 		"database_user", databaseUser,
 		"database_name", databaseName,
 	)
-	client := a.cfg.redshiftClientProviderFn(awsCfg)
+	client := a.cfg.awsClients.getRedshiftClient(awsCfg)
 	resp, err := client.GetClusterCredentialsWithIAM(ctx, &redshift.GetClusterCredentialsWithIAMInput{
 		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbName:            aws.String(databaseName),
@@ -352,7 +358,7 @@ func (a *dbAuth) getRedshiftDBUserAuthToken(ctx context.Context, database types.
 		"database_user", databaseUser,
 		"database_name", databaseName,
 	)
-	clt := a.cfg.redshiftClientProviderFn(awsCfg)
+	clt := a.cfg.awsClients.getRedshiftClient(awsCfg)
 	resp, err := clt.GetClusterCredentials(ctx, &redshift.GetClusterCredentialsInput{
 		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbUser:            aws.String(databaseUser),

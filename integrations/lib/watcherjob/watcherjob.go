@@ -130,23 +130,23 @@ func newJobWithEvents(events types.Events, config Config, fn EventFunc, watchIni
 				if config.FailFast {
 					return trace.WrapWithMessage(err, "Connection problem detected. Exiting as fail fast is on.")
 				}
-				log.WithError(err).Error("Connection problem detected. Attempting to reconnect.")
+				log.ErrorContext(ctx, "Connection problem detected, attempting to reconnect", "error", err)
 			case errors.Is(err, io.EOF):
 				if config.FailFast {
 					return trace.WrapWithMessage(err, "Watcher stream closed. Exiting as fail fast is on.")
 				}
-				log.WithError(err).Error("Watcher stream closed. Attempting to reconnect.")
+				log.ErrorContext(ctx, "Watcher stream closed attempting to reconnect", "error", err)
 			case lib.IsCanceled(err):
-				log.Debug("Watcher context is canceled")
+				log.DebugContext(ctx, "Watcher context is canceled")
 				return trace.Wrap(err)
 			default:
-				log.WithError(err).Error("Watcher event loop failed")
+				log.ErrorContext(ctx, "Watcher event loop failed", "error", err)
 				return trace.Wrap(err)
 			}
 
 			// To mitigate a potentially aggressive retry loop, we wait
 			if err := bk.Do(ctx); err != nil {
-				log.Debug("Watcher context was canceled while waiting before a reconnection")
+				log.DebugContext(ctx, "Watcher context was canceled while waiting before a reconnection")
 				return trace.Wrap(err)
 			}
 		}
@@ -162,7 +162,7 @@ func (job job) watchEvents(ctx context.Context) error {
 	}
 	defer func() {
 		if err := watcher.Close(); err != nil {
-			logger.Get(ctx).WithError(err).Error("Failed to close a watcher")
+			logger.Get(ctx).ErrorContext(ctx, "Failed to close a watcher", "error", err)
 		}
 	}()
 
@@ -170,7 +170,7 @@ func (job job) watchEvents(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	logger.Get(ctx).Debug("Watcher connected")
+	logger.Get(ctx).DebugContext(ctx, "Watcher connected")
 	job.SetReady(true)
 
 	for {
@@ -253,7 +253,7 @@ func (job job) eventLoop(ctx context.Context) error {
 			event := *eventPtr
 			resource := event.Resource
 			if resource == nil {
-				log.Error("received an event with empty resource field")
+				log.ErrorContext(ctx, "received an event with empty resource field")
 			}
 			key := eventKey{kind: resource.GetKind(), name: resource.GetName()}
 			if queue, loaded := queues[key]; loaded {

@@ -16,10 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  /** @deprecated Use `TooltipInfo` from `design/Tooltip` */
-  IconTooltip as ToolTipInfo,
+import HelmChart, { generateCmd } from './HelmChart';
 
-  /** @deprecated Use `HoverTooltip` from `design/Tooltip` */
-  HoverTooltip,
-} from 'design/Tooltip';
+export { HelmChart, generateCmd };

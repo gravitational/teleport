@@ -54,7 +54,26 @@ type STSClient struct {
 	recordFn func(roleARN, externalID string)
 }
 
-func (m *STSClient) AssumeRole(ctx context.Context, in *sts.AssumeRoleInput, optFns ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
+func (m *STSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Arn: aws.String(m.ARN),
+	}, nil
+}
+
+func (m *STSClient) AssumeRoleWithWebIdentity(ctx context.Context, in *sts.AssumeRoleWithWebIdentityInput, _ ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+	m.record(aws.ToString(in.RoleArn), "")
+	expiry := time.Now().Add(60 * time.Minute)
+	return &sts.AssumeRoleWithWebIdentityOutput{
+		Credentials: &ststypes.Credentials{
+			AccessKeyId:     in.RoleArn,
+			SecretAccessKey: aws.String("secret"),
+			SessionToken:    aws.String("token"),
+			Expiration:      &expiry,
+		},
+	}, nil
+}
+
+func (m *STSClient) AssumeRole(ctx context.Context, in *sts.AssumeRoleInput, _ ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
 	// Retrieve credentials if we have a credential provider, so that all
 	// assume-role providers in a role chain are triggered to call AssumeRole.
 	if m.credentialProvider != nil {
@@ -93,8 +112,8 @@ func (m *STSClient) record(roleARN, externalID string) {
 	}
 }
 
-func newAssumeRoleClientProviderFunc(base *STSClient) awsconfig.AssumeRoleClientProviderFunc {
-	return func(cfg aws.Config) stscreds.AssumeRoleAPIClient {
+func newAssumeRoleClientProviderFunc(base *STSClient) awsconfig.STSClientProviderFunc {
+	return func(cfg aws.Config) awsconfig.STSClient {
 		if cfg.Credentials != nil {
 			if _, ok := cfg.Credentials.(*stscreds.AssumeRoleProvider); ok {
 				// Create a new fake client linked to the old one.

@@ -32,9 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// RedshiftClientProviderFunc provides a [RedshiftClient].
-type RedshiftClientProviderFunc func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient
-
 // RedshiftClient is a subset of the AWS Redshift API.
 type RedshiftClient interface {
 	redshift.DescribeClustersAPIClient
@@ -53,12 +50,11 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
 		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
 		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
-		awsconfig.WithIntegrationCredentialProvider(cfg.IntegrationCredentialProviderFn),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := getRedshiftClusters(ctx, cfg.redshiftClientProviderFn(awsCfg))
+	clusters, err := getRedshiftClusters(ctx, cfg.awsClients.GetRedshiftClient(awsCfg))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

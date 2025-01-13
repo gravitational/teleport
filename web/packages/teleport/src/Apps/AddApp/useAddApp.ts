@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { ResourceLabel } from 'teleport/services/agents';
 import type { JoinToken } from 'teleport/services/joinToken';
 import TeleportContext from 'teleport/teleportContext';
 
@@ -31,14 +32,27 @@ export default function useAddApp(ctx: TeleportContext) {
   const isEnterprise = ctx.isEnterprise;
   const [automatic, setAutomatic] = useState(isEnterprise);
   const [token, setToken] = useState<JoinToken>();
+  const [labels, setLabels] = useState<ResourceLabel[]>([]);
 
   useEffect(() => {
-    createToken();
-  }, []);
+    // We don't want to create token on first render
+    // which defaults to the automatic tab because
+    // user may want to add labels.
+    if (!automatic) {
+      setLabels([]);
+      // When switching to manual tab, token can be re-used
+      // if token was already generated from automatic tab.
+      if (!token) {
+        createToken();
+      }
+    }
+  }, [automatic]);
 
   function createToken() {
     return run(() =>
-      ctx.joinTokenService.fetchJoinToken({ roles: ['App'] }).then(setToken)
+      ctx.joinTokenService
+        .fetchJoinToken({ roles: ['App'], suggestedLabels: labels })
+        .then(setToken)
     );
   }
 
@@ -52,6 +66,8 @@ export default function useAddApp(ctx: TeleportContext) {
     isAuthTypeLocal,
     isEnterprise,
     token,
+    labels,
+    setLabels,
   };
 }
 
