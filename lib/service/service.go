@@ -2960,14 +2960,6 @@ func (process *TeleportProcess) initSSH() error {
 				"use builtin namespace %q, or omit the 'namespace' config option.", ns, apidefaults.Namespace)
 		}
 		namespace := types.ProcessNamespace(cfg.SSH.Namespace)
-		_, err = authClient.GetNamespace(namespace)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return trace.NotFound(
-					"namespace %v is not found, ask your system administrator to create this namespace so you can register nodes there.", namespace)
-			}
-			return trace.Wrap(err)
-		}
 
 		if auditd.IsLoginUIDSet() {
 			const warn = "Login UID is set, but it shouldn't be. Incorrect login UID breaks session ID when using auditd. " +
