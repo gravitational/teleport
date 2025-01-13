@@ -176,8 +176,25 @@ ruleLoop:
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if val != condition.Equals {
-				continue ruleLoop
+			switch c := condition.Operator.(type) {
+			case *workloadidentityv1pb.WorkloadIdentityCondition_Eq:
+				if val != c.Eq.Value {
+					continue ruleLoop
+				}
+			case *workloadidentityv1pb.WorkloadIdentityCondition_NotEq:
+				if val == c.NotEq.Value {
+					continue ruleLoop
+				}
+			case *workloadidentityv1pb.WorkloadIdentityCondition_In:
+				if !slices.Contains(c.In.Values, val) {
+					continue ruleLoop
+				}
+			case *workloadidentityv1pb.WorkloadIdentityCondition_NotIn:
+				if slices.Contains(c.NotIn.Values, val) {
+					continue ruleLoop
+				}
+			default:
+				return trace.BadParameter("unsupported operator %T", c)
 			}
 		}
 		return nil
