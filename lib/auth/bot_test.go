@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -226,8 +227,10 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 // Whilst this specifically tests the Kubernetes join method, it tests by proxy
 // the implementation for most of the join methods.
 func TestBotJoinAttrs_Kubernetes(t *testing.T) {
-	t.Parallel()
-
+	experimentStatus := experiment.Enabled()
+	defer experiment.SetEnabled(experimentStatus)
+	experiment.SetEnabled(true)
+	
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
