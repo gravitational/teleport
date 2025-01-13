@@ -624,7 +624,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					},
 					Spec: ServerSpecV2{
 						Addr:     "github.com:22",
-						Hostname: "my-org.github-org",
+						Hostname: "my-org.teleport-github-org",
 						GitHub: &GitHubServerMetadata{
 							Integration:  "my-org",
 							Organization: "my-org",
@@ -808,7 +808,7 @@ func TestGetCloudMetadataAWS(t *testing.T) {
 
 func TestGitServerOrgDomain(t *testing.T) {
 	domain := MakeGitHubOrgServerDomain("my-org")
-	require.Equal(t, "my-org.github-org", domain)
+	require.Equal(t, "my-org.teleport-github-org", domain)
 
 	githubNodeAddr := domain + ":22"
 	org, ok := GetGitHubOrgFromNodeAddr(githubNodeAddr)
