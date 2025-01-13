@@ -36,6 +36,7 @@ import {
   RoleOptions,
   Rule,
   SessionRecordingMode,
+  SSHPortForwarding,
   Verb,
 } from 'teleport/services/resources/types';
 
@@ -166,7 +167,7 @@ export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
 const optionsToMap = <K, V>(opts: Option<K, V>[]) =>
   new Map(opts.map(o => [o.value, o]));
 
-const kubernetesResourceKindOptionsMap = optionsToMap(
+export const kubernetesResourceKindOptionsMap = optionsToMap(
   kubernetesResourceKindOptions
 );
 
@@ -200,7 +201,7 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
     .toSorted((a, b) => a.localeCompare(b))
     .map(stringToOption),
 ];
-const kubernetesVerbOptionsMap = optionsToMap(kubernetesVerbOptions);
+export const kubernetesVerbOptionsMap = optionsToMap(kubernetesVerbOptions);
 
 export type ResourceKindOption = Option<ResourceKind, string>;
 export const resourceKindOptions: ResourceKindOption[] = Object.values(
@@ -226,7 +227,7 @@ export const verbOptions: VerbOption[] = (
     'use',
   ] as const
 ).map(stringToOption);
-const verbOptionsMap = optionsToMap(verbOptions);
+export const verbOptionsMap = optionsToMap(verbOptions);
 
 /** Model for the server resource access section. */
 export type ServerAccess = ResourceAccessBase<'node'> & {
@@ -281,6 +282,7 @@ export type OptionsModel = {
   sshSessionRecordingMode: SessionRecordingModeOption;
   recordDesktopSessions: boolean;
   forwardAgent: boolean;
+  sshPortForwardingMode: SSHPortForwardingModeOption;
 };
 
 type RequireMFATypeOption = Option<RequireMFAType>;
@@ -294,7 +296,7 @@ export const requireMFATypeOptions: RequireMFATypeOption[] = [
     label: 'Hardware Key (touch and PIN)',
   },
 ];
-const requireMFATypeOptionsMap = optionsToMap(requireMFATypeOptions);
+export const requireMFATypeOptionsMap = optionsToMap(requireMFATypeOptions);
 
 type CreateHostUserModeOption = Option<CreateHostUserMode>;
 export const createHostUserModeOptions: CreateHostUserModeOption[] = [
@@ -303,7 +305,9 @@ export const createHostUserModeOptions: CreateHostUserModeOption[] = [
   { value: 'keep', label: 'Keep' },
   { value: 'insecure-drop', label: 'Drop (insecure)' },
 ];
-const createHostUserModeOptionsMap = optionsToMap(createHostUserModeOptions);
+export const createHostUserModeOptionsMap = optionsToMap(
+  createHostUserModeOptions
+);
 
 type CreateDBUserModeOption = Option<CreateDBUserMode>;
 export const createDBUserModeOptions: CreateDBUserModeOption[] = [
@@ -312,7 +316,7 @@ export const createDBUserModeOptions: CreateDBUserModeOption[] = [
   { value: 'keep', label: 'Keep' },
   { value: 'best_effort_drop', label: 'Drop (best effort)' },
 ];
-const createDBUserModeOptionsMap = optionsToMap(createDBUserModeOptions);
+export const createDBUserModeOptionsMap = optionsToMap(createDBUserModeOptions);
 
 type SessionRecordingModeOption = Option<SessionRecordingMode>;
 export const sessionRecordingModeOptions: SessionRecordingModeOption[] = [
@@ -320,8 +324,41 @@ export const sessionRecordingModeOptions: SessionRecordingModeOption[] = [
   { value: 'best_effort', label: 'Best Effort' },
   { value: 'strict', label: 'Strict' },
 ];
-const sessionRecordingModeOptionsMap = optionsToMap(
+export const sessionRecordingModeOptionsMap = optionsToMap(
   sessionRecordingModeOptions
+);
+
+export type SSHPortForwardingMode =
+  | ''
+  | 'none'
+  | 'local-only'
+  | 'remote-only'
+  | 'local-and-remote'
+  | 'deprecated-on'
+  | 'deprecated-off';
+export type SSHPortForwardingModeOption = Option<SSHPortForwardingMode> & {
+  description?: string;
+};
+export const sshPortForwardingModeOptions: SSHPortForwardingModeOption[] = [
+  { value: '', label: 'Unspecified' },
+  { value: 'none', label: 'None' },
+  { value: 'local-only', label: 'Local only' },
+  { value: 'remote-only', label: 'Remote only' },
+  { value: 'local-and-remote', label: 'Local and remote' },
+  {
+    value: 'deprecated-off',
+    label: 'Off (deprecated)',
+    description:
+      'Changes the implicit default behavior for other roles assigned to a user from "allow all" to "deny all"',
+  },
+  {
+    value: 'deprecated-on',
+    label: 'On (deprecated)',
+    description: 'Overrides all other roles applied to a user',
+  },
+];
+export const sshPortForwardingModeOptionsMap = optionsToMap(
+  sshPortForwardingModeOptions
 );
 
 const roleVersion = 'v7';
@@ -695,6 +732,8 @@ function optionsToModel(options: RoleOptions): {
     desktop_directory_sharing,
     record_session,
     forward_agent,
+    port_forwarding,
+    ssh_port_forwarding,
 
     // These options must keep their default values, as we don't support them
     // in the standard editor.
@@ -702,7 +741,6 @@ function optionsToModel(options: RoleOptions): {
     enhanced_recording,
     idp,
     pin_source_ip,
-    ssh_port_forwarding,
     ssh_file_copy,
 
     ...unsupported
@@ -726,6 +764,10 @@ function optionsToModel(options: RoleOptions): {
     sessionRecordingModeOptionsMap.get(defaultRecordingMode);
   const sshSessionRecordingModeOption =
     sessionRecordingModeOptionsMap.get(sshRecordingMode);
+  const {
+    model: sshPortForwardingMode,
+    requiresReset: sshPortForwardingModeRequiresReset,
+  } = portForwardingOptionsToModel(ssh_port_forwarding, port_forwarding);
 
   const defaultOpts = defaultOptions();
 
@@ -751,6 +793,9 @@ function optionsToModel(options: RoleOptions): {
         sshSessionRecordingModeOption ?? sessionRecordingModeOptionsMap.get(''),
       recordDesktopSessions,
       forwardAgent: forward_agent,
+      sshPortForwardingMode: sshPortForwardingModeOptionsMap.get(
+        sshPortForwardingMode
+      ),
     },
 
     requiresReset:
@@ -758,7 +803,6 @@ function optionsToModel(options: RoleOptions): {
       !equalsDeep(enhanced_recording, defaultOpts.enhanced_recording) ||
       !equalsDeep(idp, defaultOpts.idp) ||
       pin_source_ip !== defaultOpts.pin_source_ip ||
-      !equalsDeep(ssh_port_forwarding, defaultOpts.ssh_port_forwarding) ||
       ssh_file_copy !== defaultOpts.ssh_file_copy ||
       requireMFATypeOption === undefined ||
       createHostUserModeOption === undefined ||
@@ -766,8 +810,48 @@ function optionsToModel(options: RoleOptions): {
       !isEmpty(unsupported) ||
       !isEmpty(unsupportedRecordingOptions) ||
       defaultSessionRecordingModeOption === undefined ||
-      sshSessionRecordingModeOption === undefined,
+      sshSessionRecordingModeOption === undefined ||
+      sshPortForwardingModeRequiresReset,
   };
+}
+
+export function portForwardingOptionsToModel(
+  sshPortForwarding?: SSHPortForwarding,
+  legacyPortForwarding?: boolean
+): { model: SSHPortForwardingMode; requiresReset: boolean } {
+  if (sshPortForwarding) {
+    const { local, remote, ...rest } = sshPortForwarding;
+    if (!local || !remote) {
+      return { model: '', requiresReset: true };
+    }
+
+    const { enabled: localEnabled, ...localRest } = sshPortForwarding.local;
+    const { enabled: remoteEnabled, ...remoteRest } = sshPortForwarding.remote;
+    if (localEnabled === undefined || remoteEnabled === undefined) {
+      return { model: '', requiresReset: true };
+    }
+
+    const requiresReset =
+      !isEmpty(rest) || !isEmpty(localRest) || !isEmpty(remoteRest);
+
+    if (!localEnabled && !remoteEnabled) {
+      return { model: 'none', requiresReset };
+    }
+    if (localEnabled && !remoteEnabled) {
+      return { model: 'local-only', requiresReset };
+    }
+    if (!localEnabled && remoteEnabled) {
+      return { model: 'remote-only', requiresReset };
+    }
+    return { model: 'local-and-remote', requiresReset };
+  }
+  if (legacyPortForwarding !== undefined) {
+    return {
+      model: legacyPortForwarding ? 'deprecated-on' : 'deprecated-off',
+      requiresReset: false,
+    };
+  }
+  return { model: '', requiresReset: false };
 }
 
 function isEmpty(obj: object) {
@@ -877,7 +961,7 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
 }
 
 function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
-  return {
+  const options = {
     ...defaultOptions(),
 
     // Note: technically, coercing the optional fields to undefined is not
@@ -901,6 +985,46 @@ function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
     },
     forward_agent: model.forwardAgent,
   };
+
+  switch (model.sshPortForwardingMode.value) {
+    case 'none':
+      options.ssh_port_forwarding = {
+        local: { enabled: false },
+        remote: { enabled: false },
+      };
+      break;
+
+    case 'local-only':
+      options.ssh_port_forwarding = {
+        local: { enabled: true },
+        remote: { enabled: false },
+      };
+      break;
+
+    case 'remote-only':
+      options.ssh_port_forwarding = {
+        local: { enabled: false },
+        remote: { enabled: true },
+      };
+      break;
+
+    case 'local-and-remote':
+      options.ssh_port_forwarding = {
+        local: { enabled: true },
+        remote: { enabled: true },
+      };
+      break;
+
+    case 'deprecated-off':
+      options.port_forwarding = false;
+      break;
+
+    case 'deprecated-on':
+      options.port_forwarding = true;
+      break;
+  }
+
+  return options;
 }
 
 function optionsToStrings<T = string>(opts: readonly Option<T>[]): T[] {
