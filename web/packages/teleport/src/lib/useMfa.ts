@@ -172,7 +172,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   };
 }
 
-export function useMfaTty(emitterSender: EventEmitterMfaSender): MfaState {
+export function useMfaEmitter(emitterSender: EventEmitterMfaSender): MfaState {
   const [mfaRequired, setMfaRequired] = useState(false);
 
   const mfa = useMfa({ isMfaRequired: mfaRequired });
