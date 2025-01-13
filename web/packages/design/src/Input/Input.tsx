@@ -70,6 +70,7 @@ interface InputProps extends ColorProps, SpaceProps, WidthProps, HeightProps {
   inputMode?: InputMode;
   spellCheck?: boolean;
   style?: React.CSSProperties;
+  required?: boolean;
 
   'aria-invalid'?: HTMLAttributes<'input'>['aria-invalid'];
   'aria-describedby'?: HTMLAttributes<'input'>['aria-describedby'];
@@ -170,6 +171,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
     inputMode,
     spellCheck,
     style,
+    required,
 
     'aria-invalid': ariaInvalid,
     'aria-describedby': ariaDescribedBy,
@@ -222,6 +224,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
           inputMode,
           spellCheck,
           style,
+          required,
 
           'aria-invalid': ariaInvalid,
           'aria-describedby': ariaDescribedBy,

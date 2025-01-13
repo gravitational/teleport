@@ -120,10 +120,26 @@ describe('connectToApp', () => {
 describe('setUpAppGateway', () => {
   test.each([
     {
-      name: 'creates tunnel for a tcp app',
+      name: 'creates tunnel for a single-port TCP app',
       app: makeApp({
         endpointUri: 'tcp://localhost:3000',
       }),
+    },
+    {
+      name: 'creates tunnel for a multi-port TCP app',
+      app: makeApp({
+        endpointUri: 'tcp://localhost',
+        tcpPorts: [{ port: 1234, endPort: 0 }],
+      }),
+      expectedTargetSubresourceName: '1234',
+    },
+    {
+      name: 'creates tunnel for a multi-port TCP app with a preselected target port',
+      app: makeApp({
+        endpointUri: 'tcp://localhost',
+        tcpPorts: [{ port: 1234, endPort: 0 }],
+      }),
+      targetPort: 1234,
     },
     {
       name: 'creates tunnel for a web app',
@@ -131,11 +147,14 @@ describe('setUpAppGateway', () => {
         endpointUri: 'http://localhost:3000',
       }),
     },
-  ])('$name', async ({ app }) => {
+  ])('$name', async ({ app, targetPort, expectedTargetSubresourceName }) => {
     const appContext = new MockAppContext();
     setTestCluster(appContext);
 
-    await setUpAppGateway(appContext, app, { origin: 'resource_table' });
+    await setUpAppGateway(appContext, app, {
+      telemetry: { origin: 'resource_table' },
+      targetPort,
+    });
     const documents = appContext.workspacesService
       .getActiveWorkspaceDocumentService()
       .getGatewayDocuments();
@@ -147,7 +166,8 @@ describe('setUpAppGateway', () => {
       port: undefined,
       status: '',
       targetName: 'foo',
-      targetSubresourceName: undefined,
+      targetSubresourceName:
+        expectedTargetSubresourceName || targetPort?.toString() || undefined,
       targetUri: '/clusters/teleport-local/apps/foo',
       targetUser: '',
       title: 'foo',
