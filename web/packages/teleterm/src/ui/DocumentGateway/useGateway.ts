@@ -100,18 +100,26 @@ export function useGateway(doc: DocumentGateway) {
   const [changeTargetSubresourceNameAttempt, changeTargetSubresourceName] =
     useAsync(
       useCallback(
-        async (name: string) => {
-          const updatedGateway =
-            await clustersService.setGatewayTargetSubresourceName(
-              doc.gatewayUri,
-              name
-            );
+        (name: string) =>
+          retryWithRelogin(ctx, doc.targetUri, async () => {
+            const updatedGateway =
+              await clustersService.setGatewayTargetSubresourceName(
+                doc.gatewayUri,
+                name
+              );
 
-          documentsService.update(doc.uri, {
-            targetSubresourceName: updatedGateway.targetSubresourceName,
-          });
-        },
-        [clustersService, documentsService, doc.uri, doc.gatewayUri]
+            documentsService.update(doc.uri, {
+              targetSubresourceName: updatedGateway.targetSubresourceName,
+            });
+          }),
+        [
+          clustersService,
+          documentsService,
+          doc.uri,
+          doc.gatewayUri,
+          ctx,
+          doc.targetUri,
+        ]
       )
     );
 
