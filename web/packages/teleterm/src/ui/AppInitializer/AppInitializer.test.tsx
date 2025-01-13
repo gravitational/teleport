@@ -169,7 +169,7 @@ test.each<{
     name: 'starting new session in document reopen dialog discards previous documents',
     action: async () => {
       await userEvent.click(
-        await screen.findByRole('button', { name: 'Start New Session' })
+        await screen.findByRole('button', { name: 'Start new session' })
       );
     },
     expectHasDocumentsToReopen: false,
@@ -232,6 +232,10 @@ test.each<{
       </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
+
+  // Wait for the default unified resources document to render,
+  // so that we won't get 'act' errors.
+  expect(await screen.findByText('All Resources')).toBeInTheDocument();
 
   expect(
     await screen.findByText(
