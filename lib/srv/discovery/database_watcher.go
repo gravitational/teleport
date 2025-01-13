@@ -20,7 +20,6 @@ package discovery
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -54,8 +53,7 @@ func (s *Server) startDatabaseWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(newDatabases, types.Database.GetName)
 			},
-			// TODO(tross): update to use the server logger once it is converted to use slog
-			Logger:   slog.With("kind", types.KindDatabase),
+			Logger:   s.Log.With("kind", types.KindDatabase),
 			OnCreate: s.onDatabaseCreate,
 			OnUpdate: s.onDatabaseUpdate,
 			OnDelete: s.onDatabaseDelete,

@@ -1908,9 +1908,8 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDiscovery,
-			// TODO(tross): update this after converting logging to use slog
-			// Logger:          s.Logger,
+			Component:    teleport.ComponentDiscovery,
+			Logger:       s.Log,
 			Client:       s.AccessPoint,
 			MaxStaleness: time.Minute,
 		},
