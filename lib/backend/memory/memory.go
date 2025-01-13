@@ -443,7 +443,12 @@ func (m *Memory) NewWatcher(ctx context.Context, watch backend.Watch) (backend.W
 
 func (m *Memory) getRange(ctx context.Context, startKey, endKey backend.Key, limit int) backend.GetResult {
 	var res backend.GetResult
-	m.tree.AscendRange(&btreeItem{Item: backend.Item{Key: startKey}}, &btreeItem{Item: backend.Item{Key: endKey}}, func(item *btreeItem) bool {
+	startItem := &btreeItem{Item: backend.Item{Key: startKey}}
+	endItem := &btreeItem{Item: backend.Item{Key: endKey}}
+	m.tree.AscendGreaterOrEqual(startItem, func(item *btreeItem) bool {
+		if endItem.Less(item) {
+			return false
+		}
 		res.Items = append(res.Items, item.Item)
 		if limit > 0 && len(res.Items) >= limit {
 			return false
