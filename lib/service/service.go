@@ -1288,6 +1288,15 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		switch upgraderKind {
 		case types.UpgraderKindTeleportUpdate:
+			isDefault, err := autoupdate.IsDefault()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !isDefault {
+				// Only write the nop schedule for the default updater.
+				// Suffixed installations of Teleport can coexist with the old upgrader system.
+				break
+			}
 			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
 			if err != nil {
 				return nil, trace.Wrap(err)

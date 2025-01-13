@@ -44,3 +44,18 @@ func IsActive() (bool, error) {
 	systemDir := filepath.Join(teleportOptDir, systemNamespace)
 	return !strings.HasPrefix(absPath, systemDir), nil
 }
+
+// IsDefault returns true if the local Teleport binary is both managed by teleport-update
+// and the default installation (with teleport.service as the unit file name).
+func IsDefault() (bool, error) {
+	teleportPath, err := os.Readlink("/proc/self/exe")
+	if err != nil {
+		return false, trace.Wrap(err, "cannot find Teleport binary")
+	}
+	defaultPath := filepath.Join(teleportOptDir, defaultNamespace) + "/"
+	absPath, err := filepath.Abs(teleportPath)
+	if err != nil {
+		return false, trace.Wrap(err, "cannot get absolute path for Teleport binary")
+	}
+	return strings.HasPrefix(absPath, defaultPath), nil
+}
