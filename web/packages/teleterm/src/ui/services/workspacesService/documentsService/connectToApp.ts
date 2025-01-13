@@ -115,13 +115,21 @@ export async function connectToApp(
     return;
   }
 
-  await setUpAppGateway(ctx, target, telemetry);
+  await setUpAppGateway(ctx, target, { telemetry });
 }
 
 export async function setUpAppGateway(
   ctx: IAppContext,
   target: App,
-  telemetry: { origin: DocumentOrigin }
+  options: {
+    telemetry: { origin: DocumentOrigin };
+    /**
+     * targetPort allows the caller to preselect the target port for the gateway. Works only with
+     * multi-port TCP apps. If it's not specified and the app is multi-port, the first port from
+     * it's TCP ports is used instead.
+     */
+    targetPort?: number;
+  }
 ) {
   const rootClusterUri = routing.ensureRootClusterUri(target.uri);
 
@@ -129,16 +137,20 @@ export async function setUpAppGateway(
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   const doc = documentsService.createGatewayDocument({
     targetUri: target.uri,
-    origin: telemetry.origin,
+    origin: options.telemetry.origin,
     targetName: routing.parseAppUri(target.uri).params.appId,
     targetUser: '',
+    targetSubresourceName:
+      target.tcpPorts.length > 0
+        ? (options.targetPort || target.tcpPorts[0].port).toString()
+        : undefined,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
 
   if (connectionToReuse) {
     await ctx.connectionTracker.activateItem(connectionToReuse.id, {
-      origin: telemetry.origin,
+      origin: options.telemetry.origin,
     });
   } else {
     await ctx.workspacesService.setActiveWorkspace(rootClusterUri);

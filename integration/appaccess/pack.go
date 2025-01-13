@@ -184,6 +184,34 @@ func (p *Pack) RootAppPublicAddr() string {
 	return p.rootAppPublicAddr
 }
 
+func (p *Pack) RootTCPAppName() string {
+	return p.rootTCPAppName
+}
+
+func (p *Pack) RootTCPMessage() string {
+	return p.rootTCPMessage
+}
+
+func (p *Pack) RootTCPMultiPortAppName() string {
+	return p.rootTCPMultiPortAppName
+}
+
+func (p *Pack) RootTCPMultiPortAppPortAlpha() int {
+	return p.rootTCPMultiPortAppPortAlpha
+}
+
+func (p *Pack) RootTCPMultiPortMessageAlpha() string {
+	return p.rootTCPMultiPortMessageAlpha
+}
+
+func (p *Pack) RootTCPMultiPortAppPortBeta() int {
+	return p.rootTCPMultiPortAppPortBeta
+}
+
+func (p *Pack) RootTCPMultiPortMessageBeta() string {
+	return p.rootTCPMultiPortMessageBeta
+}
+
 func (p *Pack) RootAuthServer() *auth.Server {
 	return p.rootCluster.Process.GetAuthServer()
 }
@@ -198,6 +226,34 @@ func (p *Pack) LeafAppClusterName() string {
 
 func (p *Pack) LeafAppPublicAddr() string {
 	return p.leafAppPublicAddr
+}
+
+func (p *Pack) LeafTCPAppName() string {
+	return p.leafTCPAppName
+}
+
+func (p *Pack) LeafTCPMessage() string {
+	return p.leafTCPMessage
+}
+
+func (p *Pack) LeafTCPMultiPortAppName() string {
+	return p.leafTCPMultiPortAppName
+}
+
+func (p *Pack) LeafTCPMultiPortAppPortAlpha() int {
+	return p.leafTCPMultiPortAppPortAlpha
+}
+
+func (p *Pack) LeafTCPMultiPortMessageAlpha() string {
+	return p.leafTCPMultiPortMessageAlpha
+}
+
+func (p *Pack) LeafTCPMultiPortAppPortBeta() int {
+	return p.leafTCPMultiPortAppPortBeta
+}
+
+func (p *Pack) LeafTCPMultiPortMessageBeta() string {
+	return p.leafTCPMultiPortMessageBeta
 }
 
 func (p *Pack) LeafAuthServer() *auth.Server {
