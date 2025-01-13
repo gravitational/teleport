@@ -11,7 +11,7 @@ Why keep client tools updated?
 
 - **Security**: Updates deliver patches for known vulnerabilities.
 - **Bug Fixes**: Resolved issues are pushed to endpoints.
-- **Compatibility**: Avoid manual understanding of [Teleport component compatibility rules](https://goteleport.com/docs/upgrading/overview/#component-compatibility).
+- **Compatibility**: Avoid manual understanding of [Teleport component compatibility rules](overview.mdx#component-compatibility).
 
 ## How it works
 
@@ -23,7 +23,7 @@ If your client version differs from the cluster's required version, it will:
 3. Validate the binary with a checksum.
 4. Re-execute using the updated version (with the same environment variables).
 
-### Key features:
+### Key features
 
 **Binary Management**: Original binaries are preserved, and updates are stored separately.
 Updates are installed in the `$TELEPORT_HOME/.tsh/bin/` folder (if `TELEPORT_HOME` is not defined, the home folder is used).
