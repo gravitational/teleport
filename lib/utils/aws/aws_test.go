@@ -67,6 +67,19 @@ func TestExtractCredFromAuthHeader(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
+			name:  "valid with empty list of signed headers",
+			input: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,SignedHeaders=,Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+			expCred: &SigV4{
+				KeyID:         "AKIAIOSFODNN7EXAMPLE",
+				Date:          "20130524",
+				Region:        "us-east-1",
+				Service:       "s3",
+				Signature:     "fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+				SignedHeaders: nil,
+			},
+			wantErr: require.NoError,
+		},
+		{
 			name:    "signed headers section missing",
 			input:   "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
 			wantErr: require.Error,
