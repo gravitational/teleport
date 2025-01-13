@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
-	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -28,10 +27,6 @@ import (
 )
 
 func TestOracleEngine(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	defer listener.Close()
-
 	keyPEM, certPEM, err := utils.GenerateRSASelfSignedSigningCert(pkix.Name{
 		Organization: []string{"Teleport Test"},
 		CommonName:   "Teleport",
@@ -41,68 +36,77 @@ func TestOracleEngine(t *testing.T) {
 	certificate, err := tls.X509KeyPair(certPEM, keyPEM)
 	require.NoError(t, err)
 
-	server := mockOracleServer{
-		listener: listener,
-		tlsConfig: &tls.Config{
-			Certificates: []tls.Certificate{certificate},
-		},
-		closeC:   make(chan struct{}),
-		receiveC: make(chan protocol.Packet, 100),
-		sendC:    make(chan protocol.Packet, 100),
-		logger:   t.Logf,
-	}
-	defer server.close()
-	go server.start()
+	mkServerAndSession := func() (*mockOracleServer, *common.Session) {
+		listener, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { listener.Close() })
 
-	session := &common.Session{
-		DatabaseName: "XE",
-		DatabaseUser: "alice",
-		Checker: &checkerMock{
-			t: t,
-			role: types.RoleV6{
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						DatabaseLabels: types.Labels{"*": []string{"*"}},
-						DatabaseNames:  []string{"XE", "DB1"},
-						DatabaseUsers:  []string{"alice"},
+		server := &mockOracleServer{
+			listener: listener,
+			tlsConfig: &tls.Config{
+				Certificates: []tls.Certificate{certificate},
+			},
+			logger: t.Logf,
+		}
+
+		session := &common.Session{
+			DatabaseName: "oracle",
+			DatabaseUser: "alice",
+			Checker: &checkerMock{
+				t: t,
+				role: types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseNames:  []string{"oracle", "DB1"},
+							DatabaseUsers:  []string{"alice"},
+						},
 					},
 				},
 			},
-		},
-		Database: &types.DatabaseV3{
-			Spec: types.DatabaseSpecV3{
-				URI:      listener.Addr().String(),
-				Protocol: defaults.ProtocolOracle,
+			Database: &types.DatabaseV3{
+				Spec: types.DatabaseSpecV3{
+					URI:      listener.Addr().String(),
+					Protocol: defaults.ProtocolOracle,
+				},
 			},
-		},
-		Identity: tlsca.Identity{
-			RouteToDatabase: tlsca.RouteToDatabase{
-				Username: "alice",
-				Database: "XE",
+			Identity: tlsca.Identity{
+				RouteToDatabase: tlsca.RouteToDatabase{
+					Username: "alice",
+					Database: "XE",
+				},
 			},
-		},
+		}
+		return server, session
 	}
-	engine := Engine{
-		EngineConfig: common.EngineConfig{
-			Context: context.Background(),
-			Log:     slog.Default(),
-			Auth:    &authMock{},
-			Audit:   &auditMock{},
-		},
+
+	mkEngine := func() *Engine {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+		t.Cleanup(cancelFunc)
+		return &Engine{
+			EngineConfig: common.EngineConfig{
+				Context: ctx,
+				Log:     slog.Default(),
+				Auth:    &authMock{},
+				Audit:   &auditMock{},
+			},
+		}
 	}
 
 	t.Run("connection connect package", func(t *testing.T) {
+		t.Parallel()
+
 		client, engineConn := net.Pipe()
 		defer client.Close()
 		defer engineConn.Close()
 
-		var connect *protocol.ConnectPacket
+		var connectPacket *protocol.ConnectPacket
+		engine := mkEngine()
 		engine.onConnectPacketRead = func(p *protocol.ConnectPacket) {
-			connect = p
+			connectPacket = p
 		}
-		defer func() {
-			engine.onConnectPacketRead = nil
-		}()
+
+		server, session := mkServerAndSession()
 
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
@@ -122,28 +126,35 @@ func TestOracleEngine(t *testing.T) {
 			}
 		}()
 
+		connChannels, err := server.accept()
+		require.NoError(t, err)
+
 		select {
 		case <-time.After(time.Second * 10):
 			t.Fatal("packet receive timout")
-		case got := <-server.receiveC:
+		case got := <-connChannels.receiveC:
 			require.Equal(t, connectBytes, got.Payload())
-			require.NotNil(t, connect)
-			connString, err := connect.GetConnectionString()
+			require.NotNil(t, connectPacket)
+			connString, err := connectPacket.GetConnectionString()
 			require.NoError(t, err)
 			expectedConnString := "(DESCRIPTION=(ADDRESS=(PROTOCOL=tcps)(HOST=127.0.0.1)(PORT=54557))(CONNECT_DATA=(CID=(PROGRAM=SQLcl)(HOST=__jdbc__)(USER=marek))(SERVICE_NAME=XE)(CONNECTION_ID=MAVsTlvrTyqsibsnisguzw==)))"
 			require.Equal(t, expectedConnString, connString)
-			serviceName, err := connect.GetServiceName()
+			serviceName, err := connectPacket.GetServiceName()
 			require.NoError(t, err)
 			require.Equal(t, "XE", serviceName)
 		}
 	})
 
 	t.Run("database name connect server name mismatch", func(t *testing.T) {
+		t.Parallel()
+
 		client, engineConn := net.Pipe()
 		defer client.Close()
 		defer engineConn.Close()
-		// The database encoded in user identity should match the ConnectPacketDump ServerName content.
+		_, session := mkServerAndSession()
 		session.Identity.RouteToDatabase.Database = "DB1"
+
+		engine := mkEngine()
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
@@ -156,17 +167,68 @@ func TestOracleEngine(t *testing.T) {
 			writeErr <- wErr
 		}()
 		err = engine.HandleConnection(context.Background(), session)
-		require.ErrorContains(t, err, `mismatch between TLS identity database name "DB1" and Oracle Connect Packet ServerName "XE"`)
+		require.ErrorContains(t, err, `service name mismatch (expected=DB1, got=XE)`)
+
+		require.NoError(t, <-writeErr)
+	})
+
+	t.Run("empty session db name means wildcard", func(t *testing.T) {
+		t.Parallel()
+
+		client, engineConn := net.Pipe()
+		defer client.Close()
+		defer engineConn.Close()
+		server, session := mkServerAndSession()
+		session.Identity.RouteToDatabase.Database = ""
+
+		engine := mkEngine()
+		connectPacketChannel := make(chan *protocol.ConnectPacket)
+		engine.onConnectPacketRead = func(p *protocol.ConnectPacket) {
+			connectPacketChannel <- p
+		}
+
+		err := engine.InitializeConnection(engineConn, session)
+		require.NoError(t, err)
+
+		connectBytes, err := protocol.DecodeHexDump(testdata.ConnectPacketDump)
+		require.NoError(t, err)
+
+		writeErr := make(chan error, 1)
+		go func() {
+			_, wErr := client.Write(connectBytes)
+			writeErr <- wErr
+		}()
+
+		handleErr := make(chan error, 1)
+		go func() {
+			handleErr <- engine.HandleConnection(context.Background(), session)
+		}()
+
+		connChannels, err := server.accept()
+		require.NoError(t, err)
+
+		// make sure we have received the connect packet
+		require.NotNil(t, <-connectPacketChannel)
+
+		// tell the server to drop the connection
+		connChannels.closeC <- struct{}{}
+
+		require.ErrorIs(t, <-handleErr, io.EOF)
 		require.NoError(t, <-writeErr)
 	})
 
 	t.Run("access denied database username", func(t *testing.T) {
+		t.Parallel()
+
 		client, engineConn := net.Pipe()
 		defer client.Close()
 		defer engineConn.Close()
+		_, session := mkServerAndSession()
 		session.Identity.RouteToDatabase.Database = "XE"
-		session.DatabaseName = "XE"
+		session.DatabaseName = "oracle"
 		session.DatabaseUser = "bob"
+
+		engine := mkEngine()
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
@@ -185,9 +247,7 @@ func (a *authMock) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 }
 
 func (a *authMock) GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
-	return &tls.Config{
-		InsecureSkipVerify: true,
-	}, nil
+	return &tls.Config{InsecureSkipVerify: true}, nil
 }
 
 type auditMock struct {
@@ -228,32 +288,42 @@ func (c checkerMock) CheckAccess(r services.AccessCheckable, state services.Acce
 type mockOracleServer struct {
 	listener  net.Listener
 	tlsConfig *tls.Config
-	receiveC  chan protocol.Packet
-	sendC     chan protocol.Packet
-	closeC    chan struct{}
 	logger    func(format string, args ...any)
 }
 
-func (m *mockOracleServer) start() error {
-	for {
-		conn, err := m.listener.Accept()
-		if err != nil {
-			return nil
-		}
-		go func() {
-			if err := m.handleConn(conn); err != nil {
-				m.logger("Failed to handle client connection: %v", err)
-			}
-		}()
+type connectionChannels struct {
+	receiveC chan protocol.Packet
+	sendC    chan protocol.Packet
+	closeC   chan struct{}
+
+	returnErrC chan error
+}
+
+func (m *mockOracleServer) accept() (*connectionChannels, error) {
+	conn, err := m.listener.Accept()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	ch := &connectionChannels{
+		closeC:   make(chan struct{}),
+		receiveC: make(chan protocol.Packet, 100),
+		sendC:    make(chan protocol.Packet, 100),
+
+		returnErrC: make(chan error),
+	}
+
+	go func() {
+		if err := m.handleConn(ch, conn); err != nil {
+			m.logger("Failed to handle client connection: %v", err)
+		}
+		ch.returnErrC <- err
+	}()
+
+	return ch, nil
 }
 
-func (m *mockOracleServer) close() error {
-	close(m.closeC)
-	return trace.Wrap(m.listener.Close())
-}
-
-func (m *mockOracleServer) handleConn(conn net.Conn) error {
+func (m *mockOracleServer) handleConn(ch *connectionChannels, conn net.Conn) error {
 	defer conn.Close()
 	clientConn := tls.Server(conn, m.tlsConfig)
 
@@ -261,7 +331,6 @@ func (m *mockOracleServer) handleConn(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	defer oracleClientConn.Close()
 
 	errC := make(chan error, 2)
@@ -274,8 +343,9 @@ func (m *mockOracleServer) handleConn(conn net.Conn) error {
 				return
 			}
 			select {
-			case m.receiveC <- packet:
-			case <-m.closeC:
+			case ch.receiveC <- packet:
+			case <-ch.closeC:
+				errC <- nil
 				return
 			}
 		}
@@ -284,12 +354,10 @@ func (m *mockOracleServer) handleConn(conn net.Conn) error {
 	go func() {
 		for {
 			select {
-			case <-m.closeC:
-				if err := oracleClientConn.Close(); err != nil {
-					errC <- err
-				}
+			case <-ch.closeC:
+				errC <- oracleClientConn.Close()
 				return
-			case packet := <-m.sendC:
+			case packet := <-ch.sendC:
 				if err := oracleClientConn.WritePacket(packet); err != nil {
 					errC <- err
 					return
@@ -300,14 +368,7 @@ func (m *mockOracleServer) handleConn(conn net.Conn) error {
 
 	var errs []error
 	for i := 0; i < 2; i++ {
-		select {
-		case <-m.closeC:
-			return nil
-		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(errors.Unwrap(err)) && !errors.Is(err, io.EOF) {
-				errs = append(errs, err)
-			}
-		}
+		errs = append(errs, <-errC)
 	}
 	return trace.NewAggregate(errs...)
 }
