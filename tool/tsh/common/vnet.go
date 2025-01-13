@@ -17,6 +17,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -54,11 +55,8 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go func() {
-		<-cf.Context.Done()
-		processManager.Close()
-	}()
 	fmt.Println("VNet is ready.")
+	context.AfterFunc(cf.Context, processManager.Close)
 	return trace.Wrap(processManager.Wait())
 }
 
