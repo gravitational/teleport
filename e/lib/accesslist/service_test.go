@@ -870,7 +870,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	require.NoError(t, err)
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc, err := local.NewIdentityServiceV2(backend)
+	userSvc, err := local.NewIdentityService(backend)
 	require.NoError(t, err)
 	storage, err := local.NewAccessListService(backend, clock, local.WithRunWhileLockedRetryInterval(-1*time.Millisecond))
 	require.NoError(t, err)

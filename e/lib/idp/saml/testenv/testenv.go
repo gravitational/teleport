@@ -109,7 +109,7 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	caService := local.NewCAService(bk)
 	spService, err := local.NewSAMLIdPServiceProviderService(bk)
 	require.NoError(t, err)
-	userService, err := local.NewIdentityServiceV2(bk)
+	userService, err := local.NewIdentityService(bk)
 	require.NoError(t, err)
 	accessService := local.NewAccessService(bk)
 	eventService := local.NewEventsService(bk)

@@ -82,7 +82,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 	identity := process.Config.Identity
 	if identity == nil {
-		identity, err = local.NewIdentityServiceV2(process.GetBackend())
+		identity, err = local.NewIdentityService(process.GetBackend())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

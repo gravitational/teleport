@@ -233,7 +233,7 @@ func newDepsMock(t *testing.T, clock clockwork.Clock) *mockDeps {
 	b, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	identitySvc, err := local.NewIdentityServiceV2(b)
+	identitySvc, err := local.NewIdentityService(b)
 	require.NoError(t, err)
 
 	aclSvc, err := local.NewAccessListService(b, clock)

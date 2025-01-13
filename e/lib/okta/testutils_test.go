@@ -107,7 +107,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	connectionsDiagnostic := local.NewConnectionsDiagnosticService(backend)
 	databaseServices := local.NewDatabaseServicesService(backend)
 	dynamicAccess := local.NewDynamicAccessService(backend)
-	identity, err := local.NewIdentityServiceV2(backend)
+	identity, err := local.NewIdentityService(backend)
 	require.NoError(t, err)
 	okta, err := local.NewOktaService(backend, clock)
 	require.NoError(t, err)

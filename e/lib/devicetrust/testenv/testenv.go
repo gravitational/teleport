@@ -190,7 +190,7 @@ func New(opts ...Opt) (*E, error) {
 	}))
 
 	e.AccessService = local.NewAccessService(mem)
-	e.IdentityService, err = local.NewIdentityServiceV2(mem)
+	e.IdentityService, err = local.NewIdentityService(mem)
 	if err != nil {
 		return nil, err
 	}
