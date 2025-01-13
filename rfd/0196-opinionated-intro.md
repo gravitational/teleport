@@ -115,9 +115,9 @@ The general flow here is “add users, make roles and assign them, add resources
 Key context to provide in each guide is some pros/cons and the why of each topic, especially for topics like Users/Auth. Why use local users vs SSO? This is a good place to incorporate info from SE like in the SSO one saying “you may not have permission to set up your SSO yet, in that case local users are a great place to get started.”
 
 The following fat marker sketches are meant as a jumping off point for design.
-* [./assets/0196-sketch1.jpeg]
-* [./assets/0196-sketch2.jpeg]
-* [./assets/0196-sketch3.jpeg]
+* [side bar and intro page](./assets/0196-sketch1.jpeg)
+* [expanded intro page with topics/tags](./assets/0196-sketch2.jpeg)
+* [guide content sidebar](./assets/0196-sketch3.jpeg)
 
 #### Last Resort
 
