@@ -101,6 +101,14 @@ func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool) error {
 	return iterateSimple(c, ctx, "users", f)
 }
 
+// IterateServicePrincipals lists all service principals in the Entra ID directory using pagination.
+// `f` will be called for each object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
+func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal *ServicePrincipal) bool) error {
+	return iterateSimple(c, ctx, "servicePrincipals", f)
+}
+
 // IterateGroupMembers lists all members for the given Entra ID group using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).

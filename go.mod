@@ -3,21 +3,22 @@ module github.com/gravitational/teleport
 go 1.23.5
 
 require (
-	cloud.google.com/go/cloudsqlconn v1.12.1
-	cloud.google.com/go/compute v1.28.1
-	cloud.google.com/go/compute/metadata v0.5.2
-	cloud.google.com/go/container v1.40.0
-	cloud.google.com/go/firestore v1.17.0
-	cloud.google.com/go/iam v1.2.1
-	cloud.google.com/go/kms v1.20.0
-	cloud.google.com/go/resourcemanager v1.10.1
-	cloud.google.com/go/spanner v1.68.0
-	cloud.google.com/go/storage v1.43.0
-	connectrpc.com/connect v1.17.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.14.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.4.0
+	cloud.google.com/go/cloudsqlconn v1.13.2
+	cloud.google.com/go/compute v1.31.1
+	cloud.google.com/go/compute/metadata v0.6.0
+	cloud.google.com/go/container v1.42.1
+	cloud.google.com/go/firestore v1.18.0
+	cloud.google.com/go/iam v1.3.1
+	cloud.google.com/go/kms v1.20.4
+	cloud.google.com/go/resourcemanager v1.10.3
+	cloud.google.com/go/spanner v1.73.0
+	cloud.google.com/go/storage v1.49.0
+	connectrpc.com/connect v1.18.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers v1.2.0
