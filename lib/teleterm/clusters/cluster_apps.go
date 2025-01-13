@@ -145,6 +145,8 @@ func (c *Cluster) GetAWSRoles(app types.Application) aws.Roles {
 	return aws.Roles{}
 }
 
+// ValidateTargetPort parses rawTargetPort to uint32 and checks if it's included in TCP ports of app.
+// It also returns an error if app doesn't have any TCP ports defined.
 func ValidateTargetPort(app types.Application, rawTargetPort string) (uint32, error) {
 	if rawTargetPort == "" {
 		return 0, nil
