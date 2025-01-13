@@ -55,7 +55,38 @@ Optional:
 Optional:
 
 - `attribute` (String) The name of the attribute to evaluate the condition against.
-- `equals` (String) An exact string that the attribute must match.
+- `eq` (Attributes) The attribute casted to a string must be equal to the value. (see [below for nested schema](#nested-schema-for-specrulesallowconditionseq))
+- `in` (Attributes) The attribute casted to a string must be in the list of values. (see [below for nested schema](#nested-schema-for-specrulesallowconditionsin))
+- `not_eq` (Attributes) The attribute casted to a string must not be equal to the value. (see [below for nested schema](#nested-schema-for-specrulesallowconditionsnot_eq))
+- `not_in` (Attributes) The attribute casted to a string must not be in the list of values. (see [below for nested schema](#nested-schema-for-specrulesallowconditionsnot_in))
+
+### Nested Schema for `spec.rules.allow.conditions.eq`
+
+Optional:
+
+- `value` (String) The value to compare the attribute against.
+
+
+### Nested Schema for `spec.rules.allow.conditions.in`
+
+Optional:
+
+- `values` (List of String) The list of values to compare the attribute against.
+
+
+### Nested Schema for `spec.rules.allow.conditions.not_eq`
+
+Optional:
+
+- `value` (String) The value to compare the attribute against.
+
+
+### Nested Schema for `spec.rules.allow.conditions.not_in`
+
+Optional:
+
+- `values` (List of String) The list of values to compare the attribute against.
+
 
 
 
