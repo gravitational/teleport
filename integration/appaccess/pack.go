@@ -759,7 +759,6 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 	for i := 0; i < count; i++ {
 		raConf := servicecfg.MakeDefaultConfig()
 		raConf.Clock = opts.Clock
-		raConf.Console = nil
 		raConf.Logger = utils.NewSlogLoggerForTests()
 		raConf.DataDir = t.TempDir()
 		raConf.SetToken("static-token-value")
@@ -929,7 +928,6 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 	for i := 0; i < count; i++ {
 		laConf := servicecfg.MakeDefaultConfig()
 		laConf.Clock = opts.Clock
-		laConf.Console = nil
 		laConf.Logger = utils.NewSlogLoggerForTests()
 		laConf.DataDir = t.TempDir()
 		laConf.SetToken("static-token-value")
