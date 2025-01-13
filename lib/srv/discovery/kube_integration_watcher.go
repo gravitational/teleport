@@ -21,6 +21,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -243,14 +244,13 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, time.Duration(len(clusters))*30*time.Second)
 	defer cancel()
-	var clusterNames []string
 
 	for _, kubeAppDiscovery := range []bool{true, false} {
 		clustersByName := make(map[string]types.DiscoveredEKSCluster)
 		for _, c := range batchedClusters[kubeAppDiscovery] {
-			clusterNames = append(clusterNames, c.GetAWSConfig().Name)
 			clustersByName[c.GetAWSConfig().Name] = c
 		}
+		clusterNames := slices.Collect(maps.Keys(clustersByName))
 		if len(clusterNames) == 0 {
 			continue
 		}
