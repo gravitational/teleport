@@ -1260,7 +1260,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	vnetCommand := newVnetCommand(app)
 	vnetAdminSetupCommand := newVnetAdminSetupCommand(app)
-	vnetDaemonCommand := newPlatformVnetDaemonCommand(app)
+	vnetDaemonCommand := newVnetDaemonCommand(app)
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 	vnetServiceCommand := newVnetServiceCommand(app)
