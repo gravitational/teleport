@@ -795,23 +795,28 @@ func TestDiscoveryServer(t *testing.T) {
 		{
 			name:              "multiple EKS clusters with different KubeAppDiscovery setting failed to autoenroll and user tasks are created",
 			presentInstances:  []types.Server{},
-			foundEC2Instances: []ec2types.Instance{},
+			foundEC2Instances: []*ec2.Instance{},
 			ssm:               &mockSSMClient{},
-			eksClusters: []*ekstypes.Cluster{
-				{
-					Name:   aws.String("cluster01"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"EnableAppDiscovery": "Yes",
-					},
-				},
-				{
-					Name:   aws.String("cluster02"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"EnableAppDiscovery": "No",
+			cloudClients: &cloud.TestCloudClients{
+				STS: &mocks.STSMock{},
+				EKS: &mocks.EKSMock{
+					Clusters: []*eks.Cluster{
+						{
+							Name:   aws.String("cluster01"),
+							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
+							Status: aws.String(eks.ClusterStatusActive),
+							Tags: map[string]*string{
+								"EnableAppDiscovery": aws.String("Yes"),
+							},
+						},
+						{
+							Name:   aws.String("cluster02"),
+							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
+							Status: aws.String(eks.ClusterStatusActive),
+							Tags: map[string]*string{
+								"EnableAppDiscovery": aws.String("No"),
+							},
+						},
 					},
 				},
 			},
