@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	testOrgURL        = "https://test-url.com"
+	testOrgURL        = "https://test.okta.example.com"
 	testHostname      = "test-host"
 	testHostID        = "test-host-id"
 	testConnectorName = "okta-test"

@@ -33,6 +33,12 @@ func NewOrgURLOnlyClient(t *testing.T) *Client {
 	}}
 }
 
+func NewLocalDataClient(t *testing.T) (*Client, *LocalData) {
+	data := newLocalData()
+	client := NewClient(t, data.newClientFuncs())
+	return client, data
+}
+
 // GetCurrentUser implements [[api.Client]].
 func (c *Client) GetCurrentUser(ctx context.Context) (*okta.User, error) {
 	if c.GetCurrentUserFunc != nil {

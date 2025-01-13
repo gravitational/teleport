@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	TestOrgURL = "https://test-url.com"
+	TestOrgURL = "https://test.okta.example.com"
 )
 
 // OktaClientFn is a function interface for creating Okta client.

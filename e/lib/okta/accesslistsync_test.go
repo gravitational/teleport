@@ -23,6 +23,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/e/lib/okta/api/oktaapitest"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
@@ -42,10 +43,13 @@ type accessListSyncTestContext struct {
 	svc     *accessListSync
 	clock   clockwork.FakeClock
 	emitter *eventstest.ChannelEmitter
-	client  *testOktaClient
 	ap      *testAccessPoint
-	apps    map[string]types.Application
-	groups  map[string]types.UserGroup
+
+	apps   map[string]types.Application
+	groups map[string]types.UserGroup
+
+	oktaClient *oktaapitest.Client
+	oktaData   *oktaapitest.LocalData
 }
 
 func (a *accessListSyncTestContext) addApp(app types.Application) types.Application {
@@ -88,7 +92,7 @@ func (a *accessListSyncTestContext) groupReviewerRoleName(id string) string {
 
 func (a *accessListSyncTestContext) addGroup(group types.UserGroup) {
 	a.groups[group.GetName()] = group
-	a.client.AddGroupToMapping(group.GetName())
+	a.oktaData.UpsertGroupForId(api.OktaGroupID(group.GetName()))
 }
 
 func (a *accessListSyncTestContext) advanceAndWaitForSync() {
@@ -101,7 +105,6 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 	t.Helper()
 
 	clock := clockwork.NewFakeClock()
-	client := newTestClient()
 	ap := newTestAccessPoint(t, clockwork.NewFakeClock())
 	emitter := eventstest.NewChannelEmitter(1)
 	stopCh := make(chan struct{}, 1)
@@ -124,24 +127,29 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		},
 	})
 
+	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+
 	alsCtx := &accessListSyncTestContext{
 		clock:   clock,
 		emitter: emitter,
-		client:  client,
 		ap:      ap,
-		apps:    map[string]types.Application{},
-		groups:  map[string]types.UserGroup{},
+
+		apps:   map[string]types.Application{},
+		groups: map[string]types.UserGroup{},
+
+		oktaClient: oktaClient,
+		oktaData:   oktaData,
 	}
 
 	alSync, err := newAccessListSync(accessListSyncConfig{
 		Clock:       clock,
 		ClusterName: testClusterName,
-		Client:      client,
+		Client:      oktaClient,
 		Owners:      []string{"owner1", "owner2"},
 		Emitter:     emitter,
 		Access:      ap,
 		AccessLists: ap,
-		OrgURL:      testOrgURL,
+		OrgURL:      oktaapitest.TestOrgURL,
 		AppsGetter: func() map[string]types.Application {
 			return alsCtx.apps
 		},
@@ -246,11 +254,13 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("Okta apps have assignments, groups have no assignments", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 
-		c.client.AddUserID("user1", "1")
-		c.client.AddUserID("user2", "2")
-		c.client.AddUserID("user3", "3")
-		c.client.AddAppAssignments("app1-okta", "1", "2", "3")
-		c.client.AddAppAssignments("app2-okta", "1", "2", "3")
+		c.oktaData.UpsertUser("user1", "1")
+		c.oktaData.UpsertUser("user2", "2")
+		c.oktaData.UpsertUser("user3", "3")
+		c.oktaData.UpsertAppForId("app1-okta")
+		c.oktaData.UpsertAppForId("app2-okta")
+		c.oktaData.UpsertAppUserAssignments("app1-okta", "1", "2", "3")
+		c.oktaData.UpsertAppUserAssignments("app2-okta", "1", "2", "3")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
@@ -308,11 +318,15 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("Okta apps have assignments, groups have assignments", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 
-		c.client.AddUserID("user1", "1")
-		c.client.AddUserID("user2", "2")
-		c.client.AddAppAssignments("app1-okta", "1")
-		c.client.AddAppAssignments("app2-okta", "1", "2")
-		c.client.AddGroupAssignments("group1", "1", "2")
+		c.oktaData.UpsertUser("user1", "1")
+		c.oktaData.UpsertUser("user2", "2")
+		c.oktaData.UpsertAppForId("app1-okta")
+		c.oktaData.UpsertAppForId("app2-okta")
+		c.oktaData.UpsertGroupForId("group1")
+
+		c.oktaData.UpsertAppUserAssignments("app1-okta", "1")
+		c.oktaData.UpsertAppUserAssignments("app2-okta", "1", "2")
+		c.oktaData.UpsertGroupUserAssignments("group1", "1", "2")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
@@ -376,14 +390,21 @@ func TestAccessListSync(t *testing.T) {
 			regexp.MustCompile("^dev.*$"),
 		}
 
-		c.client.AddUserID("user1", "1")
-		c.client.AddUserID("user2", "2")
-		c.client.AddAppAssignments("admin-app1-okta", "1")
-		c.client.AddAppAssignments("dev-app2-okta", "1", "2")
-		c.client.AddAppAssignments("dev-app3-okta", "1", "2")
-		c.client.AddGroupAssignments("admin-group1", "1", "2")
-		c.client.AddGroupAssignments("dev-group2", "1", "2")
-		c.client.AddGroupAssignments("dev-group3", "1", "2")
+		c.oktaData.UpsertUser("user1", "1")
+		c.oktaData.UpsertUser("user2", "2")
+		c.oktaData.UpsertAppForId("admin-app1-okta")
+		c.oktaData.UpsertAppForId("dev-app2-okta")
+		c.oktaData.UpsertAppForId("dev-app3-okta")
+		c.oktaData.UpsertGroupForId("admin-group1")
+		c.oktaData.UpsertGroupForId("dev-group2")
+		c.oktaData.UpsertGroupForId("dev-group3")
+
+		c.oktaData.UpsertAppUserAssignments("admin-app1-okta", "1")
+		c.oktaData.UpsertAppUserAssignments("dev-app2-okta", "1", "2")
+		c.oktaData.UpsertAppUserAssignments("dev-app3-okta", "1", "2")
+		c.oktaData.UpsertGroupUserAssignments("admin-group1", "1", "2")
+		c.oktaData.UpsertGroupUserAssignments("dev-group2", "1", "2")
+		c.oktaData.UpsertGroupUserAssignments("dev-group3", "1", "2")
 
 		c.addApp(newAccessListSyncAppLabelAppName(t, "admin-app1"))
 		c.addApp(newAccessListSyncAppLabelAppName(t, "dev-app2"))
@@ -487,12 +508,16 @@ func TestAccessListSync(t *testing.T) {
 			"app4": newRole(t, "app4", nil, nil),
 		}, c.svc.importRoles.Clone(), cmpOpts...))
 
-		c.client.AddUserID("user1", "1")
-		c.client.AddUserID("user2", "2")
-		c.client.AddUserID("user-to-remove", "remove")
-		c.client.AddAppAssignments("app1-okta", "1")
-		c.client.AddAppAssignments("app2-okta", "1", "2")
-		c.client.AddGroupAssignments("group1", "1", "2")
+		c.oktaData.UpsertUser("user1", "1")
+		c.oktaData.UpsertUser("user2", "2")
+		c.oktaData.UpsertUser("user-to-remove", "remove")
+		c.oktaData.UpsertAppForId("app1-okta")
+		c.oktaData.UpsertAppForId("app2-okta")
+		c.oktaData.UpsertGroupForId("group1")
+
+		c.oktaData.UpsertAppUserAssignments("app1-okta", "1")
+		c.oktaData.UpsertAppUserAssignments("app2-okta", "1", "2")
+		c.oktaData.UpsertGroupUserAssignments("group1", "1", "2")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
@@ -615,12 +640,13 @@ func TestAccessListSync(t *testing.T) {
 
 				// ALSO GIVEN an Okta client that is rigged to fail when importing a
 				// specific Okta group
-				c.client.MonkeyPatch.GetGroupAssignments =
-					func(_ context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
+				oldGetGroupAssignmentsFunc := c.oktaClient.GetGroupAssignmentsFunc
+				c.oktaClient.GetGroupAssignmentsFunc =
+					func(t *testing.T, ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
 						if err, ok := tt.importErrors[groupID]; ok {
 							return nil, err
 						}
-						return c.client.GetTestGroupAssignments(groupID)
+						return oldGetGroupAssignmentsFunc(t, ctx, groupID)
 					}
 
 				// WHEN I force a new Access List Sync
@@ -695,12 +721,13 @@ func TestAccessListSync(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				// GIVEN an Okta integration with multiple synced users and apps
 				c := initAccessListSync(t, ctx)
-				c.client.AddUserID("user1", "1")
-				c.client.AddUserID("user2", "2")
+				c.oktaData.UpsertUser("user1", "1")
+				c.oktaData.UpsertUser("user2", "2")
 				for _, appName := range appNames {
 					app := c.addApp(newAccessListSyncApp(t, appName))
 					appID, _ := app.GetLabel(eteleport.OktaAppIDLabel)
-					c.client.AddAppAssignments(appID, "1", "2")
+					c.oktaData.UpsertAppForId(api.OktaAppID(appID))
+					c.oktaData.UpsertAppUserAssignments(api.OktaAppID(appID), "1", "2")
 				}
 				c.advanceAndWaitForSync()
 				expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
@@ -710,12 +737,13 @@ func TestAccessListSync(t *testing.T) {
 
 				// ALSO GIVEN an Okta client that is rigged to fail when importing a
 				// specific Okta app
-				c.client.MonkeyPatch.GetAppAssignments =
-					func(_ context.Context, app api.OktaAppID) ([]api.AppAssignment, error) {
+				oldGetAppAssignmentsFunc := c.oktaClient.GetAppAssignmentsFunc
+				c.oktaClient.GetAppAssignmentsFunc =
+					func(t *testing.T, ctx context.Context, app api.OktaAppID) ([]api.AppAssignment, error) {
 						if err, ok := tt.importErrors[app]; ok {
 							return nil, err
 						}
-						return c.client.GetTestAppAssignments(app)
+						return oldGetAppAssignmentsFunc(t, ctx, app)
 					}
 
 				// WHEN I force a new Access List Sync
