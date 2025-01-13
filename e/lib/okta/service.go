@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"log/slog"
-	"net/http"
 	"regexp"
 	"strings"
 	"sync"
@@ -39,9 +38,6 @@ const (
 	// https://developer.okta.com/docs/reference/rl-additional-limits/#end-user-rate-limits
 	APICallsPerSecond     = 4
 	RequestTimeoutSeconds = 300 // Okta request timeout is 5 minutes.
-
-	oktaTransportIdleTimeout = 30 * time.Second
-	oktaConnectionTimeout    = 30 * time.Second
 
 	// OktaServiceSemaphoreKind is the name of the semaphore to acquire.
 	OktaServiceSemaphoreKind = "okta-service"
@@ -368,73 +364,8 @@ type Service struct {
 	serviceStatus serviceStatus
 }
 
-// rateLimitingHTTPTransport will only perform HTTP requests after waiting the
-// for the rate limiter.
-type rateLimitingHTTPTransport struct {
-	delegate    *http.Transport
-	rateLimiter *rate.Limiter
-}
-
-func (r *rateLimitingHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Before issuing any HTTP request, wait to ensure we only issue the number of
-	// requests the rate limiter allows.
-	if err := r.rateLimiter.Wait(req.Context()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return r.delegate.RoundTrip(req)
-}
-
-func (r *rateLimitingHTTPTransport) CloseIdleConnections() {
-	r.delegate.CloseIdleConnections()
-}
-
 // StatusCodeUpdater is a function that can update a hosted plugin status code.
 type StatusCodeUpdater func(context.Context, types.PluginStatusCode)
-
-// ClientConfig holds the various parameters for creating an Okta client.
-type ClientConfig struct {
-	// HTTPClient is an optional HTTP client that can be used to override the
-	// default client for testing. Do not set in production.
-	HTTPClient *http.Client
-
-	// Endpoint is an URL indicating the root endpoint of the Okta API service
-	Endpoint string
-
-	// Token is an Okta-supplied user API access token
-	Token string
-
-	// Log receives any log info
-	Logger *slog.Logger
-}
-
-// Check validates the state of the ClientConfig, returning a non-nil error
-// if the config is invalid.
-func (cfg *ClientConfig) Check() error {
-	if cfg.Endpoint == "" {
-		return trace.BadParameter("missing Okta Client parameter EndPoint")
-	}
-	if cfg.Token == "" {
-		return trace.BadParameter("missing Okta Client parameter Token")
-	}
-	if cfg.Logger == nil {
-		return trace.BadParameter("missing OktaCLient parameter Logger")
-	}
-	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{
-			Transport: &rateLimitingHTTPTransport{
-				// This transport was taken from the Okta client.
-				delegate: &http.Transport{
-					IdleConnTimeout: oktaTransportIdleTimeout,
-				},
-				rateLimiter: rate.NewLimiter(
-					rate.Every(time.Second/time.Duration(APICallsPerSecond)), 1),
-			},
-			Timeout: oktaConnectionTimeout,
-		}
-	}
-	return nil
-}
 
 // New will create a new Okta service.
 func New(ctx context.Context, config Config) (*Service, error) {
