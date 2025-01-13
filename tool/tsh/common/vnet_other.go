@@ -27,21 +27,17 @@ import (
 var _ = newVnetAppProvider
 
 func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
-	return commandNotSupported{}
-}
-
-func newPlatformVnetDaemonCommand(app *kingpin.Application) vnetCLICommand {
-	return commandNotSupported{}
+	return vnetCommandNotSupported{}
 }
 
 func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCLICommand {
-	return commandNotSupported{}
+	return vnetCommandNotSupported{}
 }
 
 func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCLICommand {
-	return commandNotSupported{}
+	return vnetCommandNotSupported{}
 }
 
 func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
-	return commandNotSupported{}
+	return vnetCommandNotSupported{}
 }
