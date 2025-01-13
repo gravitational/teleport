@@ -174,7 +174,7 @@ const LabelWithAttemptStatus = (props: {
   >
     {props.text}
     {props.attempt.status === 'processing' && (
-      <AnimatedSpinner color="interactive.tonal.neutral.2" size="medium" />
+      <AnimatedSpinner color="interactive.tonal.neutral.2" size="small" />
     )}
     {props.attempt.status === 'success' && (
       // CSS animations are repeated whenever the parent goes from `display: none` to something
@@ -182,7 +182,7 @@ const LabelWithAttemptStatus = (props: {
       // repeated when the user switches to this tab.
       // https://www.w3.org/TR/css-animations-1/#example-4e34d7ba
       <UnmountAfter timeoutMs={disappearanceDelayMs + disappearanceDurationMs}>
-        <DisappearingCheck color="success.main" size="medium" />
+        <DisappearingCheck color="success.main" size="small" />
       </UnmountAfter>
     )}
   </Flex>
