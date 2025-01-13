@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -26,6 +26,19 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+// SSHRequest defines an interface for ssh.Request.
+type SSHRequest interface {
+	// Reply sends a response to a request.
+	Reply(ok bool, payload []byte) error
+}
+
+func sshRequestType(r SSHRequest) string {
+	if sshReq, ok := r.(*ssh.Request); ok {
+		return sshReq.Type
+	}
+	return "unknown"
+}
 
 // Reply is a helper to handle replying/rejecting and log messages when needed.
 type Reply struct {
@@ -71,17 +84,17 @@ func (r *Reply) RejectWithNewRemoteSessionError(ctx context.Context, nch ssh.New
 }
 
 // ReplyError replies an error to an ssh.Request.
-func (r *Reply) ReplyError(ctx context.Context, ch ssh.Channel, req *ssh.Request, err error) {
-	r.log.ErrorContext(ctx, "failure handling SSH request", "request_type", req.Type, "error", err)
+func (r *Reply) ReplyError(ctx context.Context, req SSHRequest, err error) {
+	r.log.ErrorContext(ctx, "failure handling SSH request", "request_type", sshRequestType(req), "error", err)
 	if err := req.Reply(false, []byte(err.Error())); err != nil {
 		r.log.ErrorContext(ctx, "failed sending error Reply on SSH channel", "error", err)
 	}
 }
 
 // ReplyRequest replies to an ssh.Request with provided ok and payload.
-func (r *Reply) ReplyRequest(ctx context.Context, req *ssh.Request, ok bool, payload []byte) {
+func (r *Reply) ReplyRequest(ctx context.Context, req SSHRequest, ok bool, payload []byte) {
 	if err := req.Reply(ok, payload); err != nil {
-		r.log.ErrorContext(ctx, "failed replying OK  to SSH request", "request_type", req.Type, "error", err)
+		r.log.ErrorContext(ctx, "failed replying OK to SSH request", "request_type", sshRequestType(req), "error", err)
 	}
 }
 

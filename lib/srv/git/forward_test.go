@@ -293,7 +293,7 @@ func (m *mockGitHostingService) HandleNewChan(ctx context.Context, ccx *sshutils
 			}
 
 			if err := ssh.Unmarshal(req.Payload, &m.receivedExec); err != nil {
-				m.ReplyError(ctx, ch, req, err)
+				m.ReplyError(ctx, req, err)
 				return
 			}
 			if req.WantReply {

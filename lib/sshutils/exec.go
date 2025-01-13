@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,13 +22,26 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"os/exec"
 	"syscall"
-
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 )
+
+// errorWithExitStatus defines an interface that provides an ExitStatus
+// function to get the exit code of the process execution.
+//
+// This interface is introduced so ssh.ExitError can be mocked in unit test.
+type errorWithExitStatus interface {
+	ExitStatus() int
+}
+
+// execExitError defines an interface that provides a Sys function to get exit
+// status from the process execution.
+//
+// This interface is introduced so exec.ExitError can be mocked in unit test.
+type execExitError interface {
+	Sys() any
+}
 
 // ExitCodeFromExecError extracts and returns the exit code from the
 // error.
@@ -38,19 +51,17 @@ func ExitCodeFromExecError(err error) int {
 		return teleport.RemoteCommandSuccess
 	}
 
-	var execExitErr *exec.ExitError
-	var sshExitErr *ssh.ExitError
+	var execExitErr execExitError
+	var exitErr errorWithExitStatus
 	switch {
-	// Local execution.
 	case errors.As(err, &execExitErr):
 		waitStatus, ok := execExitErr.Sys().(syscall.WaitStatus)
 		if !ok {
 			return teleport.RemoteCommandFailure
 		}
 		return waitStatus.ExitStatus()
-	// Remote execution.
-	case errors.As(err, &sshExitErr):
-		return sshExitErr.ExitStatus()
+	case errors.As(err, &exitErr):
+		return exitErr.ExitStatus()
 	// An error occurred, but the type is unknown, return a generic 255 code.
 	default:
 		slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)

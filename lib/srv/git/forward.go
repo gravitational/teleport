@@ -363,7 +363,7 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 
 			ok, err := s.dispatch(ctx, sctx, req)
 			if err != nil {
-				s.reply.ReplyError(ctx, ch, req, err)
+				s.reply.ReplyError(ctx, req, err)
 				return
 			}
 			s.reply.ReplyRequest(ctx, req, ok, nil)
