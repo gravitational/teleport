@@ -28,7 +28,6 @@ import styled from 'styled-components';
 
 import {
   Alert,
-  Box,
   ButtonSecondary,
   disappear,
   Flex,
@@ -87,8 +86,16 @@ export function AppGateway(props: {
     gateway.protocol === 'TCP' && gateway.targetSubresourceName;
 
   return (
-    <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
-      <Flex justifyContent="space-between" mb="3" flexWrap="wrap" gap={2}>
+    <Flex
+      flexDirection="column"
+      maxWidth="680px"
+      width="100%"
+      mx="auto"
+      mt="4"
+      px="5"
+      gap={2}
+    >
+      <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
         <H1>App Connection</H1>
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
@@ -96,7 +103,7 @@ export function AppGateway(props: {
       </Flex>
 
       {disconnectAttempt.status === 'error' && (
-        <Alert details={disconnectAttempt.statusText}>
+        <Alert details={disconnectAttempt.statusText} m={0}>
           Could not close the connection
         </Alert>
       )}
@@ -112,7 +119,7 @@ export function AppGateway(props: {
             }
             defaultValue={gateway.localPort}
             onChange={handleLocalPortChange}
-            mb={2}
+            mb={0}
           />
           {isMultiPort && (
             <PortFieldInput
@@ -125,23 +132,25 @@ export function AppGateway(props: {
               required
               defaultValue={gateway.targetSubresourceName}
               onChange={handleTargetPortChange}
-              mb={2}
+              mb={0}
             />
           )}
         </Validation>
       </Flex>
 
-      <Text>Access the app at:</Text>
-      <TextSelectCopy my={1} text={address} bash={false} />
+      <div>
+        <Text>Access the app at:</Text>
+        <TextSelectCopy mt={1} text={address} bash={false} />
+      </div>
 
       {changeLocalPortAttempt.status === 'error' && (
-        <Alert details={changeLocalPortAttempt.statusText}>
+        <Alert details={changeLocalPortAttempt.statusText} m={0}>
           Could not change the local port
         </Alert>
       )}
 
       {changeTargetPortAttempt.status === 'error' && (
-        <Alert details={changeTargetPortAttempt.statusText}>
+        <Alert details={changeTargetPortAttempt.statusText} m={0}>
           Could not change the target port
         </Alert>
       )}
@@ -157,7 +166,7 @@ export function AppGateway(props: {
         </Link>{' '}
         for more details.
       </Text>
-    </Box>
+    </Flex>
   );
 }
 
