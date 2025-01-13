@@ -22,6 +22,7 @@ import (
 	"maps"
 	"slices"
 
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
@@ -57,5 +58,12 @@ func LabelsToRDSTags(labels map[string]string) []rdstypes.Tag {
 func LabelsToRedshiftServerlessTags(labels map[string]string) []rsstypes.Tag {
 	return LabelsToTags(labels, func(key, value string) rsstypes.Tag {
 		return rsstypes.Tag{Key: &key, Value: &value}
+	})
+}
+
+// LabelsToElastiCacheTags converts labels into a [ectypes.Tag] list.
+func LabelsToElastiCacheTags(labels map[string]string) []ectypes.Tag {
+	return LabelsToTags(labels, func(key, value string) ectypes.Tag {
+		return ectypes.Tag{Key: &key, Value: &value}
 	})
 }

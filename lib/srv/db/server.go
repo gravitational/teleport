@@ -285,9 +285,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			return trace.Wrap(err)
 		}
 		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:     c.CloudClients,
-			UpdateMeta:  c.CloudMeta.Update,
-			ClusterName: clusterName.GetClusterName(),
+			AWSConfigProvider: c.AWSConfigProvider,
+			Clients:           c.CloudClients,
+			UpdateMeta:        c.CloudMeta.Update,
+			ClusterName:       clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1192,15 +1193,16 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
 	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
-		Auth:         common.NewAuthForSession(s.cfg.Auth, sessionCtx),
-		Audit:        audit,
-		AuthClient:   s.cfg.AuthClient,
-		CloudClients: s.cfg.CloudClients,
-		Context:      s.connContext,
-		Clock:        s.cfg.Clock,
-		Log:          sessionCtx.Log,
-		Users:        s.cfg.CloudUsers,
-		DataDir:      s.cfg.DataDir,
+		Auth:              common.NewAuthForSession(s.cfg.Auth, sessionCtx),
+		Audit:             audit,
+		AuthClient:        s.cfg.AuthClient,
+		AWSConfigProvider: s.cfg.AWSConfigProvider,
+		CloudClients:      s.cfg.CloudClients,
+		Context:           s.connContext,
+		Clock:             s.cfg.Clock,
+		Log:               sessionCtx.Log,
+		Users:             s.cfg.CloudUsers,
+		DataDir:           s.cfg.DataDir,
 		GetUserProvisioner: func(aub common.AutoUsers) *common.UserProvisioner {
 			return &common.UserProvisioner{
 				AuthClient: s.cfg.AuthClient,

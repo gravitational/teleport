@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 )
 
@@ -42,6 +43,13 @@ var (
 
 // EngineFn defines a database engine constructor function.
 type EngineFn func(EngineConfig) Engine
+
+// GetEngineFn returns the constructor function for the given protocol.
+func GetEngineFn(protocol string) EngineFn {
+	enginesMu.RLock()
+	defer enginesMu.RUnlock()
+	return engines[protocol]
+}
 
 // RegisterEngine registers a new engine constructor.
 func RegisterEngine(fn EngineFn, names ...string) {
@@ -103,6 +111,8 @@ type EngineConfig struct {
 	Audit Audit
 	// AuthClient is the cluster auth server client.
 	AuthClient *authclient.Client
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// CloudClients provides access to cloud API clients.
 	CloudClients cloud.Clients
 	// Context is the database server close context.
@@ -134,6 +144,9 @@ func (c *EngineConfig) CheckAndSetDefaults() error {
 	}
 	if c.AuthClient == nil {
 		return trace.BadParameter("engine config AuthClient is missing")
+	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
 	}
 	if c.CloudClients == nil {
 		return trace.BadParameter("engine config CloudClients are missing")

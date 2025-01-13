@@ -23,6 +23,7 @@ import (
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
@@ -71,6 +72,8 @@ func IsAzureMatcherType(matcherType string) bool {
 
 // AWSClientProvider provides AWS service API clients.
 type AWSClientProvider interface {
+	// GetElastiCacheClient provides an [ElasticacheClient].
+	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
 	// GetRDSClient provides an [RDSClient].
 	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
 	// GetRedshiftClient provides an [RedshiftClient].
@@ -80,6 +83,10 @@ type AWSClientProvider interface {
 }
 
 type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
 
 func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
 	return rds.NewFromConfig(cfg, optFns...)

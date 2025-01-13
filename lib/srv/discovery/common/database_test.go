@@ -28,9 +28,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -1293,21 +1293,21 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 }
 
 func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
-	cluster := &elasticache.ReplicationGroup{
+	cluster := &ectypes.ReplicationGroup{
 		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
 		ClusterEnabled:           aws.Bool(true),
-		ConfigurationEndpoint: &elasticache.Endpoint{
+		ConfigurationEndpoint: &ectypes.Endpoint{
 			Address: aws.String("configuration.localhost"),
-			Port:    aws.Int64(6379),
+			Port:    aws.Int32(6379),
 		},
-		UserGroupIds: []*string{aws.String("my-user-group")},
-		NodeGroups: []*elasticache.NodeGroup{
+		UserGroupIds: []string{"my-user-group"},
+		NodeGroups: []ectypes.NodeGroup{
 			{
 				NodeGroupId: aws.String("0001"),
-				NodeGroupMembers: []*elasticache.NodeGroupMember{
+				NodeGroupMembers: []ectypes.NodeGroupMember{
 					{
 						CacheClusterId: aws.String("my-cluster-0001-001"),
 					},
@@ -1318,7 +1318,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 			},
 			{
 				NodeGroupId: aws.String("0002"),
-				NodeGroupMembers: []*elasticache.NodeGroupMember{
+				NodeGroupMembers: []ectypes.NodeGroupMember{
 					{
 						CacheClusterId: aws.String("my-cluster-0002-001"),
 					},
@@ -1365,21 +1365,21 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("via "+overrideLabel, func(t *testing.T) {
-			cluster := &elasticache.ReplicationGroup{
+			cluster := &ectypes.ReplicationGroup{
 				ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 				ReplicationGroupId:       aws.String("my-cluster"),
 				Status:                   aws.String("available"),
 				TransitEncryptionEnabled: aws.Bool(true),
 				ClusterEnabled:           aws.Bool(true),
-				ConfigurationEndpoint: &elasticache.Endpoint{
+				ConfigurationEndpoint: &ectypes.Endpoint{
 					Address: aws.String("configuration.localhost"),
-					Port:    aws.Int64(6379),
+					Port:    aws.Int32(6379),
 				},
-				UserGroupIds: []*string{aws.String("my-user-group")},
-				NodeGroups: []*elasticache.NodeGroup{
+				UserGroupIds: []string{"my-user-group"},
+				NodeGroups: []ectypes.NodeGroup{
 					{
 						NodeGroupId: aws.String("0001"),
-						NodeGroupMembers: []*elasticache.NodeGroupMember{
+						NodeGroupMembers: []ectypes.NodeGroupMember{
 							{
 								CacheClusterId: aws.String("my-cluster-0001-001"),
 							},
@@ -1390,7 +1390,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 					},
 					{
 						NodeGroupId: aws.String("0002"),
-						NodeGroupMembers: []*elasticache.NodeGroupMember{
+						NodeGroupMembers: []ectypes.NodeGroupMember{
 							{
 								CacheClusterId: aws.String("my-cluster-0002-001"),
 							},
@@ -1441,23 +1441,23 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 }
 
 func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
-	cluster := &elasticache.ReplicationGroup{
+	cluster := &ectypes.ReplicationGroup{
 		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
 		ClusterEnabled:           aws.Bool(false),
-		UserGroupIds:             []*string{aws.String("my-user-group")},
-		NodeGroups: []*elasticache.NodeGroup{
+		UserGroupIds:             []string{"my-user-group"},
+		NodeGroups: []ectypes.NodeGroup{
 			{
 				NodeGroupId: aws.String("0001"),
-				PrimaryEndpoint: &elasticache.Endpoint{
+				PrimaryEndpoint: &ectypes.Endpoint{
 					Address: aws.String("primary.localhost"),
-					Port:    aws.Int64(6379),
+					Port:    aws.Int32(6379),
 				},
-				ReaderEndpoint: &elasticache.Endpoint{
+				ReaderEndpoint: &ectypes.Endpoint{
 					Address: aws.String("reader.localhost"),
-					Port:    aws.Int64(6379),
+					Port:    aws.Int32(6379),
 				},
 			},
 		},
@@ -1524,23 +1524,23 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("via "+overrideLabel, func(t *testing.T) {
-			cluster := &elasticache.ReplicationGroup{
+			cluster := &ectypes.ReplicationGroup{
 				ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 				ReplicationGroupId:       aws.String("my-cluster"),
 				Status:                   aws.String("available"),
 				TransitEncryptionEnabled: aws.Bool(true),
 				ClusterEnabled:           aws.Bool(false),
-				UserGroupIds:             []*string{aws.String("my-user-group")},
-				NodeGroups: []*elasticache.NodeGroup{
+				UserGroupIds:             []string{"my-user-group"},
+				NodeGroups: []ectypes.NodeGroup{
 					{
 						NodeGroupId: aws.String("0001"),
-						PrimaryEndpoint: &elasticache.Endpoint{
+						PrimaryEndpoint: &ectypes.Endpoint{
 							Address: aws.String("primary.localhost"),
-							Port:    aws.Int64(6379),
+							Port:    aws.Int32(6379),
 						},
-						ReaderEndpoint: &elasticache.Endpoint{
+						ReaderEndpoint: &ectypes.Endpoint{
 							Address: aws.String("reader.localhost"),
-							Port:    aws.Int64(6379),
+							Port:    aws.Int32(6379),
 						},
 					},
 				},
@@ -1784,15 +1784,15 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 }
 
 func TestExtraElastiCacheLabels(t *testing.T) {
-	cluster := &elasticache.ReplicationGroup{
+	cluster := &ectypes.ReplicationGroup{
 		ReplicationGroupId: aws.String("my-redis"),
 	}
-	tags := []*elasticache.Tag{
+	tags := []ectypes.Tag{
 		{Key: aws.String("key1"), Value: aws.String("value1")},
 		{Key: aws.String("key2"), Value: aws.String("value2")},
 	}
 
-	nodes := []*elasticache.CacheCluster{
+	nodes := []ectypes.CacheCluster{
 		{
 			ReplicationGroupId:   aws.String("some-other-redis"),
 			EngineVersion:        aws.String("8.8.8"),
@@ -1805,7 +1805,7 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 		},
 	}
 
-	subnetGroups := []*elasticache.CacheSubnetGroup{
+	subnetGroups := []ectypes.CacheSubnetGroup{
 		{
 			CacheSubnetGroupName: aws.String("some-other-subnet-group"),
 			VpcId:                aws.String("some-other-vpc"),
@@ -1818,9 +1818,9 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		inputTags         []*elasticache.Tag
-		inputNodes        []*elasticache.CacheCluster
-		inputSubnetGroups []*elasticache.CacheSubnetGroup
+		inputTags         []ectypes.Tag
+		inputNodes        []ectypes.CacheCluster
+		inputSubnetGroups []ectypes.CacheSubnetGroup
 		expectLabels      map[string]string
 	}{
 		{

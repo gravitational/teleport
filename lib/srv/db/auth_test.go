@@ -25,8 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -74,12 +76,16 @@ func TestAuthTokens(t *testing.T) {
 	for _, withDB := range withDBs {
 		databases = append(databases, withDB(t, ctx, testCtx))
 	}
-	ecMock := &mocks.ElastiCacheMock{}
-	elastiCacheIAMUser := &elasticache.User{
+	ecMock := &mocks.ElastiCacheClient{}
+	elastiCacheIAMUser := ectypes.User{
 		UserId:         aws.String("default"),
-		Authentication: &elasticache.Authentication{Type: aws.String("iam")},
+		Authentication: &ectypes.Authentication{Type: ectypes.AuthenticationTypeIam},
 	}
 	ecMock.AddMockUser(elastiCacheIAMUser, nil)
+	registerTestRedisEngine(t, fakeRedisAWSClients{
+		ecClient: ecMock,
+	})
+
 	memorydbMock := &mocks.MemoryDBMock{}
 	memorydbIAMUser := &memorydb.User{
 		Name:           aws.String("default"),
@@ -87,9 +93,8 @@ func TestAuthTokens(t *testing.T) {
 	}
 	memorydbMock.AddMockUser(memorydbIAMUser, nil)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases:   databases,
-		ElastiCache: ecMock,
-		MemoryDB:    memorydbMock,
+		Databases: databases,
+		MemoryDB:  memorydbMock,
 	})
 	go testCtx.startHandlingConnections()
 
@@ -467,4 +472,36 @@ func TestMongoDBAtlas(t *testing.T) {
 			}
 		})
 	}
+}
+
+func registerTestRedisEngine(t *testing.T, awsClients redis.AWSClientProvider) {
+	t.Helper()
+	// To prevent tests running in parallel with this engine, call t.Setenv with
+	// a dummy value.
+	t.Setenv("WithTestRedisEngine", "1")
+	oldEngineFn := common.GetEngineFn(defaults.ProtocolRedis)
+	t.Cleanup(func() {
+		common.RegisterEngine(oldEngineFn, defaults.ProtocolRedis)
+	})
+	// Override Redis engine that is used normally with the test one that mocks
+	// AWS clients.
+	common.RegisterEngine(newTestRedisEngine(awsClients), defaults.ProtocolRedis)
+}
+
+func newTestRedisEngine(awsClients redis.AWSClientProvider) common.EngineFn {
+	return func(ec common.EngineConfig) common.Engine {
+		ec.AWSConfigProvider = &mocks.AWSConfigProvider{}
+		return &redis.Engine{
+			EngineConfig: ec,
+			AWSClients:   awsClients,
+		}
+	}
+}
+
+type fakeRedisAWSClients struct {
+	ecClient redis.ElastiCacheClient
+}
+
+func (f fakeRedisAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) redis.ElastiCacheClient {
+	return f.ecClient
 }

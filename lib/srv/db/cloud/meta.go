@@ -24,14 +24,14 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/gravitational/trace"
@@ -44,6 +44,11 @@ import (
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+// elasticacheClient defines a subset of the AWS ElastiCache client API.
+type elasticacheClient interface {
+	elasticache.DescribeReplicationGroupsAPIClient
+}
 
 // rdsClient defines a subset of the AWS RDS client API.
 type rdsClient interface {
@@ -68,12 +73,17 @@ type rssClient interface {
 
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
+	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
 	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
 }
 
 type defaultAWSClients struct{}
+
+func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
 
 func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
 	return rds.NewFromConfig(cfg, optFns...)
@@ -271,14 +281,15 @@ func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database
 // fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
 func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, meta.ElastiCache.ReplicationGroupID)
+	clt := m.cfg.awsClients.getElastiCacheClient(awsCfg)
+	cluster, err := describeElastiCacheCluster(ctx, clt, meta.ElastiCache.ReplicationGroupID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -370,8 +381,8 @@ func describeRedshiftCluster(ctx context.Context, clt redshiftClient, clusterID 
 
 // describeElastiCacheCluster returns AWS ElastiCache Redis cluster for the
 // specified ID.
-func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticacheiface.ElastiCacheAPI, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
-	out, err := elastiCacheClient.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
+func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticacheClient, replicationGroupID string) (*ectypes.ReplicationGroup, error) {
+	out, err := elastiCacheClient.DescribeReplicationGroups(ctx, &elasticache.DescribeReplicationGroupsInput{
 		ReplicationGroupId: aws.String(replicationGroupID),
 	})
 	if err != nil {
@@ -380,7 +391,7 @@ func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticac
 	if len(out.ReplicationGroups) != 1 {
 		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %+v", replicationGroupID, out.ReplicationGroups)
 	}
-	return out.ReplicationGroups[0], nil
+	return &out.ReplicationGroups[0], nil
 }
 
 // describeMemoryDBCluster returns AWS MemoryDB cluster for the specified ID.

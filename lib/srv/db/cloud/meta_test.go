@@ -23,13 +23,14 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/stretchr/testify/require"
 
@@ -96,14 +97,14 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	// Configure ElastiCache API mock.
-	elasticache := &mocks.ElastiCacheMock{
-		ReplicationGroups: []*elasticache.ReplicationGroup{
+	ecClient := &mocks.ElastiCacheClient{
+		ReplicationGroups: []ectypes.ReplicationGroup{
 			{
 				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789012:replicationgroup:my-redis"),
 				ReplicationGroupId:       aws.String("my-redis"),
 				ClusterEnabled:           aws.Bool(true),
 				TransitEncryptionEnabled: aws.Bool(true),
-				UserGroupIds:             []*string{aws.String("my-user-group")},
+				UserGroupIds:             []string{"my-user-group"},
 			},
 		},
 	}
@@ -133,14 +134,14 @@ func TestAWSMetadata(t *testing.T) {
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
-			ElastiCache: elasticache,
-			MemoryDB:    memorydb,
-			STS:         &fakeSTS.STSClientV1,
+			MemoryDB: memorydb,
+			STS:      &fakeSTS.STSClientV1,
 		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
 		awsClients: fakeAWSClients{
+			ecClient:       ecClient,
 			rdsClient:      rdsClt,
 			redshiftClient: redshiftClt,
 			rssClient:      redshiftServerless,
@@ -502,9 +503,14 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 }
 
 type fakeAWSClients struct {
+	ecClient       elasticacheClient
 	rdsClient      rdsClient
 	redshiftClient redshiftClient
 	rssClient      rssClient
+}
+
+func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
+	return f.ecClient
 }
 
 func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClient {
