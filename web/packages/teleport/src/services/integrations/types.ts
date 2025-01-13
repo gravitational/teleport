@@ -759,3 +759,7 @@ export type AwsDatabaseVpcsResponse = {
   vpcs: Vpc[];
   nextToken: string;
 };
+
+export type CreateAwsAppAccessRequest = {
+  labels?: Record<string, string>;
+};
