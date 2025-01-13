@@ -35,7 +35,11 @@
             {
               "title": "Upgrading Reference",
               "slug": "/upgrading/upgrading-reference/"
-	    }
+	        },
+            {
+              "title": "Client Tools Automatic Updates",
+              "slug": "/upgrading/client-tools-autoupdate/"
+            }
           ]
         },
         {
