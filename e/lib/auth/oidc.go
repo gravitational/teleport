@@ -546,10 +546,10 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	if err != nil {
 		// different error message for Google Workspace as likely cause is different.
 		if isGoogleWorkspaceConnector(connector) {
-			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to extract OIDC claims. Check your Google Workspace plan and enabled APIs. See: https://goteleport.com/docs/enterprise/sso/google-workspace/#review-your-google-workspace-edition")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to extract OIDC claims. Check your Google Workspace plan and enabled APIs. See: https://goteleport.com/docs/admin-guides/access-controls/sso/google-workspace/#review-your-google-workspace-edition")
 		}
 
-		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
+		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/admin-guides/access-controls/sso/#provider-specific-workarounds")
 	}
 	diagCtx.Info.OIDCClaims = types.OIDCClaims(claims)
 

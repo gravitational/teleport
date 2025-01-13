@@ -77,7 +77,7 @@ solution. For example:
 ```shell
 $ tsh device enroll
 Failed to open the TPM device. Consider assigning the user to the `tss` group or creating equivalent udev rules.
-See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.
+See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting.
 ```
 
 ### Device information

@@ -33,7 +33,7 @@ export function IntegrationsSplash() {
           ]}
         />
         <ExternalLink
-          href="https://goteleport.com/docs/access-controls/access-request-plugins/"
+          href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/"
           target="_blank"
         >
           <ButtonBorder width="240px">View documentation</ButtonBorder>

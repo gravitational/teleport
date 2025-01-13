@@ -18,7 +18,7 @@ const DeprecatedLicenseWarning = `Error: Outdated License File
 This Teleport Enterprise cluster is currently using an outdated license file. To resolve this issue, please follow these steps:
 
 1. Navigate to https://teleport.sh/ to download your updated license file.
-2. Refer to our documentation at https://goteleport.com/docs/choose-an-edition/teleport-enterprise/license/ for detailed instructions on updating your license.
+2. Refer to our documentation at https://goteleport.com/docs/admin-guides/deploy-a-cluster/license/ for detailed instructions on updating your license.
 3. If you have any questions or need assistance, please reach out to our support team at support@goteleport.com.
 
 Thank you for using Teleport.`

@@ -90,7 +90,8 @@ difference is how that schema is sourced:
 ### Authenticating with Okta
 
 The Advanced Okta Integration is largely implemented as an extension of the
-existing [Okta service](https://goteleport.com/docs/ver/14.x/application-access/okta/guide/), 
+existing [Okta
+service](https://goteleport.com/docs/enroll-resources/application-access/okta/),
 and uses the same API Key approach to Authentication.
 
 For self-hosted services, the Okta API key is supplied via the Teleport 

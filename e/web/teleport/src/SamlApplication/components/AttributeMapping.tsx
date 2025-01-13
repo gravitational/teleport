@@ -64,7 +64,7 @@ export function AttributeMapping({
   }
 
   const attributeMappingDocsUrl =
-    'https://goteleport.com/docs/access-controls/idps/saml-attribute-mapping/';
+    'https://goteleport.com/docs/admin-guides/access-controls/idps/saml-attribute-mapping/';
 
   function SubHeading() {
     switch (preset) {

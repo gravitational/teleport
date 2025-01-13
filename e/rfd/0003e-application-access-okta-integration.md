@@ -25,9 +25,10 @@ Note: This is an enterprise only feature.
 
 ## Why
 
-Today, Teleport supports [single sign-on with Okta](https://goteleport.com/docs/access-controls/sso/okta/).
-Okta is a popular IdP with our customers, so improving the integration between Okta and
-Teleport will be useful.
+Today, Teleport supports [single sign-on with
+Okta](https://goteleport.com/docs/admin-guides/access-controls/sso/okta/). Okta
+is a popular IdP with our customers, so improving the integration between Okta
+and Teleport will be useful.
 
 Additionally, Okta permissions are often difficult to calculate and require large numbers of
 groups and assignments, which become difficult for IT admins to handle. By allowing dynamic
@@ -333,9 +334,10 @@ These labels will then be applied to Okta applications and Okta groups recorded 
 
 ### Requesting access to applications and groups
 
-A user will be able to submit access requests to specific applications and groups through the
-API or UI. These requests will submit access requests through Teleport's
-[existing access request functionality](https://goteleport.com/docs/access-controls/access-requests/).
+A user will be able to submit access requests to specific applications and
+groups through the API or UI. These requests will submit access requests through
+Teleport's [existing access request
+functionality](https://goteleport.com/docs/admin-guides/access-controls/access-requests/).
 The Okta service will monitor these approval requests and take appropriate
 action based on the request and the resource targeted.
 

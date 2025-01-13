@@ -95,7 +95,7 @@ export function AuthConnectors(props: State) {
               <Text
                 as="a"
                 color="text.main"
-                href="https://goteleport.com/docs/enterprise/sso/"
+                href="https://goteleport.com/docs/admin-guides/access-controls/sso/"
                 target="_blank"
               >
                 view our documentation

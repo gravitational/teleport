@@ -18,9 +18,9 @@ export function Downloads() {
 }
 
 export const GETTING_STARTED_LINK =
-  'https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise';
+  'https://goteleport.com/docs/admin-guides/deploy-a-cluster/';
 export const LICENSE_FILE_GUIDE_LINK =
-  'https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/license/';
+  'https://goteleport.com/docs/admin-guides/deploy-a-cluster/license/';
 
 export const DownloadsView = ({
   attempt,

@@ -41,7 +41,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     isOAuth: true,
     name: 'Slack',
     icon: 'slack',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-slack/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-slack/',
     fullName: 'Slack access request notifications',
     cloudHostable: true,
     selfHostable: false,
@@ -141,7 +141,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'okta',
     name: 'Okta',
     icon: 'okta',
-    url: 'https://goteleport.com/docs/application-access/okta/guide/',
+    url: 'https://goteleport.com/docs/enroll-resources/application-access/okta/',
     cloudHostable: true,
     selfHostable: true,
     fullName: 'Okta Integration',
@@ -326,7 +326,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               Specifically, access to Okta apps is governed by Teleport roles{' '}
               <Link
                 target="_blank"
-                href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
+                href="https://goteleport.com/docs/enroll-resources/application-access/controls/#configuring-application-labels-in-roles"
               >
                 app_labels
               </Link>
@@ -334,7 +334,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               Ensure that your users do not have roles with wildcard{' '}
               <Link
                 target="_blank"
-                href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
+                href="https://goteleport.com/docs/enroll-resources/application-access/controls/#configuring-application-labels-in-roles"
               >
                 app_labels
               </Link>
@@ -364,7 +364,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             configure the applications that Teleport imports from Okta. See the{' '}
             <Link
               target="_blank"
-              href="https://goteleport.com/docs/application-access/okta/reference/"
+              href="https://goteleport.com/docs/reference/agent-services/okta/"
             >
               Teleport documentation
             </Link>{' '}
@@ -383,7 +383,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'opsgenie',
     name: 'Opsgenie',
     icon: 'opsgenie',
-    url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/', // TODO(lisa): change to opsgenie docs (wip)
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/', // TODO(lisa): change to opsgenie docs (wip)
     cloudHostable: true,
     selfHostable: true,
     fullName: 'Opsgenie access request notifications',
@@ -498,7 +498,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'jamf',
     name: 'Jamf',
     icon: 'jamf',
-    url: 'https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/',
     cloudHostable: true,
     selfHostable: false,
     disabledIfNoMdmSupport: true,
@@ -510,7 +510,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           available devices in your Jamf inventory. For more details, see our
           docs page about{' '}
           <Link
-            href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
+            href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/"
             target="_blank"
           >
             Device Trust and the Jamf Integration.
@@ -620,7 +620,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'servicenow',
     name: 'ServiceNow',
     icon: 'servicenow',
-    url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/',
     cloudHostable: true,
     selfHostable: true,
     fullName: 'ServiceNow Integration',
@@ -767,7 +767,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     name: 'Jira',
     fullName: 'Jira access request management',
     icon: 'jira',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-jira',
     cloudHostable: true,
     selfHostable: true,
     permissions: [
@@ -951,7 +951,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             requests are approved or denied. For more information, consult the{' '}
             <Link
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira/#step-36-set-up-your-jira-project"
+              href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-jira/#step-36-set-up-your-jira-project"
             >
               Set up your Jira project
             </Link>{' '}
@@ -965,7 +965,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'pagerduty',
     name: 'PagerDuty',
     icon: 'pagerduty',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/',
     fullName: 'PagerDuty access request management',
     cloudHostable: true,
     selfHostable: true,
@@ -1082,7 +1082,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             section of the Teleport{' '}
             <Link
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/#step-28-define-rbac-resources"
+              href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/#step-28-define-rbac-resources"
             >
               Access Requests with PagerDuty
             </Link>{' '}
@@ -1096,7 +1096,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'email',
     name: 'Email',
     icon: 'email',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-email/',
     fullName: 'Email Integration',
     cloudHostable: true,
     selfHostable: true,
@@ -1151,7 +1151,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     name: 'Discord',
     fullName: 'Discord access request notifications',
     icon: 'discord',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/',
     cloudHostable: true,
     selfHostable: false,
     Description: () => (
@@ -1224,7 +1224,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'mattermost',
     name: 'Mattermost',
     icon: 'mattermost',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/',
     fullName: 'Mattermost access request notifications',
     cloudHostable: true,
     selfHostable: true,
@@ -1359,7 +1359,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             For help with configuring roles for access requests, consult the{' '}
             <Link
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/?scope=enterprise#step-18-define-rbac-resources"
+              href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/#step-18-define-rbac-resources"
             >
               Define RBAC Resources
             </Link>{' '}
@@ -1373,7 +1373,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'msteams',
     name: 'Microsoft Teams',
     icon: 'microsoftteams',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/',
     cloudHostable: true,
     selfHostable: true,
     fullName: 'Microsoft Teams access request notifications',
@@ -1582,7 +1582,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'datadog',
     name: 'Datadog',
     icon: 'datadog',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/datadog-hosted/',
+    url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/datadog-hosted/',
     fullName: 'Datadog Incident Management',
     cloudHostable: true,
     selfHostable: true,

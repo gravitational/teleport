@@ -157,10 +157,10 @@ export function IntegrationPick() {
               There is a wide variety of plugins that you can integrate with.
               See below for a sampling, or check out the documented list at{' '}
               <ExternalLink
-                href="https://goteleport.com/docs/access-controls/access-request-plugins/"
+                href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/"
                 target="_blank"
               >
-                https://goteleport.com/docs/access-controls/access-request-plugins
+                https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/
               </ExternalLink>
               . Self-hosted plugins will not show up in your integration list,
               and must be managed outside of the Teleport UI.

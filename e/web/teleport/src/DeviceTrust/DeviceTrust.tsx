@@ -14,7 +14,7 @@ import { DeviceList } from './DeviceList';
 import { useDevices } from './useDevices';
 
 export const deviceTrustDocUrl =
-  'https://goteleport.com/docs/access-controls/guides/device-trust';
+  'https://goteleport.com/docs/admin-guides/access-controls/device-trust/';
 
 export const DeviceTrust = () => {
   const props = useDevices();
@@ -81,7 +81,7 @@ export const DeviceTrust = () => {
                     Trusted Devices can be registered manually using{' '}
                     <Link
                       color="text.main"
-                      href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
+                      href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
                       target="_blank"
                     >
                       tctl client
@@ -89,7 +89,7 @@ export const DeviceTrust = () => {
                     or synced automatically from MDM services like{' '}
                     <Link
                       color="text.main"
-                      href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
+                      href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/?scope=enterprise"
                       target="_blank"
                     >
                       Jamf

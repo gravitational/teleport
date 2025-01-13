@@ -11,7 +11,7 @@ export const AwsIdentityCenterPlugin: CloudHostablePlugin = {
   type: 'aws-identity-center',
   name: 'AWS IAM Identity Center',
   icon: 'aws',
-  url: 'https://goteleport.com/docs/application-access/okta/guide/',
+  url: 'https://goteleport.com/docs/enroll-resources/application-access/okta/',
   cloudHostable: true,
   selfHostable: true,
   fullName: 'AWS IAM Identity Center',
