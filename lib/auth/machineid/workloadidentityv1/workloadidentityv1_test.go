@@ -188,7 +188,11 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "join.kubernetes.service_account.namespace",
-								Equals:    "my-namespace",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "my-namespace",
+									},
+								},
 							},
 						},
 					},
