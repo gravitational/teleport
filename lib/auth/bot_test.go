@@ -230,7 +230,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	experimentStatus := experiment.Enabled()
 	defer experiment.SetEnabled(experimentStatus)
 	experiment.SetEnabled(true)
-	
+
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
