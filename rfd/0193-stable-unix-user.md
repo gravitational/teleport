@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: rosstimothy && eriktate
+* Engineering: @rosstimothy && @eriktate
 
 ## What
 
@@ -100,7 +100,7 @@ In the initial implementation there will be no tunables other than the range of 
 
 The cluster state storage will contain a bidirectional mapping of usernames and UIDs, consisting of two items per username, one keyed by username at `/stable_unix_user/by_username/<hex username>` containing the UID and one keyed by UID at `/stable_unix_user/by_uid/<encoded uid>` containing the username. The UID encoding consists of transforming the UID by subtracting it to the maximum 32-bit integer (`0x7fff_ffff`), then writing it in hexadecimal big-endian. This allows for reading the occupied UIDs in large-to-small order through a backend range read in ascending order (since we currently can't scan the backend backwards).
 
-If reading `by_username/<hex username>` succeeds, the UID stored in it will be returned (even if outside of the currently defined UID range); otherwise, the next available free UID is searched by issuing a range read with size one from the end to the beginning of the configured range. Such a read will return the biggest UID in use in the range - or nothing, if no UIDs are in range - letting us pick a free UID. Note that this, at least in the initial implementation, will only allow for using the contiguous range of unused UIDs at the end of the configured range. Changes in the UID range configuration might not result in actually using the entire range. This limitation stems from ease of implementation and might be lifted in the future, if such a need arises (as a workaround, the available range can be shrunk to preceed any allocated contiguous range of UIDs).
+If reading `by_username/<hex username>` succeeds, the UID stored in it will be returned (even if outside of the currently defined UID range); otherwise, the next available free UID is searched by issuing a range read with size one from the end to the beginning of the configured range. Such a read will return the biggest UID in use in the range - or nothing, if no UIDs are in range - letting us pick a free UID. Note that this, at least in the initial implementation, will only allow for using the contiguous range of unused UIDs at the end of the configured range. Changes in the UID range configuration might not result in actually using the entire range. This limitation stems from ease of implementation and might be lifted in the future, if such a need arises (as a workaround, the available range can be shrunk to precede any allocated contiguous range of UIDs).
 
 Seeing as we are not going to change UID allocations, the auth server will use a simple LRU or time-based cache for the very happy path (in which the username already has an assigned UID), to avoid bursts of backend reads as a result of a new username logging into several different servers for the first time in quick succession (with a `tsh` multi-host command or with something like Ansible). Since there's no expectation that any given value will be heavily read (since, in theory, each host will read each user at most once) and every write will require hard reads and atomic operations, we don't expect to need to replicate the data in the auth cache or to support watching, at least in the first implementation.
 
