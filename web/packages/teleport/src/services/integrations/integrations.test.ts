@@ -244,32 +244,6 @@ test('enrollEksClusters with labels calls v2', async () => {
   );
 });
 
-test('createAwsAppAccess without labels calls v1', async () => {
-  jest.spyOn(api, 'post').mockResolvedValue({});
-
-  await integrationService.createAwsAppAccess('integration', {});
-
-  expect(api.post).toHaveBeenCalledWith(
-    cfg.getAwsAppAccessUrl('integration'),
-    {}
-  );
-});
-
-test('createAwsAppAccess with labels calls v2', async () => {
-  jest.spyOn(api, 'post').mockResolvedValue({});
-
-  await integrationService.createAwsAppAccess('integration', {
-    labels: { env: 'staging' },
-  });
-
-  expect(api.post).toHaveBeenCalledWith(
-    cfg.getAwsAppAccessUrlV2('integration'),
-    {
-      labels: { env: 'staging' },
-    }
-  );
-});
-
 describe('fetchAwsDatabases() request body formatting', () => {
   test.each`
     protocol             | expectedEngines          | expectedRdsType

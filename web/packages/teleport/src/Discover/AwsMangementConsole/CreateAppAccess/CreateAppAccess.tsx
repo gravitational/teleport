@@ -33,8 +33,10 @@ import { Container } from 'teleport/Discover/Shared/CommandBox';
 import { ResourceLabelTooltip } from 'teleport/Discover/Shared/ResourceLabelTooltip';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { ResourceLabel } from 'teleport/services/agents';
+import { App } from 'teleport/services/apps/types';
 import { integrationService } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 
 import { ActionButtons, Header, LabelsCreater } from '../../Shared';
 import { AppCreatedDialog } from './AppCreatedDialog';
@@ -47,20 +49,31 @@ export function CreateAppAccess() {
   const { awsIntegration } = agentMeta;
   const [labels, setLabels] = useState<ResourceLabel[]>([]);
 
+  // TODO(kimlisa): DELETE IN 19.0
+  const [requiresProxyUpgrade, setRequiresProxyUpgrade] = useState(false);
+
   const [attempt, createApp] = useAsync(async () => {
-    const mapOfLabels: Record<string, string> = {};
-    labels.forEach(l => (mapOfLabels[l.name] = l.value));
+    const labelsMap: Record<string, string> = {};
+    labels.forEach(l => (labelsMap[l.name] = l.value));
     try {
-      const app = await integrationService.createAwsAppAccess(
-        awsIntegration.name,
-        { labels: mapOfLabels }
-      );
+      let app: App;
+      if (requiresProxyUpgrade && !labels.length) {
+        app = await integrationService.createAwsAppAccess(awsIntegration.name);
+      } else {
+        app = await integrationService.createAwsAppAccessV2(
+          awsIntegration.name,
+          { labels: labelsMap }
+        );
+      }
       updateAgentMeta({
         ...agentMeta,
         app,
         resourceName: app.name,
       });
     } catch (err) {
+      if (err.message.includes(ProxyRequiresUpgrade)) {
+        setRequiresProxyUpgrade(true);
+      }
       emitErrorEvent(err.message);
       throw err;
     }

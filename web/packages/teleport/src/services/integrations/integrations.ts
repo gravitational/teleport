@@ -293,17 +293,10 @@ export const integrationService = {
       .then(resp => resp.serviceDashboardUrl);
   },
 
-  async createAwsAppAccess(
+  async createAwsAppAccessV2(
     integrationName,
     req: CreateAwsAppAccessRequest
   ): Promise<App> {
-    // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
-    if (!req.labels || !Object.keys(req.labels).length) {
-      return api
-        .post(cfg.getAwsAppAccessUrl(integrationName), req)
-        .then(makeApp);
-    }
-
     return (
       api
         .post(cfg.getAwsAppAccessUrlV2(integrationName), req)
@@ -311,6 +304,14 @@ export const integrationService = {
         // TODO(kimlisa): DELETE IN 19.0
         .catch(withUnsupportedLabelFeatureErrorConversion)
     );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0
+  // replaced by createAwsAppAccessV2 that accepts request body
+  async createAwsAppAccess(integrationName): Promise<App> {
+    return api
+      .post(cfg.getAwsAppAccessUrl(integrationName), null)
+      .then(makeApp);
   },
 
   async deployDatabaseServices(
