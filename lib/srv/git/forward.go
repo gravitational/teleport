@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ForwardServerConfig is the configuration for the ForwardServer.
@@ -269,8 +270,8 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	if err := s.checkUserAccess(cert); err != nil {
 		s.logger.ErrorContext(s.Context(), "Permission denied",
 			"error", err,
-			"local_addr", conn.LocalAddr(),
-			"remote_addr", conn.RemoteAddr(),
+			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
+			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
 			"key", key.Type(),
 			"fingerprint", sshutils.Fingerprint(key),
 			"user", cert.KeyId,
@@ -301,7 +302,7 @@ func (s *ForwardServer) checkUserAccess(cert *ssh.Certificate) error {
 }
 
 func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
-	s.logger.DebugContext(ctx, "On new connection")
+	s.logger.Log(ctx, logutils.TraceLevel, "Handling new connection")
 
 	identityCtx, err := s.auth.CreateIdentityContext(ccx.ServerConn)
 	if err != nil {
@@ -320,13 +321,13 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 		return nil, trace.Wrap(err)
 	}
 
-	s.logger.DebugContext(ctx, "New connection accepted")
+	s.logger.Log(ctx, logutils.TraceLevel, "New connection accepted")
 	ccx.AddCloser(serverCtx)
 	return ctx, nil
 }
 
 func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
-	s.logger.DebugContext(ctx, "On new channel", "channel", nch.ChannelType())
+	s.logger.DebugContext(ctx, "Handling channel request", "channel", nch.ChannelType())
 
 	// Only expecting a session to execute a command.
 	if nch.ChannelType() != teleport.ChanSession {

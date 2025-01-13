@@ -4952,7 +4952,8 @@ func (c *Client) GitServerClient() *gitserverclient.Client {
 // Client to satisfy some read only interfaces like
 // authclient.ReadProxyAccessPoint.
 func (c *Client) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	return c.GitServerClient().ListGitServers(ctx, pageSize, pageToken)
+	servers, token, err := c.GitServerClient().ListGitServers(ctx, pageSize, pageToken)
+	return servers, token, trace.Wrap(err)
 }
 
 // GetGitServer returns Git servers by name.
@@ -4960,7 +4961,8 @@ func (c *Client) ListGitServers(ctx context.Context, pageSize int, pageToken str
 // Client to satisfy some read only interfaces like
 // authclient.ReadProxyAccessPoint.
 func (c *Client) GetGitServer(ctx context.Context, name string) (types.Server, error) {
-	return c.GitServerClient().GetGitServer(ctx, name)
+	server, err := c.GitServerClient().GetGitServer(ctx, name)
+	return server, trace.Wrap(err)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

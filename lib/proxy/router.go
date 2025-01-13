@@ -393,7 +393,8 @@ func (r remoteSite) GetNodes(ctx context.Context, fn func(n readonly.Server) boo
 		return nil, trace.Wrap(err)
 	}
 
-	return watcher.CurrentResourcesWithFilter(ctx, fn)
+	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
+	return servers, trace.Wrap(err)
 }
 
 // GetGitServers uses the wrapped sites GitServerWatcher to filter git servers.

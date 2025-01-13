@@ -52,8 +52,7 @@ func NewReply(log *slog.Logger) *Reply {
 
 // RejectChannel rejects the channel with provided message.
 func (r *Reply) RejectChannel(ctx context.Context, nch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
-	err := nch.Reject(reason, msg)
-	if err != nil {
+	if err := nch.Reject(reason, msg); err != nil {
 		r.log.WarnContext(ctx, "Failed to reject channel", "error", err)
 	}
 }
