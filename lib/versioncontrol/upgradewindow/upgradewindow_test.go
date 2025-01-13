@@ -174,14 +174,14 @@ func TestSystemdUnitDriver(t *testing.T) {
 
 	require.Equal(t, "fake-schedule-3", string(sb))
 
-	// verify ForceNOP
-	err = driver.ForceNOP(ctx)
+	// verify ForceNop
+	err = driver.ForceNop(ctx)
 	require.NoError(t, err)
 
 	sb, err = os.ReadFile(schedPath)
 	require.NoError(t, err)
 
-	require.Equal(t, scheduleNOP, string(sb))
+	require.Equal(t, scheduleNop, string(sb))
 
 	// verify that an empty schedule value is treated equivalent to a reset
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
@@ -219,7 +219,7 @@ func (d *fakeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	return nil
 }
 
-func (d *fakeDriver) ForceNOP(ctx context.Context) error {
+func (d *fakeDriver) ForceNop(ctx context.Context) error {
 	return trace.NotImplemented("force-nop not used by exporter")
 }
 

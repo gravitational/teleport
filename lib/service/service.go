@@ -1230,6 +1230,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Check if the deprecated teleport-upgrader script is being used.
 	upgraderKind := os.Getenv(automaticupgrades.EnvUpgrader)
 	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
 	if upgraderVersion == "" {
@@ -1243,7 +1244,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	} else if ok {
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
-		upgraderKind = "teleport-update"
+		upgraderKind = types.UpgraderKindTeleportUpdate
 		upgraderVersion = "v" + teleport.Version
 	}
 
@@ -1291,7 +1292,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if err := driver.ForceNOP(process.ExitContext()); err != nil {
+			if err := driver.ForceNop(process.ExitContext()); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		case types.UpgraderKindSystemdUnit:

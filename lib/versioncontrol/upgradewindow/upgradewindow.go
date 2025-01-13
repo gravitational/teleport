@@ -45,8 +45,8 @@ const (
 	// unitScheduleFile is the name of the file to which the unit schedule is exported.
 	unitScheduleFile = "schedule"
 
-	// scheduleNOP is the name of the no-op schedule.
-	scheduleNOP = "nop"
+	// scheduleNop is the name of the no-op schedule.
+	scheduleNop = "nop"
 )
 
 // ExportFunc represents the ExportUpgradeWindows rpc exposed by auth servers.
@@ -320,7 +320,7 @@ type Driver interface {
 	// ForceNOP sets the NOP schedule, ensuring that updates do not happen.
 	// This schedule was originally for testing, but now it also ensures that
 	// the teleport-update binary can disable all versions of the teleport-upgrader script.
-	ForceNOP(ctx context.Context) error
+	ForceNop(ctx context.Context) error
 }
 
 // NewDriver sets up a new export driver corresponding to the specified upgrader kind.
@@ -372,8 +372,8 @@ func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	return trace.Wrap(e.setSchedule(ctx, rsp.KubeControllerSchedule))
 }
 
-func (e *kubeDriver) ForceNOP(ctx context.Context) error {
-	return trace.Wrap(e.setSchedule(ctx, scheduleNOP))
+func (e *kubeDriver) ForceNop(ctx context.Context) error {
+	return trace.Wrap(e.setSchedule(ctx, scheduleNop))
 }
 
 func (e *kubeDriver) setSchedule(ctx context.Context, schedule string) error {
@@ -430,8 +430,8 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 	return trace.Wrap(e.setSchedule(ctx, rsp.SystemdUnitSchedule))
 }
 
-func (e *systemdDriver) ForceNOP(ctx context.Context) error {
-	return trace.Wrap(e.setSchedule(ctx, scheduleNOP))
+func (e *systemdDriver) ForceNop(ctx context.Context) error {
+	return trace.Wrap(e.setSchedule(ctx, scheduleNop))
 }
 
 func (e *systemdDriver) setSchedule(ctx context.Context, schedule string) error {
