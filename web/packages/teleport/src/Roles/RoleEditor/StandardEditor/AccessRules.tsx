@@ -101,7 +101,7 @@ const AccessRule = memo(function AccessRule({
         isDisabled={isProcessing}
         options={resourceKindOptions}
         value={resources}
-        onChange={r => setRule?.({ ...value, resources: r })}
+        onChange={r => setRule({ ...value, resources: r })}
         rule={precomputed(validation.fields.resources)}
       />
       <FieldSelect
@@ -110,7 +110,7 @@ const AccessRule = memo(function AccessRule({
         isDisabled={isProcessing}
         options={verbOptions}
         value={verbs}
-        onChange={v => setRule?.({ ...value, verbs: v })}
+        onChange={v => setRule({ ...value, verbs: v })}
         rule={precomputed(validation.fields.verbs)}
         mb={0}
       />

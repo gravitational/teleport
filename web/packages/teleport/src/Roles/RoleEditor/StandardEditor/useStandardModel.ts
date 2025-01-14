@@ -107,13 +107,13 @@ const reduce = (
       return updateRoleModel(state, payload);
 
     case 'set-metadata':
-      return patchRoleModel(state, { metadata: payload });
+      return updateRoleModel(state, { metadata: payload });
 
     case 'set-options':
-      return patchRoleModel(state, { options: payload });
+      return updateRoleModel(state, { options: payload });
 
     case 'add-resource-access':
-      return patchRoleModel(state, {
+      return updateRoleModel(state, {
         resources: [
           ...state.roleModel.resources,
           newResourceAccess(payload.kind),
@@ -121,33 +121,33 @@ const reduce = (
       });
 
     case 'set-resource-access':
-      return patchRoleModel(state, {
+      return updateRoleModel(state, {
         resources: state.roleModel.resources.map(r =>
           r.kind === payload.kind ? payload : r
         ),
       });
 
     case 'remove-resource-access':
-      return patchRoleModel(state, {
+      return updateRoleModel(state, {
         resources: state.roleModel.resources.filter(
           r => r.kind !== payload.kind
         ),
       });
 
     case 'add-access-rule':
-      return patchRoleModel(state, {
+      return updateRoleModel(state, {
         rules: [...state.roleModel.rules, newRuleModel()],
       });
 
     case 'set-access-rule':
-      return patchRoleModel(state, {
+      return updateRoleModel(state, {
         rules: state.roleModel.rules.map(r =>
           r.id === payload.id ? payload : r
         ),
       });
 
     case 'remove-access-rule':
-      return patchRoleModel(state, {
+      return updateRoleModel(state, {
         rules: state.roleModel.rules.filter(r => r.id !== payload.id),
       });
 
@@ -155,23 +155,6 @@ const reduce = (
       (type) satisfies never;
       return state;
   }
-};
-
-const patchRoleModel = (
-  { roleModel, originalRole, validationResult }: StandardEditorModel,
-  roleModelPatch: Partial<RoleEditorModel>
-): StandardEditorModel => {
-  const newRoleModel = { ...roleModel, ...roleModelPatch };
-  return {
-    roleModel: newRoleModel,
-    originalRole,
-    isDirty: hasModifiedFields(newRoleModel, originalRole),
-    validationResult: validateRoleEditorModel(
-      newRoleModel,
-      roleModel,
-      validationResult
-    ),
-  };
 };
 
 /**

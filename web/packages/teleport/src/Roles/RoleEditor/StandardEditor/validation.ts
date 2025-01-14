@@ -61,7 +61,7 @@ export type RoleEditorModelValidationResult = {
  * The purpose of this is less about the performance of the validation process
  * itself, and more about enabling memoization-based rendering optimizations:
  * UI components that take either entire or partial validation results can be
- * cached if the validation results don't changed.
+ * cached if the validation results don't change.
  *
  * Note that we can't use `useMemo` here, because `validateRoleEditorModel` is
  * called from the state reducer. Also `highbar.memoize` was not applicable, as
