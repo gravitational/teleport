@@ -980,6 +980,7 @@
     "topk",
     "tpmrm",
     "trustedclusters",
+    "trustedclustersv2",
     "trustpolicy",
     "truststore",
     "tshd",
