@@ -169,6 +169,11 @@ func (s *remoteSite) NodeWatcher() (*services.GenericWatcher[types.Server, reado
 	return s.nodeWatcher, nil
 }
 
+// GitServerWatcher returns the Git server watcher for the remote cluster.
+func (s *remoteSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+	return nil, trace.NotImplemented("GitServerWatcher not implemented for remoteSite")
+}
+
 func (s *remoteSite) GetClient() (authclient.ClientI, error) {
 	return s.remoteClient, nil
 }

@@ -1897,4 +1897,7 @@ type ClientI interface {
 
 	// GitServerClient returns git server client.
 	GitServerClient() *gitserver.Client
+
+	// GitServerReadOnlyClient returns the read-only client for Git servers.
+	GitServerReadOnlyClient() gitserver.ReadOnlyClient
 }

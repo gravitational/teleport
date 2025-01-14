@@ -4941,9 +4941,14 @@ func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
 	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
 }
 
-// GitServerClient returns a client for managing git servers
+// GitServerClient returns a client for managing Git servers
 func (c *Client) GitServerClient() *gitserverclient.Client {
 	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
+}
+
+// GitServerReadOnlyClient returns the read-only client for Git servers.
+func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
+	return c.GitServerClient()
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
