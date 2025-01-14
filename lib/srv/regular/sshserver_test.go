@@ -1220,6 +1220,7 @@ func TestAgentForward(t *testing.T) {
 
 // TestX11Forward tests x11 forwarding via unix sockets
 func TestX11Forward(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
@@ -1231,9 +1232,6 @@ func TestX11Forward(t *testing.T) {
 		DisplayOffset: x11.DefaultDisplayOffset,
 		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
@@ -1268,7 +1266,7 @@ func TestX11Forward(t *testing.T) {
 		errCh <- x11EchoRequest(serverDisplay2)
 	}()
 
-	for i := 0; i > 4; i++ {
+	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errCh:
 			assert.NoError(t, err)
