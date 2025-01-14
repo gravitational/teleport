@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -20,26 +23,13 @@ package log
 
 import (
 	"io"
-	"sync"
+	"log/syslog"
+
+	"github.com/gravitational/trace"
 )
 
-// SharedWriter is an [io.Writer] implementation that protects
-// writes with a mutex. This allows a single [io.Writer] to be shared
-// by both logrus and slog without their output clobbering each other.
-type SharedWriter struct {
-	mu sync.Mutex
-	io.Writer
-}
-
-func (s *SharedWriter) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.Writer.Write(p)
-}
-
-// NewSharedWriter wraps the provided [io.Writer] in a writer that
-// is thread safe.
-func NewSharedWriter(w io.Writer) *SharedWriter {
-	return &SharedWriter{Writer: w}
+// NewSyslogWriter creates a writer that outputs to the local machine syslog.
+func NewSyslogWriter() (io.Writer, error) {
+	writer, err := syslog.Dial("", "", syslog.LOG_WARNING, "")
+	return writer, trace.Wrap(err)
 }

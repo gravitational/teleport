@@ -32,8 +32,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -115,10 +117,18 @@ type gcpInstaller interface {
 type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
+
+	// AWSFetchersClients gets the AWS clients for the given region for the fetchers.
+	AWSFetchersClients fetchers.AWSClientGetter
+
+	// GetAWSSyncEKSClient gets an AWS EKS client for the given region for fetchers/aws-sync.
+	GetAWSSyncEKSClient aws_sync.EKSClientGetter
+
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
 	AWSDatabaseFetcherFactory *db.AWSFetcherFactory
+
 	// GetEC2Client gets an AWS EC2 client for the given region.
 	GetEC2Client server.EC2ClientGetter
 	// GetSSMClient gets an AWS SSM client for the given region.
@@ -196,6 +206,23 @@ type AccessGraphConfig struct {
 	Insecure bool
 }
 
+type awsFetchersClientsGetter struct {
+	awsconfig.Provider
+}
+
+func (f *awsFetchersClientsGetter) GetAWSEKSClient(cfg aws.Config) fetchers.EKSClient {
+	return eks.NewFromConfig(cfg)
+}
+
+func (f *awsFetchersClientsGetter) GetAWSSTSClient(cfg aws.Config) fetchers.STSClient {
+	return sts.NewFromConfig(cfg)
+}
+
+func (f *awsFetchersClientsGetter) GetAWSSTSPresignClient(cfg aws.Config) fetchers.STSPresignClient {
+	stsClient := sts.NewFromConfig(cfg)
+	return sts.NewPresignClient(stsClient)
+}
+
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Matchers.IsEmpty() && c.DiscoveryGroup == "" {
 		return trace.BadParameter("no matchers or discovery group configured for discovery")
@@ -224,7 +251,11 @@ kubernetes matchers are present.`)
 		c.CloudClients = cloudClients
 	}
 	if c.AWSConfigProvider == nil {
-		provider, err := awsconfig.NewCache()
+		provider, err := awsconfig.NewCache(
+			awsconfig.WithDefaults(
+				awsconfig.WithOIDCIntegrationClient(c.AccessPoint),
+			),
+		)
 		if err != nil {
 			return trace.Wrap(err, "unable to create AWS config provider cache")
 		}
@@ -232,9 +263,8 @@ kubernetes matchers are present.`)
 	}
 	if c.AWSDatabaseFetcherFactory == nil {
 		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-			CloudClients:                    c.CloudClients,
-			AWSConfigProvider:               c.AWSConfigProvider,
-			IntegrationCredentialProviderFn: c.getIntegrationCredentialProviderFn(),
+			CloudClients:      c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -248,6 +278,20 @@ kubernetes matchers are present.`)
 				return nil, trace.Wrap(err)
 			}
 			return ec2.NewFromConfig(cfg), nil
+		}
+	}
+	if c.AWSFetchersClients == nil {
+		c.AWSFetchersClients = &awsFetchersClientsGetter{
+			Provider: awsconfig.ProviderFunc(c.getAWSConfig),
+		}
+	}
+	if c.GetAWSSyncEKSClient == nil {
+		c.GetAWSSyncEKSClient = func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (aws_sync.EKSClient, error) {
+			cfg, err := c.getAWSConfig(ctx, region, opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return eks.NewFromConfig(cfg), nil
 		}
 	}
 	if c.GetSSMClient == nil {
@@ -312,31 +356,8 @@ kubernetes matchers are present.`)
 }
 
 func (c *Config) getAWSConfig(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (aws.Config, error) {
-	opts = append(opts, awsconfig.WithIntegrationCredentialProvider(c.getIntegrationCredentialProviderFn()))
 	cfg, err := c.AWSConfigProvider.GetConfig(ctx, region, opts...)
 	return cfg, trace.Wrap(err)
-}
-
-func (c *Config) getIntegrationCredentialProviderFn() awsconfig.IntegrationCredentialProviderFunc {
-	return func(ctx context.Context, region, integrationName string) (aws.CredentialsProvider, error) {
-		integration, err := c.AccessPoint.GetIntegration(ctx, integrationName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if integration.GetAWSOIDCIntegrationSpec() == nil {
-			return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", integrationName)
-		}
-		token, err := c.AccessPoint.GenerateAWSOIDCToken(ctx, integrationName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cred, err := awsoidc.NewAWSCredentialsProvider(ctx, &awsoidc.AWSClientRequest{
-			Token:   token,
-			RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
-			Region:  region,
-		})
-		return cred, trace.Wrap(err)
-	}
 }
 
 // Server is a discovery server, used to discover cloud resources for
@@ -581,7 +602,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add non-integration kube fetchers.
-	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, otherMatchers, noDiscoveryConfig)
+	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.AWSFetchersClients, otherMatchers, noDiscoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -734,12 +755,12 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers, discoveryConfig
 func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName string) ([]common.Fetcher, error) {
 	var result []common.Fetcher
 
-	// AWS
+	// AWS.
 	awsKubeMatchers, _ := splitMatchers(matchers.AWS, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEKS
 	})
 	if len(awsKubeMatchers) > 0 {
-		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, awsKubeMatchers, discoveryConfigName)
+		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.AWSFetchersClients, awsKubeMatchers, discoveryConfigName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1284,7 +1305,6 @@ func (s *Server) filterExistingAzureNodes(instances *server.AzureInstances) erro
 		_, vmOK := labels[types.VMIDLabel]
 		return subscriptionOK && vmOK
 	})
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1377,7 +1397,6 @@ func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) error {
 		_, nameOK := labels[types.NameLabelDiscovery]
 		return projectIDOK && zoneOK && nameOK
 	})
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1889,9 +1908,8 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDiscovery,
-			// TODO(tross): update this after converting logging to use slog
-			// Logger:          s.Logger,
+			Component:    teleport.ComponentDiscovery,
+			Logger:       s.Log,
 			Client:       s.AccessPoint,
 			MaxStaleness: time.Minute,
 		},

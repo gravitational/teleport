@@ -25,6 +25,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -325,6 +326,11 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 			},
 		},
 	}
+
+	spec := &autoupdate.AutoUpdateAgentRolloutSpec{
+		MaintenanceWindowDuration: durationpb.New(time.Hour),
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			status := &autoupdate.AutoUpdateAgentRolloutStatus{
@@ -332,7 +338,7 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 				State:     0,
 				StartTime: tt.rolloutStartTime,
 			}
-			err := strategy.progressRollout(ctx, status, clock.Now())
+			err := strategy.progressRollout(ctx, spec, status, clock.Now())
 			require.NoError(t, err)
 			// We use require.Equal instead of Elements match because group order matters.
 			// It's not super important for time-based, but is crucial for halt-on-error.

@@ -69,7 +69,7 @@ export default {
   ],
 };
 
-const tokenHandler = http.post(cfg.api.joinTokenPath, () => {
+const tokenHandler = http.post(cfg.api.discoveryJoinToken.createV2, () => {
   return HttpResponse.json({
     id: 'token-id',
     suggestedLabels: [

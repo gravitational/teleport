@@ -35,11 +35,10 @@ by the `device_trust_mode` authentication setting:
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-- We expect your Teleport cluster to be on version 13.3.6 and above, which has
-  the preset `require-trusted-device` role. The preset `require-trusted-device`
-  role does not enforce the use of a trusted device for
-  [Apps](#app-access-support) or [Desktops](#desktop-access-support).  Refer to
-  their corresponding sections for instructions.
+This guide makes use of the preset `require-trusted-device` role, which does not
+enforce the use of a trusted device for [Apps](#app-access-support) or
+[Desktops](#desktop-access-support). Refer to their corresponding sections for
+instructions.
 
 ## Role-based trusted device enforcement
 
@@ -86,6 +85,8 @@ Update the role:
 ```code
 $ tctl create -f device-enforcement.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 ## Cluster-wide trusted device enforcement
 

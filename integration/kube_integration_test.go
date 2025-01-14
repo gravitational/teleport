@@ -1833,7 +1833,6 @@ type sessionMetadataResponse struct {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
 	tconf.Logger = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
@@ -1854,7 +1853,6 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
 	tconf.Logger = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second

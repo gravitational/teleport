@@ -63,7 +63,7 @@ export const Polling: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -72,7 +72,7 @@ export const Polling: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -86,7 +86,7 @@ export const PollingSuccess: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return HttpResponse.json({ items: [{}] });
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -95,7 +95,7 @@ export const PollingSuccess: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -111,7 +111,7 @@ export const PollingError: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -120,7 +120,7 @@ export const PollingError: StoryObj = {
   render() {
     return (
       <Provider interval={50}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -130,7 +130,7 @@ export const Processing: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return delay('infinite');
         }),
       ],
@@ -139,7 +139,7 @@ export const Processing: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -149,7 +149,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },
@@ -163,7 +163,7 @@ export const Failed: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },

@@ -2491,7 +2491,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
 			STS:                &mocks.STSClientV1{},
-			RDS:                &mocks.RDSMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{},
 			ElastiCache:        p.ElastiCache,
 			MemoryDB:           p.MemoryDB,
@@ -2501,7 +2500,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 		}
 	}
 	if p.AWSConfigProvider == nil {
-		p.AWSConfigProvider = &mocks.AWSConfigProvider{}
+		p.AWSConfigProvider = &mocks.AWSConfigProvider{Err: trace.AccessDenied("AWS SDK clients are disabled for tests by default")}
 	}
 
 	if p.DiscoveryResourceChecker == nil {

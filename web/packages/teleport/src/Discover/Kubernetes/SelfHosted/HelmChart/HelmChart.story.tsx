@@ -60,7 +60,9 @@ export const Polling: StoryObj = {
         http.get(kubePathWithoutQuery, async () => {
           await delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
+          HttpResponse.json(rawJoinToken)
+        ),
       ],
     },
   },
@@ -80,7 +82,9 @@ export const PollingSuccess: StoryObj = {
         http.get(kubePathWithoutQuery, () => {
           return HttpResponse.json({ items: [{}] });
         }),
-        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
+          HttpResponse.json(rawJoinToken)
+        ),
       ],
     },
   },
@@ -103,7 +107,9 @@ export const PollingError: StoryObj = {
         http.get(kubePathWithoutQuery, async () => {
           await delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
+          HttpResponse.json(rawJoinToken)
+        ),
       ],
     },
   },
@@ -120,7 +126,7 @@ export const Processing: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, async () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, async () => {
           await delay('infinite');
         }),
       ],
@@ -139,7 +145,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.getJoinTokenUrl(), () =>
+        http.post(cfg.api.discoveryJoinToken.createV2, () =>
           HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },

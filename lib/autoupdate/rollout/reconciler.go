@@ -202,11 +202,12 @@ func (r *reconciler) buildRolloutSpec(config *autoupdate.AutoUpdateConfigSpecAge
 	}
 
 	return &autoupdate.AutoUpdateAgentRolloutSpec{
-		StartVersion:   version.GetStartVersion(),
-		TargetVersion:  version.GetTargetVersion(),
-		Schedule:       version.GetSchedule(),
-		AutoupdateMode: mode,
-		Strategy:       strategy,
+		StartVersion:              version.GetStartVersion(),
+		TargetVersion:             version.GetTargetVersion(),
+		Schedule:                  version.GetSchedule(),
+		AutoupdateMode:            mode,
+		Strategy:                  strategy,
+		MaintenanceWindowDuration: config.GetMaintenanceWindowDuration(),
 	}, nil
 
 }
@@ -318,7 +319,7 @@ func (r *reconciler) computeStatus(
 	}
 	status.Groups = groups
 
-	err = r.progressRollout(ctx, newSpec.GetStrategy(), status, now)
+	err = r.progressRollout(ctx, newSpec, status, now)
 	// Failing to progress the update is not a hard failure.
 	// We want to update the status even if something went wrong to surface the failed reconciliation and potential errors to the user.
 	if err != nil {
@@ -334,13 +335,13 @@ func (r *reconciler) computeStatus(
 // groups are updated in place.
 // If an error is returned, the groups should still be upserted, depending on the strategy,
 // failing to update a group might not be fatal (other groups can still progress independently).
-func (r *reconciler) progressRollout(ctx context.Context, strategyName string, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
+func (r *reconciler) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	for _, strategy := range r.rolloutStrategies {
-		if strategy.name() == strategyName {
-			return strategy.progressRollout(ctx, status, now)
+		if strategy.name() == spec.GetStrategy() {
+			return strategy.progressRollout(ctx, spec, status, now)
 		}
 	}
-	return trace.NotImplemented("rollout strategy %q not implemented", strategyName)
+	return trace.NotImplemented("rollout strategy %q not implemented", spec.GetStrategy())
 }
 
 // makeGroupStatus creates the autoupdate_agent_rollout.status.groups based on the autoupdate_config.

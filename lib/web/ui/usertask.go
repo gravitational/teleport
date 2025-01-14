@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	apiusertasks "github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/usertasks"
 )
 
@@ -51,7 +52,9 @@ type UserTaskDetail struct {
 	// Description is a markdown document that explains the issue and how to fix it.
 	Description string `json:"description,omitempty"`
 	// DiscoverEC2 contains the task details for the DiscoverEC2 tasks.
-	DiscoverEC2 *usertasksv1.DiscoverEC2 `json:"discoverEc2,omitempty"`
+	DiscoverEC2 *usertasks.UserTaskDiscoverEC2WithURLs `json:"discoverEc2,omitempty"`
+	// DiscoverEKS contains the task details for the DiscoverEKS tasks.
+	DiscoverEKS *usertasks.UserTaskDiscoverEKSWithURLs `json:"discoverEks,omitempty"`
 }
 
 // UpdateUserTaskStateRequest is a request to update a UserTask
@@ -92,10 +95,24 @@ func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 
 // MakeDetailedUserTask creates a UI UserTask representation containing all the details.
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
+	var description string
+	var discoverEKS *usertasks.UserTaskDiscoverEKSWithURLs
+	var discoverEC2 *usertasks.UserTaskDiscoverEC2WithURLs
+
+	switch ut.GetSpec().GetTaskType() {
+	case apiusertasks.TaskTypeDiscoverEC2:
+		description = usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
+		discoverEC2 = usertasks.EC2InstancesWithURLs(ut)
+	case apiusertasks.TaskTypeDiscoverEKS:
+		description = usertasks.DescriptionForDiscoverEKSIssue(ut.GetSpec().GetIssueType())
+		discoverEKS = usertasks.EKSClustersWithURLs(ut)
+	}
+
 	return UserTaskDetail{
 		UserTask:    MakeUserTask(ut),
-		Description: usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType()),
-		DiscoverEC2: ut.GetSpec().GetDiscoverEc2(),
+		Description: description,
+		DiscoverEC2: discoverEC2,
+		DiscoverEKS: discoverEKS,
 	}
 }
 
