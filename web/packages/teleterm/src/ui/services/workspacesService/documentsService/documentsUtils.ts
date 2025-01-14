@@ -16,9 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClusterOrResourceUri, routing } from 'teleterm/ui/uri';
+import {
+  ClusterOrResourceUri,
+  isAppUri,
+  isDatabaseUri,
+  routing,
+} from 'teleterm/ui/uri';
 
-import { Document, isDocumentTshNodeWithServerId } from './types';
+import {
+  Document,
+  DocumentGateway,
+  isDocumentTshNodeWithServerId,
+} from './types';
 
 /**
  * getResourceUri returns the URI of the cluster resource that is the subject of the document.
@@ -61,4 +70,26 @@ export function getResourceUri(
       document satisfies never;
       return undefined;
   }
+}
+
+/**
+ * getDocumentGatewayTargetUriKind is used when the callsite needs to distinguish between different
+ * kinds of targets that DocumentGateway supports when given only its target URI.
+ */
+export function getDocumentGatewayTargetUriKind(
+  targetUri: DocumentGateway['targetUri']
+): 'db' | 'app' {
+  if (isDatabaseUri(targetUri)) {
+    return 'db';
+  }
+
+  if (isAppUri(targetUri)) {
+    return 'app';
+  }
+
+  // TODO(ravicious): Optimally we'd use `targetUri satisfies never` here to have a type error when
+  // DocumentGateway['targetUri'] is changed.
+  //
+  // However, at the moment that field is essentially of type string, so there's not much we can do
+  // with regards to type safety.
 }

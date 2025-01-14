@@ -86,7 +86,12 @@ export function DocumentGatewayApp(props: {
   }, [visible, isMultiPort, tcpPortsAttempt, getTcpPorts]);
 
   return (
-    <Document visible={props.visible}>
+    <Document
+      visible={props.visible}
+      // All documents are rendered in the DOM at the same time, but non-visible docs are hidden with
+      // `display: none`. This testid allows us to scope queries only to certain documents.
+      data-testid={doc.uri}
+    >
       {!connected ? (
         <OfflineGateway
           connectAttempt={connectAttempt}

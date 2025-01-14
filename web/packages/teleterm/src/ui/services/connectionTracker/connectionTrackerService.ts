@@ -101,6 +101,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     activate(params);
   }
 
+  findConnection(id: string): TrackedConnection | undefined {
+    return this.state.connections.find(c => c.id === id);
+  }
+
   findConnectionByDocument(document: Document): TrackedConnection {
     switch (document.kind) {
       case 'doc.terminal_tsh_node':
@@ -199,7 +203,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       draft.connections.forEach(i => {
         switch (i.kind) {
           case 'connection.gateway': {
-            i.connected = !!this._clusterService.findGateway(i.gatewayUri);
+            i.connected = !!this._clusterService.findGatewayByConnectionParams({
+              targetUri: i.targetUri,
+              targetUser: i.targetUser,
+              targetSubresourceName: i.targetSubresourceName,
+            });
             break;
           }
           case 'connection.kube': {
@@ -244,9 +252,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         switch (doc.kind) {
           // process gateway connections
           case 'doc.gateway': {
+            // Ignore freshly created docs which have no corresponding gateway yet.
             if (!doc.port) {
               break;
             }
+
             const gwConn = draft.connections.find(
               getGatewayConnectionByDocument(doc)
             ) as TrackedGatewayConnection;
@@ -255,7 +265,6 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
               const newItem = createGatewayConnection(doc);
               draft.connections.push(newItem);
             } else {
-              gwConn.gatewayUri = doc.gatewayUri;
               gwConn.targetSubresourceName = doc.targetSubresourceName;
               gwConn.port = doc.port;
               gwConn.connected = !!this._clusterService.findGateway(

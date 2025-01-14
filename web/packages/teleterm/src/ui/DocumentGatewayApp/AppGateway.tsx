@@ -242,7 +242,11 @@ const LabelWithAttemptStatus = (props: {
       // repeated when the user switches to this tab.
       // https://www.w3.org/TR/css-animations-1/#example-4e34d7ba
       <UnmountAfter timeoutMs={disappearanceDelayMs + disappearanceDurationMs}>
-        <DisappearingCheck color="success.main" size="small" />
+        <DisappearingCheck
+          color="success.main"
+          size="small"
+          title={`${props.text} successfully updated`}
+        />
       </UnmountAfter>
     )}
   </Flex>
