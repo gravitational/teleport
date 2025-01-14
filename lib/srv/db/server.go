@@ -334,9 +334,10 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
-func (m *monitoredDatabases) isCloud(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// isCloud_Locked returns whether a database was discovered by the cloud
+// watchers, aka legacy database discovery done by the db service.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isCloud_Locked(database types.Database) bool {
 	for i := range m.cloud {
 		if m.cloud[i] == database {
 			return true
@@ -345,13 +346,17 @@ func (m *monitoredDatabases) isCloud(database types.Database) bool {
 	return false
 }
 
-func (m *monitoredDatabases) isDiscoveryResource(database types.Database) bool {
-	return database.Origin() == types.OriginCloud && m.isResource(database)
+// isDiscoveryResource_Locked returns whether a database was discovered by the
+// discovery service.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isDiscoveryResource_Locked(database types.Database) bool {
+	return database.Origin() == types.OriginCloud && m.isResource_Locked(database)
 }
 
-func (m *monitoredDatabases) isResource(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// isResource_Locked returns whether a database is a dynamic database, aka a db
+// object.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isResource_Locked(database types.Database) bool {
 	for i := range m.resources {
 		if m.resources[i] == database {
 			return true
@@ -360,9 +365,9 @@ func (m *monitoredDatabases) isResource(database types.Database) bool {
 	return false
 }
 
-func (m *monitoredDatabases) get() map[string]types.Database {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// getLocked returns a slice containing all of the monitored databases.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) getLocked() map[string]types.Database {
 	return utils.FromSlice(append(append(m.static, m.resources...), m.cloud...), types.Database.GetName)
 }
 
