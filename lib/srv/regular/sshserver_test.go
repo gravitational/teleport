@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -1318,7 +1319,11 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		}()
 
 		err = utils.ProxyConn(ctx, clientXConn, sch)
-		assert.NoError(t, err)
+
+		// Error should be nil if the ssh client is closed first, or canceled if the context is closed first.
+		if !errors.Is(err, context.Canceled) {
+			assert.NoError(t, err)
+		}
 	})
 	require.NoError(t, err)
 
