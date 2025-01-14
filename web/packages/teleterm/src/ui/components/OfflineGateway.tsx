@@ -36,7 +36,9 @@ export function OfflineGateway(props: {
   targetName: string;
   /** Gateway kind displayed in the UI, for example, 'database'. */
   gatewayKind: string;
+  portFieldLabel?: string;
 }) {
+  const portFieldLabel = props.portFieldLabel || 'Port (optional)';
   const defaultPort = props.gatewayPort.isSupported
     ? props.gatewayPort.defaultPort
     : undefined;
@@ -88,7 +90,7 @@ export function OfflineGateway(props: {
             {props.gatewayPort.isSupported && (
               <Validation>
                 <PortFieldInput
-                  label="Port (optional)"
+                  label={portFieldLabel}
                   value={port}
                   mb={0}
                   readonly={isProcessing}

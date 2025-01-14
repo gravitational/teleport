@@ -38,6 +38,10 @@ type LocalProxyHTTPMiddleware interface {
 
 	// OverwriteClientCerts overwrites the client certs used for upstream connection.
 	OverwriteClientCerts(req *http.Request) ([]tls.Certificate, error)
+
+	// ClearCerts clears the middleware certs.
+	// It will try to reissue them when a new request comes in.
+	ClearCerts()
 }
 
 // DefaultLocalProxyHTTPMiddleware provides default implementations for LocalProxyHTTPMiddleware.
@@ -56,3 +60,4 @@ func (m *DefaultLocalProxyHTTPMiddleware) HandleResponse(resp *http.Response) er
 func (m *DefaultLocalProxyHTTPMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certificate, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
+func (m *DefaultLocalProxyHTTPMiddleware) ClearCerts() {}

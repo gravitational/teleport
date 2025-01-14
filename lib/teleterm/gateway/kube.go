@@ -42,6 +42,19 @@ import (
 
 type kube struct {
 	*base
+	middleware kubeMiddleware
+}
+
+type kubeMiddleware interface {
+	ClearCerts()
+}
+
+// ClearCerts clears the local proxy middleware certs.
+// It will try to reissue them when a new request comes in.
+func (k *kube) ClearCerts() {
+	if k.middleware != nil {
+		k.middleware.ClearCerts()
+	}
 }
 
 // KubeconfigPath returns the kubeconfig path that can be used for clients to
@@ -62,7 +75,7 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	k := &kube{base}
+	k := &kube{base: base}
 
 	// Generate a new private key for the proxy. The client's existing private key may be
 	// a hardware-backed private key, which cannot be added to the local proxy kube config.
@@ -128,6 +141,7 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 	if err != nil {
 		return trace.NewAggregate(err, listener.Close())
 	}
+	k.middleware = middleware
 
 	webProxyHost, err := utils.Host(k.cfg.WebProxyAddr)
 	if err != nil {
@@ -155,7 +169,7 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) {
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, k.cfg.Cert)
-	return alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
+	middleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
 		Certs: certs,
 		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 			cert, err := k.cfg.OnExpiredCert(ctx, k)
@@ -165,7 +179,9 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 		// TODO(tross): update this when kube is converted to use slog.
 		Logger:       slog.Default(),
 		CloseContext: k.closeContext,
-	}), nil
+	})
+
+	return middleware, nil
 }
 
 func (k *kube) makeForwardProxyForKube() error {
@@ -187,6 +203,8 @@ func (k *kube) makeForwardProxyForKube() error {
 }
 
 func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certificate) error {
+	k.base.mu.RLock()
+	defer k.base.mu.RUnlock()
 	ca, ok := cas[k.cfg.ClusterName]
 	if !ok {
 		return trace.BadParameter("CA for teleport cluster %q is missing", k.cfg.ClusterName)
