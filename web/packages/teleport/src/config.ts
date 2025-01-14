@@ -362,8 +362,12 @@ const cfg = {
     awsSubnetListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/subnets',
 
-    awsAppAccessPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsAppAccess: {
+      create:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+      createV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    },
     awsConfigureIamAppAccessPath:
       '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName&awsAccountID=:accountID',
 
@@ -1060,7 +1064,16 @@ const cfg = {
   getAwsAppAccessUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.awsAppAccessPath, {
+    return generatePath(cfg.api.awsAppAccess.create, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsAppAccessUrlV2(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccess.createV2, {
       clusterId,
       name: integrationName,
     });
