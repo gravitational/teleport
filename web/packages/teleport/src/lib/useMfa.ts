@@ -74,13 +74,9 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   //   4. Receive the mfa response through the mfaResponsePromise ref and return it.
   //
   // The caller should also display errors seen in attempt.
-
   const [attempt, getResponse, setMfaAttempt] = useAsync(
     useCallback(
-      async (
-        responsePromise: Promise<MfaChallengeResponse | Error>,
-        challenge?: MfaAuthenticateChallenge
-      ) => {
+      async (challenge?: MfaAuthenticateChallenge) => {
         // If a previous call determined that MFA is not required, this is a noop.
         if (mfaRequired === false) return;
 
@@ -90,13 +86,28 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
           return;
         }
 
+        // Prepare a new promise to collect the mfa response retrieved
+        // through the submit function.
+        let resolve: (value: MfaChallengeResponse) => void;
+        let reject: (err: Error) => void;
+        const promise = new Promise<MfaChallengeResponse>((res, rej) => {
+          resolve = res;
+          reject = rej;
+        });
+
+        mfaResponseRef.current = {
+          promise,
+          resolve,
+          reject,
+        };
+
         // Set mfa requirement and options after we get a challenge for the first time.
         setMfaRequired(true);
         setMfaOptions(getMfaChallengeOptions(challenge));
 
         setMfaChallenge(challenge);
         try {
-          return await responsePromise;
+          return await promise;
         } finally {
           setMfaChallenge(null);
         }
@@ -115,26 +126,11 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
 
   const getChallengeResponse = useCallback(
     async (challenge?: MfaAuthenticateChallenge) => {
-      // Prepare a new promise to collect the mfa response retrieved
-      // through the submit function.
-      let resolve: (value: MfaChallengeResponse) => void;
-      let reject: (err: Error) => void;
-      const promise = new Promise<MfaChallengeResponse>((res, rej) => {
-        resolve = res;
-        reject = rej;
-      });
-
-      mfaResponseRef.current = {
-        promise,
-        resolve,
-        reject,
-      };
-
-      const [resp, err] = await getResponse(promise, challenge);
+      const [resp, err] = await getResponse(challenge);
 
       if (err) throw err;
 
-      return resp as MfaChallengeResponse;
+      return resp;
     },
     [getResponse]
   );
