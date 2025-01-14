@@ -71,6 +71,7 @@ func NewWorkloadIdentityX509Command(parentCmd *kingpin.CmdClause, action Mutator
 	return c
 }
 
+// ApplyConfig applies the parsed flags to the bot configuration.
 func (c *WorkloadIdentityX509Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	if err := c.sharedStartArgs.ApplyConfig(cfg, l); err != nil {
 		return trace.Wrap(err)
