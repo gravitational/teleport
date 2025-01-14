@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonIcon, ButtonSecondary, H2, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonSecondary, H2, Text } from 'design';
 import { Cross } from 'design/Icon';
 
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-
 import type * as uri from 'teleterm/ui/uri';
 
 export function ResourceSearchErrors(props: {

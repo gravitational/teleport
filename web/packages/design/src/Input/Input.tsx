@@ -16,28 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled, { css, useTheme } from 'styled-components';
-import {
-  space,
-  width,
-  color,
-  height,
-  ColorProps,
-  SpaceProps,
-  WidthProps,
-  HeightProps,
-} from 'styled-system';
-
 import React, {
   forwardRef,
   HTMLAttributes,
   HTMLInputAutoCompleteAttribute,
 } from 'react';
+import styled, { css, useTheme } from 'styled-components';
+import {
+  color,
+  ColorProps,
+  height,
+  HeightProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
+} from 'styled-system';
 
-import { Theme } from 'design/theme/themes/types';
+import Box from 'design/Box';
 import * as Icon from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
-import Box from 'design/Box';
+import { Theme } from 'design/theme/themes/types';
 
 export type InputSize = 'large' | 'medium' | 'small';
 export type InputType =
@@ -71,6 +70,7 @@ interface InputProps extends ColorProps, SpaceProps, WidthProps, HeightProps {
   inputMode?: InputMode;
   spellCheck?: boolean;
   style?: React.CSSProperties;
+  required?: boolean;
 
   'aria-invalid'?: HTMLAttributes<'input'>['aria-invalid'];
   'aria-describedby'?: HTMLAttributes<'input'>['aria-describedby'];
@@ -171,6 +171,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
     inputMode,
     spellCheck,
     style,
+    required,
 
     'aria-invalid': ariaInvalid,
     'aria-describedby': ariaDescribedBy,
@@ -223,6 +224,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
           inputMode,
           spellCheck,
           style,
+          required,
 
           'aria-invalid': ariaInvalid,
           'aria-describedby': ariaDescribedBy,

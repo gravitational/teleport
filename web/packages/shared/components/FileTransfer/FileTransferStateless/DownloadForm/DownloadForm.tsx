@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useId, useState } from 'react';
+import { useId, useState } from 'react';
+
 import { Flex, LabelInput } from 'design';
 import { ButtonPrimary } from 'design/Button';
 

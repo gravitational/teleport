@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ButtonText } from 'design';
 import { Add as AddIcon } from 'design/Icon';
-
 import type { IconSize } from 'design/Icon/Icon';
 
 export const ButtonTextWithAddIcon = ({
@@ -34,7 +32,7 @@ export const ButtonTextWithAddIcon = ({
   iconSize?: IconSize;
 }) => {
   return (
-    <ButtonText onClick={onClick} disabled={disabled} compact>
+    <ButtonText onClick={onClick} disabled={disabled} compact pr={2}>
       <AddIcon
         className="icon-add"
         size={iconSize}

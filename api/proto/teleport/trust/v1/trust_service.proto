@@ -40,6 +40,31 @@ service TrustService {
   // GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
   // a SSH certificate signed by the Host CA.
   rpc GenerateHostCert(GenerateHostCertRequest) returns (GenerateHostCertResponse);
+
+  // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
+  rpc UpsertTrustedCluster(UpsertTrustedClusterRequest) returns (types.TrustedClusterV2);
+  // CreateTrustedCluster creates a Trusted Cluster in a backend.
+  rpc CreateTrustedCluster(CreateTrustedClusterRequest) returns (types.TrustedClusterV2);
+  // UpdateTrustedCluster updates a Trusted Cluster in a backend.
+  rpc UpdateTrustedCluster(UpdateTrustedClusterRequest) returns (types.TrustedClusterV2);
+}
+
+// Request for UpsertTrustedCluster.
+message UpsertTrustedClusterRequest {
+  // TrustedCluster specifies a Trusted Cluster resource.
+  types.TrustedClusterV2 trusted_cluster = 1;
+}
+
+// Request for CreateTrustedCluster.
+message CreateTrustedClusterRequest {
+  // TrustedCluster specifies a Trusted Cluster resource.
+  types.TrustedClusterV2 trusted_cluster = 1;
+}
+
+// Request for UpdateTrustedCluster.
+message UpdateTrustedClusterRequest {
+  // TrustedCluster specifies a Trusted Cluster resource.
+  types.TrustedClusterV2 trusted_cluster = 1;
 }
 
 // Request for GetCertAuthority

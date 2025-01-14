@@ -21,8 +21,10 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -68,6 +70,41 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 	if err := h.GetProxyClient().DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
 		TokenID:    p.ByName("token"),
 		DeviceName: p.ByName("devicename"),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
+type deleteMFADeviceRequest struct {
+	// DeviceName is the name of the device to delete.
+	DeviceName string `json:"deviceName"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
+}
+
+// deleteMFADeviceHandle deletes an mfa device for the user defined in the `token`, given as a query parameter.
+func (h *Handler) deleteMFADeviceHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req deleteMFADeviceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := c.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
+		DeviceName:          req.DeviceName,
+		ExistingMFAResponse: mfaResponse,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,6 +203,22 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
+	// Prepare an sso client redirect URL in case the user has an SSO MFA device.
+	ssoClientRedirectURL, err := url.Parse(sso.WebMFARedirect)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// id is used by the front end to differentiate between separate ongoing SSO challenges.
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	channelID := id.String()
+	query := ssoClientRedirectURL.Query()
+	query.Set("channel_id", channelID)
+	ssoClientRedirectURL.RawQuery = query.Encode()
+
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -176,13 +229,13 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			AllowReuse:                  allowReuse,
 			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
-		SSOClientRedirectURL: sso.WebMFARedirect,
+		SSOClientRedirectURL: ssoClientRedirectURL.String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal, channelID), nil
 }
 
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
@@ -200,10 +253,10 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal, "" /*channelID*/), nil
 }
 
-type createRegisterChallengeRequest struct {
+type createRegisterChallengeWithTokenRequest struct {
 	// DeviceType is the type of MFA device to get a register challenge for.
 	DeviceType string `json:"deviceType"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
@@ -214,7 +267,7 @@ type createRegisterChallengeRequest struct {
 
 // createRegisterChallengeWithTokenHandle creates and returns MFA register challenges for a new device for the specified device type.
 func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req createRegisterChallengeRequest
+	var req createRegisterChallengeWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,6 +291,72 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 		TokenID:     p.ByName("token"),
 		DeviceType:  deviceType,
 		DeviceUsage: deviceUsage,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &client.MFARegisterChallenge{}
+	switch chal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		resp.TOTP = &client.TOTPRegisterChallenge{
+			QRCode: chal.GetTOTP().GetQRCode(),
+		}
+	case *proto.MFARegisterChallenge_Webauthn:
+		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
+	}
+
+	return resp, nil
+}
+
+type createRegisterChallengeRequest struct {
+	// DeviceType is the type of MFA device to get a register challenge for.
+	DeviceType string `json:"deviceType"`
+	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
+	// It mimics the proto.DeviceUsage enum.
+	// Defaults to MFA.
+	DeviceUsage string `json:"deviceUsage"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
+}
+
+// createRegisterChallengeHandle creates and returns MFA register challenges for a new device for the specified device type.
+func (h *Handler) createRegisterChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req createRegisterChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var deviceType proto.DeviceType
+	switch req.DeviceType {
+	case "totp":
+		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
+	case "webauthn":
+		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
+	default:
+		return nil, trace.BadParameter("MFA device type %q unsupported", req.DeviceType)
+	}
+
+	deviceUsage, err := getDeviceUsage(req.DeviceUsage)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := c.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	chal, err := clt.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		DeviceType:          deviceType,
+		DeviceUsage:         deviceUsage,
+		ExistingMFAResponse: mfaResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -480,7 +599,7 @@ func (h *Handler) checkMFARequired(ctx context.Context, req *isMFARequiredReques
 }
 
 // makeAuthenticateChallenge converts proto to JSON format.
-func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *client.MFAAuthenticateChallenge {
+func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge, ssoChannelID string) *client.MFAAuthenticateChallenge {
 	chal := &client.MFAAuthenticateChallenge{
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
@@ -489,6 +608,7 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *clien
 	}
 	if protoChal.GetSSOChallenge() != nil {
 		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
+		chal.SSOChallenge.ChannelID = ssoChannelID
 	}
 	return chal
 }

@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import {
   ACL,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
-import * as tsh from './types';
 import { TshdRpcError } from './cloneableClient';
+import * as tsh from './types';
 
 export const rootClusterUri = '/clusters/teleport-local';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
@@ -290,7 +290,7 @@ export const makeAppGateway = (
   targetUri: appUri,
   localAddress: 'localhost',
   localPort: '1337',
-  targetSubresourceName: 'bar',
+  targetSubresourceName: undefined,
   gatewayCliCommand: {
     path: '',
     preview: 'curl http://localhost:1337',

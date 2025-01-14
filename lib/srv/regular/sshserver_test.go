@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -1350,24 +1349,30 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		os.Remove(tmpFile.Name())
 	})
 
-	// type 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", x11.DisplayEnv, tmpFile.Name())))
-	require.NoError(t, err)
+	// Reading the display may fail if the session is not fully initialized
+	// and the write to stdin is swallowed.
+	display := make(chan string, 1)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
+		_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+		assert.NoError(t, err)
 
-	// wait for the output
-	var display string
-	require.Eventually(t, func() bool {
-		output, err := os.ReadFile(tmpFile.Name())
-		if err == nil && len(output) != 0 {
-			display = strings.TrimSpace(string(output))
-			return true
-		}
-		return false
-	}, 10*time.Second, 100*time.Millisecond, "failed to read display")
+		assert.Eventually(t, func() bool {
+			output, err := os.ReadFile(tmpFile.Name())
+			if err == nil && len(output) != 0 {
+				select {
+				case display <- strings.TrimSpace(string(output)):
+				default:
+				}
+				return true
+			}
+			return false
+		}, time.Second, 100*time.Millisecond, "failed to read display")
+	}, 10*time.Second, 1*time.Second)
 
 	// Make a new connection to the XServer proxy, the client
 	// XServer should echo back anything written on it.
-	serverDisplay, err := x11.ParseDisplay(display)
+	serverDisplay, err := x11.ParseDisplay(<-display)
 	require.NoError(t, err)
 
 	return serverDisplay
@@ -1652,7 +1657,6 @@ func TestProxyRoundRobin(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
-	logger := logrus.WithField("test", "TestProxyRoundRobin")
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
@@ -1672,21 +1676,18 @@ func TestProxyRoundRobin(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
-	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -1792,7 +1793,6 @@ func TestProxyDirectAccess(t *testing.T) {
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
-	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -1811,7 +1811,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
@@ -1826,7 +1825,6 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -2499,7 +2497,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			NewCachingAccessPoint: noCache,
 			DataDir:               t.TempDir(),
 			Emitter:               proxyClient,
-			Log:                   logrus.StandardLogger(),
 			LockWatcher:           lockWatcher,
 			NodeWatcher:           nodeWatcher,
 			CertAuthorityWatcher:  caWatcher,
@@ -2516,7 +2513,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:      f.testSrv.ClusterName(),
-			Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 			LocalAccessPoint: proxyClient,
 			SiteGetter:       reverseTunnelServer,
 			TracerProvider:   tracing.NoopProvider(),
@@ -2744,7 +2740,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
-	logger := logrus.WithField("test", "TestIgnorePuTTYSimpleChannel")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -2763,7 +2758,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
@@ -2777,7 +2771,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -3166,8 +3159,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
-	logger := logrus.WithField("test", "TestHostUserCreationProxy")
-	listener, reverseTunnelAddress := mustListen(t)
+	listener, _ := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -3186,21 +3178,18 @@ func TestHostUserCreationProxy(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
-	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),

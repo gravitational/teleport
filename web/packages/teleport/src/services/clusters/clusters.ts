@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-
-import { makeClusterInfo, makeClusterList } from './makeCluster';
+import api from 'teleport/services/api';
 
 import { Cluster } from '.';
+import { makeClusterInfo, makeClusterList } from './makeCluster';
 
 export default class ClustersService {
   clusters: Cluster[] = [];

@@ -17,14 +17,12 @@
  */
 
 import userEvent from '@testing-library/user-event';
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { act, render, screen } from 'design/utils/testing';
-
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { arrayOf, requiredField } from '../Validation/rules';
-
 import { FieldMultiInput, FieldMultiInputProps } from './FieldMultiInput';
 
 const TestFieldMultiInput = ({

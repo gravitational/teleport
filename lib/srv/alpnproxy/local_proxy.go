@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -43,6 +43,7 @@ import (
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -81,7 +82,7 @@ type LocalProxyConfig struct {
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// Log is the Logger.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// CheckCertNeeded determines if the local proxy will check if it should
 	// load cert for dialing upstream. Defaults to false, in which case
 	// the local proxy will always use whatever cert it has to dial upstream.
@@ -121,7 +122,7 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(teleport.ComponentKey, "localproxy")
+		cfg.Log = slog.With(teleport.ComponentKey, "localproxy")
 	}
 
 	// set tls cert chain leaf to reduce per-handshake processing.
@@ -194,16 +195,16 @@ func (l *LocalProxy) start(ctx context.Context) error {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			l.cfg.Log.WithError(err).Error("Failed to accept client connection.")
+			l.cfg.Log.ErrorContext(ctx, "Failed to accept client connection", "error", err)
 			return trace.Wrap(err)
 		}
-		l.cfg.Log.Debug("Accepted downstream connection.")
+		l.cfg.Log.DebugContext(ctx, "Accepted downstream connection")
 
 		if l.cfg.Middleware != nil {
 			if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
-				l.cfg.Log.WithError(err).Error("Middleware failed to handle client connection.")
+				l.cfg.Log.ErrorContext(ctx, "Middleware failed to handle client connection", "error", err)
 				if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-					l.cfg.Log.WithError(err).Debug("Failed to close client connection.")
+					l.cfg.Log.DebugContext(ctx, "Failed to close client connection", "error", err)
 				}
 				continue
 			}
@@ -214,7 +215,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 				if utils.IsOKNetworkError(err) {
 					return
 				}
-				l.cfg.Log.WithError(err).Error("Failed to handle connection.")
+				l.cfg.Log.ErrorContext(ctx, "Failed to handle connection", "error", err)
 			}
 		}()
 	}
@@ -323,10 +324,10 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 				// TODO: find a cleaner way of formatting the error.
 				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
 				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
-				l.cfg.Log.Warn(errHeader)
+				l.cfg.Log.WarnContext(response.Request.Context(), "Server response contained an error header", "error_header", errHeader)
 			}
 			for _, infoHeader := range response.Header.Values(commonApp.TeleportAPIInfoHeader) {
-				l.cfg.Log.Infof("Server response info: %v.", infoHeader)
+				l.cfg.Log.InfoContext(response.Request.Context(), "Server response info", "header", infoHeader)
 			}
 
 			if err := l.cfg.HTTPMiddleware.HandleResponse(response); err != nil {
@@ -335,7 +336,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			l.cfg.Log.WithError(err).Warnf("Failed to handle request %v %v.", r.Method, r.URL)
+			l.cfg.Log.WarnContext(r.Context(), "Failed to handle request ", "error", err, "method", r.Method, "url", logutils.StringerAttr(r.URL))
 			code := trace.ErrorToCode(err)
 			http.Error(w, http.StatusText(code), code)
 		},
@@ -351,15 +352,15 @@ func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	l.cfg.Log.Info("Starting HTTP access proxy")
-	defer l.cfg.Log.Info("HTTP access proxy stopped")
+	l.cfg.Log.InfoContext(ctx, "Starting HTTP access proxy")
+	defer l.cfg.Log.InfoContext(ctx, "HTTP access proxy stopped")
 
 	server := &http.Server{
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if l.cfg.Middleware != nil {
 				if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
-					l.cfg.Log.WithError(err).Error("Middleware failed to handle client request.")
+					l.cfg.Log.ErrorContext(ctx, "Middleware failed to handle client request", "error", err)
 					trace.WriteError(rw, trace.Wrap(err))
 					return
 				}
@@ -379,7 +380,7 @@ func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 
 			proxy, err := l.getHTTPReverseProxyForReq(req)
 			if err != nil {
-				l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
+				l.cfg.Log.WarnContext(ctx, "Failed to get reverse proxy", "error", err)
 				trace.WriteError(rw, trace.Wrap(err))
 				return
 			}
@@ -410,7 +411,7 @@ func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.Rev
 		return nil, trace.Wrap(err)
 	}
 
-	l.cfg.Log.Debug("overwrote certs")
+	l.cfg.Log.DebugContext(req.Context(), "overwrote certs")
 	return l.makeHTTPReverseProxy(certs...), nil
 }
 
@@ -422,8 +423,8 @@ func (l *LocalProxy) getCert() tls.Certificate {
 }
 
 // CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.
-func (l *LocalProxy) CheckDBCert(dbRoute tlsca.RouteToDatabase) error {
-	l.cfg.Log.Debug("checking local proxy database certs")
+func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatabase) error {
+	l.cfg.Log.DebugContext(ctx, "checking local proxy database certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 
@@ -445,8 +446,8 @@ func (l *LocalProxy) CheckDBCert(dbRoute tlsca.RouteToDatabase) error {
 }
 
 // CheckCertExpiry checks the proxy certificates for expiration.
-func (l *LocalProxy) CheckCertExpiry() error {
-	l.cfg.Log.Debug("checking local proxy certs")
+func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
+	l.cfg.Log.DebugContext(ctx, "checking local proxy certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 

@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { addHours } from 'date-fns';
 
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
+import { AwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import {
   IntegrationKind,
   ResourceTypeSummary,
 } from 'teleport/services/integrations';
-import { AwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
 export default {
   title: 'Teleport/Integrations/AwsOidc',

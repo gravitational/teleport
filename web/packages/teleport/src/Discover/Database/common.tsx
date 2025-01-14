@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box, Label as Pill, Mark } from 'design';
+import { Box, Mark, Label as Pill } from 'design';
 import * as Icons from 'design/Icon';
-
 import { P } from 'design/Text/Text';
 
-import { ResourceLabel } from 'teleport/services/agents';
 import { LabelsCreater, TextIcon } from 'teleport/Discover/Shared';
+import { ResourceLabel } from 'teleport/services/agents';
 import { Regions } from 'teleport/services/integrations';
 
 // serviceDeployedMethod is a flag to determine if user opted to

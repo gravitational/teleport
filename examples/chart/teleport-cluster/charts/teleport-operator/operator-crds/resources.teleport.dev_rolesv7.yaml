@@ -610,6 +610,17 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  workload_identity_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: WorkloadIdentityLabels controls whether or not specific
+                      WorkloadIdentity resources can be invoked. Further authorization
+                      controls exist on the WorkloadIdentity resource itself.
+                    type: object
+                  workload_identity_labels_expression:
+                    description: WorkloadIdentityLabelsExpression is a predicate expression
+                      used to allow/deny access to issuing a WorkloadIdentity.
+                    type: string
                 type: object
               deny:
                 description: Deny is the set of conditions evaluated to deny access.
@@ -1187,6 +1198,17 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  workload_identity_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: WorkloadIdentityLabels controls whether or not specific
+                      WorkloadIdentity resources can be invoked. Further authorization
+                      controls exist on the WorkloadIdentity resource itself.
+                    type: object
+                  workload_identity_labels_expression:
+                    description: WorkloadIdentityLabelsExpression is a predicate expression
+                      used to allow/deny access to issuing a WorkloadIdentity.
+                    type: string
                 type: object
               options:
                 description: Options is for OpenSSH options like agent forwarding.

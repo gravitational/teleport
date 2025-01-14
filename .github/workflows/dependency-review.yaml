@@ -52,4 +52,5 @@ jobs:
         pkg:cargo/zerofrom-derive,
         pkg:cargo/zerovec,
         pkg:cargo/zerovec-derive,
+        pkg:npm/cspell/dict-en-common-misspellings,
         pkg:npm/prettier

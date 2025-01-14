@@ -23,9 +23,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,8 +41,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -294,7 +298,10 @@ func TestMonitor(t *testing.T) {
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	diagAddr, err := process.DiagnosticAddr()
 	require.NoError(t, err)
@@ -515,7 +522,6 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			exitContext: context.Background(),
 		},
 		backend: backend,
-		log:     utils.NewLoggerForTests(),
 		logger:  utils.NewSlogLoggerForTests(),
 	}
 
@@ -917,7 +923,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			process := TeleportProcess{
 				Config: cfg,
 				// Setting Supervisor so that `ExitContext` can be called.
-				Supervisor: NewSupervisor("process-id", cfg.Log),
+				Supervisor: NewSupervisor("process-id", cfg.Logger),
 			}
 			tls, err := process.setupProxyTLSConfig(
 				&Connector{},
@@ -946,7 +952,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
 	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
@@ -1287,9 +1293,8 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
-	log := logrus.New()
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, log),
+		Supervisor: NewSupervisor(hostID, utils.NewSlogLoggerForTests()),
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1297,7 +1302,7 @@ func TestProxyGRPCServers(t *testing.T) {
 				},
 			},
 		},
-		log: log,
+		logger: utils.NewSlogLoggerForTests(),
 	}
 
 	// Create a limiter with no limits.
@@ -1631,7 +1636,10 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -1745,6 +1753,7 @@ func TestInstanceMetadata(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, process.Close())
+				require.NoError(t, process.Wait())
 			})
 
 			if tc.expectCloudLabels {
@@ -1818,28 +1827,56 @@ func TestInitDatabaseService(t *testing.T) {
 			cfg.Databases.Enabled = test.enabled
 			cfg.Databases.Databases = test.databases
 
+			// This timeout should consider time to receive the event + shutdown
+			// time.
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+
+			// Arbitrary channel size to avoid blocking.
+			// We should not receive more than 1024 events as we have less than 1024 services.
+			serviceExitedEvents := make(chan Event, 1024)
+
+			var eg errgroup.Group
 			process, err := NewTeleport(cfg)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, process.Close())
-			})
+			process.ListenForEvents(ctx, ServiceExitedWithErrorEvent, serviceExitedEvents)
 			require.NoError(t, process.Start())
-
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
+			eg.Go(func() error { return process.WaitForSignals(ctx, nil) })
+			// Ensures the process is closed in failure scenarios.
+			t.Cleanup(func() {
+				cancel()
+				_ = eg.Wait()
+				_ = process.Close()
+				require.NoError(t, process.Wait())
+			})
 
 			if !test.expectErr {
 				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
 				require.NoError(t, err)
+				require.NoError(t, process.Close())
+				// Expect Teleport to shutdown without reporting any issue.
+				require.NoError(t, eg.Wait())
+				require.NoError(t, process.Wait())
 				return
 			}
 
-			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
-			require.NoError(t, err)
-			require.NotNil(t, event)
-			exitPayload, ok := event.Payload.(ExitEventPayload)
-			require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
-			require.Equal(t, "db.init", exitPayload.Service.Name())
+			// The first service to exit should be the db one, with a "db.init" event.
+			// We can't use WaitForEvents because it only returns the last event for this type.
+			// As the test causes Teleport to crash, other services might exit in error before
+			// we get the event, causing the test to fail.
+			select {
+			case event := <-serviceExitedEvents:
+				require.NotNil(t, event)
+				exitPayload, ok := event.Payload.(ExitEventPayload)
+				require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
+				require.Equal(t, "db.init", exitPayload.Service.Name(), "expected db init failure, got instead %q with error %q", exitPayload.Service.Name(), exitPayload.Error)
+			case <-ctx.Done():
+				require.Fail(t, "context timed out, we never received the failed db.init event")
+			}
+
+			// Database service init is a critical service, meaning failures on
+			// it should cause the process to exit with error.
+			require.Error(t, eg.Wait())
 		})
 	}
 }
@@ -1854,7 +1891,7 @@ func TestAgentRolloutController(t *testing.T) {
 	dataDir := makeTempDir(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
-	// We use a real clock because too many sevrices are using the clock and it's not possible to accurately wait for
+	// We use a real clock because too many services are using the clock and it's not possible to accurately wait for
 	// each one of them to reach the point where they wait for the clock to advance. If we add a WaitUntil(X waiters)
 	// check, this will break the next time we add a new waiter.
 	cfg.Clock = clockwork.NewRealClock()
@@ -1873,7 +1910,7 @@ func TestAgentRolloutController(t *testing.T) {
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
-	// Test setup: start the Teleport auth and wait for it to beocme ready
+	// Test setup: start the Teleport auth and wait for it to become ready
 	require.NoError(t, process.Start())
 
 	// Test setup: wait for every service to start
@@ -1914,6 +1951,84 @@ func TestAgentRolloutController(t *testing.T) {
 		}
 		return rollout.Spec.GetTargetVersion() == version.Spec.GetAgents().GetTargetVersion()
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestMetricsService(t *testing.T) {
+	t.Parallel()
+	// Test setup: create a listener for the metrics server, get its file descriptor.
+
+	// Note: this code is copied from integrations/helpers/NewListenerOn() to avoid including helpers in a production
+	// build and avoid a cyclic dependency.
+	metricsListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, metricsListener.Close())
+	})
+	require.IsType(t, &net.TCPListener{}, metricsListener)
+	metricsListenerFile, err := metricsListener.(*net.TCPListener).File()
+	require.NoError(t, err)
+
+	// Test setup: create a new teleport process
+	dataDir := makeTempDir(t)
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DataDir = dataDir
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+	cfg.DebugService.Enabled = false
+	cfg.Auth.StorageConfig.Params["path"] = dataDir
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Metrics.Enabled = true
+
+	// Configure the metrics server to use the listener we previously created.
+	cfg.Metrics.ListenAddr = &utils.NetAddr{AddrNetwork: "tcp", Addr: metricsListener.Addr().String()}
+	cfg.FileDescriptors = []*servicecfg.FileDescriptor{
+		{Type: string(ListenerMetrics), Address: metricsListener.Addr().String(), File: metricsListenerFile},
+	}
+
+	// Create and start the Teleport service.
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		assert.NoError(t, process.Close())
+		assert.NoError(t, process.Wait())
+	})
+
+	// Test setup: create our test metrics.
+	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
+	localMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "local_metric_" + nonce,
+	})
+	globalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "global_metric_" + nonce,
+	})
+	require.NoError(t, process.metricsRegistry.Register(localMetric))
+	require.NoError(t, prometheus.Register(globalMetric))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	t.Cleanup(cancel)
+	_, err = process.WaitForEvent(ctx, MetricsReady)
+	require.NoError(t, err)
+
+	// Test execution: get metrics and check the tests metrics are here.
+	metricsURL, err := url.Parse("http://" + metricsListener.Addr().String())
+	require.NoError(t, err)
+	metricsURL.Path = "/metrics"
+	resp, err := http.Get(metricsURL.String())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
 }
 
 // makeTempDir makes a temp dir with a shorter name than t.TempDir() in order to

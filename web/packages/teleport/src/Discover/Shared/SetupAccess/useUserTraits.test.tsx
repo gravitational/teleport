@@ -16,36 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { renderHook, act, waitFor } from '@testing-library/react';
+
 import { AwsRole } from 'shared/services/apps';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { DiscoverProvider } from 'teleport/Discover/useDiscover';
 import cfg from 'teleport/config';
-import { userEventService } from 'teleport/services/userEvent';
+import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
 import {
   defaultDiscoverContext,
   defaultResourceSpec,
 } from 'teleport/Discover/Fixtures/fixtures';
-import TeleportContext from 'teleport/teleportContext';
-import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
+import {
+  DiscoverProvider,
+  type AppMeta,
+  type DbMeta,
+  type DiscoverContextState,
+  type KubeMeta,
+  type NodeMeta,
+} from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ExcludeUserField } from 'teleport/services/user';
+import { userEventService } from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { ResourceKind } from '../ResourceKind';
-
 import { useUserTraits } from './useUserTraits';
-
-import type {
-  AppMeta,
-  DbMeta,
-  DiscoverContextState,
-  KubeMeta,
-  NodeMeta,
-} from 'teleport/Discover/useDiscover';
 
 describe('onProceed correctly deduplicates, removes static traits, updates meta, and calls updateUser', () => {
   const teleCtx = createTeleportContext();

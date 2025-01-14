@@ -16,24 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
+
 import Box from 'design/Box';
-import * as Icons from 'design/Icon';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
 import Text from 'design/Text';
-
 import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
-import useTeleport from 'teleport/useTeleport';
-
-import { CtaEvent } from 'teleport/services/userEvent';
-
 import { storageService } from 'teleport/services/storageService';
+import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 import { ButtonLockedFeature } from '../ButtonLockedFeature';
 

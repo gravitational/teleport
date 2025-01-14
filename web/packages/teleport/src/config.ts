@@ -17,13 +17,8 @@
  */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
+
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
-import generateResourcePath from './generateResourcePath';
-
-import { defaultEntitlements } from './entitlement';
-
 import type {
   Auth2faType,
   AuthProvider,
@@ -31,18 +26,23 @@ import type {
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import type { SortType } from 'teleport/services/agents';
-import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/mfa';
-import type {
+import {
+  AwsOidcPolicyPreset,
+  IntegrationKind,
   PluginKind,
   Regions,
-  AwsOidcPolicyPreset,
-} from './services/integrations';
+} from 'teleport/services/integrations';
+import type { KubeResourceKind } from 'teleport/services/kube/types';
+import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
-import type { YamlSupportedResourceKind } from './services/yaml/types';
-import type { KubeResourceKind } from './services/kube/types';
+import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+
+import { defaultEntitlements } from './entitlement';
+import generateResourcePath from './generateResourcePath';
+import type { MfaChallengeResponse } from './services/mfa';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -176,6 +176,8 @@ const cfg = {
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
+    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -211,6 +213,9 @@ const cfg = {
     accessGraph: {
       crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
     },
+
+    /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
+    samlIdpSso: '/enterprise/saml-idp/sso',
   },
 
   api: {
@@ -246,7 +251,6 @@ const cfg = {
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
@@ -257,9 +261,11 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
+    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sessionDurationPath: '/v1/webapi/sites/:clusterId/sessionlength/:sid',
 
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -278,7 +284,11 @@ const cfg = {
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
-    joinTokenPath: '/v1/webapi/token',
+    discoveryJoinToken: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/token
+      create: '/v1/webapi/token',
+      createV2: '/v2/webapi/token',
+    },
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
     joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
@@ -361,8 +371,14 @@ const cfg = {
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
-    eksEnrollClustersPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+
+    eks: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters
+      enroll:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+      enrollV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+    },
 
     ec2InstancesListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
@@ -532,7 +548,7 @@ const cfg = {
     return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
-  getIntegrationStatusRoute(type: PluginKind, name: string) {
+  getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationStatus, { type, name });
   },
 
@@ -566,10 +582,6 @@ const cfg = {
 
   getJoinTokensUrl() {
     return cfg.api.joinTokensPath;
-  },
-
-  getJoinTokenUrl() {
-    return cfg.api.joinTokenPath;
   },
 
   getJoinTokenYamlUrl() {
@@ -656,6 +668,14 @@ const cfg = {
       desktopName,
       username,
     });
+  },
+
+  getDbConnectRoute(params: UrlDbConnectParams) {
+    return generatePath(cfg.routes.dbConnect, { ...params });
+  },
+
+  getDbSessionRoute({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.routes.dbSession, { clusterId, sid });
   },
 
   getKubeExecSessionRoute(
@@ -762,6 +782,10 @@ const cfg = {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
 
+  getSessionDurationUrl(clusterId: string, sid: string) {
+    return generatePath(cfg.api.sessionDurationPath, { clusterId, sid });
+  },
+
   getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.unifiedResourcesPath, {
       clusterId,
@@ -851,13 +875,6 @@ const cfg = {
     });
   },
 
-  getDesktopServicesUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.desktopServicesPath, {
-      clusterId,
-      ...params,
-    });
-  },
-
   getDesktopUrl(clusterId: string, desktopName: string) {
     return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
   },
@@ -873,20 +890,25 @@ const cfg = {
     });
   },
 
-  getScpUrl({ webauthn, ...params }: UrlScpParams) {
+  getScpUrl({ mfaResponse, ...params }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
 
-    if (!webauthn) {
+    if (!mfaResponse) {
       return path;
     }
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
     // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
     // as the existence of this param is what will issue certs
-    return `${path}&webauthn=${JSON.stringify({
-      webauthnAssertionResponse: webauthn,
+
+    // TODO(Joerger): DELETE IN v19.0.0
+    // We include webauthn for backwards compatibility.
+    path = `${path}&webauthn=${JSON.stringify({
+      webauthnAssertionResponse: mfaResponse.webauthn_response,
     })}`;
+
+    return `${path}&mfaResponse=${JSON.stringify(mfaResponse)}`;
   },
 
   getRenewTokenUrl() {
@@ -1067,7 +1089,16 @@ const cfg = {
   getEnrollEksClusterUrl(integrationName: string): string {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.eksEnrollClustersPath, {
+    return generatePath(cfg.api.eks.enroll, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getEnrollEksClusterUrlV2(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eks.enrollV2, {
       clusterId,
       name: integrationName,
     });
@@ -1234,6 +1265,14 @@ export interface UrlAppParams {
   arn?: string;
 }
 
+export interface CreateAppSessionParams {
+  fqdn: string;
+  clusterId?: string;
+  publicAddr?: string;
+  arn?: string;
+  mfaResponse?: MfaChallengeResponse;
+}
+
 export interface UrlScpParams {
   clusterId: string;
   serverId: string;
@@ -1242,7 +1281,7 @@ export interface UrlScpParams {
   filename: string;
   moderatedSessionId?: string;
   fileTransferRequestId?: string;
-  webauthn?: WebauthnAssertionResponse;
+  mfaResponse?: MfaChallengeResponse;
 }
 
 export interface UrlSshParams {
@@ -1256,6 +1295,11 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+}
+
+export interface UrlDbConnectParams {
+  clusterId: string;
+  serviceName: string;
 }
 
 export interface UrlSessionRecordingsParams {

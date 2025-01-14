@@ -13,7 +13,7 @@ bitflags = "2.5.0"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 byteorder = "1.5.0"
 bytes = "1.9.0"
-env_logger = "0.11.5"
+env_logger = "0.11.6"
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
 ironrdp-core.workspace = true
@@ -44,7 +44,7 @@ picky-asn1-der = "0.5.1"
 picky-asn1-x509 = "0.14.1"
 picky-krb = "0.9.2"
 reqwest = { version = "0.12", default-features = false }
-rustls = { version = "0.23.19", default-features = false, features = ["aws-lc-rs"] }
+rustls = { version = "0.23.20", default-features = false, features = ["aws-lc-rs"] }
 
 [build-dependencies]
 cbindgen = "0.27.0"

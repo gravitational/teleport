@@ -32,7 +32,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -51,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestListPodRBAC(t *testing.T) {
@@ -518,8 +518,6 @@ func TestListPodRBAC(t *testing.T) {
 func TestWatcherResponseWriter(t *testing.T) {
 	defaultNamespace := "default"
 	devNamespace := "dev"
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
 	t.Parallel()
 	statusErr := &metav1.Status{
 		TypeMeta: metav1.TypeMeta{
@@ -633,7 +631,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator(&globalKubeCodecs)
-			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, log)
+			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)

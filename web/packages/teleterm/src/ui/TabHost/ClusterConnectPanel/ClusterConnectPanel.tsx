@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box, ButtonPrimary, Flex, H1, ResourceIcon, Text } from 'design';
 import styled from 'styled-components';
+
+import { Box, ButtonPrimary, Flex, H1, ResourceIcon, Text } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 

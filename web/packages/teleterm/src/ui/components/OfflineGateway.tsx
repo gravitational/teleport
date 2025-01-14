@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { ButtonPrimary, Flex, H2, Text } from 'design';
+import { useState } from 'react';
 
+import { ButtonPrimary, Flex, H2, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -36,7 +36,9 @@ export function OfflineGateway(props: {
   targetName: string;
   /** Gateway kind displayed in the UI, for example, 'database'. */
   gatewayKind: string;
+  portFieldLabel?: string;
 }) {
+  const portFieldLabel = props.portFieldLabel || 'Port (optional)';
   const defaultPort = props.gatewayPort.isSupported
     ? props.gatewayPort.defaultPort
     : undefined;
@@ -88,7 +90,7 @@ export function OfflineGateway(props: {
             {props.gatewayPort.isSupported && (
               <Validation>
                 <PortFieldInput
-                  label="Port (optional)"
+                  label={portFieldLabel}
                   value={port}
                   mb={0}
                   readonly={isProcessing}

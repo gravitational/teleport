@@ -28,7 +28,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -88,7 +90,7 @@ func TestServiceAccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 				t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-					service := newService(t, fakeChecker{allowedVerbs: verbs}, testReporter, &libevents.DiscardEmitter{})
+					service := newService(t, fakeChecker{allowedVerbs: verbs}, testReporter, &libevents.DiscardEmitter{}, clockwork.NewFakeClock())
 					err := callMethod(t, service, tt.name)
 					// expect access denied except with full set of verbs.
 					if len(verbs) == len(tt.allowedVerbs) {
@@ -119,7 +121,8 @@ func TestEvents(t *testing.T) {
 	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	testReporter := &mockUsageReporter{}
 	auditEventsSink := eventstest.NewChannelEmitter(10)
-	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter, auditEventsSink)
+	fakeClock := clockwork.NewFakeClock()
+	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter, auditEventsSink, fakeClock)
 	ctx := context.Background()
 
 	ut1, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
@@ -142,29 +145,68 @@ func TestEvents(t *testing.T) {
 	require.NoError(t, err)
 	userTaskName := ut1.GetMetadata().GetName()
 
-	_, err = service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut1})
+	createUserTaskResp, err := service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut1})
 	require.NoError(t, err)
 	// Usage reporting happens when user task is created, so we expect to see an event.
 	require.Len(t, testReporter.emittedEvents, 1)
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "create", "", ""))
+	// LastStateChange is updated.
+	require.Equal(t, timestamppb.New(fakeClock.Now()), createUserTaskResp.Status.LastStateChange)
 
+	expectedLastStateChange := createUserTaskResp.Status.LastStateChange
 	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
 		InstanceId:      "i-345",
 		DiscoveryConfig: "dc01",
 		DiscoveryGroup:  "dg01",
 	}
-	_, err = service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	fakeClock.Advance(1 * time.Minute)
+	upsertUserTaskResp, err := service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
 	require.NoError(t, err)
 	// State was not updated, so usage events must not increase.
 	require.Len(t, testReporter.emittedEvents, 1)
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "OPEN"))
+	// LastStateChange is not updated.
+	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.Status.LastStateChange.AsTime())
 
 	ut1.Spec.State = "RESOLVED"
-	_, err = service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
+	fakeClock.Advance(1 * time.Minute)
+	updateUserTaskResp, err := service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
 	require.NoError(t, err)
 	// State was updated, so usage events include this new usage report.
 	require.Len(t, testReporter.emittedEvents, 2)
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "RESOLVED"))
+	// LastStateChange was updated because the state changed.
+	require.Equal(t, timestamppb.New(fakeClock.Now()), updateUserTaskResp.Status.LastStateChange)
+
+	// Updating one of the instances.
+	expectedLastStateChange = updateUserTaskResp.Status.GetLastStateChange()
+	fakeClock.Advance(1 * time.Minute)
+	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+		InstanceId:      "i-345",
+		DiscoveryConfig: "dc01",
+		DiscoveryGroup:  "dg01",
+		SyncTime:        timestamppb.New(fakeClock.Now()),
+	}
+	updateUserTaskResp, err = service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// Does not change the LastStateChange
+	require.Equal(t, expectedLastStateChange.AsTime(), updateUserTaskResp.Status.LastStateChange.AsTime())
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "RESOLVED", "RESOLVED"))
+
+	// Upserting one of the instances.
+	expectedLastStateChange = updateUserTaskResp.Status.GetLastStateChange()
+	fakeClock.Advance(1 * time.Minute)
+	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+		InstanceId:      "i-345",
+		DiscoveryConfig: "dc01",
+		DiscoveryGroup:  "dg01",
+		SyncTime:        timestamppb.New(fakeClock.Now()),
+	}
+	upsertUserTaskResp, err = service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// Does not change the LastStateChange
+	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.Status.LastStateChange.AsTime())
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "RESOLVED", "RESOLVED"))
 
 	_, err = service.DeleteUserTask(ctx, &usertasksv1.DeleteUserTaskRequest{Name: userTaskName})
 	require.NoError(t, err)
@@ -241,9 +283,21 @@ func consumeAssertEvent(t *testing.T, q <-chan apievents.AuditEvent, expectedEve
 
 // callMethod calls a method with given name in the UserTask service
 func callMethod(t *testing.T, service *Service, method string) error {
+	emptyUserTask := &usertasksv1.UserTask{
+		Spec: &usertasksv1.UserTaskSpec{},
+	}
+
 	for _, desc := range usertasksv1.UserTaskService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
+			_, err := desc.Handler(service, context.Background(), func(arg any) error {
+				switch arg := arg.(type) {
+				case *usertasksv1.CreateUserTaskRequest:
+					arg.UserTask = emptyUserTask
+				case *usertasksv1.UpsertUserTaskRequest:
+					arg.UserTask = emptyUserTask
+				}
+				return nil
+			}, nil)
 			return err
 		}
 	}
@@ -266,7 +320,7 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func newService(t *testing.T, checker services.AccessChecker, usageReporter usagereporter.UsageReporter, emitter apievents.Emitter) *Service {
+func newService(t *testing.T, checker services.AccessChecker, usageReporter usagereporter.UsageReporter, emitter apievents.Emitter, clock clockwork.Clock) *Service {
 	t.Helper()
 
 	b, err := memory.New(memory.Config{})
@@ -297,6 +351,7 @@ func newService(t *testing.T, checker services.AccessChecker, usageReporter usag
 		Cache:         backendService,
 		UsageReporter: func() usagereporter.UsageReporter { return usageReporter },
 		Emitter:       emitter,
+		Clock:         clock,
 	})
 	require.NoError(t, err)
 	return service

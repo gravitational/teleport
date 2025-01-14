@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -751,16 +752,18 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
 	require.NoError(t, err)
-	certificate, err := testauthority.New().GenerateUserCert(services.UserCertParams{
-		CertificateFormat:     constants.CertificateFormatStandard,
-		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(sshPub),
-		Username:              username,
-		AllowedLogins:         []string{username},
-		TTL:                   ttl,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		RouteToCluster:        s.clusterName,
+	certificate, err := testauthority.New().GenerateUserCert(sshca.UserCertificateRequest{
+		CertificateFormat: constants.CertificateFormatStandard,
+		CASigner:          caSigner,
+		PublicUserKey:     ssh.MarshalAuthorizedKey(sshPub),
+		TTL:               ttl,
+		Identity: sshca.Identity{
+			Username:              username,
+			AllowedLogins:         []string{username},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+			RouteToCluster:        s.clusterName,
+		},
 	})
 	require.NoError(t, err)
 
@@ -812,7 +815,7 @@ func startDebugAgent(t *testing.T) error {
 			conn, err := listener.Accept()
 			if err != nil {
 				if !utils.IsUseOfClosedNetworkError(err) {
-					log.Warnf("Unexpected response from listener.Accept: %v", err)
+					log.WarnContext(context.Background(), "Unexpected response from listener.Accept", "error", err)
 				}
 				return
 			}

@@ -16,25 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { Box, Flex, Link, Mark, H3 } from 'design';
-import TextEditor from 'shared/components/TextEditor';
+
+import { Box, Flex, H3, Link, Mark } from 'design';
 import { Danger } from 'design/Alert';
+import { P } from 'design/Text/Text';
 import { IconTooltip } from 'design/Tooltip';
+import TextEditor from 'shared/components/TextEditor';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { P } from 'design/Text/Text';
-
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import { integrationService } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 import { Container } from 'teleport/Discover/Shared/CommandBox';
+import { useDiscover } from 'teleport/Discover/useDiscover';
+import { integrationService } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { ActionButtons, Header } from '../../Shared';
-
 import { AppCreatedDialog } from './AppCreatedDialog';
 
 const IAM_POLICY_NAME = 'AWSAppAccess';

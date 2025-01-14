@@ -16,6 +16,7 @@ jobs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
       has_proto: ${{ steps.changes.outputs.has_proto }}
+      has_rfd: ${{ steps.changes.outputs.has_rfd }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -26,6 +27,10 @@ jobs:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
           filters: |
+            has_rfd:
+              - '.github/workflows/lint.yaml'
+              - 'rfd/**.md'
+              - 'rfd/cspell.json'
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
@@ -88,7 +93,7 @@ jobs:
           find . -path ./e -prune -o -name go.mod -print | while read f; do
             echo "checking $f"
             pushd $(dirname "$f") > /dev/null;
-            go mod tidy -diff;
+            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
             popd > /dev/null;
           done
 
@@ -230,4 +235,26 @@ jobs:
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
-        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@c91cc3ef4d7d0046c36cb96b1cd337e466c61225 && make terraform-resources-up-to-date
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2 && make terraform-resources-up-to-date
+
+  lint-rfd:
+    name: Lint (RFD)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rfd == 'true' }}
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check spelling
+        run: pnpm cspell -c ./rfd/cspell.json rfd

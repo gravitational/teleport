@@ -21,6 +21,7 @@ package cloud
 import (
 	"context"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -38,8 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -50,10 +49,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
-	"github.com/aws/aws-sdk-go/service/redshift"
-	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -63,7 +58,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -113,10 +107,6 @@ type GCPClients interface {
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region and any role(s).
 	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
-	// GetAWSRDSClient returns AWS RDS client for the specified region.
-	GetAWSRDSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (rdsiface.RDSAPI, error)
-	// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
-	GetAWSRedshiftClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftiface.RedshiftAPI, error)
 	// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
 	GetAWSRedshiftServerlessClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftserverlessiface.RedshiftServerlessAPI, error)
 	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
@@ -131,8 +121,6 @@ type AWSClients interface {
 	GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
-	// GetAWSEKSClient returns AWS EKS client for the specified region.
-	GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error)
 	// GetAWSKMSClient returns AWS KMS client for the specified region.
 	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error)
 	// GetAWSS3Client returns AWS S3 client.
@@ -356,6 +344,10 @@ type azureClients struct {
 	azurePostgresFlexServersClients azure.ClientMap[azure.PostgresFlexServersClient]
 	// azureRunCommandClients contains the cached Azure Run Command clients.
 	azureRunCommandClients azure.ClientMap[azure.RunCommandClient]
+	// azureRoleDefinitionsClients contains the cached Azure Role Definitions clients.
+	azureRoleDefinitionsClients azure.ClientMap[azure.RoleDefinitionsClient]
+	// azureRoleAssignmentsClients contains the cached Azure Role Assignments clients.
+	azureRoleAssignmentsClients azure.ClientMap[azure.RoleAssignmentsClient]
 }
 
 // credentialsSource defines where the credentials must come from.
@@ -390,6 +382,9 @@ type awsOptions struct {
 
 	// maxRetries is the maximum number of retries to use for the session.
 	maxRetries *int
+
+	// withoutSessionCache disables the session cache for the AWS session.
+	withoutSessionCache bool
 }
 
 func (a *awsOptions) checkAndSetDefaults() error {
@@ -418,6 +413,13 @@ func WithAssumeRole(roleARN, externalID string) AWSOptionsFn {
 	return func(options *awsOptions) {
 		options.assumeRoleARN = roleARN
 		options.assumeRoleExternalID = externalID
+	}
+}
+
+// WithoutSessionCache disables the session cache for the AWS session.
+func WithoutSessionCache() AWSOptionsFn {
+	return func(options *awsOptions) {
+		options.withoutSessionCache = true
 	}
 }
 
@@ -487,7 +489,7 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 	}
 	var err error
 	if options.baseSession == nil {
-		options.baseSession, err = c.getAWSSessionForRegion(region, options)
+		options.baseSession, err = c.getAWSSessionForRegion(ctx, region, options)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -496,24 +498,6 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 		return options.baseSession, nil
 	}
 	return c.getAWSSessionForRole(ctx, region, options)
-}
-
-// GetAWSRDSClient returns AWS RDS client for the specified region.
-func (c *cloudClients) GetAWSRDSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (rdsiface.RDSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rds.New(session), nil
-}
-
-// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
-func (c *cloudClients) GetAWSRedshiftClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftiface.RedshiftAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return redshift.New(session), nil
 }
 
 // GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
@@ -586,15 +570,6 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 		return nil, trace.Wrap(err)
 	}
 	return sts.New(session), nil
-}
-
-// GetAWSEKSClient returns AWS EKS client for the specified region.
-func (c *cloudClients) GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return eks.New(session), nil
 }
 
 // GetAWSKMSClient returns AWS KMS client for the specified region.
@@ -746,6 +721,16 @@ func (c *cloudClients) GetAzureRunCommandClient(subscription string) (azure.RunC
 	return c.azureRunCommandClients.Get(subscription, c.GetAzureCredential)
 }
 
+// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client
+func (c *cloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+	return c.azureRoleDefinitionsClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client
+func (c *cloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+	return c.azureRoleAssignmentsClients.Get(subscription, c.GetAzureCredential)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -767,9 +752,44 @@ func awsAmbientSessionProvider(ctx context.Context, region string) (*awssession.
 }
 
 // getAWSSessionForRegion returns AWS session for the specified region.
-func (c *cloudClients) getAWSSessionForRegion(region string, opts awsOptions) (*awssession.Session, error) {
+func (c *cloudClients) getAWSSessionForRegion(ctx context.Context, region string, opts awsOptions) (*awssession.Session, error) {
 	if err := opts.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	createSession := func(ctx context.Context) (*awssession.Session, error) {
+		if opts.credentialsSource == credentialsSourceIntegration {
+			if c.awsIntegrationSessionProviderFn == nil {
+				return nil, trace.BadParameter("missing aws integration session provider")
+			}
+
+			slog.DebugContext(ctx, "Initializing AWS session",
+				"region", region,
+				"integration", opts.integration,
+			)
+			session, err := c.awsIntegrationSessionProviderFn(ctx, region, opts.integration)
+			return session, trace.Wrap(err)
+		}
+
+		slog.DebugContext(ctx, "Initializing AWS session using environment credentials",
+			"region", region,
+		)
+		session, err := awsAmbientSessionProvider(ctx, region)
+		return session, trace.Wrap(err)
+	}
+
+	if opts.withoutSessionCache {
+		sess, err := createSession(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if opts.customRetryer != nil || opts.maxRetries != nil {
+			return sess.Copy(&aws.Config{
+				Retryer:    opts.customRetryer,
+				MaxRetries: opts.maxRetries,
+			}), nil
+		}
+		return sess, trace.Wrap(err)
 	}
 
 	cacheKey := awsSessionCacheKey{
@@ -777,19 +797,8 @@ func (c *cloudClients) getAWSSessionForRegion(region string, opts awsOptions) (*
 		integration: opts.integration,
 	}
 
-	sess, err := utils.FnCacheGet(context.Background(), c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		if opts.credentialsSource == credentialsSourceIntegration {
-			if c.awsIntegrationSessionProviderFn == nil {
-				return nil, trace.BadParameter("missing aws integration session provider")
-			}
-
-			logrus.Debugf("Initializing AWS session for region %v with integration %q.", region, opts.integration)
-			session, err := c.awsIntegrationSessionProviderFn(ctx, region, opts.integration)
-			return session, trace.Wrap(err)
-		}
-
-		logrus.Debugf("Initializing AWS session for region %v using environment credentials.", region)
-		session, err := awsAmbientSessionProvider(ctx, region)
+	sess, err := utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+		session, err := createSession(ctx)
 		return session, trace.Wrap(err)
 	})
 	if err != nil {
@@ -810,6 +819,16 @@ func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, 
 		return nil, trace.Wrap(err)
 	}
 
+	createSession := func(ctx context.Context) (*awssession.Session, error) {
+		stsClient := sts.New(options.baseSession)
+		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
+	}
+
+	if options.withoutSessionCache {
+		session, err := createSession(ctx)
+		return session, trace.Wrap(err)
+	}
+
 	cacheKey := awsSessionCacheKey{
 		region:      region,
 		integration: options.integration,
@@ -817,8 +836,8 @@ func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, 
 		externalID:  options.assumeRoleExternalID,
 	}
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		stsClient := sts.New(options.baseSession)
-		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
+		session, err := createSession(ctx)
+		return session, trace.Wrap(err)
 	})
 }
 
@@ -828,7 +847,6 @@ func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.Ia
 	if c.gcpIAM != nil { // If some other thread already got here first.
 		return c.gcpIAM, nil
 	}
-	logrus.Debug("Initializing GCP IAM client.")
 	gcpIAM, err := gcpcredentials.NewIamCredentialsClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -843,7 +861,6 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	if c.azureCredential != nil { // If some other thread already got here first.
 		return c.azureCredential, nil
 	}
-	logrus.Debug("Initializing Azure default credential chain.")
 	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
 	options := &azidentity.DefaultAzureCredentialOptions{}
 	cred, err := azidentity.NewDefaultAzureCredential(options)
@@ -866,7 +883,6 @@ func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.DBServer
 		return client, nil
 	}
 
-	logrus.Debug("Initializing Azure MySQL servers client.")
 	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
 	options := &arm.ClientOptions{}
 	api, err := armmysql.NewServersClient(subscription, cred, options)
@@ -889,7 +905,6 @@ func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.DBSer
 	if client, ok := c.azurePostgresClients[subscription]; ok { // If some other thread already got here first.
 		return client, nil
 	}
-	logrus.Debug("Initializing Azure Postgres servers client.")
 	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
 	options := &arm.ClientOptions{}
 	api, err := armpostgresql.NewServersClient(subscription, cred, options)
@@ -912,7 +927,6 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 	if c.azureSubscriptionsClient != nil { // If some other thread already got here first.
 		return c.azureSubscriptionsClient, nil
 	}
-	logrus.Debug("Initializing Azure subscriptions client.")
 	// TODO(gavin): if/when we support AzureChina/AzureGovernment,
 	// we will need to specify the cloud in these options
 	opts := &arm.ClientOptions{}
@@ -932,7 +946,6 @@ func (c *cloudClients) initInstanceMetadata(ctx context.Context) (imds.Client, e
 	if c.instanceMetadata != nil { // If some other thread already got here first.
 		return c.instanceMetadata, nil
 	}
-	logrus.Debug("Initializing instance metadata client.")
 
 	providers := []func(ctx context.Context) (imds.Client, error){
 		func(ctx context.Context) (imds.Client, error) {
@@ -973,7 +986,6 @@ func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKS
 	if client, ok := c.azureKubernetesClient[subscription]; ok { // If some other thread already got here first.
 		return client, nil
 	}
-	logrus.Debug("Initializing Azure AKS client.")
 	// TODO(tigrato): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
 	options := &arm.ClientOptions{}
 	api, err := armcontainerservice.NewManagedClustersClient(subscription, cred, options)
@@ -994,9 +1006,6 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS                     rdsiface.RDSAPI
-	RDSPerRegion            map[string]rdsiface.RDSAPI
-	Redshift                redshiftiface.RedshiftAPI
 	RedshiftServerless      redshiftserverlessiface.RedshiftServerlessAPI
 	ElastiCache             elasticacheiface.ElastiCacheAPI
 	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
@@ -1009,7 +1018,6 @@ type TestCloudClients struct {
 	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
 	InstanceMetadata        imds.Client
-	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
 	S3                      s3iface.S3API
 	AzureMySQL              azure.DBServersClient
@@ -1027,6 +1035,8 @@ type TestCloudClients struct {
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
 	AzureRunCommand         azure.RunCommandClient
+	AzureRoleDefinitions    azure.RoleDefinitionsClient
+	AzureRoleAssignments    azure.RoleAssignmentsClient
 }
 
 // GetAWSSession returns AWS session for the specified region, optionally
@@ -1064,27 +1074,6 @@ func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Se
 		Region:          aws.String(region),
 		UseFIPSEndpoint: useFIPSEndpoint,
 	})
-}
-
-// GetAWSRDSClient returns AWS RDS client for the specified region.
-func (c *TestCloudClients) GetAWSRDSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (rdsiface.RDSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(c.RDSPerRegion) != 0 {
-		return c.RDSPerRegion[region], nil
-	}
-	return c.RDS, nil
-}
-
-// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
-func (c *TestCloudClients) GetAWSRedshiftClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftiface.RedshiftAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.Redshift, nil
 }
 
 // GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
@@ -1157,15 +1146,6 @@ func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.STS, nil
-}
-
-// GetAWSEKSClient returns AWS EKS client for the specified region.
-func (c *TestCloudClients) GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.EKS, nil
 }
 
 // GetAWSKMSClient returns AWS KMS client for the specified region.
@@ -1280,9 +1260,19 @@ func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string
 	return c.AzurePostgresFlex, nil
 }
 
-// GetAzureRunCommand returns an Azure Run Command client for the given subscription.
+// GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
 func (c *TestCloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
 	return c.AzureRunCommand, nil
+}
+
+// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client for the given subscription.
+func (c *TestCloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+	return c.AzureRoleDefinitions, nil
+}
+
+// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client for the given subscription.
+func (c *TestCloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+	return c.AzureRoleAssignments, nil
 }
 
 // Close closes all initialized clients.
@@ -1293,7 +1283,10 @@ func (c *TestCloudClients) Close() error {
 // newSessionWithRole assumes a given AWS IAM Role, passing an external ID if given,
 // and returns a new AWS session with the assumed role in the given region.
 func newSessionWithRole(ctx context.Context, svc stscreds.AssumeRoler, region, roleARN, externalID string) (*awssession.Session, error) {
-	logrus.Debugf("Initializing AWS session for assumed role %q for region %v.", roleARN, region)
+	slog.DebugContext(ctx, "Initializing AWS session for assumed role",
+		"assumed_role", roleARN,
+		"region", region,
+	)
 	// Make a credentials with AssumeRoleProvider and test it out.
 	cred := stscreds.NewCredentialsWithClient(svc, roleARN, func(p *stscreds.AssumeRoleProvider) {
 		if externalID != "" {

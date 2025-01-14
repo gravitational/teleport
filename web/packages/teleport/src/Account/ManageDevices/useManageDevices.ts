@@ -17,18 +17,16 @@
  */
 
 import { useEffect, useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
-import auth from 'teleport/services/auth';
 import { DeviceUsage, MfaDevice } from 'teleport/services/mfa';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import Ctx from 'teleport/teleportContext';
 
 export default function useManageDevices(ctx: Ctx) {
   const [devices, setDevices] = useState<MfaDevice[]>([]);
   const [deviceToRemove, setDeviceToRemove] = useState<MfaDevice>();
-  const [token, setToken] = useState('');
   const fetchDevicesAttempt = useAttempt('');
   const [newDeviceUsage, setNewDeviceUsage] =
     useState<DeviceUsage>('passwordless');
@@ -38,8 +36,6 @@ export default function useManageDevices(ctx: Ctx) {
   // the user has no devices yet and thus can't authenticate using the ReAuthenticate dialog
   const createRestrictedTokenAttempt = useAttempt('');
 
-  const isReauthenticationRequired = !token;
-
   function fetchDevices() {
     fetchDevicesAttempt.run(() =>
       ctx.mfaService.fetchDevices().then(setDevices)
@@ -48,30 +44,12 @@ export default function useManageDevices(ctx: Ctx) {
 
   async function onAddDevice(usage: DeviceUsage) {
     setNewDeviceUsage(usage);
-    const challenge = await auth.getMfaChallenge({
-      scope: MfaChallengeScope.MANAGE_DEVICES,
-    });
-    // If the user doesn't receieve any challenges from the backend, that means
-    // they have no valid devices to be challenged and should instead use a privilege token
-    // to add a new device.
-    // TODO (avatus): add SSO challenge here as well when we add SSO for MFA
-    // TODO(Joerger): privilege token is no longer required to add first device.
-    if (!challenge) {
-      createRestrictedTokenAttempt.run(() =>
-        auth.createRestrictedPrivilegeToken().then(token => {
-          setToken(token);
-          setAddDeviceWizardVisible(true);
-        })
-      );
-    } else {
-      setAddDeviceWizardVisible(true);
-    }
+    setAddDeviceWizardVisible(true);
   }
 
   function onDeviceAdded() {
     fetchDevices();
     setAddDeviceWizardVisible(false);
-    setToken(null);
   }
 
   function onRemoveDevice(device: MfaDevice) {
@@ -95,7 +73,6 @@ export default function useManageDevices(ctx: Ctx) {
 
   return {
     devices,
-    token,
     onAddDevice,
     onRemoveDevice,
     onDeviceAdded,
@@ -103,7 +80,6 @@ export default function useManageDevices(ctx: Ctx) {
     deviceToRemove,
     fetchDevicesAttempt: fetchDevicesAttempt.attempt,
     createRestrictedTokenAttempt: createRestrictedTokenAttempt.attempt,
-    isReauthenticationRequired,
     addDeviceWizardVisible,
     hideRemoveDevice,
     closeAddDeviceWizard,

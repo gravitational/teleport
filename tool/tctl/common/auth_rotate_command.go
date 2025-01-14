@@ -37,7 +37,6 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/term"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -50,6 +49,7 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 const (
@@ -77,8 +77,14 @@ func (c *authRotateCommand) Initialize(authCmd *kingpin.CmdClause) {
 		DurationVar(&c.gracePeriod)
 }
 
-func (c *authRotateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *authRotateCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if c.cmd.FullCommand() == cmd {
+		client, clientClose, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer clientClose(ctx)
+
 		return true, trace.Wrap(c.Run(ctx, client))
 	}
 	return false, nil
@@ -1281,7 +1287,6 @@ func setupLoggers(logWriter io.Writer) {
 		logWriter,
 		logutils.SlogTextHandlerConfig{EnableColors: true},
 	)))
-	logrus.StandardLogger().SetOutput(logWriter)
 }
 
 func setupMFAPrompt(client *authclient.Client, pingResp proto.PingResponse, promptWriter io.Writer) {

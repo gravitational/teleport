@@ -18,9 +18,8 @@
 
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
-import * as uri from 'teleterm/ui/uri';
-
 import type * as tsh from 'teleterm/services/tshd/types';
+import * as uri from 'teleterm/ui/uri';
 
 export type Kind = Document['kind'];
 
@@ -110,7 +109,11 @@ export interface DocumentGateway extends DocumentBase {
   targetUri: uri.DatabaseUri | uri.AppUri;
   targetUser: string;
   targetName: string;
-  targetSubresourceName?: string;
+  /**
+   * targetSubresourceName contains database name for db gateways and target port for TCP app
+   * gateways.
+   */
+  targetSubresourceName: string | undefined;
   port?: string;
   origin: DocumentOrigin;
 }

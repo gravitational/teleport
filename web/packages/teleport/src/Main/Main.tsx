@@ -26,43 +26,39 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
+
 import { Box, Flex, Indicator } from 'design';
 import { Failed } from 'design/CardError';
-
+import Dialog from 'design/Dialog';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { matchPath, useHistory } from 'react-router';
-
-import Dialog from 'design/Dialog';
-
-import { Redirect, Route, Switch } from 'teleport/components/Router';
-import { CatchError } from 'teleport/components/CatchError';
-import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { TopBar } from 'teleport/TopBar';
-import { TopBar as TopBarSideNav } from 'teleport/TopBar/TopBarSideNav';
 import { BannerList } from 'teleport/components/BannerList';
-import { storageService } from 'teleport/services/storageService';
+import type { BannerType } from 'teleport/components/BannerList/BannerList';
+import { useAlerts } from 'teleport/components/BannerList/useAlerts';
+import { CatchError } from 'teleport/components/CatchError';
+import { Redirect, Route, Switch } from 'teleport/components/Router';
+import cfg from 'teleport/config';
+import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
+import { Navigation } from 'teleport/Navigation';
+import { Navigation as SideNavigation } from 'teleport/Navigation/SideNavigation/Navigation';
 import {
   ClusterAlert,
-  LINK_TEXT_LABEL,
   LINK_DESTINATION_LABEL,
+  LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
-import { useAlerts } from 'teleport/components/BannerList/useAlerts';
-import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-
-import { Navigation as SideNavigation } from 'teleport/Navigation/SideNavigation/Navigation';
-import { Navigation } from 'teleport/Navigation';
+import { storageService } from 'teleport/services/storageService';
+import { TopBar } from 'teleport/TopBar';
 import { TopBarProps } from 'teleport/TopBar/TopBar';
+import { TopBar as TopBarSideNav } from 'teleport/TopBar/TopBarSideNav';
+import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
+import useTeleport from 'teleport/useTeleport';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
-
-import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];

@@ -16,11 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 import { integrationService } from './integrations';
-import { IntegrationStatusCode, IntegrationAudience } from './types';
+import { IntegrationAudience, IntegrationStatusCode } from './types';
+
+beforeEach(() => {
+  jest.resetAllMocks();
+});
 
 test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
@@ -194,6 +198,50 @@ test('fetchAwsDatabases response', async () => {
     databases: [],
     nextToken: undefined,
   });
+});
+
+test('enrollEksClusters without labels calls v1', async () => {
+  jest.spyOn(api, 'post').mockResolvedValue({});
+
+  await integrationService.enrollEksClusters('integration', {
+    region: 'us-east-1',
+    enableAppDiscovery: false,
+    clusterNames: ['cluster'],
+  });
+
+  expect(api.post).toHaveBeenCalledWith(
+    cfg.getEnrollEksClusterUrl('integration'),
+    {
+      clusterNames: ['cluster'],
+      enableAppDiscovery: false,
+      region: 'us-east-1',
+    },
+    null,
+    undefined
+  );
+});
+
+test('enrollEksClusters with labels calls v2', async () => {
+  jest.spyOn(api, 'post').mockResolvedValue({});
+
+  await integrationService.enrollEksClusters('integration', {
+    region: 'us-east-1',
+    enableAppDiscovery: false,
+    clusterNames: ['cluster'],
+    extraLabels: [{ name: 'env', value: 'staging' }],
+  });
+
+  expect(api.post).toHaveBeenCalledWith(
+    cfg.getEnrollEksClusterUrlV2('integration'),
+    {
+      clusterNames: ['cluster'],
+      enableAppDiscovery: false,
+      region: 'us-east-1',
+      extraLabels: [{ name: 'env', value: 'staging' }],
+    },
+    null,
+    undefined
+  );
 });
 
 describe('fetchAwsDatabases() request body formatting', () => {

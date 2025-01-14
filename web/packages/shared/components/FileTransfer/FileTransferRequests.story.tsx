@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import ConsoleContextProvider from 'teleport/Console/consoleContextProvider';
 import ConsoleContext from 'teleport/Console/consoleContext';
+import ConsoleContextProvider from 'teleport/Console/consoleContextProvider';
 import { FileTransferRequest } from 'teleport/Console/DocumentSsh/useFileTransfer';
 
 import { FileTransferRequests } from './';

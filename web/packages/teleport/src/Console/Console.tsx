@@ -16,27 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useMemo } from 'react';
 import styled from 'styled-components';
+
 import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import AjaxPoller from 'teleport/components/AjaxPoller';
 
+import ActionBar from './ActionBar';
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
+import DocumentBlank from './DocumentBlank';
+import { DocumentDb } from './DocumentDb';
+import DocumentKubeExec from './DocumentKubeExec';
+import DocumentNodes from './DocumentNodes';
+import DocumentSsh from './DocumentSsh';
 import * as stores from './stores/types';
 import Tabs from './Tabs';
-import ActionBar from './ActionBar';
-import DocumentSsh from './DocumentSsh';
-import DocumentNodes from './DocumentNodes';
-import DocumentKubeExec from './DocumentKubeExec';
-import DocumentBlank from './DocumentBlank';
+import useKeyboardNav from './useKeyboardNav';
+import useOnExitConfirmation from './useOnExitConfirmation';
 import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
-import useOnExitConfirmation from './useOnExitConfirmation';
-import useKeyboardNav from './useKeyboardNav';
 
 const POLL_INTERVAL = 5000; // every 5 sec
 
@@ -51,7 +52,7 @@ export default function Console() {
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
   const { attempt, run } = useAttempt();
 
-  React.useEffect(() => {
+  useEffect(() => {
     run(() => consoleCtx.initStoreUser());
   }, []);
 
@@ -77,7 +78,9 @@ export default function Console() {
     return consoleCtx.refreshParties();
   }
 
-  const disableNewTab = storeDocs.getNodeDocuments().length > 0;
+  const disableNewTab =
+    storeDocs.getNodeDocuments().length > 0 ||
+    storeDocs.getDbDocuments().length > 0;
   const $docs = documents.map(doc => (
     <MemoizedDocument doc={doc} visible={doc.id === activeDocId} key={doc.id} />
   ));
@@ -131,7 +134,7 @@ export default function Console() {
  */
 function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
   const { doc, visible } = props;
-  return React.useMemo(() => {
+  return useMemo(() => {
     switch (doc.kind) {
       case 'terminal':
         return <DocumentSsh doc={doc} visible={visible} />;
@@ -139,6 +142,8 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
         return <DocumentNodes doc={doc} visible={visible} />;
       case 'kubeExec':
         return <DocumentKubeExec doc={doc} visible={visible} />;
+      case 'db':
+        return <DocumentDb doc={doc} visible={visible} />;
       default:
         return <DocumentBlank doc={doc} visible={visible} />;
     }

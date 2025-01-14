@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type Keygen struct {
@@ -60,7 +61,7 @@ func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	return n.GenerateHostCertWithoutValidation(c)
 }
 
-func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+func (n *Keygen) GenerateUserCert(c sshca.UserCertificateRequest) ([]byte, error) {
 	return n.GenerateUserCertWithoutValidation(c)
 }
 

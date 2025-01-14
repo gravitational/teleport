@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,9 +50,15 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Sun({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-sun" {...otherProps}>
+export const Sun = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-sun"
+      {...otherProps}
+      ref={ref}
+    >
       <path d="M12 0.75C12.4142 0.75 12.75 1.08579 12.75 1.5V3.75C12.75 4.16421 12.4142 4.5 12 4.5C11.5858 4.5 11.25 4.16421 11.25 3.75V1.5C11.25 1.08579 11.5858 0.75 12 0.75Z" />
       <path
         fillRule="evenodd"
@@ -67,5 +73,5 @@ export function Sun({ size = 24, color, ...otherProps }: IconProps) {
       <path d="M12 19.5C12.4142 19.5 12.75 19.8358 12.75 20.25V22.5C12.75 22.9142 12.4142 23.25 12 23.25C11.5858 23.25 11.25 22.9142 11.25 22.5V20.25C11.25 19.8358 11.5858 19.5 12 19.5Z" />
       <path d="M20.25 11.25C19.8358 11.25 19.5 11.5858 19.5 12C19.5 12.4142 19.8358 12.75 20.25 12.75H22.5C22.9142 12.75 23.25 12.4142 23.25 12C23.25 11.5858 22.9142 11.25 22.5 11.25H20.25Z" />
     </Icon>
-  );
-}
+  )
+);

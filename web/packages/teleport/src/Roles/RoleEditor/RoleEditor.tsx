@@ -16,30 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useId, useState } from 'react';
+
 import { Alert, Box, Flex } from 'design';
-import React, { useId, useState } from 'react';
+import Validation, { Validator } from 'shared/components/Validation';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import Validation, { Validator } from 'shared/components/Validation';
-
 import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import DeleteRole from '../DeleteRole';
-
-import {
-  roleEditorModelToRole,
-  newRole,
-  StandardEditorModel,
-  roleToRoleEditorModel as roleToRoleEditorModel,
-} from './standardmodel';
-import { YamlEditorModel } from './yamlmodel';
-import { EditorTab } from './EditorTabs';
 import { EditorHeader } from './EditorHeader';
-import { StandardEditor } from './StandardEditor';
+import { EditorTab } from './EditorTabs';
+import { StandardEditor } from './StandardEditor/StandardEditor';
+import {
+  newRole,
+  roleEditorModelToRole,
+  roleToRoleEditorModel,
+  StandardEditorModel,
+} from './StandardEditor/standardmodel';
 import { YamlEditor } from './YamlEditor';
+import { YamlEditorModel } from './yamlmodel';
 
 export type RoleEditorProps = {
   /**
@@ -49,7 +47,6 @@ export type RoleEditorProps = {
   originalRole?: RoleWithYaml;
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
-  onDelete?(): Promise<void>;
 };
 
 /**
@@ -61,7 +58,6 @@ export const RoleEditor = ({
   originalRole,
   onCancel,
   onSave,
-  onDelete,
 }: RoleEditorProps) => {
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
@@ -89,8 +85,6 @@ export const RoleEditor = ({
   const [selectedEditorTab, setSelectedEditorTab] = useState<EditorTab>(() =>
     standardModel.roleModel.requiresReset ? EditorTab.Yaml : EditorTab.Standard
   );
-
-  const [deleting, setDeleting] = useState(false);
 
   // Converts YAML representation to a standard editor model.
   const [parseAttempt, parseYaml] = useAsync(async () => {
@@ -134,7 +128,7 @@ export const RoleEditor = ({
     // requires model to be valid. However, if it's OK, we reset the validator.
     // We don't want it to be validating at this point, since the user didn't
     // attempt to submit the form.
-    if (!validator.validate()) return;
+    if (!standardModel.roleModel.requiresReset && !validator.validate()) return;
     validator.reset();
 
     switch (activeIndex) {
@@ -188,7 +182,6 @@ export const RoleEditor = ({
           <Box mt={3} mx={3}>
             <EditorHeader
               role={originalRole?.object}
-              onDelete={() => setDeleting(true)}
               selectedEditorTab={selectedEditorTab}
               onEditorTabChange={index => onTabChange(index, validator)}
               isProcessing={isProcessing}
@@ -235,13 +228,6 @@ export const RoleEditor = ({
                 originalRole={originalRole}
               />
             </Flex>
-          )}
-          {deleting && (
-            <DeleteRole
-              name={originalRole.object.metadata.name}
-              onClose={() => setDeleting(false)}
-              onDelete={onDelete}
-            />
           )}
         </Flex>
       )}

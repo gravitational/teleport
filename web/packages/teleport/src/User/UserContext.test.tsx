@@ -16,24 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
-
 import { render, screen } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { MemoryRouter } from 'react-router';
 
 import '@testing-library/jest-dom';
 
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
-
-import { UserContextProvider } from 'teleport/User';
-
-import { useUser } from 'teleport/User/UserContext';
 import { KeysEnum } from 'teleport/services/storageService';
+import { UserContextProvider } from 'teleport/User';
+import { useUser } from 'teleport/User/UserContext';
 
 function ThemeName() {
   const { preferences } = useUser();

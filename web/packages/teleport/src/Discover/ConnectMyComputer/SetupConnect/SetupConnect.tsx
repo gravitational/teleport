@@ -16,39 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { Flex, H3, Subtitle3, Text } from 'design';
 import { ButtonSecondary } from 'design/Button';
-import { getPlatform } from 'design/platform';
-import { Text, Flex, H3, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
-import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
-import * as connectMyComputer from 'shared/connectMyComputer';
+import { getPlatform } from 'design/platform';
+import { P } from 'design/Text/Text';
 import {
   DownloadConnect,
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
-
-import { P } from 'design/Text/Text';
+import * as connectMyComputer from 'shared/connectMyComputer';
+import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
 import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { Node } from 'teleport/services/nodes';
-
 import {
   ActionButtons,
   Header,
   StyledBox,
   TextIcon,
 } from 'teleport/Discover/Shared';
-import { usePoll } from 'teleport/Discover/Shared/usePoll';
-
 import {
   HintBox,
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
+import { usePoll } from 'teleport/Discover/Shared/usePoll';
+import { Node } from 'teleport/services/nodes';
+import useTeleport from 'teleport/useTeleport';
 
 import type { AgentStepProps } from '../../types';
 

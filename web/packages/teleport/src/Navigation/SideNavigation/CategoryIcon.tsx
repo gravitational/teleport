@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ReactNode } from 'react';
 
 import * as Icons from 'design/Icon';
 
@@ -35,7 +35,7 @@ export function CategoryIcon({
   size?: number;
   color?: string;
 }) {
-  let Icon: ({ size, color }) => JSX.Element;
+  let Icon: ({ size, color }) => ReactNode;
   switch (category) {
     case NavigationCategory.Resources:
       Icon = Icons.Server;

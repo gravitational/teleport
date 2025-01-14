@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,9 +50,15 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Wand({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-wand" {...otherProps}>
+export const Wand = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-wand"
+      {...otherProps}
+      ref={ref}
+    >
       <path
         fillRule="evenodd"
         clipRule="evenodd"
@@ -62,5 +68,5 @@ export function Wand({ size = 24, color, ...otherProps }: IconProps) {
       <path d="M21 12.0002C21 11.5859 20.6642 11.2502 20.25 11.2502C19.8358 11.2502 19.5 11.5859 19.5 12.0002V13.5002H18C17.5858 13.5002 17.25 13.8359 17.25 14.2502C17.25 14.6644 17.5858 15.0002 18 15.0002H19.5V16.5002C19.5 16.9144 19.8358 17.2502 20.25 17.2502C20.6642 17.2502 21 16.9144 21 16.5002V15.0002H22.5C22.9142 15.0002 23.25 14.6644 23.25 14.2502C23.25 13.8359 22.9142 13.5002 22.5 13.5002H21V12.0002Z" />
       <path d="M15.75 16.5002C16.1642 16.5002 16.5 16.8359 16.5 17.2502V18.0002H17.25C17.6642 18.0002 18 18.3359 18 18.7502C18 19.1644 17.6642 19.5002 17.25 19.5002H16.5V20.2502C16.5 20.6644 16.1642 21.0002 15.75 21.0002C15.3358 21.0002 15 20.6644 15 20.2502V19.5002H14.25C13.8358 19.5002 13.5 19.1644 13.5 18.7502C13.5 18.3359 13.8358 18.0002 14.25 18.0002H15V17.2502C15 16.8359 15.3358 16.5002 15.75 16.5002Z" />
     </Icon>
-  );
-}
+  )
+);

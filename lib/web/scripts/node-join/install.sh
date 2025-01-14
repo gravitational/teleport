@@ -441,6 +441,11 @@ get_yaml_list() {
 install_teleport_app_config() {
     log "Writing Teleport app service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
+    # shellcheck disable=SC2154
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 version: v3
 teleport:
@@ -463,6 +468,9 @@ app_service:
   - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
+    labels:{{range $index, $line := .appServerResourceLabels}}
+      {{$line -}}
+{{end}}
 EOF
 }
 # installs the provided teleport config (for database service)
@@ -840,7 +848,9 @@ install_from_file() {
         tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
         # install binaries to /usr/local/bin
         for BINARY in ${TELEPORT_BINARY_LIST}; do
-            ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            if [ -e "${TELEPORT_ARCHIVE_PATH}/${BINARY}" ]; then
+                ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            fi
         done
     elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
         # convert teleport arch to deb arch

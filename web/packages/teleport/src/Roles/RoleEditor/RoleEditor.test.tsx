@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render, screen, userEvent } from 'design/utils/testing';
 import { within } from '@testing-library/react';
 import { UserEvent } from '@testing-library/user-event';
 
-import { Role } from 'teleport/services/resources';
+import { render, screen, userEvent } from 'design/utils/testing';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { Role } from 'teleport/services/resources';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import {
   YamlStringifyRequest,
   YamlSupportedResourceKind,
 } from 'teleport/services/yaml/types';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { RoleEditor, RoleEditorProps } from './RoleEditor';
-import { defaultOptions, withDefaults } from './withDefaults';
+import { defaultOptions, withDefaults } from './StandardEditor/withDefaults';
 
 // The Ace editor is very difficult to deal with in tests, especially that for
 // handling its state, we are using input event, which is asynchronous. Thus,
@@ -126,34 +126,59 @@ test('rendering and switching tabs for a non-standard role', async () => {
   );
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   await user.click(getStandardEditorTab());
-  expect(
-    screen.getByRole('button', { name: 'Reset to Standard Settings' })
-  ).toBeVisible();
+  expect(screen.getByText(/This role is too complex/)).toBeVisible();
   expect(screen.getByLabelText('Role Name')).toHaveValue('some-role');
   expect(screen.getByLabelText('Description')).toHaveValue('');
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   await user.click(getYamlEditorTab());
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
+});
 
-  // Switch once again, reset to standard
-  await user.click(getStandardEditorTab());
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
-  await user.click(
-    screen.getByRole('button', { name: 'Reset to Standard Settings' })
-  );
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeEnabled();
-  await user.type(screen.getByLabelText('Description'), 'some description');
-
+test('switching tabs triggers validation', async () => {
+  // Triggering validation is necessary, because server-side yamlification
+  // sometimes will reject the data anyway.
+  render(<TestRoleEditor />);
+  await user.clear(screen.getByLabelText('Role Name'));
+  expect(getStandardEditorTab()).toHaveAttribute('aria-selected', 'true');
   await user.click(getYamlEditorTab());
-  const editorContents = fromFauxYaml(await getTextEditorContents());
-  expect(editorContents.metadata.description).toBe('some description');
-  expect(editorContents.spec.deny).toEqual({});
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeEnabled();
+  expect(screen.getByLabelText('Role Name')).toHaveAccessibleDescription(
+    'Role name is required'
+  );
+  // Expect to still be on the standard tab.
+  expect(getStandardEditorTab()).toHaveAttribute('aria-selected', 'true');
+});
+
+test('switching tabs ignores standard model validation for a non-standard role', async () => {
+  // The purpose of this test is to rule out a case where we start with a
+  // non-standard role that even after resetting would cause a validation
+  // error, then go to the standard editor only to be stuck there by the
+  // validation requirement, while the editor UI is itself blocked.
+  const originalRole = withDefaults({
+    // This will trigger a validation error. Note that empty metadata is a very
+    // blunt tool here, but that's certainly one case where we can guarantee
+    // it's gonna cause validation errors. The real-world scenarios would be
+    // much more subtle, but also more likely to get fixed in future, rendering
+    // this test case futile.
+    metadata: {},
+    spec: {},
+    unsupportedField: true, // This will cause disabling the standard editor.
+  } as any as Role);
+  render(
+    <TestRoleEditor
+      originalRole={{ object: originalRole, yaml: toFauxYaml(originalRole) }}
+    />
+  );
+  expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
+  await user.click(getStandardEditorTab());
+  expect(screen.getByText(/This role is too complex/)).toBeVisible();
+  await user.click(getYamlEditorTab());
+  // Proceed, even though our validation would consider the data invalid.
+  expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
 });
 
 test('no double conversions when clicking already active tabs', async () => {

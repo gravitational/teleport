@@ -19,8 +19,7 @@
 package bitbucket
 
 import (
-	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // IDTokenClaims
@@ -60,19 +59,17 @@ type IDTokenClaims struct {
 	BranchName string `json:"branchName"`
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *IDTokenClaims) JoinAuditAttributes() (map[string]any, error) {
-	res := map[string]any{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsBitbucket {
+	return &workloadidentityv1pb.JoinAttrsBitbucket{
+		Sub:                       c.Sub,
+		StepUuid:                  c.StepUUID,
+		RepositoryUuid:            c.RepositoryUUID,
+		PipelineUuid:              c.PipelineUUID,
+		WorkspaceUuid:             c.WorkspaceUUID,
+		DeploymentEnvironmentUuid: c.DeploymentEnvironmentUUID,
+		BranchName:                c.BranchName,
 	}
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
 }

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function CircleCheck({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const CircleCheck = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-circlecheck"
       {...otherProps}
+      ref={ref}
     >
       <path d="M16.2803 10.2803C16.5732 9.98744 16.5732 9.51256 16.2803 9.21967C15.9874 8.92678 15.5126 8.92678 15.2197 9.21967L10.5 13.9393L8.78033 12.2197C8.48744 11.9268 8.01256 11.9268 7.71967 12.2197C7.42678 12.5126 7.42678 12.9874 7.71967 13.2803L9.96967 15.5303C10.2626 15.8232 10.7374 15.8232 11.0303 15.5303L16.2803 10.2803Z" />
       <path
@@ -65,5 +66,5 @@ export function CircleCheck({ size = 24, color, ...otherProps }: IconProps) {
         d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
       />
     </Icon>
-  );
-}
+  )
+);

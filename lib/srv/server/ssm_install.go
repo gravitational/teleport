@@ -78,9 +78,9 @@ type SSMInstallationResult struct {
 	// IntegrationName is the integration name when using integration credentials.
 	// Empty if using ambient credentials.
 	IntegrationName string
-	// DiscoveryConfig is the DiscoveryConfig name which originated this Run Request.
+	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
-	DiscoveryConfig string
+	DiscoveryConfigName string
 	// IssueType identifies the type of issue that occurred if the installation failed.
 	// These are well known identifiers that can be found at types.AutoDiscoverEC2Issue*.
 	IssueType string
@@ -118,9 +118,9 @@ type SSMRunRequest struct {
 	// IntegrationName is the integration name when using integration credentials.
 	// Empty if using ambient credentials.
 	IntegrationName string
-	// DiscoveryConfig is the DiscoveryConfig name which originated this Run Request.
+	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
-	DiscoveryConfig string
+	DiscoveryConfigName string
 }
 
 // InstallerScriptName returns the Teleport Installer script name.
@@ -199,6 +199,10 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		validInstances = instancesState.valid
 	}
 
+	if len(validInstances) == 0 {
+		return nil
+	}
+
 	validInstanceIDs := instanceIDsFrom(validInstances)
 	output, err := req.SSM.SendCommand(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
@@ -255,12 +259,12 @@ func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, instanc
 			InstanceID: instanceID,
 			Status:     status,
 		},
-		IntegrationName: req.IntegrationName,
-		DiscoveryConfig: req.DiscoveryConfig,
-		IssueType:       issueType,
-		SSMDocumentName: req.DocumentName,
-		InstallerScript: req.InstallerScriptName(),
-		InstanceName:    instanceName,
+		IntegrationName:     req.IntegrationName,
+		DiscoveryConfigName: req.DiscoveryConfigName,
+		IssueType:           issueType,
+		SSMDocumentName:     req.DocumentName,
+		InstallerScript:     req.InstallerScriptName(),
+		InstanceName:        instanceName,
 	}
 }
 
@@ -413,13 +417,13 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 				}
 
 				return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
-					SSMRunEvent:     invocationResultEvent,
-					IntegrationName: req.IntegrationName,
-					DiscoveryConfig: req.DiscoveryConfig,
-					IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
-					SSMDocumentName: req.DocumentName,
-					InstallerScript: req.InstallerScriptName(),
-					InstanceName:    instanceName,
+					SSMRunEvent:         invocationResultEvent,
+					IntegrationName:     req.IntegrationName,
+					DiscoveryConfigName: req.DiscoveryConfigName,
+					IssueType:           usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+					SSMDocumentName:     req.DocumentName,
+					InstallerScript:     req.InstallerScriptName(),
+					InstanceName:        instanceName,
 				}))
 			}
 
@@ -430,13 +434,13 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		lastStep := i+1 == len(invocationSteps)
 		if stepResultEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
 			return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
-				SSMRunEvent:     stepResultEvent,
-				IntegrationName: req.IntegrationName,
-				DiscoveryConfig: req.DiscoveryConfig,
-				IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
-				SSMDocumentName: req.DocumentName,
-				InstallerScript: req.InstallerScriptName(),
-				InstanceName:    instanceName,
+				SSMRunEvent:         stepResultEvent,
+				IntegrationName:     req.IntegrationName,
+				DiscoveryConfigName: req.DiscoveryConfigName,
+				IssueType:           usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+				SSMDocumentName:     req.DocumentName,
+				InstallerScript:     req.InstallerScriptName(),
+				InstanceName:        instanceName,
 			}))
 		}
 	}

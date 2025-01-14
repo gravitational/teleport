@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,22 +50,19 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function MagnifyingMinus({
-  size = 24,
-  color,
-  ...otherProps
-}: IconProps) {
-  return (
+export const MagnifyingMinus = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-magnifyingminus"
       {...otherProps}
+      ref={ref}
     >
       <path
         d="M9.857 2.28C7.688 2.433 5.6 3.51 4.174 5.211a8.231 8.231 0 0 0 .002 10.578c1.46 1.737 3.441 2.752 5.733 2.939 1.983.161 4.131-.497 5.691-1.742l.18-.144 2.44 2.435c2.681 2.676 2.584 2.594 2.945 2.486.218-.065.533-.38.598-.598.108-.361.19-.264-2.486-2.945l-2.435-2.44.144-.18c1.457-1.825 2.074-4.374 1.614-6.669a8.269 8.269 0 0 0-5.139-6.129c-1.076-.42-2.372-.608-3.604-.522m1.531 1.541a6.733 6.733 0 0 1 5.791 5.791 6.738 6.738 0 0 1-4.374 7.226 6.785 6.785 0 0 1-4.61 0c-2.374-.875-4.052-2.966-4.374-5.45a6.683 6.683 0 0 1 1.917-5.65 6.684 6.684 0 0 1 5.65-1.917M7.092 9.843c-.454.225-.452 1.094.003 1.315.168.081.221.082 3.405.082 3.184 0 3.237-.001 3.405-.082.222-.108.335-.33.335-.658s-.113-.55-.335-.658c-.168-.081-.22-.082-3.408-.082-3.197 0-3.239.001-3.405.083"
         fillRule="evenodd"
       />
     </Icon>
-  );
-}
+  )
+);

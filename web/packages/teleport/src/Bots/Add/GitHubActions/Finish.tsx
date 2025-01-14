@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
 
+import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import Image from 'design/Image';
-
 import Text, { H2 } from 'design/Text';
-import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 
-import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
 import cfg from 'teleport/config';
+import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
 
 import { useGitHubFlow } from './useGitHubFlow';
 

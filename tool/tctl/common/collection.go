@@ -1792,7 +1792,7 @@ type workloadIdentityCollection struct {
 func (c *workloadIdentityCollection) resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.items))
 	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
+		r = append(r, types.ProtoResource153ToLegacy(resource))
 	}
 	return r
 }
@@ -1908,7 +1908,7 @@ type autoUpdateConfigCollection struct {
 }
 
 func (c *autoUpdateConfigCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.config)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.config)}
 }
 
 func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error {
@@ -1926,7 +1926,7 @@ type autoUpdateVersionCollection struct {
 }
 
 func (c *autoUpdateVersionCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.version)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.version)}
 }
 
 func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error {
@@ -1934,6 +1934,28 @@ func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error
 	t.AddRow([]string{
 		c.version.GetMetadata().GetName(),
 		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateAgentRolloutCollection struct {
+	rollout *autoupdatev1pb.AutoUpdateAgentRollout
+}
+
+func (c *autoUpdateAgentRolloutCollection) resources() []types.Resource {
+	return []types.Resource{types.ProtoResource153ToLegacy(c.rollout)}
+}
+
+func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Start Version", "Target Version", "Mode", "Schedule", "Strategy"})
+	t.AddRow([]string{
+		c.rollout.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetStartVersion()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetTargetVersion()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetAutoupdateMode()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

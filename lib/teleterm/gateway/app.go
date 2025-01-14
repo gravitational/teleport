@@ -19,8 +19,6 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
-	"net/url"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -31,15 +29,6 @@ import (
 
 type app struct {
 	*base
-}
-
-// LocalProxyURL returns the URL of the local proxy.
-func (a *app) LocalProxyURL() string {
-	proxyURL := url.URL{
-		Scheme: strings.ToLower(a.Protocol()),
-		Host:   a.LocalAddress() + ":" + a.LocalPort(),
-	}
-	return proxyURL.String()
 }
 
 func makeAppGateway(cfg Config) (Gateway, error) {
@@ -56,7 +45,7 @@ func makeAppGateway(cfg Config) (Gateway, error) {
 	}
 
 	middleware := &appMiddleware{
-		log: a.cfg.Log,
+		logger: a.cfg.Logger,
 		onExpiredCert: func(ctx context.Context) (tls.Certificate, error) {
 			cert, err := a.cfg.OnExpiredCert(ctx, a)
 			return cert, trace.Wrap(err)

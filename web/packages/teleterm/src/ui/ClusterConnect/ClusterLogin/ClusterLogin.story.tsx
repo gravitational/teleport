@@ -18,7 +18,7 @@
 import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
 import { ClusterLoginPresentation } from './ClusterLogin';
-import { TestContainer, makeProps } from './storyHelpers';
+import { makeProps, TestContainer } from './storyHelpers';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin',

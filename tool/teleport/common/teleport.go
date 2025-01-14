@@ -327,6 +327,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSPrintIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSPrintFlags.role)
 	dbConfigureAWSPrintIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSPrintFlags.user)
 	dbConfigureAWSPrintIAM.Flag("policy", "Only print IAM policy document.").BoolVar(&configureDatabaseAWSPrintFlags.policyOnly)
+	dbConfigureAWSPrintIAM.Flag("policy-name", fmt.Sprintf("Name of the Teleport Database agent policy. Default: %q.", awsconfigurators.DatabaseAccessPolicyName)).Default(awsconfigurators.DatabaseAccessPolicyName).StringVar(&configureDatabaseAWSPrintFlags.policyName)
 	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").Hidden().BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
 	dbConfigureAWSPrintIAM.Flag("assumes-roles",
 		"Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.").
@@ -1013,10 +1014,22 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 // user's privileges
 //
 // This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
-func onSCP(scpFlags *scp.Flags) (err error) {
+func onSCP(scpFlags *scp.Flags) error {
 	// when 'teleport scp' is executed, it cannot write logs to stderr (because
 	// they're automatically replayed by the scp client)
-	utils.SwitchLoggingToSyslog()
+	var verbosity string
+	if scpFlags.Verbose {
+		verbosity = teleport.DebugLevel
+	}
+	_, _, err := logutils.Initialize(logutils.Config{
+		Output:   teleport.Syslog,
+		Severity: verbosity,
+	})
+	if err != nil {
+		// If something went wrong, discard all logs and continue command execution.
+		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+	}
+
 	if len(scpFlags.Target) == 0 {
 		return trace.BadParameter("teleport scp: missing an argument")
 	}

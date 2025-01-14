@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { DatabaseEngine } from '../../SelectResource';
-
 import { MutualTlsView } from './MutualTls';
-
 import type { State } from './useMutualTls';
 
 export default {
