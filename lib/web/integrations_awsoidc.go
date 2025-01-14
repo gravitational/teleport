@@ -1200,8 +1200,14 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 }
 
 // awsOIDCCreateAWSAppAccess creates an AppServer that uses an AWS OIDC Integration for proxying access.
+// v2 endpoint introduces "labels" field
 func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
+
+	var req ui.AWSOIDCCreateAWSAppAccessRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
@@ -1230,9 +1236,11 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	labels := map[string]string{
-		constants.AWSAccountIDLabel: parsedRoleARN.AccountID,
+	labels := make(map[string]string)
+	if len(req.Labels) > 0 {
+		labels = req.Labels
 	}
+	labels[constants.AWSAccountIDLabel] = parsedRoleARN.AccountID
 
 	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr, labels)
 	if err != nil {
