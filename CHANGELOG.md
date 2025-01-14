@@ -1,5 +1,10 @@
 # Changelog
 
+## 17.1.6 (1/13/25)
+
+* Fix panic in EKS Auto Discovery. [#50998](https://github.com/gravitational/teleport/pull/50998)
+* Add trusted clusters support to Kubernetes operator. [#50995](https://github.com/gravitational/teleport/pull/50995)
+
 ## 17.1.5 (1/10/25)
 
 * Fixes an issue causing Azure join method to fail due to throttling. [#50928](https://github.com/gravitational/teleport/pull/50928)
