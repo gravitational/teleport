@@ -693,7 +693,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		{
 			name: "kube gateway",
-			inputGateway: fakeGateway{
+			inputGateway: fakeKubeGateway{
 				targetURI: uri.NewClusterURI("profile").AppendKube("kube"),
 			},
 			checkError: require.NoError,
@@ -721,7 +721,7 @@ type fakeGateway struct {
 }
 
 func (m fakeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
-func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() + m.targetURI.GetKubeName() }
+func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() }
 func (m fakeGateway) TargetUser() string            { return "alice" }
 func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeGateway) Protocol() string              { return defaults.ProtocolMongoDB }
@@ -729,7 +729,23 @@ func (m fakeGateway) Log() *logrus.Entry            { return nil }
 func (m fakeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeGateway) LocalPort() string             { return "8888" }
-func (m fakeGateway) KubeconfigPath() string        { return "test.kubeconfig" }
+
+type fakeKubeGateway struct {
+	gateway.Kube
+	targetURI       uri.ResourceURI
+	subresourceName string
+}
+
+func (m fakeKubeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
+func (m fakeKubeGateway) TargetName() string            { return m.targetURI.GetKubeName() }
+func (m fakeKubeGateway) TargetUser() string            { return "alice" }
+func (m fakeKubeGateway) TargetSubresourceName() string { return m.subresourceName }
+func (m fakeKubeGateway) Protocol() string              { return "" }
+func (m fakeKubeGateway) Log() *slog.Logger             { return nil }
+func (m fakeKubeGateway) LocalAddress() string          { return "localhost" }
+func (m fakeKubeGateway) LocalPortInt() int             { return 8888 }
+func (m fakeKubeGateway) LocalPort() string             { return "8888" }
+func (m fakeKubeGateway) KubeconfigPath() string        { return "test.kubeconfig" }
 
 type fakeStorage struct {
 	Storage
