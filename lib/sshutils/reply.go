@@ -84,16 +84,16 @@ func (r *Reply) RejectWithNewRemoteSessionError(ctx context.Context, nch ssh.New
 
 // ReplyError replies an error to an ssh.Request.
 func (r *Reply) ReplyError(ctx context.Context, req SSHRequest, err error) {
-	r.log.ErrorContext(ctx, "failure handling SSH request", "request_type", sshRequestType(req), "error", err)
+	r.log.WarnContext(ctx, "failure handling SSH request", "request_type", sshRequestType(req), "error", err)
 	if err := req.Reply(false, []byte(err.Error())); err != nil {
-		r.log.ErrorContext(ctx, "failed sending error Reply on SSH channel", "error", err)
+		r.log.WarnContext(ctx, "failed sending error Reply on SSH channel", "error", err)
 	}
 }
 
 // ReplyRequest replies to an ssh.Request with provided ok and payload.
 func (r *Reply) ReplyRequest(ctx context.Context, req SSHRequest, ok bool, payload []byte) {
 	if err := req.Reply(ok, payload); err != nil {
-		r.log.ErrorContext(ctx, "failed replying OK to SSH request", "request_type", sshRequestType(req), "error", err)
+		r.log.WarnContext(ctx, "failed replying OK to SSH request", "request_type", sshRequestType(req), "error", err)
 	}
 }
 

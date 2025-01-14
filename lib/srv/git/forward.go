@@ -421,13 +421,7 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 		return trace.Wrap(err, "failed to unmarshal exec request")
 	}
 
-	/* TODO(greedy52) enable command recorder for audit log
-	command, err := parseSSHCommand(r.Command)
-	if err != nil {
-		return trace.Wrap(err, "parsing ssh command %q", r.Command)
-	}
-	recorder := NewCommandRecorder(command)
-	*/
+	// TODO(greedy52) enable command recorder for audit log
 	sctx.remoteSession.Stdout = sctx.channel
 	sctx.remoteSession.Stderr = sctx.channel.Stderr()
 	remoteStdin, err := sctx.remoteSession.StdinPipe()
