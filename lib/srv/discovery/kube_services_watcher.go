@@ -20,7 +20,6 @@ package discovery
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -62,8 +61,7 @@ func (s *Server) startKubeAppsWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(appResources, types.Application.GetName)
 			},
-			// TODO(tross): update to use the server logger once it is converted to use slog
-			Logger:   slog.With("kind", types.KindApp),
+			Logger:   s.Log.With("kind", types.KindApp),
 			OnCreate: s.onAppCreate,
 			OnUpdate: s.onAppUpdate,
 			OnDelete: s.onAppDelete,

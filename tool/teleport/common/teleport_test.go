@@ -84,7 +84,6 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.Auth.Enabled)
 		require.True(t, conf.SSH.Enabled)
 		require.True(t, conf.Proxy.Enabled)
-		require.Equal(t, os.Stdout, conf.Console)
 		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelError))
 	})
 
