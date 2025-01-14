@@ -21,6 +21,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 	"testing"
 	"time"
@@ -60,11 +61,13 @@ func TestWatcher(t *testing.T) {
 	// watches for databases with label group=a.
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: []types.Database{db0},
-		ResourceMatchers: []services.ResourceMatcher{
-			{Labels: types.Labels{
+		ResourceMatchers: []services.ResourceMatcher{{
+			Labels: types.Labels{
 				"group": []string{"a"},
-			}},
-		},
+			},
+			// these should not be applied to non-AWS databases.
+			AWS: services.ResourceMatcherAWS{AssumeRoleARN: "some-role", ExternalID: "some-externalid"},
+		}},
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
 		},
@@ -137,7 +140,7 @@ func TestWatcher(t *testing.T) {
 // ResourceMatchers should be always evaluated for the dynamic registered
 // resources.
 func TestWatcherDynamicResource(t *testing.T) {
-	var db1, db2, db3, db4, db5 *types.DatabaseV3
+	var db1, db2, db3, db4, db5, db6 *types.DatabaseV3
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -247,6 +250,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// ResourceMatchers and has AssumeRoleARN set by the discovery service.
 		discoveredDB5, err := makeDiscoveryDatabase("db5", map[string]string{"group": "b"}, withRDSURL, withDiscoveryAssumeRoleARN)
 		require.NoError(t, err)
+		require.True(t, discoveredDB5.IsAWSHosted())
 		require.True(t, discoveredDB5.IsRDS())
 
 		err = testCtx.authServer.CreateDatabase(ctx, discoveredDB5)
@@ -260,6 +264,22 @@ func TestWatcherDynamicResource(t *testing.T) {
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
 	})
 
+	t.Run("non-AWS discovery resource - AssumeRoleARN not applied", func(t *testing.T) {
+		// Created a discovery service created database resource that matches
+		// ResourceMatchers but is not an AWS database
+		_, azureDB := makeAzureSQLServer(t, "discovery-azure", "group")
+		setLabels(azureDB, map[string]string{"group": "b"})
+		azureDB.SetOrigin(types.OriginCloud)
+		require.False(t, azureDB.IsAWSHosted())
+		require.True(t, azureDB.GetAWS().IsEmpty())
+		require.True(t, azureDB.IsAzure())
+		err = testCtx.authServer.CreateDatabase(ctx, azureDB)
+		require.NoError(t, err)
+
+		db6 = azureDB.Copy()
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
+	})
+
 	t.Run("discovery resource - fail check", func(t *testing.T) {
 		// Created a discovery service created database resource that fails the
 		// fakeDiscoveryResourceChecker.
@@ -268,18 +288,16 @@ func TestWatcherDynamicResource(t *testing.T) {
 		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
 
 		// dbFailCheck should not be proxied.
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
 	})
 }
 
-func setDiscoveryGroupLabel(r types.ResourceWithLabels, discoveryGroup string) {
+func setLabels(r types.ResourceWithLabels, newLabels map[string]string) {
 	staticLabels := r.GetStaticLabels()
 	if staticLabels == nil {
 		staticLabels = make(map[string]string)
 	}
-	if discoveryGroup != "" {
-		staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	}
+	maps.Copy(staticLabels, newLabels)
 	r.SetStaticLabels(staticLabels)
 }
 
@@ -292,13 +310,14 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	redshiftServerlessDatabase, err := discovery.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
-	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
 	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
 	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, types.AWSMatcherRedshiftServerless)
+	require.Empty(t, redshiftServerlessDatabase.GetAWS().AssumeRoleARN)
+	require.Empty(t, redshiftServerlessDatabase.GetAWS().ExternalID)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
-	setDiscoveryGroupLabel(azSQLServerDatabase, "")
 	azSQLServerDatabase.SetOrigin(types.OriginCloud)
+	require.False(t, azSQLServerDatabase.IsAWSHosted())
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -308,6 +327,13 @@ func TestWatcherCloudFetchers(t *testing.T) {
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
 		},
+		ResourceMatchers: []services.ResourceMatcher{{
+			Labels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AWS: services.ResourceMatcherAWS{
+				AssumeRoleARN: "role-arn",
+				ExternalID:    "external-id",
+			},
+		}},
 		CloudClients: &clients.TestCloudClients{
 			RDS: &mocks.RDSMockUnauth{}, // Access denied error should not affect other fetchers.
 			RedshiftServerless: &mocks.RedshiftServerlessMock{
@@ -341,7 +367,7 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 	select {
 	case d := <-ch:
 		sort.Sort(d)
-		require.Equal(t, len(d), len(databases))
+		require.Equal(t, len(databases), len(d))
 		require.Empty(t, cmp.Diff(databases, d,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
