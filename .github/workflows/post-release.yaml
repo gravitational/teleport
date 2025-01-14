@@ -122,4 +122,6 @@ jobs:
           gh pr create --fill "--base=${BASE_BRANCH}" \
              --label=automated --label=documentation --label=no-changelog \
              "--reviewer=${REVIEWER}"
-           echo "Docs PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
+          # enable auto-merge
+          gh pr merge --auto --squash
+          echo "Docs PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
