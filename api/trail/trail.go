@@ -42,12 +42,12 @@ package trail
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"runtime"
 
 	"github.com/gravitational/trace"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -71,7 +71,7 @@ func ToGRPC(originalErr error) error {
 	code := codes.Unknown
 	returnOriginal := false
 	traverseErr(originalErr, func(err error) (ok bool) {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			// Keep legacy semantics and return the original error.
 			returnOriginal = true
 			return true
@@ -89,30 +89,42 @@ func ToGRPC(originalErr error) error {
 		}
 
 		ok = true // Assume match
-		switch err.(type) {
-		case *trace.AccessDeniedError:
+
+		var (
+			accessDeniedErr      *trace.AccessDeniedError
+			alreadyExistsErr     *trace.AlreadyExistsError
+			badParameterErr      *trace.BadParameterError
+			compareFailedErr     *trace.CompareFailedError
+			connectionProblemErr *trace.ConnectionProblemError
+			limitExceededErr     *trace.LimitExceededError
+			notFoundErr          *trace.NotFoundError
+			notImplementedErr    *trace.NotImplementedError
+			oauthErr             *trace.OAuth2Error
+		)
+		if errors.As(err, &accessDeniedErr) {
 			code = codes.PermissionDenied
-		case *trace.AlreadyExistsError:
+		} else if errors.As(err, &alreadyExistsErr) {
 			code = codes.AlreadyExists
-		case *trace.BadParameterError:
+		} else if errors.As(err, &badParameterErr) {
 			code = codes.InvalidArgument
-		case *trace.CompareFailedError:
+		} else if errors.As(err, &compareFailedErr) {
 			code = codes.FailedPrecondition
-		case *trace.ConnectionProblemError:
+		} else if errors.As(err, &connectionProblemErr) {
 			code = codes.Unavailable
-		case *trace.LimitExceededError:
+		} else if errors.As(err, &limitExceededErr) {
 			code = codes.ResourceExhausted
-		case *trace.NotFoundError:
+		} else if errors.As(err, &notFoundErr) {
 			code = codes.NotFound
-		case *trace.NotImplementedError:
+		} else if errors.As(err, &notImplementedErr) {
 			code = codes.Unimplemented
-		case *trace.OAuth2Error:
+		} else if errors.As(err, &oauthErr) {
 			code = codes.InvalidArgument
-		// *trace.RetryError not mapped.
-		// *trace.TrustError not mapped.
-		default:
+		} else {
+			// *trace.RetryError not mapped.
+			// *trace.TrustError not mapped.
 			ok = false
 		}
+
 		return ok
 	})
 	if returnOriginal {
@@ -162,7 +174,8 @@ func FromGRPC(err error, args ...interface{}) error {
 			// We return here because if it's a trace.Error then
 			// frames was already extracted from metadata so
 			// there's no need to capture frames once again.
-			if _, ok := e.(trace.Error); ok {
+			var traceErr trace.Error
+			if errors.As(e, &traceErr) {
 				return e
 			}
 		}
@@ -174,9 +187,11 @@ func FromGRPC(err error, args ...interface{}) error {
 // setDebugInfo adds debug metadata about error (traces, original error)
 // to request metadata as encoded property
 func setDebugInfo(err error, meta metadata.MD) {
-	if _, ok := err.(*trace.TraceErr); !ok {
+	var traceErr trace.Error
+	if !errors.As(err, &traceErr) {
 		return
 	}
+
 	out, err := json.Marshal(err)
 	if err != nil {
 		return
@@ -222,12 +237,23 @@ func traverseErr(err error, fn func(error) (ok bool)) (ok bool) {
 		return true
 	}
 
-	switch err := err.(type) {
-	case interface{ Unwrap() error }:
-		return traverseErr(err.Unwrap(), fn)
+	type singleUnwrap interface {
+		Unwrap() error
+	}
 
-	case interface{ Unwrap() []error }:
-		for _, err2 := range err.Unwrap() {
+	type aggregateUnwrap interface {
+		Unwrap() []error
+	}
+
+	var singleErr singleUnwrap
+	var aggregateErr aggregateUnwrap
+
+	if errors.As(err, &singleErr) {
+		return traverseErr(singleErr.Unwrap(), fn)
+	}
+
+	if errors.As(err, &aggregateErr) {
+		for _, err2 := range aggregateErr.Unwrap() {
 			if traverseErr(err2, fn) {
 				return true
 			}

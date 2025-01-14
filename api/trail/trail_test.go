@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -113,7 +112,7 @@ func TestConversion(t *testing.T) {
 // TestNil makes sure conversions of nil to and from GRPC are no-op
 func TestNil(t *testing.T) {
 	out := FromGRPC(ToGRPC(nil))
-	assert.Nil(t, out)
+	assert.NoError(t, out)
 }
 
 // TestFromEOF makes sure that non-grpc error such as io.EOF is preserved well.
@@ -165,7 +164,7 @@ func TestToGRPC_statusError(t *testing.T) {
 		{
 			name: "wrapped status",
 			err:  err2,
-			want: status.Errorf(codes.NotFound, err2.Error()),
+			want: status.Errorf(codes.NotFound, "%s", err2.Error()),
 		},
 	}
 	for _, test := range tests {
