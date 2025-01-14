@@ -725,6 +725,8 @@ func mustConnectWebAppGateway(ctx context.Context, t *testing.T, _ *daemon.Servi
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+type testGatewayConnectionFunc func(context.Context, *testing.T, *daemon.Service, gateway.Gateway)
+
 func makeMustConnectMultiPortTCPAppGateway(wantMessage string, otherTargetPort int, otherWantMessage string) testGatewayConnectionFunc {
 	return func(ctx context.Context, t *testing.T, d *daemon.Service, gw gateway.Gateway) {
 		t.Helper()
