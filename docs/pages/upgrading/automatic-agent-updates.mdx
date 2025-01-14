@@ -39,8 +39,27 @@ regular maintenance window.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport agents that are not yet enrolled in automatic updates.
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
-- (!docs/pages/includes/tctl.mdx!)
+
+The `tctl` and `tsh` client tools version >= 15.4.24. Read
+[Installation](../installation.mdx) for how to install these.
+
+To check that you can connect to your Teleport cluster, sign in with `tsh login`, then 
+verify that you can run `tctl` commands using your current credentials. 
+
+For example:
+
+```code
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
+$ tctl status
+# Cluster  teleport.example.com
+# Version  16.4.12
+# CA pin   sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678
+```
+
+If you can connect to the cluster and run the `tctl status` command, you can use your
+current credentials to run subsequent `tctl` commands from your workstation.
+If you host your own Teleport cluster, you can also run `tctl` commands on the computer that 
+hosts the Teleport Auth Service for full permissions.
 
 ## Step 1/4. Enable automatic agent upgrades
 
