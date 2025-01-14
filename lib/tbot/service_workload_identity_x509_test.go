@@ -89,7 +89,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
 		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
 			&config.WorkloadIdentityX509Service{
-				WorkloadIdentity: config.WorkloadIdentitySelector{
+				Selector: config.WorkloadIdentitySelector{
 					Name: workloadIdentity.GetMetadata().GetName(),
 				},
 				Destination: &config.DestinationDirectory{
@@ -119,7 +119,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		onboarding, _ := makeBot(t, rootClient, "by-labels", role.GetName())
 		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
 			&config.WorkloadIdentityX509Service{
-				WorkloadIdentity: config.WorkloadIdentitySelector{
+				Selector: config.WorkloadIdentitySelector{
 					Labels: map[string][]string{
 						"foo": {"bar"},
 					},

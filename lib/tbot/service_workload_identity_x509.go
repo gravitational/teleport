@@ -193,7 +193,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		ctx,
 		s.log,
 		impersonatedClient,
-		s.cfg.WorkloadIdentity,
+		s.cfg.Selector,
 		s.botCfg.CertificateTTL,
 		nil,
 	)

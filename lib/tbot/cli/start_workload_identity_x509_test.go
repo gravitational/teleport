@@ -53,7 +53,7 @@ func TestWorkloadIdentityX509Command(t *testing.T) {
 				require.Equal(t, map[string][]string{
 					"*":   {"*"},
 					"foo": {"bar"},
-				}, wis.WorkloadIdentity.Labels)
+				}, wis.Selector.Labels)
 			},
 		},
 		{
@@ -80,7 +80,7 @@ func TestWorkloadIdentityX509Command(t *testing.T) {
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 
-				require.Equal(t, "jim", wis.WorkloadIdentity.Name)
+				require.Equal(t, "jim", wis.Selector.Name)
 			},
 		},
 	})

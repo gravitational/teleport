@@ -56,7 +56,7 @@ services:
       - access
     app_name: my-app
   - type: workload-identity-x509
-    workload_identity:
+    selector:
       name: my-workload-identity
     destination:
       type: directory
