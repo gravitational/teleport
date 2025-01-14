@@ -433,14 +433,14 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBTableReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBTableWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s", l.Tablename),
-				readPolicy:     fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
+				readPolicy:     fmt.Sprintf("%s-read-target-tracking-scaling-policy", l.Tablename),
 				writePolicy:    fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
 			},
 			{
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBIndexReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBIndexWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s/index/%s", l.Tablename, indexTimeSearchV2),
-				readPolicy:     fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
+				readPolicy:     fmt.Sprintf("%s/index/%s-read-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 				writePolicy:    fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 			},
 		}
@@ -468,20 +468,39 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 
 			// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 			// provisioned capacity DynamoDB will try and maintain.
-			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
-				PolicyName:        aws.String(p.readPolicy),
-				PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
-				ResourceId:        aws.String(p.resourceID),
-				ScalableDimension: p.readDimension,
-				ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
-				TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
-					PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
-						PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+			for i := 0; i < 2; i++ {
+				if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
+					PolicyName:        aws.String(p.readPolicy),
+					PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
+					ResourceId:        aws.String(p.resourceID),
+					ScalableDimension: p.readDimension,
+					ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
+						PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
+							PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+						},
+						TargetValue: aws.Float64(l.ReadTargetValue),
 					},
-					TargetValue: aws.Float64(l.ReadTargetValue),
-				},
-			}); err != nil {
-				return trace.Wrap(convertError(err))
+				}); err != nil {
+					// The read policy name was accidentally changed to match the write policy in 17.0.0-17.1.4. This
+					// prevented upgrading a cluster with autoscaling enabled from v16 to v17. To resolve in
+					// a backwards compatible way, the read policy name was restored, however, any new clusters that
+					// were created between 17.0.0 and 17.1.4 need to have the misnamed policy deleted and recreated
+					// with the correct name.
+					if i == 1 || !strings.Contains(err.Error(), "ValidationException: Only one TargetTrackingScaling policy for a given metric specification is allowed.") {
+						return trace.Wrap(convertError(err))
+					}
+
+					l.logger.DebugContext(ctx, "Fixing incorrectly named scaling policy")
+					if _, err := svc.DeleteScalingPolicy(ctx, &applicationautoscaling.DeleteScalingPolicyInput{
+						PolicyName:        aws.String(p.writePolicy),
+						ResourceId:        aws.String(p.resourceID),
+						ScalableDimension: p.readDimension,
+						ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					}); err != nil {
+						return trace.Wrap(convertError(err))
+					}
+				}
 			}
 
 			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
