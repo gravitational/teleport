@@ -3432,30 +3432,7 @@ func (l promHTTPLogAdapter) Println(v ...interface{}) {
 // prometheus consumption
 func (process *TeleportProcess) initMetricsService() error {
 	mux := http.NewServeMux()
-
-	// We gather metrics both from the in-process registry (preferred metrics registration method)
-	// and the global registry (used by some Teleport services and many dependencies).
-	gatherers := prometheus.Gatherers{
-		process.metricsRegistry,
-		prometheus.DefaultGatherer,
-	}
-
-	metricsHandler := promhttp.InstrumentMetricHandler(
-		process.metricsRegistry, promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{
-			// Errors can happen if metrics are registered with identical names in both the local and the global registry.
-			// In this case, we log the error but continue collecting metrics. The first collected metric will win
-			// (the one from the local metrics registry takes precedence).
-			// As we move more things to the local registry, especially in other tools like tbot, we will have less
-			// conflicts in tests.
-			ErrorHandling: promhttp.ContinueOnError,
-			ErrorLog: promHTTPLogAdapter{
-				ctx:    process.ExitContext(),
-				Logger: process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics),
-			},
-		}),
-	)
-
-	mux.Handle("/metrics", metricsHandler)
+	mux.Handle("/metrics", process.newMetricsHandler())
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentMetrics, process.id))
 
@@ -3540,6 +3517,33 @@ func (process *TeleportProcess) initMetricsService() error {
 	return nil
 }
 
+// newMetricsHandler creates a new metrics handler serving metrics both from the global prometheus registry and the
+// in-process one.
+func (process *TeleportProcess) newMetricsHandler() http.Handler {
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	gatherers := prometheus.Gatherers{
+		process.metricsRegistry,
+		prometheus.DefaultGatherer,
+	}
+
+	metricsHandler := promhttp.InstrumentMetricHandler(
+		process.metricsRegistry, promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{
+			// Errors can happen if metrics are registered with identical names in both the local and the global registry.
+			// In this case, we log the error but continue collecting metrics. The first collected metric will win
+			// (the one from the local metrics registry takes precedence).
+			// As we move more things to the local registry, especially in other tools like tbot, we will have less
+			// conflicts in tests.
+			ErrorHandling: promhttp.ContinueOnError,
+			ErrorLog: promHTTPLogAdapter{
+				ctx:    process.ExitContext(),
+				Logger: process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics),
+			},
+		}),
+	)
+	return metricsHandler
+}
+
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
@@ -3549,7 +3553,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// metrics will otherwise be served by the metrics service if it's enabled
 	// in the config.
 	if !process.Config.Metrics.Enabled {
-		mux.Handle("/metrics", promhttp.Handler())
+		mux.Handle("/metrics", process.newMetricsHandler())
 	}
 
 	if process.Config.Debug {
