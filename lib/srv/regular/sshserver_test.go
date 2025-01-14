@@ -3103,7 +3103,7 @@ func newGitServerWatcher(ctx context.Context, t *testing.T, client *authclient.C
 			Component: "test",
 			Client:    client,
 		},
-		GitServerGetter: client,
+		GitServerGetter: client.GitServerReadOnlyClient(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(watcher.Close)

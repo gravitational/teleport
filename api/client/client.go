@@ -4947,22 +4947,9 @@ func (c *Client) GitServerClient() *gitserverclient.Client {
 	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
 }
 
-// ListGitServers returns all Git servers matching filter.
-// This method is available from GitServerClient but also defined here for
-// Client to satisfy some read only interfaces like
-// authclient.ReadProxyAccessPoint.
-func (c *Client) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	servers, token, err := c.GitServerClient().ListGitServers(ctx, pageSize, pageToken)
-	return servers, token, trace.Wrap(err)
-}
-
-// GetGitServer returns Git servers by name.
-// This method is available from GitServerClient but also defined here for
-// Client to satisfy some read only interfaces like
-// authclient.ReadProxyAccessPoint.
-func (c *Client) GetGitServer(ctx context.Context, name string) (types.Server, error) {
-	server, err := c.GitServerClient().GetGitServer(ctx, name)
-	return server, trace.Wrap(err)
+// GitServerReadOnlyClient returns the read-only client for Git servers.
+func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
+	return c.GitServerClient()
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

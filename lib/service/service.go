@@ -4351,7 +4351,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Client:       accessPoint,
 			MaxStaleness: time.Minute,
 		},
-		GitServerGetter: accessPoint,
+		GitServerGetter: accessPoint.GitServerReadOnlyClient(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

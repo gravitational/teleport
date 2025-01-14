@@ -405,7 +405,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			Component: teleport.ComponentProxy,
 			Client:    s.proxyClient,
 		},
-		GitServerGetter: s.proxyClient,
+		GitServerGetter: s.proxyClient.GitServerReadOnlyClient(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(proxyGitServerWatcher.Close)
@@ -8286,7 +8286,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			Component: teleport.ComponentProxy,
 			Client:    client,
 		},
-		GitServerGetter: client,
+		GitServerGetter: client.GitServerReadOnlyClient(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(proxyGitServerWatcher.Close)

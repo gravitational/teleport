@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -321,8 +322,8 @@ type ReadProxyAccessPoint interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
-	// GitServerGetter defines a service to get Git servers.
-	services.GitServerGetter
+	// GitServerReadOnlyClient returns the read-only client for Git servers.
+	GitServerReadOnlyClient() gitserver.ReadOnlyClient
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
