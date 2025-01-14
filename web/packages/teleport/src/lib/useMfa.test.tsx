@@ -27,7 +27,7 @@ import {
   MfaChallengeResponse,
 } from 'teleport/services/mfa';
 
-import { useMfa } from './useMfa';
+import { MfaCanceledError, useMfa } from './useMfa';
 
 const mockChallenge: MfaAuthenticateChallenge = {
   webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
@@ -234,15 +234,16 @@ describe('useMfa', () => {
 
     mfa.current.cancelAttempt();
 
-    await expect(respPromise).rejects.toThrow(
-      new Error('User canceled MFA attempt')
-    );
+    await expect(respPromise).rejects.toThrow(new MfaCanceledError());
 
     // If the user cancels the MFA attempt and closes the dialog, the mfa status
     // should be 'success', or else the dialog would remain open to display the error.
     // This error is meant to be handled by the caller.
     await waitFor(() => {
-      expect(mfa.current.attempt.status).toEqual('success');
+      expect(mfa.current.attempt.status).toEqual('error');
     });
+    expect(
+      mfa.current.attempt.status === 'error' && mfa.current.attempt.error
+    ).toEqual(new MfaCanceledError());
   });
 });
