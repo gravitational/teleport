@@ -1,0 +1,27 @@
+---
+title: WorkloadIdentity Resource
+description: Information about the WorkloadIdentity resource
+---
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: my-workload
+  labels:
+    example: foo
+spec:
+  spiffe:
+    id: /foo/bar/{{ join.kubernetes.pod.name }}/{{ join.kubernetes.service_account.name }}
+    hint: /foo/bars
+```
+
+## Rules
+
+## Templating
+
+The following fields support templating:
+
+- `spec.spiffe.id`
+- `spec.spiffe.hint`
+

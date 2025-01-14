@@ -367,19 +367,21 @@ Outputs, they may not necessarily generate artifacts. Typically, services
 provide supporting functionality for machine to machine access, for example,
 opening tunnels or providing APIs.
 
-### `spiffe-workload-api`
+### `workload-identity-api`
 
-The `spiffe-workload-api` service opens a listener for a service that implements
-the SPIFFE Workload API. This service is used to provide SPIFFE SVIDs to
-workloads.
+The `workload-identity-api` services opens a listener that provides a local
+workload identity API, intended to serve workload identity credentials
+(e.g X509/JWT SPIFFE SVIDs) to workloads running on the same host.
 
-See [Workload Identity](../../enroll-resources/workload-identity/introduction.mdx) for more information on the
-SPIFFE Workload API.
+It implements the SPIFFE Workload API and the Envoy SDS API.
+
+See [Workload Identity API Service](../../enroll-resources/workload-identity/introduction.mdx)
+for more information on Teleport Workload Identity.
 
 ```yaml
-# type specifies the type of the service. For the SPIFFE Workload API service,
-# this will always be `spiffe-workload-api`.
-type: spiffe-workload-api
+# type specifies the type of the service. For the Workload Identity API service,
+# this will always be `workload-identity-api`.
+type: workload-identity-api
 # listen specifies the address that the service should listen on.
 #
 # Two types of listener are supported:
@@ -500,10 +502,10 @@ service, three additional special names can be used to aid configuration:
 
 - `default`: `tbot` will return the default SVID for the workload.
 - `ROOTCA`: `tbot` will return the trust bundle for the trust domain that the
-   workload is a member of.
+workload is a member of.
 - `ALL`: `tbot` will return the trust bundle for the trust domain that the
-  workload is a member of, as well as the trust bundles of any trust domain
-  that the trust domain is federated with.
+workload is a member of, as well as the trust bundles of any trust domain
+that the trust domain is federated with.
 
 The following is an example Envoy configuration that sources a certificate
 and trust bundle from the `spiffe-workload-api` service listening on
@@ -609,6 +611,124 @@ static_resources:
                       # Configure the path to the socket that `tbot` is
                       # listening on.
                       path: /opt/machine-id/workload.sock
+```
+
+### `spiffe-workload-api`
+
+<Admonition type="warning" >
+The use of this service has been deprecated as part of the introduction of the
+new Workload Identity configuration experience. You can replace the use of this
+service with the new `workload-identity-api` service.
+
+For further information, see [the new Workload Identity configuration experience
+and how to migrate](../workload-identity/new-configuration-experience.mdx).
+</Admonition>
+
+The `spiffe-workload-api` service opens a listener for a service that implements
+the SPIFFE Workload API. This service is used to provide SPIFFE SVIDs to
+workloads.
+
+See [Workload Identity](../../enroll-resources/workload-identity/introduction.mdx) for more information on the
+SPIFFE Workload API.
+
+```yaml
+# type specifies the type of the service. For the SPIFFE Workload API service,
+# this will always be `spiffe-workload-api`.
+type: spiffe-workload-api
+# listen specifies the address that the service should listen on.
+#
+# Two types of listener are supported:
+# - TCP: `tcp://<address>:<port>`
+# - Unix socket: `unix:///<path>`
+listen: unix:///opt/machine-id/workload.sock
+# attestors allows Workload Attestation to be configured for this Workload
+# API.
+attestors:
+  # kubernetes is configuration for the Kubernetes Workload Attestor. See
+  # the Kubernetes Workload Attestor section for more information.
+  kubernetes:
+    # enabled specifies whether the Kubernetes Workload Attestor should be
+    # enabled. If unspecified, this defaults to false.
+    enabled: true
+    # kubelet holds configuration relevant to the Kubernetes Workload Attestors
+    # interaction with the Kubelet API.
+    kubelet:
+      # read_only_port is the port on which the Kubelet API is exposed for
+      # read-only operations. Since Kubernetes 1.16, the read-only port is
+      # typically disabled by default and secure_port should be used instead.
+      read_only_port: 10255
+      # secure_port is the port on which the attestor should connect to the
+      # Kubelet secure API. If unspecified, this defaults to `10250`. This is
+      # mutually exclusive with ReadOnlyPort.
+      secure_port: 10250
+      # token_path is the path to the token file that the Kubelet API client
+      # should use to authenticate with the Kubelet API. If unspecified, this
+      # defaults to `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+      token_path: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+      # ca_path is the path to the CA file that the Kubelet API client should
+      # use to validate the Kubelet API server's certificate. If unspecified,
+      # this defaults to `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`.
+      ca_path: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+      # skip_verify is used to disable verification of the Kubelet API server's
+      # certificate. If unspecified, this defaults to false.
+      #
+      # If specified, the value specified in ca_path is ignored.
+      #
+      # This is useful in cases where the Kubelet API server has not been issued
+      # with a certificate signed by the Kubernetes cluster's CA. This is fairly
+      # common with a number of Kubernetes distributions.
+      skip_verify: true
+      # anonymous is used to disable authentication with the Kubelet API. If
+      # unspecified, this defaults to false. If set, the token_path field is
+      # ignored.
+      anonymous: false
+# svids specifies the SPIFFE SVIDs that the Workload API should provide.
+svids:
+    # path specifies what the path element should be requested for the SPIFFE
+    # ID.
+  - path: /svc/foo
+    # hint is a free-form string which can be used to help workloads determine
+    # which SVID to select when multiple are available. If omitted, no hint is
+    # included.
+    hint: my-hint
+    # sans specifies optional Subject Alternative Names (SANs) to include in the
+    # generated X509 SVID. If omitted, no SANs are included.
+    sans:
+      # dns specifies the DNS SANs. If omitted, no DNS SANs are included.
+      dns:
+        - foo.svc.example.com
+      # ip specifies the IP SANs. If omitted, no IP SANs are included.
+      ip:
+        - 10.0.0.1
+    # rules specifies a list of workload attestation rules. At least one of
+    # these rules must be satisfied by the workload in order for it to receive
+    # this SVID.
+    #
+    # If no rules are specified, the SVID will be issued to all workloads that
+    # connect to this service.
+    rules:
+        # unix is a group of workload attestation criteria that are available
+        # when the workload is running on the same host, and is connected to
+        # the Workload API using a Unix socket.
+        #
+        # If any of the criteria in this group are specified, then workloads
+        # that do not connect using a Unix socket will not receive this SVID.
+      - unix:
+          # uid is the ID of the user that the workload process must be running
+          # as to receive this SVID.
+          #
+          # If unspecified, the UID is not checked.
+          uid: 1000
+          # pid is the ID that the workload process must have to receive this
+          # SVID.
+          #
+          # If unspecified, the PID is not checked.
+          pid: 1234
+          # gid is the ID of the primary group that the workload process must be
+          # running as to receive this SVID.
+          #
+          # If unspecified, the GID is not checked.
+          gid: 50
 ```
 
 ### `database-tunnel`
