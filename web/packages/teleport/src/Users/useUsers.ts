@@ -127,6 +127,7 @@ export default function useUsers({
   const showMauInfo =
     ctx.getFeatureFlags().billing &&
     cfg.isUsageBasedBilling &&
+    !cfg.isDashboard &&
     !storageService.getUsersMauAcknowledged();
 
   const usersAcl = ctx.storeUser.getUserAccess();

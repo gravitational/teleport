@@ -1859,6 +1859,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// Set entitlements with backwards field compatibility
 	setEntitlementsWithLegacyLogic(&webCfg, clusterFeatures)
 
+	// always hide inaccessible features on dashboards
+	if services.IsDashboard(clusterFeatures) {
+		webCfg.HideInaccessibleFeatures = true
+	}
+
 	resource, err := h.cfg.ProxyClient.GetClusterName()
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to query cluster name", "error", err)
