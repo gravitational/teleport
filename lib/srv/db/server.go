@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -68,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -138,6 +140,10 @@ type Config struct {
 	CADownloader CADownloader
 	// CloudClients creates cloud API clients.
 	CloudClients clients.Clients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+	// AWSDatabaseFetcherFactory provides AWS database fetchers
+	AWSDatabaseFetcherFactory *db.AWSFetcherFactory
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
@@ -192,12 +198,30 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		}
 		c.CloudClients = cloudClients
 	}
+	if c.AWSConfigProvider == nil {
+		provider, err := awsconfig.NewCache()
+		if err != nil {
+			return trace.Wrap(err, "unable to create AWS config provider cache")
+		}
+		c.AWSConfigProvider = provider
+	}
+	if c.AWSDatabaseFetcherFactory == nil {
+		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+			CloudClients:      c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.AWSDatabaseFetcherFactory = factory
+	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
-			AuthClient:  c.AuthClient,
-			AccessPoint: c.AccessPoint,
-			Clock:       c.Clock,
-			Clients:     c.CloudClients,
+			AuthClient:        c.AuthClient,
+			AccessPoint:       c.AccessPoint,
+			Clock:             c.Clock,
+			Clients:           c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -226,7 +250,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
-			Clients: c.CloudClients,
+			Clients:           c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -234,9 +259,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			AccessPoint: c.AccessPoint,
-			Clients:     c.CloudClients,
-			HostID:      c.HostID,
+			AccessPoint:       c.AccessPoint,
+			AWSConfigProvider: c.AWSConfigProvider,
+			Clients:           c.CloudClients,
+			HostID:            c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -282,9 +308,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 
 	if c.discoveryResourceChecker == nil {
 		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
-			ResourceMatchers: c.ResourceMatchers,
-			Clients:          c.CloudClients,
-			Context:          ctx,
+			ResourceMatchers:  c.ResourceMatchers,
+			Clients:           c.CloudClients,
+			AWSConfigProvider: c.AWSConfigProvider,
+			Context:           ctx,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -364,9 +391,10 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
-func (m *monitoredDatabases) isCloud(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// isCloud_Locked returns whether a database was discovered by the cloud
+// watchers, aka legacy database discovery done by the db service.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isCloud_Locked(database types.Database) bool {
 	for i := range m.cloud {
 		if m.cloud[i] == database {
 			return true
@@ -375,13 +403,17 @@ func (m *monitoredDatabases) isCloud(database types.Database) bool {
 	return false
 }
 
-func (m *monitoredDatabases) isDiscoveryResource(database types.Database) bool {
-	return database.Origin() == types.OriginCloud && m.isResource(database)
+// isDiscoveryResource_Locked returns whether a database was discovered by the
+// discovery service.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isDiscoveryResource_Locked(database types.Database) bool {
+	return database.Origin() == types.OriginCloud && m.isResource_Locked(database)
 }
 
-func (m *monitoredDatabases) isResource(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// isResource_Locked returns whether a database is a dynamic database, aka a db
+// object.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isResource_Locked(database types.Database) bool {
 	for i := range m.resources {
 		if m.resources[i] == database {
 			return true
@@ -390,9 +422,9 @@ func (m *monitoredDatabases) isResource(database types.Database) bool {
 	return false
 }
 
-func (m *monitoredDatabases) get() map[string]types.Database {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// getLocked returns a slice containing all of the monitored databases.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) getLocked() map[string]types.Database {
 	return utils.FromSlice(append(append(m.static, m.resources...), m.cloud...), types.Database.GetName)
 }
 

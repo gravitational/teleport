@@ -28,14 +28,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 
@@ -286,7 +285,7 @@ func NewDatabaseFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers
 }
 
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
-func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error) {
+func NewDatabaseFromRDSInstance(instance *rdstypes.DBInstance) (types.Database, error) {
 	endpoint := instance.Endpoint
 	if endpoint == nil {
 		return nil, trace.BadParameter("empty endpoint")
@@ -295,7 +294,7 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineToProtocol(aws.StringValue(instance.Engine))
+	protocol, err := rdsEngineToProtocol(aws.ToString(instance.Engine))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,10 +303,10 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
 			Labels:      labelsFromRDSInstance(instance, metadata),
-		}, aws.StringValue(instance.DBInstanceIdentifier)),
+		}, aws.ToString(instance.DBInstanceIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt32(endpoint.Port)),
 			AWS:      *metadata,
 		})
 }
@@ -323,7 +322,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdstypes.DBInstance) (types.Database
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineToProtocol(aws.StringValue(instance.Engine))
+	protocol, err := rdsEngineToProtocol(aws.ToString(instance.Engine))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -331,9 +330,9 @@ func NewDatabaseFromRDSV2Instance(instance *rdstypes.DBInstance) (types.Database
 	uri := ""
 	if instance.Endpoint != nil && instance.Endpoint.Address != nil {
 		if instance.Endpoint.Port != nil {
-			uri = fmt.Sprintf("%s:%d", aws.StringValue(instance.Endpoint.Address), *instance.Endpoint.Port)
+			uri = fmt.Sprintf("%s:%d", aws.ToString(instance.Endpoint.Address), *instance.Endpoint.Port)
 		} else {
-			uri = aws.StringValue(instance.Endpoint.Address)
+			uri = aws.ToString(instance.Endpoint.Address)
 		}
 	}
 
@@ -341,7 +340,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdstypes.DBInstance) (types.Database
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
 			Labels:      labelsFromRDSV2Instance(instance, metadata),
-		}, aws.StringValue(instance.DBInstanceIdentifier)),
+		}, aws.ToString(instance.DBInstanceIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
 			URI:      uri,
@@ -352,7 +351,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdstypes.DBInstance) (types.Database
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
 // It uses aws sdk v2.
 func MetadataFromRDSV2Instance(rdsInstance *rdstypes.DBInstance) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
+	parsedARN, err := arn.Parse(aws.ToString(rdsInstance.DBInstanceArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -363,10 +362,10 @@ func MetadataFromRDSV2Instance(rdsInstance *rdstypes.DBInstance) (*types.AWS, er
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			InstanceID:     aws.StringValue(rdsInstance.DBInstanceIdentifier),
-			ClusterID:      aws.StringValue(rdsInstance.DBClusterIdentifier),
-			ResourceID:     aws.StringValue(rdsInstance.DbiResourceId),
-			IAMAuth:        aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
+			InstanceID:     aws.ToString(rdsInstance.DBInstanceIdentifier),
+			ClusterID:      aws.ToString(rdsInstance.DBClusterIdentifier),
+			ResourceID:     aws.ToString(rdsInstance.DbiResourceId),
+			IAMAuth:        aws.ToBool(rdsInstance.IAMDatabaseAuthenticationEnabled),
 			Subnets:        subnets,
 			VPCID:          vpcID,
 			SecurityGroups: rdsSecurityGroupInfo(rdsInstance.VpcSecurityGroups),
@@ -378,12 +377,12 @@ func MetadataFromRDSV2Instance(rdsInstance *rdstypes.DBInstance) (*types.AWS, er
 // It uses aws sdk v2.
 func labelsFromRDSV2Instance(rdsInstance *rdstypes.DBInstance, meta *types.AWS) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
-	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsInstance.Engine)
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
+	labels[types.DiscoveryLabelEngine] = aws.ToString(rdsInstance.Engine)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(rdsInstance.EngineVersion)
 	labels[types.DiscoveryLabelEndpointType] = apiawsutils.RDSEndpointTypeInstance
-	labels[types.DiscoveryLabelStatus] = aws.StringValue(rdsInstance.DBInstanceStatus)
+	labels[types.DiscoveryLabelStatus] = aws.ToString(rdsInstance.DBInstanceStatus)
 	if rdsInstance.DBSubnetGroup != nil {
-		labels[types.DiscoveryLabelVPCID] = aws.StringValue(rdsInstance.DBSubnetGroup.VpcId)
+		labels[types.DiscoveryLabelVPCID] = aws.ToString(rdsInstance.DBSubnetGroup.VpcId)
 	}
 	return addLabels(labels, libcloudaws.TagsToLabels(rdsInstance.TagList))
 }
@@ -395,20 +394,20 @@ func NewDatabaseFromRDSV2Cluster(cluster *rdstypes.DBCluster, firstInstance *rds
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
+	protocol, err := rdsEngineToProtocol(aws.ToString(cluster.Engine))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	uri := ""
 	if cluster.Endpoint != nil && cluster.Port != nil {
-		uri = fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), *cluster.Port)
+		uri = fmt.Sprintf("%v:%v", aws.ToString(cluster.Endpoint), *cluster.Port)
 	}
 	return types.NewDatabaseV3(
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
 			Labels:      labelsFromRDSV2Cluster(cluster, metadata, apiawsutils.RDSEndpointTypePrimary, firstInstance),
-		}, aws.StringValue(cluster.DBClusterIdentifier)),
+		}, aws.ToString(cluster.DBClusterIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
 			URI:      uri,
@@ -421,10 +420,10 @@ func rdsSubnetGroupToNetworkInfo(subnetGroup *rdstypes.DBSubnetGroup) (vpcID str
 		return
 	}
 
-	vpcID = aws.StringValue(subnetGroup.VpcId)
+	vpcID = aws.ToString(subnetGroup.VpcId)
 	subnets = make([]string, 0, len(subnetGroup.Subnets))
 	for _, s := range subnetGroup.Subnets {
-		subnetID := aws.StringValue(s.SubnetIdentifier)
+		subnetID := aws.ToString(s.SubnetIdentifier)
 		if subnetID != "" {
 			subnets = append(subnets, subnetID)
 		}
@@ -439,7 +438,7 @@ func rdsSecurityGroupInfo(memberships []rdstypes.VpcSecurityGroupMembership) []s
 		secGroups = make([]string, 0, len(memberships))
 	}
 	for _, group := range memberships {
-		groupID := aws.StringValue(group.VpcSecurityGroupId)
+		groupID := aws.ToString(group.VpcSecurityGroupId)
 		if groupID != "" {
 			secGroups = append(secGroups, groupID)
 		}
@@ -451,7 +450,7 @@ func rdsSecurityGroupInfo(memberships []rdstypes.VpcSecurityGroupMembership) []s
 // It uses aws sdk v2.
 // An optional [rdstypes.DBInstance] can be passed to fill the network configuration of the Cluster.
 func MetadataFromRDSV2Cluster(rdsCluster *rdstypes.DBCluster, rdsInstance *rdstypes.DBInstance) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
+	parsedARN, err := arn.Parse(aws.ToString(rdsCluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -467,9 +466,9 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdstypes.DBCluster, rdsInstance *rdsty
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			ClusterID:      aws.StringValue(rdsCluster.DBClusterIdentifier),
-			ResourceID:     aws.StringValue(rdsCluster.DbClusterResourceId),
-			IAMAuth:        aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+			ClusterID:      aws.ToString(rdsCluster.DBClusterIdentifier),
+			ResourceID:     aws.ToString(rdsCluster.DbClusterResourceId),
+			IAMAuth:        aws.ToBool(rdsCluster.IAMDatabaseAuthenticationEnabled),
 			Subnets:        subnets,
 			VPCID:          vpcID,
 			SecurityGroups: rdsSecurityGroupInfo(rdsCluster.VpcSecurityGroups),
@@ -481,23 +480,23 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdstypes.DBCluster, rdsInstance *rdsty
 // It uses aws sdk v2.
 func labelsFromRDSV2Cluster(rdsCluster *rdstypes.DBCluster, meta *types.AWS, endpointType string, memberInstance *rdstypes.DBInstance) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
-	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsCluster.Engine)
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
+	labels[types.DiscoveryLabelEngine] = aws.ToString(rdsCluster.Engine)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(rdsCluster.EngineVersion)
 	labels[types.DiscoveryLabelEndpointType] = endpointType
-	labels[types.DiscoveryLabelStatus] = aws.StringValue(rdsCluster.Status)
+	labels[types.DiscoveryLabelStatus] = aws.ToString(rdsCluster.Status)
 	if memberInstance != nil && memberInstance.DBSubnetGroup != nil {
-		labels[types.DiscoveryLabelVPCID] = aws.StringValue(memberInstance.DBSubnetGroup.VpcId)
+		labels[types.DiscoveryLabelVPCID] = aws.ToString(memberInstance.DBSubnetGroup.VpcId)
 	}
 	return addLabels(labels, libcloudaws.TagsToLabels(rdsCluster.TagList))
 }
 
 // NewDatabaseFromRDSCluster creates a database resource from an RDS cluster (Aurora).
-func NewDatabaseFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.DBInstance) (types.Database, error) {
+func NewDatabaseFromRDSCluster(cluster *rdstypes.DBCluster, memberInstances []rdstypes.DBInstance) (types.Database, error) {
 	metadata, err := MetadataFromRDSCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
+	protocol, err := rdsEngineToProtocol(aws.ToString(cluster.Engine))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -505,21 +504,21 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.DB
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
 			Labels:      labelsFromRDSCluster(cluster, metadata, apiawsutils.RDSEndpointTypePrimary, memberInstances),
-		}, aws.StringValue(cluster.DBClusterIdentifier)),
+		}, aws.ToString(cluster.DBClusterIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.Endpoint), aws.ToInt32(cluster.Port)),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabaseFromRDSClusterReaderEndpoint creates a database resource from an RDS cluster reader endpoint (Aurora).
-func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster, memberInstances []*rds.DBInstance) (types.Database, error) {
+func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rdstypes.DBCluster, memberInstances []rdstypes.DBInstance) (types.Database, error) {
 	metadata, err := MetadataFromRDSCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
+	protocol, err := rdsEngineToProtocol(aws.ToString(cluster.Engine))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -527,21 +526,21 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster, memberInsta
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, apiawsutils.RDSEndpointTypeReader),
 			Labels:      labelsFromRDSCluster(cluster, metadata, apiawsutils.RDSEndpointTypeReader, memberInstances),
-		}, aws.StringValue(cluster.DBClusterIdentifier), apiawsutils.RDSEndpointTypeReader),
+		}, aws.ToString(cluster.DBClusterIdentifier), apiawsutils.RDSEndpointTypeReader),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.ReaderEndpoint), aws.ToInt32(cluster.Port)),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabasesFromRDSClusterCustomEndpoints creates database resources from RDS cluster custom endpoints (Aurora).
-func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster, memberInstances []*rds.DBInstance) (types.Databases, error) {
+func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rdstypes.DBCluster, memberInstances []rdstypes.DBInstance) (types.Databases, error) {
 	metadata, err := MetadataFromRDSCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
+	protocol, err := rdsEngineToProtocol(aws.ToString(cluster.Engine))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -551,7 +550,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster, memberIns
 	for _, endpoint := range cluster.CustomEndpoints {
 		// RDS custom endpoint format:
 		// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
-		endpointDetails, err := apiawsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
+		endpointDetails, err := apiawsutils.ParseRDSEndpoint(endpoint)
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -565,16 +564,16 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster, memberIns
 			setAWSDBName(types.Metadata{
 				Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, apiawsutils.RDSEndpointTypeCustom),
 				Labels:      labelsFromRDSCluster(cluster, metadata, apiawsutils.RDSEndpointTypeCustom, memberInstances),
-			}, aws.StringValue(cluster.DBClusterIdentifier), apiawsutils.RDSEndpointTypeCustom, endpointDetails.ClusterCustomEndpointName),
+			}, aws.ToString(cluster.DBClusterIdentifier), apiawsutils.RDSEndpointTypeCustom, endpointDetails.ClusterCustomEndpointName),
 			types.DatabaseSpecV3{
 				Protocol: protocol,
-				URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
+				URI:      fmt.Sprintf("%v:%v", endpoint, aws.ToInt32(cluster.Port)),
 				AWS:      *metadata,
 
 				// Aurora instances update their certificates upon restart, and thus custom endpoint SAN may not be available right
 				// away. Using primary endpoint instead as server name since it's always available.
 				TLS: types.DatabaseTLS{
-					ServerName: aws.StringValue(cluster.Endpoint),
+					ServerName: aws.ToString(cluster.Endpoint),
 				},
 			})
 		if err != nil {
@@ -588,14 +587,12 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster, memberIns
 	return databases, trace.NewAggregate(errors...)
 }
 
-func checkRDSClusterMembers(cluster *rds.DBCluster) (hasWriterInstance, hasReaderInstance bool) {
+func checkRDSClusterMembers(cluster *rdstypes.DBCluster) (hasWriterInstance, hasReaderInstance bool) {
 	for _, clusterMember := range cluster.DBClusterMembers {
-		if clusterMember != nil {
-			if aws.BoolValue(clusterMember.IsClusterWriter) {
-				hasWriterInstance = true
-			} else {
-				hasReaderInstance = true
-			}
+		if aws.ToBool(clusterMember.IsClusterWriter) {
+			hasWriterInstance = true
+		} else {
+			hasReaderInstance = true
 		}
 	}
 	return
@@ -603,7 +600,7 @@ func checkRDSClusterMembers(cluster *rds.DBCluster) (hasWriterInstance, hasReade
 
 // NewDatabasesFromRDSCluster creates all database resources from an RDS Aurora
 // cluster.
-func NewDatabasesFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.DBInstance) (types.Databases, error) {
+func NewDatabasesFromRDSCluster(cluster *rdstypes.DBCluster, memberInstances []rdstypes.DBInstance) (types.Databases, error) {
 	var errors []error
 	var databases types.Databases
 
@@ -648,7 +645,7 @@ func NewDatabasesFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.D
 
 // NewDatabasesFromDocumentDBCluster creates all database resources from a
 // DocumentDB cluster.
-func NewDatabasesFromDocumentDBCluster(cluster *rds.DBCluster) (types.Databases, error) {
+func NewDatabasesFromDocumentDBCluster(cluster *rdstypes.DBCluster) (types.Databases, error) {
 	var errors []error
 	var databases types.Databases
 
@@ -682,7 +679,7 @@ func NewDatabasesFromDocumentDBCluster(cluster *rds.DBCluster) (types.Databases,
 
 // NewDatabaseFromDocumentDBClusterEndpoint creates database resource from
 // DocumentDB cluster endpoint.
-func NewDatabaseFromDocumentDBClusterEndpoint(cluster *rds.DBCluster) (types.Database, error) {
+func NewDatabaseFromDocumentDBClusterEndpoint(cluster *rdstypes.DBCluster) (types.Database, error) {
 	endpointType := apiawsutils.DocumentDBClusterEndpoint
 	metadata, err := MetadataFromDocumentDBCluster(cluster, endpointType)
 	if err != nil {
@@ -692,17 +689,17 @@ func NewDatabaseFromDocumentDBClusterEndpoint(cluster *rds.DBCluster) (types.Dat
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("DocumentDB cluster in %v", metadata.Region),
 			Labels:      labelsFromDocumentDBCluster(cluster, metadata, endpointType),
-		}, aws.StringValue(cluster.DBClusterIdentifier)),
+		}, aws.ToString(cluster.DBClusterIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: types.DatabaseProtocolMongoDB,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.Endpoint), aws.ToInt32(cluster.Port)),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabaseFromDocumentDBReaderEndpoint creates database resource from
 // DocumentDB reader endpoint.
-func NewDatabaseFromDocumentDBReaderEndpoint(cluster *rds.DBCluster) (types.Database, error) {
+func NewDatabaseFromDocumentDBReaderEndpoint(cluster *rdstypes.DBCluster) (types.Database, error) {
 	endpointType := apiawsutils.DocumentDBClusterReaderEndpoint
 	metadata, err := MetadataFromDocumentDBCluster(cluster, endpointType)
 	if err != nil {
@@ -712,21 +709,21 @@ func NewDatabaseFromDocumentDBReaderEndpoint(cluster *rds.DBCluster) (types.Data
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("DocumentDB cluster in %v (%v endpoint)", metadata.Region, endpointType),
 			Labels:      labelsFromDocumentDBCluster(cluster, metadata, endpointType),
-		}, aws.StringValue(cluster.DBClusterIdentifier), endpointType),
+		}, aws.ToString(cluster.DBClusterIdentifier), endpointType),
 		types.DatabaseSpecV3{
 			Protocol: types.DatabaseProtocolMongoDB,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.ReaderEndpoint), aws.ToInt32(cluster.Port)),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabaseFromRDSProxy creates database resource from RDS Proxy.
-func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, tags []*rds.Tag) (types.Database, error) {
+func NewDatabaseFromRDSProxy(dbProxy *rdstypes.DBProxy, tags []rdstypes.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxy(dbProxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.StringValue(dbProxy.EngineFamily))
+	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.ToString(dbProxy.EngineFamily))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -734,22 +731,22 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, tags []*rds.Tag) (types.Datab
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("RDS Proxy in %v", metadata.Region),
 			Labels:      labelsFromRDSProxy(dbProxy, metadata, tags),
-		}, aws.StringValue(dbProxy.DBProxyName)),
+		}, aws.ToString(dbProxy.DBProxyName)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%s:%d", aws.StringValue(dbProxy.Endpoint), port),
+			URI:      fmt.Sprintf("%s:%d", aws.ToString(dbProxy.Endpoint), port),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabaseFromRDSProxyCustomEndpoint creates database resource from RDS
 // Proxy custom endpoint.
-func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, tags []*rds.Tag) (types.Database, error) {
+func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rdstypes.DBProxy, customEndpoint *rdstypes.DBProxyEndpoint, tags []rdstypes.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxyCustomEndpoint(dbProxy, customEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.StringValue(dbProxy.EngineFamily))
+	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.ToString(dbProxy.EngineFamily))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -757,10 +754,10 @@ func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint 
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("RDS Proxy endpoint in %v", metadata.Region),
 			Labels:      labelsFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, metadata, tags),
-		}, aws.StringValue(dbProxy.DBProxyName), aws.StringValue(customEndpoint.DBProxyEndpointName)),
+		}, aws.ToString(dbProxy.DBProxyName), aws.ToString(customEndpoint.DBProxyEndpointName)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%s:%d", aws.StringValue(customEndpoint.Endpoint), port),
+			URI:      fmt.Sprintf("%s:%d", aws.ToString(customEndpoint.Endpoint), port),
 			AWS:      *metadata,
 
 			// RDS proxies serve wildcard certificates like this:
@@ -773,17 +770,17 @@ func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint 
 			// Using proxy's default endpoint as server name as it should always
 			// succeed.
 			TLS: types.DatabaseTLS{
-				ServerName: aws.StringValue(dbProxy.Endpoint),
+				ServerName: aws.ToString(dbProxy.Endpoint),
 			},
 		})
 }
 
 // NewDatabaseFromRedshiftCluster creates a database resource from a Redshift cluster.
-func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, error) {
+func NewDatabaseFromRedshiftCluster(cluster *redshifttypes.Cluster) (types.Database, error) {
 	// Endpoint can be nil while the cluster is being created. Return an error
 	// until the Endpoint is available.
 	if cluster.Endpoint == nil {
-		return nil, trace.BadParameter("missing endpoint in Redshift cluster %v", aws.StringValue(cluster.ClusterIdentifier))
+		return nil, trace.BadParameter("missing endpoint in Redshift cluster %v", aws.ToString(cluster.ClusterIdentifier))
 	}
 
 	metadata, err := MetadataFromRedshiftCluster(cluster)
@@ -795,10 +792,10 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
 			Labels:      labelsFromRedshiftCluster(cluster, metadata),
-		}, aws.StringValue(cluster.ClusterIdentifier)),
+		}, aws.ToString(cluster.ClusterIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.Endpoint.Address), aws.ToInt32(cluster.Endpoint.Port)),
 			AWS:      *metadata,
 		})
 }
@@ -842,7 +839,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 func NewDatabasesFromElastiCacheReplicationGroup(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
 	// Create database using configuration endpoint for Redis with cluster
 	// mode enabled.
-	if aws.BoolValue(cluster.ClusterEnabled) {
+	if aws.ToBool(cluster.ClusterEnabled) {
 		database, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -873,9 +870,9 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	return types.NewDatabaseV3(setAWSDBName(types.Metadata{
 		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
 		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
-	}, aws.StringValue(cluster.ReplicationGroupId), suffix...), types.DatabaseSpecV3{
+	}, aws.ToString(cluster.ReplicationGroupId), suffix...), types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+		URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt64(endpoint.Port)),
 		AWS:      *metadata,
 	})
 }
@@ -884,7 +881,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
 	var databases types.Databases
 
-	if aws.StringValue(domain.Endpoint) != "" {
+	if aws.ToString(domain.Endpoint) != "" {
 		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchDefaultEndpoint)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -895,10 +892,10 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchDefaultEndpoint, tags),
 		}
 
-		meta = setAWSDBName(meta, aws.StringValue(domain.DomainName))
+		meta = setAWSDBName(meta, aws.ToString(domain.DomainName))
 		spec := types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.StringValue(domain.Endpoint)),
+			URI:      fmt.Sprintf("%v:443", aws.ToString(domain.Endpoint)),
 			AWS:      *metadata,
 		}
 
@@ -910,7 +907,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		databases = append(databases, db)
 	}
 
-	if domain.DomainEndpointOptions != nil && aws.StringValue(domain.DomainEndpointOptions.CustomEndpoint) != "" {
+	if domain.DomainEndpointOptions != nil && aws.ToString(domain.DomainEndpointOptions.CustomEndpoint) != "" {
 		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchCustomEndpoint)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -921,10 +918,10 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchCustomEndpoint, tags),
 		}
 
-		meta = setAWSDBName(meta, aws.StringValue(domain.DomainName), "custom")
+		meta = setAWSDBName(meta, aws.ToString(domain.DomainName), "custom")
 		spec := types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.StringValue(domain.DomainEndpointOptions.CustomEndpoint)),
+			URI:      fmt.Sprintf("%v:443", aws.ToString(domain.DomainEndpointOptions.CustomEndpoint)),
 			AWS:      *metadata,
 		}
 
@@ -948,13 +945,13 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		}
 
 		if domain.VPCOptions != nil {
-			meta.Labels[types.DiscoveryLabelVPCID] = aws.StringValue(domain.VPCOptions.VPCId)
+			meta.Labels[types.DiscoveryLabelVPCID] = aws.ToString(domain.VPCOptions.VPCId)
 		}
 
-		meta = setAWSDBName(meta, aws.StringValue(domain.DomainName), name)
+		meta = setAWSDBName(meta, aws.ToString(domain.DomainName), name)
 		spec := types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.StringValue(url)),
+			URI:      fmt.Sprintf("%v:443", aws.ToString(url)),
 			AWS:      *metadata,
 		}
 
@@ -983,10 +980,10 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		setAWSDBName(types.Metadata{
 			Description: fmt.Sprintf("MemoryDB cluster in %v", metadata.Region),
 			Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
-		}, aws.StringValue(cluster.Name)),
+		}, aws.ToString(cluster.Name)),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ClusterEndpoint.Address), aws.Int64Value(cluster.ClusterEndpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.ClusterEndpoint.Address), aws.ToInt64(cluster.ClusterEndpoint.Port)),
 			AWS:      *metadata,
 		})
 }
@@ -1010,7 +1007,7 @@ func NewDatabaseFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Wo
 		}, metadata.RedshiftServerless.WorkgroupName),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(workgroup.Endpoint.Address), aws.Int64Value(workgroup.Endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(workgroup.Endpoint.Address), aws.ToInt64(workgroup.Endpoint.Port)),
 			AWS:      *metadata,
 		})
 }
@@ -1034,19 +1031,19 @@ func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.E
 		}, metadata.RedshiftServerless.WorkgroupName, metadata.RedshiftServerless.EndpointName),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt64(endpoint.Port)),
 			AWS:      *metadata,
 
 			// Use workgroup's default address as the server name.
 			TLS: types.DatabaseTLS{
-				ServerName: aws.StringValue(workgroup.Endpoint.Address),
+				ServerName: aws.ToString(workgroup.Endpoint.Address),
 			},
 		})
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
-func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
+func MetadataFromRDSInstance(rdsInstance *rdstypes.DBInstance) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.ToString(rdsInstance.DBInstanceArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1054,17 +1051,17 @@ func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			InstanceID: aws.StringValue(rdsInstance.DBInstanceIdentifier),
-			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
-			IAMAuth:    aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
+			InstanceID: aws.ToString(rdsInstance.DBInstanceIdentifier),
+			ClusterID:  aws.ToString(rdsInstance.DBClusterIdentifier),
+			ResourceID: aws.ToString(rdsInstance.DbiResourceId),
+			IAMAuth:    aws.ToBool(rdsInstance.IAMDatabaseAuthenticationEnabled),
 		},
 	}, nil
 }
 
 // MetadataFromRDSCluster creates AWS metadata from the provided RDS cluster.
-func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
+func MetadataFromRDSCluster(rdsCluster *rdstypes.DBCluster) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.ToString(rdsCluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1072,17 +1069,17 @@ func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
-			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+			ClusterID:  aws.ToString(rdsCluster.DBClusterIdentifier),
+			ResourceID: aws.ToString(rdsCluster.DbClusterResourceId),
+			IAMAuth:    aws.ToBool(rdsCluster.IAMDatabaseAuthenticationEnabled),
 		},
 	}, nil
 }
 
 // MetadataFromDocumentDBCluster creates AWS metadata from the provided
 // DocumentDB cluster.
-func MetadataFromDocumentDBCluster(cluster *rds.DBCluster, endpointType string) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.DBClusterArn))
+func MetadataFromDocumentDBCluster(cluster *rdstypes.DBCluster, endpointType string) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.ToString(cluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1090,20 +1087,20 @@ func MetadataFromDocumentDBCluster(cluster *rds.DBCluster, endpointType string) 
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		DocumentDB: types.DocumentDB{
-			ClusterID:    aws.StringValue(cluster.DBClusterIdentifier),
+			ClusterID:    aws.ToString(cluster.DBClusterIdentifier),
 			EndpointType: endpointType,
 		},
 	}, nil
 }
 
 // MetadataFromRDSProxy creates AWS metadata from the provided RDS Proxy.
-func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(rdsProxy.DBProxyArn))
+func MetadataFromRDSProxy(rdsProxy *rdstypes.DBProxy) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.ToString(rdsProxy.DBProxyArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// rds.DBProxy has no resource ID attribute. The resource ID can be found
+	// rdstypes.DBProxy has no resource ID attribute. The resource ID can be found
 	// in the ARN, e.g.:
 	//
 	// arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-xxxyyyzzz
@@ -1112,14 +1109,14 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 	// resource type is "db-proxy" and the resource ID is "prx-xxxyyyzzz".
 	_, resourceID, ok := strings.Cut(parsedARN.Resource, ":")
 	if !ok {
-		return nil, trace.BadParameter("failed to find resource ID from %v", aws.StringValue(rdsProxy.DBProxyArn))
+		return nil, trace.BadParameter("failed to find resource ID from %v", aws.ToString(rdsProxy.DBProxyArn))
 	}
 
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDSProxy: types.RDSProxy{
-			Name:       aws.StringValue(rdsProxy.DBProxyName),
+			Name:       aws.ToString(rdsProxy.DBProxyName),
 			ResourceID: resourceID,
 		},
 	}, nil
@@ -1127,7 +1124,7 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 
 // MetadataFromRDSProxyCustomEndpoint creates AWS metadata from the provided
 // RDS Proxy custom endpoint.
-func MetadataFromRDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint) (*types.AWS, error) {
+func MetadataFromRDSProxyCustomEndpoint(rdsProxy *rdstypes.DBProxy, customEndpoint *rdstypes.DBProxyEndpoint) (*types.AWS, error) {
 	// Using resource ID from the default proxy for IAM policies to gain the
 	// RDS connection access.
 	metadata, err := MetadataFromRDSProxy(rdsProxy)
@@ -1135,13 +1132,13 @@ func MetadataFromRDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, customEndpoint *r
 		return nil, trace.Wrap(err)
 	}
 
-	metadata.RDSProxy.CustomEndpointName = aws.StringValue(customEndpoint.DBProxyEndpointName)
+	metadata.RDSProxy.CustomEndpointName = aws.ToString(customEndpoint.DBProxyEndpointName)
 	return metadata, nil
 }
 
 // MetadataFromRedshiftCluster creates AWS metadata from the provided Redshift cluster.
-func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.ClusterNamespaceArn))
+func MetadataFromRedshiftCluster(cluster *redshifttypes.Cluster) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.ToString(cluster.ClusterNamespaceArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1149,7 +1146,7 @@ func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) 
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		Redshift: types.Redshift{
-			ClusterID: aws.StringValue(cluster.ClusterIdentifier),
+			ClusterID: aws.ToString(cluster.ClusterIdentifier),
 		},
 	}, nil
 }
@@ -1157,7 +1154,7 @@ func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) 
 // MetadataFromElastiCacheCluster creates AWS metadata for the provided
 // ElastiCache cluster.
 func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpointType string) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
+	parsedARN, err := arn.Parse(aws.ToString(cluster.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1168,16 +1165,16 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	// messages don't fail.
 	var userGroupIDs []string
 	if len(cluster.UserGroupIds) != 0 {
-		userGroupIDs = aws.StringValueSlice(cluster.UserGroupIds)
+		userGroupIDs = aws.ToStringSlice(cluster.UserGroupIds)
 	}
 
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		ElastiCache: types.ElastiCache{
-			ReplicationGroupID:       aws.StringValue(cluster.ReplicationGroupId),
+			ReplicationGroupID:       aws.ToString(cluster.ReplicationGroupId),
 			UserGroupIDs:             userGroupIDs,
-			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
+			TransitEncryptionEnabled: aws.ToBool(cluster.TransitEncryptionEnabled),
 			EndpointType:             endpointType,
 		},
 	}, nil
@@ -1185,7 +1182,7 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 
 // MetadataFromOpenSearchDomain creates AWS metadata for the provided OpenSearch domain.
 func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpointType string) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(domain.ARN))
+	parsedARN, err := arn.Parse(aws.ToString(domain.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1194,8 +1191,8 @@ func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpoi
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		OpenSearch: types.OpenSearch{
-			DomainName:   aws.StringValue(domain.DomainName),
-			DomainID:     aws.StringValue(domain.DomainId),
+			DomainName:   aws.ToString(domain.DomainName),
+			DomainID:     aws.ToString(domain.DomainId),
 			EndpointType: endpointType,
 		},
 	}, nil
@@ -1204,7 +1201,7 @@ func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpoi
 // MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
 func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
+	parsedARN, err := arn.Parse(aws.ToString(cluster.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1213,9 +1210,9 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		MemoryDB: types.MemoryDB{
-			ClusterName:  aws.StringValue(cluster.Name),
-			ACLName:      aws.StringValue(cluster.ACLName),
-			TLSEnabled:   aws.BoolValue(cluster.TLSEnabled),
+			ClusterName:  aws.ToString(cluster.Name),
+			ACLName:      aws.ToString(cluster.ACLName),
+			TLSEnabled:   aws.ToBool(cluster.TLSEnabled),
 			EndpointType: endpointType,
 		},
 	}, nil
@@ -1224,7 +1221,7 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 // MetadataFromRedshiftServerlessWorkgroup creates AWS metadata for the
 // provided Redshift Serverless Workgroup.
 func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(workgroup.WorkgroupArn))
+	parsedARN, err := arn.Parse(aws.ToString(workgroup.WorkgroupArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1233,8 +1230,8 @@ func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workg
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RedshiftServerless: types.RedshiftServerless{
-			WorkgroupName: aws.StringValue(workgroup.WorkgroupName),
-			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
+			WorkgroupName: aws.ToString(workgroup.WorkgroupName),
+			WorkgroupID:   aws.ToString(workgroup.WorkgroupId),
 		},
 	}, nil
 }
@@ -1242,7 +1239,7 @@ func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workg
 // MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
 // provided Redshift Serverless VPC endpoint.
 func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(endpoint.EndpointArn))
+	parsedARN, err := arn.Parse(aws.ToString(endpoint.EndpointArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1251,9 +1248,9 @@ func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endp
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RedshiftServerless: types.RedshiftServerless{
-			WorkgroupName: aws.StringValue(endpoint.WorkgroupName),
-			EndpointName:  aws.StringValue(endpoint.EndpointName),
-			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
+			WorkgroupName: aws.ToString(endpoint.WorkgroupName),
+			EndpointName:  aws.ToString(endpoint.EndpointName),
+			WorkgroupID:   aws.ToString(workgroup.WorkgroupId),
 		},
 	}, nil
 }
@@ -1261,15 +1258,15 @@ func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endp
 // ExtraElastiCacheLabels returns a list of extra labels for provided
 // ElastiCache cluster.
 func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elasticache.Tag, allNodes []*elasticache.CacheCluster, allSubnetGroups []*elasticache.CacheSubnetGroup) map[string]string {
-	replicationGroupID := aws.StringValue(cluster.ReplicationGroupId)
+	replicationGroupID := aws.ToString(cluster.ReplicationGroupId)
 	subnetGroupName := ""
 	labels := make(map[string]string)
 
 	// Find any node belongs to this cluster and set engine version label.
 	for _, node := range allNodes {
-		if aws.StringValue(node.ReplicationGroupId) == replicationGroupID {
-			subnetGroupName = aws.StringValue(node.CacheSubnetGroupName)
-			labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(node.EngineVersion)
+		if aws.ToString(node.ReplicationGroupId) == replicationGroupID {
+			subnetGroupName = aws.ToString(node.CacheSubnetGroupName)
+			labels[types.DiscoveryLabelEngineVersion] = aws.ToString(node.EngineVersion)
 			break
 		}
 	}
@@ -1280,8 +1277,8 @@ func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elast
 	// accessible within the same VPC. Having a VPC ID label can be very useful
 	// for filtering.
 	for _, subnetGroup := range allSubnetGroups {
-		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
-			labels[types.DiscoveryLabelVPCID] = aws.StringValue(subnetGroup.VpcId)
+		if aws.ToString(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
+			labels[types.DiscoveryLabelVPCID] = aws.ToString(subnetGroup.VpcId)
 			break
 		}
 	}
@@ -1296,12 +1293,12 @@ func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSub
 	labels := make(map[string]string)
 
 	// Engine version.
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(cluster.EngineVersion)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(cluster.EngineVersion)
 
 	// VPC ID.
 	for _, subnetGroup := range allSubnetGroups {
-		if aws.StringValue(subnetGroup.Name) == aws.StringValue(cluster.SubnetGroupName) {
-			labels[types.DiscoveryLabelVPCID] = aws.StringValue(subnetGroup.VpcId)
+		if aws.ToString(subnetGroup.Name) == aws.ToString(cluster.SubnetGroupName) {
+			labels[types.DiscoveryLabelVPCID] = aws.ToString(subnetGroup.VpcId)
 			break
 		}
 	}
@@ -1323,12 +1320,12 @@ func rdsEngineToProtocol(engine string) (string, error) {
 
 // rdsEngineFamilyToProtocolAndPort converts RDS engine family to the database protocol and port.
 func rdsEngineFamilyToProtocolAndPort(engineFamily string) (string, int, error) {
-	switch engineFamily {
-	case rds.EngineFamilyMysql:
+	switch rdstypes.EngineFamily(engineFamily) {
+	case rdstypes.EngineFamilyMysql:
 		return defaults.ProtocolMySQL, services.RDSProxyMySQLPort, nil
-	case rds.EngineFamilyPostgresql:
+	case rdstypes.EngineFamilyPostgresql:
 		return defaults.ProtocolPostgres, services.RDSProxyPostgresPort, nil
-	case rds.EngineFamilySqlserver:
+	case rdstypes.EngineFamilySqlserver:
 		return defaults.ProtocolSQLServer, services.RDSProxySQLServerPort, nil
 	}
 	return "", 0, trace.BadParameter("unknown RDS engine family type %q", engineFamily)
@@ -1421,56 +1418,56 @@ func labelsFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Serv
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
-func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
+func labelsFromRDSInstance(rdsInstance *rdstypes.DBInstance, meta *types.AWS) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
-	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsInstance.Engine)
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
+	labels[types.DiscoveryLabelEngine] = aws.ToString(rdsInstance.Engine)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(rdsInstance.EngineVersion)
 	labels[types.DiscoveryLabelEndpointType] = apiawsutils.RDSEndpointTypeInstance
 	if rdsInstance.DBSubnetGroup != nil {
-		labels[types.DiscoveryLabelVPCID] = aws.StringValue(rdsInstance.DBSubnetGroup.VpcId)
+		labels[types.DiscoveryLabelVPCID] = aws.ToString(rdsInstance.DBSubnetGroup.VpcId)
 	}
 	return addLabels(labels, libcloudaws.TagsToLabels(rdsInstance.TagList))
 }
 
 // labelsFromRDSCluster creates database labels for the provided RDS cluster.
-func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointType string, memberInstances []*rds.DBInstance) map[string]string {
+func labelsFromRDSCluster(rdsCluster *rdstypes.DBCluster, meta *types.AWS, endpointType string, memberInstances []rdstypes.DBInstance) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
-	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsCluster.Engine)
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
+	labels[types.DiscoveryLabelEngine] = aws.ToString(rdsCluster.Engine)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(rdsCluster.EngineVersion)
 	labels[types.DiscoveryLabelEndpointType] = endpointType
 	if len(memberInstances) > 0 && memberInstances[0].DBSubnetGroup != nil {
-		labels[types.DiscoveryLabelVPCID] = aws.StringValue(memberInstances[0].DBSubnetGroup.VpcId)
+		labels[types.DiscoveryLabelVPCID] = aws.ToString(memberInstances[0].DBSubnetGroup.VpcId)
 	}
 	return addLabels(labels, libcloudaws.TagsToLabels(rdsCluster.TagList))
 }
 
-func labelsFromDocumentDBCluster(cluster *rds.DBCluster, meta *types.AWS, endpointType string) map[string]string {
+func labelsFromDocumentDBCluster(cluster *rdstypes.DBCluster, meta *types.AWS, endpointType string) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
-	labels[types.DiscoveryLabelEngine] = aws.StringValue(cluster.Engine)
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(cluster.EngineVersion)
+	labels[types.DiscoveryLabelEngine] = aws.ToString(cluster.Engine)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(cluster.EngineVersion)
 	labels[types.DiscoveryLabelEndpointType] = endpointType
 	return addLabels(labels, libcloudaws.TagsToLabels(cluster.TagList))
 }
 
 // labelsFromRDSProxy creates database labels for the provided RDS Proxy.
-func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS, tags []*rds.Tag) map[string]string {
-	// rds.DBProxy has no TagList.
+func labelsFromRDSProxy(rdsProxy *rdstypes.DBProxy, meta *types.AWS, tags []rdstypes.Tag) map[string]string {
+	// rdstypes.DBProxy has no TagList.
 	labels := labelsFromAWSMetadata(meta)
-	labels[types.DiscoveryLabelVPCID] = aws.StringValue(rdsProxy.VpcId)
-	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsProxy.EngineFamily)
+	labels[types.DiscoveryLabelVPCID] = aws.ToString(rdsProxy.VpcId)
+	labels[types.DiscoveryLabelEngine] = aws.ToString(rdsProxy.EngineFamily)
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
 
 // labelsFromRDSProxyCustomEndpoint creates database labels for the provided
 // RDS Proxy custom endpoint.
-func labelsFromRDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, meta *types.AWS, tags []*rds.Tag) map[string]string {
+func labelsFromRDSProxyCustomEndpoint(rdsProxy *rdstypes.DBProxy, customEndpoint *rdstypes.DBProxyEndpoint, meta *types.AWS, tags []rdstypes.Tag) map[string]string {
 	labels := labelsFromRDSProxy(rdsProxy, meta, tags)
-	labels[types.DiscoveryLabelEndpointType] = aws.StringValue(customEndpoint.TargetRole)
+	labels[types.DiscoveryLabelEndpointType] = string(customEndpoint.TargetRole)
 	return labels
 }
 
 // labelsFromRedshiftCluster creates database labels for the provided Redshift cluster.
-func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[string]string {
+func labelsFromRedshiftCluster(cluster *redshifttypes.Cluster, meta *types.AWS) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	return addLabels(labels, libcloudaws.TagsToLabels(cluster.Tags))
 }
@@ -1478,9 +1475,9 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEndpointType] = services.RedshiftServerlessWorkgroupEndpoint
-	labels[types.DiscoveryLabelNamespace] = aws.StringValue(workgroup.NamespaceName)
+	labels[types.DiscoveryLabelNamespace] = aws.ToString(workgroup.NamespaceName)
 	if workgroup.Endpoint != nil && len(workgroup.Endpoint.VpcEndpoints) > 0 {
-		labels[types.DiscoveryLabelVPCID] = aws.StringValue(workgroup.Endpoint.VpcEndpoints[0].VpcId)
+		labels[types.DiscoveryLabelVPCID] = aws.ToString(workgroup.Endpoint.VpcEndpoints[0].VpcId)
 	}
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
@@ -1488,10 +1485,10 @@ func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgro
 func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEndpointType] = services.RedshiftServerlessVPCEndpoint
-	labels[types.DiscoveryLabelWorkgroup] = aws.StringValue(endpoint.WorkgroupName)
-	labels[types.DiscoveryLabelNamespace] = aws.StringValue(workgroup.NamespaceName)
+	labels[types.DiscoveryLabelWorkgroup] = aws.ToString(endpoint.WorkgroupName)
+	labels[types.DiscoveryLabelNamespace] = aws.ToString(workgroup.NamespaceName)
 	if endpoint.VpcEndpoint != nil {
-		labels[types.DiscoveryLabelVPCID] = aws.StringValue(endpoint.VpcEndpoint.VpcId)
+		labels[types.DiscoveryLabelVPCID] = aws.ToString(endpoint.VpcEndpoint.VpcId)
 	}
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
@@ -1509,7 +1506,7 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 
 func labelsFromOpenSearchDomain(domain *opensearchservice.DomainStatus, meta *types.AWS, endpointType string, tags []*opensearchservice.Tag) map[string]string {
 	labels := labelsFromMetaAndEndpointType(meta, endpointType, libcloudaws.TagsToLabels(tags))
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(domain.EngineVersion)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(domain.EngineVersion)
 	return labels
 }
 

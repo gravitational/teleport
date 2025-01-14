@@ -22,12 +22,12 @@ import (
 	"slices"
 	"strings"
 
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/coreos/go-semver/semver"
 
 	"github.com/gravitational/teleport/lib/services"
@@ -74,18 +74,51 @@ func IsOpenSearchDomainAvailable(domain *opensearchservice.DomainStatus) bool {
 }
 
 // IsRDSProxyAvailable checks if the RDS Proxy is available.
-func IsRDSProxyAvailable(dbProxy *rds.DBProxy) bool {
-	return IsResourceAvailable(dbProxy, dbProxy.Status)
+func IsRDSProxyAvailable(dbProxy *rdstypes.DBProxy) bool {
+	switch dbProxy.Status {
+	case
+		rdstypes.DBProxyStatusAvailable,
+		rdstypes.DBProxyStatusModifying,
+		rdstypes.DBProxyStatusReactivating:
+		return true
+	case
+		rdstypes.DBProxyStatusCreating,
+		rdstypes.DBProxyStatusDeleting,
+		rdstypes.DBProxyStatusIncompatibleNetwork,
+		rdstypes.DBProxyStatusInsufficientResourceLimits,
+		rdstypes.DBProxyStatusSuspended,
+		rdstypes.DBProxyStatusSuspending:
+		return false
+	}
+	slog.WarnContext(context.Background(), "Assuming RDS Proxy with unknown status is available",
+		"status", dbProxy.Status,
+	)
+	return true
 }
 
 // IsRDSProxyCustomEndpointAvailable checks if the RDS Proxy custom endpoint is available.
-func IsRDSProxyCustomEndpointAvailable(customEndpoint *rds.DBProxyEndpoint) bool {
-	return IsResourceAvailable(customEndpoint, customEndpoint.Status)
+func IsRDSProxyCustomEndpointAvailable(customEndpoint *rdstypes.DBProxyEndpoint) bool {
+	switch customEndpoint.Status {
+	case
+		rdstypes.DBProxyEndpointStatusAvailable,
+		rdstypes.DBProxyEndpointStatusModifying:
+		return true
+	case
+		rdstypes.DBProxyEndpointStatusCreating,
+		rdstypes.DBProxyEndpointStatusDeleting,
+		rdstypes.DBProxyEndpointStatusIncompatibleNetwork,
+		rdstypes.DBProxyEndpointStatusInsufficientResourceLimits:
+		return false
+	}
+	slog.WarnContext(context.Background(), "Assuming RDS Proxy custom endpoint with unknown status is available",
+		"status", customEndpoint.Status,
+	)
+	return true
 }
 
 // IsRDSInstanceSupported returns true if database supports IAM authentication.
 // Currently, only MariaDB is being checked.
-func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
+func IsRDSInstanceSupported(instance *rdstypes.DBInstance) bool {
 	// TODO(jakule): Check other engines.
 	if aws.StringValue(instance.Engine) != services.RDSEngineMariaDB {
 		return true
@@ -105,7 +138,7 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 }
 
 // IsRDSClusterSupported checks whether the Aurora cluster is supported.
-func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
+func IsRDSClusterSupported(cluster *rdstypes.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
 	// Aurora Serverless v1 does NOT support IAM authentication.
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
@@ -129,7 +162,7 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 }
 
 // AuroraMySQLVersion extracts aurora mysql version from engine version
-func AuroraMySQLVersion(cluster *rds.DBCluster) string {
+func AuroraMySQLVersion(cluster *rdstypes.DBCluster) string {
 	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
 	// a list of all the available versions: https://docs.aws.amazon.com/cli/latest/reference/rds/describe-db-engine-versions.html
 	//
@@ -154,7 +187,7 @@ func AuroraMySQLVersion(cluster *rds.DBCluster) string {
 // for this DocumentDB cluster.
 //
 // https://docs.aws.amazon.com/documentdb/latest/developerguide/iam-identity-auth.html
-func IsDocumentDBClusterSupported(cluster *rds.DBCluster) bool {
+func IsDocumentDBClusterSupported(cluster *rdstypes.DBCluster) bool {
 	ver, err := semver.NewVersion(aws.StringValue(cluster.EngineVersion))
 	if err != nil {
 		slog.ErrorContext(context.Background(), "Failed to parse DocumentDB engine version", "version", aws.StringValue(cluster.EngineVersion))
@@ -244,7 +277,7 @@ func IsDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 }
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
-func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
+func IsRedshiftClusterAvailable(cluster *redshifttypes.Cluster) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-mgmt-cluster-status
 	//

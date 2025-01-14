@@ -61,6 +61,7 @@ issues:
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
+  uniq-by-line: false
 
 linters:
   disable-all: true
@@ -98,10 +99,6 @@ linters-settings:
             desc: 'use "github.com/google/uuid" instead'
           - pkg: github.com/pborman/uuid
             desc: 'use "github.com/google/uuid" instead'
-          - pkg: github.com/siddontang/go-log/log
-            desc: 'use "github.com/sirupsen/logrus" instead'
-          - pkg: github.com/siddontang/go/log
-            desc: 'use "github.com/sirupsen/logrus" instead'
           - pkg: github.com/tj/assert
             desc: 'use "github.com/stretchr/testify/assert" instead'
           - pkg: go.uber.org/atomic
@@ -116,15 +113,20 @@ linters-settings:
             desc: 'use "github.com/gravitational/teleport/lib/msgraph" instead'
           - pkg: github.com/cloudflare/cfssl
             desc: 'use "crypto" or "x/crypto" instead'
-      # Prevent logrus from being imported by api and e. Once everything in teleport has been converted
-      # to use log/slog this should be moved into the main block above.
-      logrus:
-        files:
-          - '**/api/**'
-          - '**/e/**'
-          - '**/lib/srv/**'
+      # Prevent importing any additional logging libraries.
+      logging:
         deny:
           - pkg: github.com/sirupsen/logrus
+            desc: 'use "log/slog" instead'
+          - pkg: github.com/siddontang/go-log/log
+            desc: 'use "log/slog" instead'
+          - pkg: github.com/siddontang/go/log
+            desc: 'use "log/slog" instead'
+          - pkg: github.com/mailgun/log
+            desc: 'use "log/slog" instead'
+          - pkg: github.com/saferwall/pe/log
+            desc: 'use "log/slog" instead'
+          - pkg: golang.org/x/exp/slog
             desc: 'use "log/slog" instead'
       # Prevent importing internal packages in client tools or packages containing
       # common interfaces consumed by them that are known to bloat binaries or break builds
@@ -270,9 +272,6 @@ linters-settings:
     forbid:
       - p: '^rsa\.GenerateKey$'
         msg: 'generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type'
-
-output:
-  uniq-by-line: false
 
 run:
   go: '1.23'

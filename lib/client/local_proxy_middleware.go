@@ -162,7 +162,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, erro
 
 	certTTL := cert.Leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
 	log.DebugContext(ctx, "Certificate renewed",
-		"valud_until", cert.Leaf.NotAfter.Format(time.RFC3339),
+		"valid_until", cert.Leaf.NotAfter.Format(time.RFC3339),
 		"cert_ttl", certTTL,
 	)
 

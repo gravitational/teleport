@@ -70,7 +70,7 @@ Create a file called `role.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: example-role
 spec:
@@ -83,6 +83,7 @@ spec:
     - kind: "*"
       namespace: "*"
       name: "*"
+      verbs: ["*"]
 ```
 
 Replace `example-role` with a descriptive name related to your use case.
@@ -99,6 +100,8 @@ Adjust the `allow` field for your environment:
   layered upon the RBAC configured within the Kubernetes role itself.
 
 Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`

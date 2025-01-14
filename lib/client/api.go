@@ -35,6 +35,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -2850,6 +2851,21 @@ type execResult struct {
 	exitStatus int
 }
 
+// sharedWriter is an [io.Writer] implementation that protects
+// writes with a mutex. This allows a single [io.Writer] to be shared
+// by multiple command runners.
+type sharedWriter struct {
+	mu sync.Mutex
+	io.Writer
+}
+
+func (s *sharedWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.Writer.Write(p)
+}
+
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
 func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
 	cluster := clt.ClusterName()
@@ -2909,10 +2925,10 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 		}
 	}
 
-	stdout := logutils.NewSharedWriter(tc.Stdout)
+	stdout := &sharedWriter{Writer: tc.Stdout}
 	stderr := stdout
 	if tc.Stdout != tc.Stderr {
-		stderr = logutils.NewSharedWriter(tc.Stderr)
+		stderr = &sharedWriter{Writer: tc.Stderr}
 	}
 
 	for _, node := range nodes {
@@ -5096,6 +5112,37 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 	}
 
 	return result, nil
+}
+
+// PortMapping represents a mapping of LocalPort to TargetPort, e.g., "1337:42".
+type PortMapping struct {
+	LocalPort  int
+	TargetPort int
+}
+
+// ParsePortMapping parses textual form of port mapping (e.g., "1337:42") into a struct. It accepts
+// a single port number as well (e.g., "42"). Both numbers must be between 0 and 65535.
+func ParsePortMapping(rawPorts string) (PortMapping, error) {
+	if rawPorts == "" {
+		return PortMapping{}, nil
+	}
+
+	rawLocalPort, rawTargetPort, colonFound := strings.Cut(rawPorts, ":")
+	localPort, err := strconv.ParseUint(rawLocalPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing local port")
+	}
+
+	if !colonFound {
+		return PortMapping{LocalPort: int(localPort)}, nil
+	}
+
+	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing target port")
+	}
+
+	return PortMapping{LocalPort: int(localPort), TargetPort: int(targetPort)}, nil
 }
 
 // InsecureSkipHostKeyChecking is used when the user passes in

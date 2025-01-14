@@ -203,6 +203,8 @@ func (k *kube) makeForwardProxyForKube() error {
 }
 
 func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certificate) error {
+	k.base.mu.RLock()
+	defer k.base.mu.RUnlock()
 	ca, ok := cas[k.cfg.ClusterName]
 	if !ok {
 		return trace.BadParameter("CA for teleport cluster %q is missing", k.cfg.ClusterName)

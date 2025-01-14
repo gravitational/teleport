@@ -253,7 +253,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Generate keypair.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
@@ -272,7 +272,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		Logger:      log,
 	}
 	rootCfg.Listeners = opts.listenerSetup(t, &rootCfg.Fds)
 	p.Root.Cluster = helpers.NewInstance(t, rootCfg)
@@ -284,7 +284,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		Logger:      log,
 	}
 	leafCfg.Listeners = opts.listenerSetup(t, &leafCfg.Fds)
 	p.Leaf.Cluster = helpers.NewInstance(t, leafCfg)
@@ -395,15 +395,15 @@ func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				// Use root logger as we need a configured logger instance and the root cluster have one.
-				p.Root.Cluster.Log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				p.Root.Cluster.Log.DebugContext(ctx, "Leaf cluster access point is unavailable", "error", err)
 				continue
 			}
 			if !containsDB(servers, p.Leaf.MysqlService.Name) {
-				p.Root.Cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.Leaf.MysqlService.Name)
+				p.Root.Cluster.Log.DebugContext(ctx, "Leaf db service is unavailable", "error", err, "db_service", p.Leaf.MysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.Leaf.PostgresService.Name) {
-				p.Root.Cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.Leaf.PostgresService.Name)
+				p.Root.Cluster.Log.DebugContext(ctx, "Leaf db service is unavailable", "error", err, "db_service", p.Leaf.PostgresService.Name)
 				continue
 			}
 			return
