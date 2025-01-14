@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.4.13
+VERSION=16.4.13-dev-tross-ssh-listener.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -1741,7 +1741,7 @@ changelog:
 # does not match version set it will fail to create a release. If tag doesn't exist it
 # will also fail to create a release.
 #
-# For more information on release notes generation see: 
+# For more information on release notes generation see:
 #   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
 .PHONY: create-github-release
 create-github-release: LATEST = false

@@ -1,4 +1,4 @@
-.version: &version "16.4.13"
+.version: &version "16.4.13-dev-tross-ssh-listener.1"
 
 apiVersion: v2
 name: teleport-plugin-datadog
