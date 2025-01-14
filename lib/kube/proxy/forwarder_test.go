@@ -749,7 +749,7 @@ func TestAuthenticate(t *testing.T) {
 				f.clusterDetails = nil
 			}
 
-			gotCtx, err := f.authenticate(req, httprouter.Params{}, identityRouteSourcer())
+			gotCtx, err := f.authenticate(req, httprouter.Params{})
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Equal(t, tt.wantAuthErr, trace.IsAccessDenied(err))

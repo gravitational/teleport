@@ -342,9 +342,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
-	path := fmt.Sprintf("/v1/teleport/:%s/:%s/*path", paramTeleportCluster, paramKubernetesCluster)
 	for _, method := range allHTTPMethods() {
-		router.Handle(method, path, fwd.withAuthPassthrough(fwd.singleCertHandler, withRouteFromPath()))
+		router.Handle(method, "/v1/teleport/:encodedTeleportCluster/:encodedKubernetesCluster/*path", fwd.singleCertHandler())
 	}
 
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
@@ -525,7 +524,7 @@ type handlerWithAuthFuncStd func(ctx *authContext, w http.ResponseWriter, r *htt
 const accessDeniedMsg = "[00] access denied"
 
 // authenticate function authenticates request
-func (f *Forwarder) authenticate(req *http.Request, params httprouter.Params, routeSourcer routeSourcer) (*authContext, error) {
+func (f *Forwarder) authenticate(req *http.Request, params httprouter.Params) (*authContext, error) {
 	// If the cluster is not licensed for Kubernetes, return an error to the client.
 	if !f.cfg.ClusterFeatures.GetEntitlement(entitlements.K8s).Enabled {
 		// If the cluster is not licensed for Kubernetes, return an error to the client.
@@ -566,12 +565,7 @@ func (f *Forwarder) authenticate(req *http.Request, params httprouter.Params, ro
 		return nil, trace.Wrap(err)
 	}
 
-	routeSource, err := routeSourcer(userContext.Identity, params)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, routeSource)
+	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
 		if trace.IsAccessDenied(err) {
@@ -597,7 +591,7 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		defer span.End()
 
 		// note: empty params as this has no route
-		authContext, err := f.authenticate(req, httprouter.Params{}, identityRouteSourcer())
+		authContext, err := f.authenticate(req, httprouter.Params{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -641,11 +635,6 @@ type authOption func(*authOptions)
 type authOptions struct {
 	// errFormater is a function that formats the error response.
 	errFormater func(http.ResponseWriter, error)
-
-	// routeSourcer is an optional function that determines the route to the
-	// Kubernetes cluster. If unset, `withAuth()` and `withAuthPassthrough()`
-	// will use an identity route sourcer, for legacy compatibility.
-	routeSourcer routeSourcer
 }
 
 // withCustomErrFormatter allows to override the default error formatter.
@@ -655,70 +644,12 @@ func withCustomErrFormatter(f func(http.ResponseWriter, error)) authOption {
 	}
 }
 
-// routeSource indicates a specific Kubernetes cluster by its name and parent
-// Teleport cluster name.
-type routeSource struct {
-	teleportClusterName string
-	kubeClusterName     string
-}
-
-// routeSourcer is a function that produces routing information from an identity
-// and request parameters. Implementors may use either or both of these inputs
-// to produce a route.
-type routeSourcer func(authz.IdentityGetter, httprouter.Params) (*routeSource, error)
-
-// identityRouteSourcer extracts routing information from a TLS identity. It is
-// separate from `withRouteFromIdentity` so it can be constructed easily for
-// legacy cases.
-func identityRouteSourcer() routeSourcer {
-	return func(idGetter authz.IdentityGetter, params httprouter.Params) (*routeSource, error) {
-		ident := idGetter.GetIdentity()
-
-		return &routeSource{
-			teleportClusterName: ident.RouteToCluster,
-			kubeClusterName:     ident.KubernetesCluster,
-		}, nil
-	}
-}
-
-// withRouteFromPath applies a routeSourcer that extracts routing information
-// from the request path
-func withRouteFromPath() authOption {
-	return func(o *authOptions) {
-		o.routeSourcer = func(idGetter authz.IdentityGetter, params httprouter.Params) (*routeSource, error) {
-			teleportCluster, kubeCluster, err := parseRouteFromPath(params)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &routeSource{
-				teleportClusterName: teleportCluster,
-				kubeClusterName:     kubeCluster,
-			}, nil
-		}
-	}
-}
-
-// withRouteFromIdentity applies a routeSourcer that extracts routing
-// information from the session's TLS identity
-func withRouteFromIdentity() authOption {
-	return func(o *authOptions) {
-		o.routeSourcer = identityRouteSourcer()
-	}
-}
-
 func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) httprouter.Handle {
 	authOpts := authOptions{
 		errFormater: f.formatStatusResponseError,
 	}
 	for _, opt := range opts {
 		opt(&authOpts)
-	}
-
-	// If no route sourcer was explicitly provided, fall back to the legacy
-	// identity route source.
-	if authOpts.routeSourcer == nil {
-		authOpts.routeSourcer = identityRouteSourcer()
 	}
 
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
@@ -733,7 +664,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 		)
 		req = req.WithContext(ctx)
 		defer span.End()
-		authContext, err := f.authenticate(req, p, authOpts.routeSourcer)
+		authContext, err := f.authenticate(req, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -758,12 +689,6 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc, opts ...aut
 		opt(&authOpts)
 	}
 
-	// If no route sourcer was explicitly provided, fall back to the legacy
-	// identity route source.
-	if authOpts.routeSourcer == nil {
-		authOpts.routeSourcer = identityRouteSourcer()
-	}
-
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
@@ -777,7 +702,7 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc, opts ...aut
 		req = req.WithContext(ctx)
 		defer span.End()
 
-		authContext, err := f.authenticate(req, p, authOpts.routeSourcer)
+		authContext, err := f.authenticate(req, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -834,7 +759,6 @@ func (f *Forwarder) setupContext(
 	authCtx authz.Context,
 	req *http.Request,
 	isRemoteUser bool,
-	route *routeSource,
 ) (*authContext, error) {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
@@ -854,7 +778,7 @@ func (f *Forwarder) setupContext(
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
 	identity := authCtx.Identity.GetIdentity()
-	teleportClusterName := route.teleportClusterName
+	teleportClusterName := identity.RouteToCluster
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
 	}
@@ -872,7 +796,7 @@ func (f *Forwarder) setupContext(
 		err          error
 	)
 
-	kubeCluster := route.kubeClusterName
+	kubeCluster := identity.KubernetesCluster
 
 	// Only check k8s principals for local clusters.
 	//

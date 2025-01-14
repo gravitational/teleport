@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,9 +22,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/httplib"
 )
 
 const (
@@ -55,7 +57,7 @@ func parseRouteFromPath(p httprouter.Params) (string, string, error) {
 		return "", "", trace.BadParameter("no Kubernetes cluster name found in path")
 	}
 
-	decodedKubernetesCluster, err := base64.RawStdEncoding.DecodeString(encodedKubernetesCluster)
+	decodedKubernetesCluster, err := base64.RawURLEncoding.DecodeString(encodedKubernetesCluster)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -65,44 +67,70 @@ func parseRouteFromPath(p httprouter.Params) (string, string, error) {
 	return string(decodedTeleportCluster), string(decodedKubernetesCluster), nil
 }
 
-func (f *Forwarder) singleCertHandler(_ *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
-	teleportCluster, kubeCluster, err := parseRouteFromPath(p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// singleCertHandler extracts routing information from base64-encoded URL
+// parameters into the current auth user context and forwards the request back
+// to the main router with the path prefix (and its embedded routing parameters)
+// stripped.
+func (f *Forwarder) singleCertHandler() httprouter.Handle {
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+		teleportCluster, kubeCluster, err := parseRouteFromPath(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	userTypeI, err := authz.UserFromContext(req.Context())
-	if err != nil {
-		f.log.WithError(err).Warn("error getting user from context")
-		return nil, trace.AccessDenied(accessDeniedMsg)
-	}
+		userTypeI, err := authz.UserFromContext(req.Context())
+		if err != nil {
+			f.log.WithError(err).Warn("error getting user from context")
+			return nil, trace.AccessDenied(accessDeniedMsg)
+		}
 
-	var userType authz.IdentityGetter
-	switch o := userTypeI.(type) {
-	case authz.LocalUser:
-		o.Identity.RouteToCluster = teleportCluster
-		o.Identity.KubernetesCluster = kubeCluster
-		userType = o
-	case authz.RemoteUser:
-		o.Identity.RouteToCluster = teleportCluster
-		o.Identity.KubernetesCluster = kubeCluster
-		userType = o
-	default:
-		f.log.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
-		return nil, trace.AccessDenied(accessDeniedMsg)
-	}
+		// Insert the extracted routing information from the path into the
+		// identity. Some implementation notes:
+		// - This still relies on RouteToCluster and KubernetesCluster identity
+		//   fields, even though these fields are not part of the TLS identity
+		//   when using path-based routing.
+		// - If the Teleport+Kube cluster names resolve to the local node, these
+		//   values will be used directly in their proper handlers once the
+		//   request is rewritten.
+		// - If the route resolves to a remote node, the identity is encoded (in
+		//   JSON form) into forwarding headers using
+		//   `auth.IdentityForwardingHeaders`. The destination node's auth
+		//   middleware is configured to extract this identity (due to
+		//   EnableCredentialsForwarding) and implicitly trusts this routing
+		//   data, assuming the request originated from a proxy.
+		// - In either case, the destination node is ultimately responsible for
+		//   authorizing the request, and routing information set in the
+		//   identity should not be implicitly trusted. (This was ideally never
+		//   the case, given access to resources could be revoked via roles
+		//   before certs expired.)
 
-	ctx := authz.ContextWithUser(req.Context(), userType)
-	req = req.WithContext(ctx)
+		var userType authz.IdentityGetter
+		switch o := userTypeI.(type) {
+		case authz.LocalUser:
+			o.Identity.RouteToCluster = teleportCluster
+			o.Identity.KubernetesCluster = kubeCluster
+			userType = o
+		case authz.RemoteUser:
+			o.Identity.RouteToCluster = teleportCluster
+			o.Identity.KubernetesCluster = kubeCluster
+			userType = o
+		default:
+			f.log.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
+			return nil, trace.AccessDenied(accessDeniedMsg)
+		}
 
-	path := p.ByName("path")
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
+		ctx := authz.ContextWithUser(req.Context(), userType)
+		req = req.WithContext(ctx)
 
-	req.URL.Path = path
-	req.RequestURI = req.URL.RequestURI()
+		path := p.ByName("path")
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
 
-	f.router.ServeHTTP(w, req)
-	return nil, nil
+		req.URL.Path = path
+		req.RequestURI = req.URL.RequestURI()
+
+		f.router.ServeHTTP(w, req)
+		return nil, nil
+	}, f.formatStatusResponseError)
 }
