@@ -65,6 +65,16 @@ func TestParseSSHCommand(t *testing.T) {
 			},
 		},
 		{
+			name:       "git-upload-pack with args after repo",
+			input:      "git-upload-pack --strict 'my-org/my-repo.git' --timeout=60",
+			checkError: require.NoError,
+			wantOutput: &Command{
+				SSHCommand: "git-upload-pack --strict 'my-org/my-repo.git' --timeout=60",
+				Service:    "git-upload-pack",
+				Repository: "my-org/my-repo.git",
+			},
+		},
+		{
 			name:       "missing quote",
 			input:      "git-upload-pack 'my-org/my-repo.git",
 			checkError: require.Error,

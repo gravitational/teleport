@@ -85,18 +85,33 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 	// Example: git-upload-pack 'my-org/my-repo.git'
 	// https://git-scm.com/docs/git-upload-pack
 	case transport.UploadPackServiceName:
-		if len(args) < 2 {
-			return nil, trace.CompareFailed("invalid SSH command %s: expecting more than one arguments for %q but got %d", sshCommand, args[0], len(args))
+		args = skipSSHCommandFlags(args)
+		if len(args) != 2 {
+			return nil, trace.CompareFailed("invalid SSH command %s: expecting 2 non-flag arguments for %q but got %d", sshCommand, args[0], len(args))
 		}
 
 		return &Command{
 			SSHCommand: sshCommand,
 			Service:    args[0],
-			Repository: Repository(args[len(args)-1]),
+			Repository: Repository(args[1]),
 		}, nil
 	default:
 		return nil, trace.BadParameter("unsupported SSH command %q", sshCommand)
 	}
+}
+
+// skipSSHCommandFlags filters out flags from the provided arguments.
+//
+// A flag typically has "--" as prefix. If a flag requires a value, it is
+// specified in the same arg with "=" (e.g. "--timeout=60") so there is no need
+// to skip an extra arg.
+func skipSSHCommandFlags(args []string) (ret []string) {
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			ret = append(ret, arg)
+		}
+	}
+	return
 }
 
 // checkSSHCommand performs basic checks against the SSH command.
