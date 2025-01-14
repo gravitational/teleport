@@ -96,7 +96,7 @@ func valuesToProtoListDevicesRequest(query url.Values) (*devicepb.ListDevicesReq
 
 	// Backend handles zeroed or negative page sizes.
 	return &devicepb.ListDevicesRequest{
-		View:      devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+		View:      devicepb.DeviceView_DEVICE_VIEW_LIST,
 		PageSize:  int32(pageSize),
 		PageToken: query.Get("startKey"),
 	}, nil

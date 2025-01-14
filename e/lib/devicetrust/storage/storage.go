@@ -2073,6 +2073,7 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			ApiVersion:   currentAPIVersion,
 			Id:           deviceID,
 			OsType:       devicepb.OSType(sd.OSType),
+			Owner:        sd.Owner,
 			AssetTag:     sd.AssetTag,
 			CreateTime:   timestamppb.New(sd.CreateTime),
 			UpdateTime:   timestamppb.New(sd.UpdateTime),
