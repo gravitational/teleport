@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -741,16 +742,18 @@ func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string, pr
 	caSigner, err := ssh.ParsePrivateKey(pemBytes)
 	require.NoError(t, err)
 
-	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
-		CertificateFormat:     constants.CertificateFormatStandard,
-		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
-		Username:              username,
-		AllowedLogins:         []string{username},
-		TTL:                   ttl,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		RouteToCluster:        s.clusterName,
+	certificate, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CertificateFormat: constants.CertificateFormatStandard,
+		CASigner:          caSigner,
+		PublicUserKey:     ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
+		TTL:               ttl,
+		Identity: sshca.Identity{
+			Username:              username,
+			AllowedLogins:         []string{username},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+			RouteToCluster:        s.clusterName,
+		},
 	})
 	require.NoError(t, err)
 
