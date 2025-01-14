@@ -194,7 +194,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity, err = local.NewIdentityServiceV2(cfg.Backend)
+		cfg.Identity, err = local.NewIdentityService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

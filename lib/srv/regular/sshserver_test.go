@@ -1678,6 +1678,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -1813,6 +1814,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -2499,6 +2501,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			Emitter:               proxyClient,
 			LockWatcher:           lockWatcher,
 			NodeWatcher:           nodeWatcher,
+			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 		})
 		require.NoError(t, err)
@@ -2760,6 +2763,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
@@ -3099,6 +3103,19 @@ func newNodeWatcher(ctx context.Context, t *testing.T, client *authclient.Client
 	return nodeWatcher
 }
 
+func newGitServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.Server, readonly.Server] {
+	watcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+		GitServerGetter: client.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
+	return watcher
+}
+
 func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
 	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -3180,6 +3197,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})

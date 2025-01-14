@@ -288,6 +288,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -1025,7 +1026,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	identityService, err := local.NewIdentityServiceV2(config.Backend)
+	identityService, err := local.NewIdentityService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

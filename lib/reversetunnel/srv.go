@@ -205,6 +205,9 @@ type Config struct {
 	// NodeWatcher is a node watcher.
 	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// GitServerWatcher is a Git server watcher.
+	GitServerWatcher *services.GenericWatcher[types.Server, readonly.Server]
+
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
@@ -272,6 +275,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.NodeWatcher == nil {
 		return trace.BadParameter("missing parameter NodeWatcher")
+	}
+	if cfg.GitServerWatcher == nil {
+		return trace.BadParameter("missing parameter GitServerWatcher")
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
@@ -1271,7 +1277,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 
 	go remoteSite.updateLocks(lockRetry)
-
 	return remoteSite, nil
 }
 

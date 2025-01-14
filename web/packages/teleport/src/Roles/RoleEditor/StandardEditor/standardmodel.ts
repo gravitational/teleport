@@ -39,14 +39,17 @@ import {
   Verb,
 } from 'teleport/services/resources/types';
 
+import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
 export type StandardEditorModel = {
   roleModel: RoleEditorModel;
+  originalRole: Role;
   /**
    * Will be true if fields have been modified from the original.
    */
   isDirty: boolean;
+  validationResult: RoleEditorModelValidationResult;
 };
 
 /**

@@ -1036,7 +1036,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
+	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	// v2 endpoint introduces "labels" field
+	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(createAwsAppAccess)
+	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
 	// The Integration DELETE endpoint already sets the expected named param after `/integrations/`
 	// It must be re-used here, otherwise the router will not start.
 	// See https://github.com/julienschmidt/httprouter/issues/364

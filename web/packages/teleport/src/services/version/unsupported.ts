@@ -18,6 +18,8 @@
 
 import { ApiError } from '../api/parseError';
 
+export const ProxyRequiresUpgrade = 'Ensure all proxies are upgraded';
+
 export function withUnsupportedLabelFeatureErrorConversion(
   err: unknown
 ): never {
@@ -26,7 +28,7 @@ export function withUnsupportedLabelFeatureErrorConversion(
       'We could not complete your request. ' +
         'Your proxy may be behind the minimum required version ' +
         `(v17.2.0) to support adding resource labels. ` +
-        'Ensure all proxies are upgraded or remove labels and try again.'
+        `${ProxyRequiresUpgrade} or remove labels and try again.`
     );
   }
   throw err;

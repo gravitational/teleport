@@ -23,6 +23,7 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -41,4 +42,23 @@ func SplitHostPort(addrString string) (string, uint32, error) {
 		return "", 0, trace.Wrap(err)
 	}
 	return addr.Host(), uint32(addr.Port(0)), nil
+}
+
+// SSHConnMetadataWithUser overrides an ssh.ConnMetadata with provided user.
+type SSHConnMetadataWithUser struct {
+	ssh.ConnMetadata
+	user string
+}
+
+// NewSSHConnMetadataWithUser overrides an ssh.ConnMetadata with provided user.
+func NewSSHConnMetadataWithUser(conn ssh.ConnMetadata, user string) SSHConnMetadataWithUser {
+	return SSHConnMetadataWithUser{
+		ConnMetadata: conn,
+		user:         user,
+	}
+}
+
+// User returns the user ID for this connection.
+func (s SSHConnMetadataWithUser) User() string {
+	return s.user
 }
