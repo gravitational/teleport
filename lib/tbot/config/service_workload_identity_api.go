@@ -37,9 +37,9 @@ type WorkloadIdentityAPIService struct {
 	Listen string `yaml:"listen"`
 	// Attestors is the configuration for the workload attestation process.
 	Attestors workloadattest.Config `yaml:"attestors"`
-	// WorkloadIdentity is the selector for the WorkloadIdentity resource that
+	// Selector is the selector for the WorkloadIdentity resource that
 	// will be used to issue WICs.
-	WorkloadIdentity WorkloadIdentitySelector `yaml:"workload_identity"`
+	Selector WorkloadIdentitySelector `yaml:"selector"`
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
@@ -50,8 +50,8 @@ func (o *WorkloadIdentityAPIService) CheckAndSetDefaults() error {
 	if err := o.Attestors.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating attestor")
 	}
-	if err := o.WorkloadIdentity.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err, "validating workload_identity")
+	if err := o.Selector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating selector")
 	}
 	return nil
 }

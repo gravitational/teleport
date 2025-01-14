@@ -9,5 +9,5 @@ attestors:
       ca_path: /path/to/ca.pem
       skip_verify: true
       anonymous: true
-workload_identity:
+selector:
   name: my-workload-identity

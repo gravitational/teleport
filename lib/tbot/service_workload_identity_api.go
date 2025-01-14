@@ -407,7 +407,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		ctx,
 		log,
 		s.client,
-		s.cfg.WorkloadIdentity,
+		s.cfg.Selector,
 		s.botCfg.CertificateTTL,
 		attest,
 	)
@@ -488,7 +488,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		ctx,
 		log,
 		s.client,
-		s.cfg.WorkloadIdentity,
+		s.cfg.Selector,
 		req.Audience,
 		s.botCfg.CertificateTTL,
 		attr,
