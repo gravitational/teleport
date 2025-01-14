@@ -268,7 +268,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationDirectory{
 							Path: "/an/output/path",
 						},
-						WorkloadIdentity: WorkloadIdentitySelector{
+						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
 					},

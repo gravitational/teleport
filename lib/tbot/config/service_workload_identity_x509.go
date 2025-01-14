@@ -63,9 +63,9 @@ func (s *WorkloadIdentitySelector) CheckAndSetDefaults() error {
 // WorkloadIdentityX509Service is the configuration for the WorkloadIdentityX509Service
 // Emulates the output of https://github.com/spiffe/spiffe-helper
 type WorkloadIdentityX509Service struct {
-	// WorkloadIdentity is the selector for the WorkloadIdentity resource that
-	// will be used to issue WICs.
-	WorkloadIdentity WorkloadIdentitySelector `yaml:"workload_identity"`
+	// Selector is the selector for the WorkloadIdentity resource that will be
+	// used to issue WICs.
+	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
 	// IncludeFederatedTrustBundles controls whether to include federated trust
@@ -88,8 +88,8 @@ func (o *WorkloadIdentityX509Service) CheckAndSetDefaults() error {
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := o.WorkloadIdentity.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err, "validating workload_identity")
+	if err := o.Selector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating selector")
 	}
 	return nil
 }
