@@ -99,3 +99,8 @@ func (o *WorkloadIdentityJWTService) UnmarshalYAML(node *yaml.Node) error {
 	o.Destination = dest
 	return nil
 }
+
+// GetDestination returns the destination.
+func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
+	return o.Destination
+}
