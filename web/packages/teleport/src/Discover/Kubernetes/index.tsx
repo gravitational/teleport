@@ -21,7 +21,12 @@ import React from 'react';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { EnrollEksCluster } from 'teleport/Discover/Kubernetes/EnrollEKSCluster';
 import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
-import { AwsAccount, Finished, Overview, ResourceKind } from 'teleport/Discover/Shared';
+import {
+  AwsAccount,
+  Finished,
+  Overview,
+  ResourceKind,
+} from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { KubeWrapper } from './KubeWrapper';

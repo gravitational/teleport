@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 import {
   ActionButtons,
@@ -36,23 +36,19 @@ export function Overview() {
         'Egress from your Kubernetes cluster to Teleport.',
         'Helm installed on your local machine.',
         'Kubernetes API access to install the Helm chart.',
-      ]
+      ],
     },
-  }
+  };
 
   return (
     <>
-      <Header>
-        Overview
-      </Header>
+      <Header>Overview</Header>
       <ul>
         {pageItems.kubernetes.overview.map((item, index) => (
           <li key={index}>{item}</li>
         ))}
       </ul>
-      <Header>
-        Prerequisites
-      </Header>
+      <Header>Prerequisites</Header>
       <HeaderSubtitle>
         Make sure you have these ready before continuing.
       </HeaderSubtitle>
