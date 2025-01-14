@@ -6793,7 +6793,7 @@ message PluginAWSICSettings {
   option (gogoproto.equal) = true;
 
   // IntegrationName is the Teleport OIDC integration used to gain access to the
-  // AWS account
+  // AWS account. May be empty if [UseAmbientAwsCreds] is `true`.
   string integration_name = 1;
 
   // Region is the AWS region the target Identity Center instance is configured in
@@ -6802,7 +6802,7 @@ message PluginAWSICSettings {
   // InstanceARN is the arn of the Identity Center instance to manage
   string arn = 3;
 
-  // Provisioning holds settings for provisioing users and groups into AWS
+  // Provisioning holds settings for provisioning users and groups into AWS
   AWSICProvisioningSpec provisioning_spec = 4;
 
   // AccessListDefaultOwners is a list of default owners for Access List created for
@@ -6812,6 +6812,10 @@ message PluginAWSICSettings {
   // SAMLIdPServiceProviderName is the name of a SAML service provider created
   // for the Identity Center.
   string saml_idp_service_provider_name = 6;
+
+  // UseAmbientAwsCreds indicates that the integration should use the ambient
+  // AWS credentials rather than
+  bool use_ambient_aws_creds = 7;
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings

@@ -1057,6 +1057,13 @@ func TestPluginAWSICSettings(t *testing.T) {
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationName = "" },
 			assertErr:      requireNamedBadParameterError("integration name"),
 		}, {
+			name: "missing oidc integration is allowed with ambient creds",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.IntegrationName = ""
+				cfg.UseAmbientAwsCreds = true
+			},
+			assertErr: require.NoError,
+		}, {
 			name:           "missing instance region",
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Region = "" },
 			assertErr:      requireNamedBadParameterError("region"),

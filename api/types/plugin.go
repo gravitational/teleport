@@ -751,7 +751,7 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	if c.IntegrationName == "" {
+	if c.IntegrationName == "" && !c.UseAmbientAwsCreds {
 		return trace.BadParameter("AWS OIDC integration name must be set")
 	}
 
