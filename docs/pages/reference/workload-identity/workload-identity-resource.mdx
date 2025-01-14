@@ -3,6 +3,15 @@ title: WorkloadIdentity Resource
 description: Information about the WorkloadIdentity resource
 ---
 
+The WorkloadIdentity resource is used to define the structure of an identity
+that can be issued to workloads, the rules around what workloads it can be
+issued to, and the characteristics of the credentials that will be issued for
+that identity.
+
+It supports templating using attributes of the workload, such as the name of the
+Kubernetes namespace or service account, which allows the WorkloadIdentity
+resource to be used in a generic way for multiple distinct workloads.
+
 ```yaml
 kind: workload_identity
 version: v1
@@ -16,12 +25,22 @@ spec:
     hint: /foo/bars
 ```
 
-## Rules
-
 ## Templating
 
 The following fields support templating:
 
 - `spec.spiffe.id`
 - `spec.spiffe.hint`
+- `spec.spiffe.x509.dns_sans`
 
+## Rules
+
+## Infrastructure as Code
+
+In addition to the YAML representation which can be managed with `tctl`, the
+WorkloadIdentity resource can also be managed using Infrastructure as Code
+tools.
+
+For further information see:
+
+- [Terraform provider reference: teleport_workload_identity](../terraform-provider/resources/workload_identity.mdx)
