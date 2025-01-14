@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -1156,6 +1157,47 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.NoError(t, err)
 	})
+}
+
+func TestAWSOIDCAppAccessAppServerCreationWithUserProvidedLabels(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser("my-user"), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{"*": []string{"*"}},
+			Rules: []types.Rule{
+				types.NewRule(types.KindIntegration, []string{types.VerbRead}),
+				types.NewRule(types.KindAppServer, []string{types.VerbCreate, types.VerbUpdate, types.VerbList, types.VerbDelete}),
+				types.NewRule(types.KindUserGroup, []string{types.VerbList, types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	proxy := env.proxies[0]
+	proxy.handler.handler.cfg.PublicProxyAddr = strings.TrimPrefix(proxy.handler.handler.cfg.PublicProxyAddr, "https://")
+	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
+
+	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+		Name: "my-integration",
+	}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123456789012:role/teleport",
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().CreateIntegration(ctx, myIntegration)
+	require.NoError(t, err)
+
+	// Create the AWS App Access for the current integration.
+	endpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
+	re, err := pack.clt.PostJSON(ctx, endpoint, ui.AWSOIDCCreateAWSAppAccessRequest{Labels: map[string]string{"env": "testing"}})
+	require.NoError(t, err)
+
+	var app ui.App
+	require.NoError(t, json.Unmarshal(re.Bytes(), &app))
+
+	require.ElementsMatch(t, app.Labels, []libui.Label{{Name: "env", Value: "testing"}, {Name: "aws_account_id", Value: "123456789012"}})
 }
 
 type mockDeployedDatabaseServices struct {
