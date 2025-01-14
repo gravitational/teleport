@@ -334,6 +334,10 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
+	if err := s.checkIfGatewayAlreadyExists(targetURI, params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -517,6 +521,13 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkIfGatewayAlreadyExists(gateway.TargetURI(), CreateGatewayParams{
+		TargetURI:             gateway.TargetURI().String(),
+		TargetSubresourceName: targetSubresourceName,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
