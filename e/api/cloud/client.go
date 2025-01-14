@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/trail"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/utils"

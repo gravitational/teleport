@@ -9,11 +9,11 @@ import (
 	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"

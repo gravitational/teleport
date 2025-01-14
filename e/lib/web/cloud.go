@@ -6,12 +6,12 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/protobuf/encoding/protojson"
 	googleproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/trail"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
