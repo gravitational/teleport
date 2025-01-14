@@ -203,10 +203,9 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             break;
           }
           case 'connection.kube': {
-            i.connected = !!this._clusterService.findGatewayByConnectionParams(
-              i.kubeUri,
-              ''
-            );
+            i.connected = !!this._clusterService.findGatewayByConnectionParams({
+              targetUri: i.kubeUri,
+            });
             break;
           }
           default: {
@@ -273,10 +272,9 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
 
             if (kubeConn) {
               kubeConn.connected =
-                !!this._clusterService.findGatewayByConnectionParams(
-                  doc.targetUri,
-                  ''
-                );
+                !!this._clusterService.findGatewayByConnectionParams({
+                  targetUri: doc.targetUri,
+                });
             } else {
               const newItem = createGatewayKubeConnection(doc);
               draft.connections.push(newItem);
