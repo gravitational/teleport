@@ -61,7 +61,7 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(args) == 0 {
-		return nil, trace.BadParameter("invalid ssh command %s", sshCommand)
+		return nil, trace.BadParameter("invalid SSH command %s", sshCommand)
 	}
 
 	// There are a number of plumbing commands but only upload-pack and
@@ -69,11 +69,11 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 	// https://git-scm.com/docs/pack-protocol#_transports
 	switch args[0] {
 	// git-receive-pack - Receive what is pushed into the repository
-	// Example: git-upload-pack 'my-org/my-repo.git'
+	// Example: git-receive-pack 'my-org/my-repo.git'
 	// https://git-scm.com/docs/git-receive-pack
 	case transport.ReceivePackServiceName:
 		if len(args) != 2 {
-			return nil, trace.CompareFailed("expecting 2 arguments for %q, got %d", args[0], len(args))
+			return nil, trace.CompareFailed("invalid SSH command %s: expecting 2 arguments for %q but got %d", sshCommand, args[0], len(args))
 		}
 		return &Command{
 			SSHCommand: sshCommand,
@@ -86,7 +86,7 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 	// https://git-scm.com/docs/git-upload-pack
 	case transport.UploadPackServiceName:
 		if len(args) < 2 {
-			return nil, trace.CompareFailed("expecting more than one arguments for %q, got %d", args[0], len(args))
+			return nil, trace.CompareFailed("invalid SSH command %s: expecting more than one arguments for %q but got %d", sshCommand, args[0], len(args))
 		}
 
 		return &Command{
@@ -95,7 +95,7 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 			Repository: Repository(args[len(args)-1]),
 		}, nil
 	default:
-		return nil, trace.BadParameter("unsupported command %q", sshCommand)
+		return nil, trace.BadParameter("unsupported SSH command %q", sshCommand)
 	}
 }
 
@@ -103,7 +103,7 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 func checkSSHCommand(server types.Server, command *Command) error {
 	// Only supporting GitHub for now.
 	if server.GetGitHub() == nil {
-		return trace.BadParameter("missing GitHub spec")
+		return trace.BadParameter("the git_server is misconfigured due to missing GitHub spec, contact your Teleport administrator")
 	}
 	if server.GetGitHub().Organization != command.Repository.Owner() {
 		return trace.AccessDenied("expect organization %q but got %q",

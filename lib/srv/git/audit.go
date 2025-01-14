@@ -48,10 +48,21 @@ type CommandRecorder interface {
 }
 
 // NewCommandRecorder returns a new Git command recorder.
-func NewCommandRecorder(command Command) CommandRecorder {
+//
+// The recorder receives stdin input from the git client which is in Git pack
+// protocol format:
+// https://git-scm.com/docs/pack-protocol#_ssh_transport
+//
+// For SSH transport, the command type and the repository come from the command
+// executed through the SSH session.
+//
+// Based on the command type, we can decode the pack protocol defined above. In
+// general, some metadata are exchanged in pkt-lines followed by packfile sent
+// via side-bands.
+func NewCommandRecorder(parentCtx context.Context, command Command) CommandRecorder {
 	// For now, only record details on the push. Fetch is not very interesting.
 	if command.Service == transport.ReceivePackServiceName {
-		return newPushCommandRecorder(command)
+		return newPushCommandRecorder(parentCtx, command)
 	}
 	return newNoopRecorder(command)
 }
@@ -77,17 +88,18 @@ func (r *noopRecorder) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// pushCommandRecoder records actions for git-receive-pack.
+// pushCommandRecorder records actions for git-receive-pack.
 type pushCommandRecorder struct {
 	Command
 
+	parentCtx context.Context
 	logger    *slog.Logger
 	payload   []byte
 	mu        sync.Mutex
 	seenFlush bool
 }
 
-func newPushCommandRecorder(command Command) *pushCommandRecorder {
+func newPushCommandRecorder(parentCtx context.Context, command Command) *pushCommandRecorder {
 	return &pushCommandRecorder{
 		Command: command,
 		logger:  slog.With(teleport.ComponentKey, "git:packp"),
@@ -107,11 +119,11 @@ func (r *pushCommandRecorder) Write(p []byte) (int, error) {
 	//
 	// https://git-scm.com/docs/pack-protocol#_reference_update_request_and_packfile_transfer
 	if r.seenFlush {
-		r.logger.Log(context.Background(), log.TraceLevel, "Discarding packet protocol", "packet_length", len(p))
+		r.logger.Log(r.parentCtx, log.TraceLevel, "Discarding packet protocol", "packet_length", len(p))
 		return len(p), nil
 	}
 
-	r.logger.Log(context.Background(), log.TraceLevel, "Recording Git command in packet protocol", "packet", string(p))
+	r.logger.Log(r.parentCtx, log.TraceLevel, "Recording Git command in packet protocol", "packet", string(p))
 	r.payload = append(r.payload, p...)
 	if bytes.HasSuffix(p, pktline.FlushPkt) {
 		r.seenFlush = true

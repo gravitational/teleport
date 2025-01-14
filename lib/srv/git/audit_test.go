@@ -19,6 +19,7 @@
 package git
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
@@ -68,7 +69,7 @@ func TestCommandRecorder(t *testing.T) {
 			command, err := ParseSSHCommand(tt.sshCommand)
 			require.NoError(t, err)
 
-			recorder := NewCommandRecorder(*command)
+			recorder := NewCommandRecorder(context.Background(), *command)
 			for _, input := range tt.inputs {
 				n, err := recorder.Write(input)
 				require.NoError(t, err)
