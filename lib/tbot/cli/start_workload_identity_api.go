@@ -36,12 +36,12 @@ type WorkloadIdentityAPICommand struct {
 	// Listen configures where the workload identity API should listen. This
 	// should be prefixed with a scheme e.g unix:// or tcp://.
 	Listen string
-	// WorkloadIdentityName is the name of the workload identity to use.
-	// --workload-identity-name foo
-	WorkloadIdentityName string
-	// WorkloadIdentityLabels is the labels of the workload identity to use.
-	// --workload-identity-labels x=y,z=a
-	WorkloadIdentityLabels string
+	// NameSelector is the name of the workload identity to use.
+	// --name-selector foo
+	NameSelector string
+	// LabelSelector is the labels of the workload identity to use.
+	// --label-selector x=y,z=a
+	LabelSelector string
 }
 
 // NewWorkloadIdentityAPICommand initializes the command and flags for the
@@ -59,15 +59,15 @@ func NewWorkloadIdentityAPICommand(parentCmd *kingpin.CmdClause, action MutatorA
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
 	cmd.Flag(
-		"workload-identity-name",
+		"name-selector",
 		"The name of the workload identity to issue",
-	).StringVar(&c.WorkloadIdentityName)
+	).StringVar(&c.NameSelector)
 	cmd.Flag(
-		"workload-identity-labels",
+		"label-selector",
 		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
-	).StringVar(&c.WorkloadIdentityLabels)
+	).StringVar(&c.LabelSelector)
 	cmd.Flag(
-		"listen-addr",
+		"listen",
 		"The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.",
 	).Required().StringVar(&c.Listen)
 
@@ -84,12 +84,12 @@ func (c *WorkloadIdentityAPICommand) ApplyConfig(cfg *config.BotConfig, l *slog.
 	}
 
 	switch {
-	case c.WorkloadIdentityName != "" && c.WorkloadIdentityLabels != "":
+	case c.NameSelector != "" && c.LabelSelector != "":
 		return trace.BadParameter("workload-identity-name and workload-identity-labels flags are mutually exclusive")
-	case c.WorkloadIdentityName != "":
-		svc.WorkloadIdentity.Name = c.WorkloadIdentityName
-	case c.WorkloadIdentityLabels != "":
-		labels, err := client.ParseLabelSpec(c.WorkloadIdentityLabels)
+	case c.NameSelector != "":
+		svc.WorkloadIdentity.Name = c.NameSelector
+	case c.LabelSelector != "":
+		labels, err := client.ParseLabelSpec(c.LabelSelector)
 		if err != nil {
 			return trace.Wrap(err, "parsing --workload-identity-labels")
 		}
