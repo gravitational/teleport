@@ -186,8 +186,6 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewa
 	)
 }
 
-type testGatewayConnectionFunc func(context.Context, *testing.T, *daemon.Service, gateway.Gateway)
-
 type generateAndSetupUserCredsFunc func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration)
 
 type gatewayCertRenewalParams struct {
