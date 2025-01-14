@@ -40,6 +40,8 @@ SOFTWARE.
 
 */
 
+import { forwardRef } from 'react';
+
 import { Icon, IconProps } from '../Icon';
 
 /*
@@ -48,9 +50,15 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Minus({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-minus" {...otherProps}>
+export const Minus = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-minus"
+      {...otherProps}
+      ref={ref}
+    >
       <path
         d="M3.75 12H20.25"
         stroke="currentColor"
@@ -59,5 +67,5 @@ export function Minus({ size = 24, color, ...otherProps }: IconProps) {
         strokeLinejoin="round"
       />
     </Icon>
-  );
-}
+  )
+);

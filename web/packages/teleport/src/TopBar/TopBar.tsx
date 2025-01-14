@@ -17,7 +17,7 @@
  */
 
 import type * as history from 'history';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { matchPath, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
@@ -376,7 +376,7 @@ const MainNavItem = ({
   to: string;
   size: number;
   name: string;
-  Icon: (props: { color: string; size: number }) => JSX.Element;
+  Icon: (props: { color: string; size: number }) => ReactNode;
 }) => {
   const { currentWidth } = useLayout();
   const theme: Theme = useTheme();
