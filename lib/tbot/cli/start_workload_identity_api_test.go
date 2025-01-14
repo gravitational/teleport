@@ -47,7 +47,7 @@ func TestNewWorkloadIdentityAPICommand(t *testing.T) {
 				require.Equal(t, map[string][]string{
 					"*":   {"*"},
 					"foo": {"bar"},
-				}, wis.WorkloadIdentity.Labels)
+				}, wis.Selector.Labels)
 			},
 		},
 		{
@@ -68,7 +68,7 @@ func TestNewWorkloadIdentityAPICommand(t *testing.T) {
 				wis, ok := svc.(*config.WorkloadIdentityAPIService)
 				require.True(t, ok)
 				require.Equal(t, "unix:///opt/workload.sock", wis.Listen)
-				require.Equal(t, "jim", wis.WorkloadIdentity.Name)
+				require.Equal(t, "jim", wis.Selector.Name)
 			},
 		},
 	})

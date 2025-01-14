@@ -94,7 +94,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "api", role.GetName())
 	botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
 		&config.WorkloadIdentityAPIService{
-			WorkloadIdentity: config.WorkloadIdentitySelector{
+			Selector: config.WorkloadIdentitySelector{
 				Name: workloadIdentity.GetMetadata().GetName(),
 			},
 			Listen: listenAddr.String(),
