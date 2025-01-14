@@ -104,18 +104,13 @@ $ tctl sso configure saml --name keycloak \
 In the example above:
 
 - `--entity-descriptor` specifies the app federation metadata URL
-
 - Each `--attributes-to-roles` specifies the name of the schema definition for groups,
   groups, the name of a Keycloak group and the Teleport role that members of the group
   will be assigned.
-
 - Keycloak includes an explicit leading `/` in the group name, 
   which is reflected in the group name specified in the above example.
-
 - `--acs` specifies where the SAML provider makes callbacks after successful authentication.
-
 - `--audience`  uniquely identifies your service provider (Teleport).
-
 
 The file `keycloak-connector.yaml` should now resemble the following:
 
@@ -338,17 +333,16 @@ Update the connector by saving and closing the file in your editor.
 
 - Navigate to the **Keys** tab, and enable "Client Signature Required"
 
-![Enable client signature](../../../../img/sso/keycloak/client_signature.png)
+  ![Enable client signature](../../../../img/sso/keycloak/client_signature.png)
 
 - Import the converted cert.pkcs12 certificate
 
-![Import Signature](../../../../img/sso/keycloak/Import_signature.png)
+  ![Import Signature](../../../../img/sso/keycloak/Import_signature.png)
 
-Be sure to enter the correct **name** and **password**
-defined when converting the certificate as the **Key Alias** and **Store Password.**
+  Be sure to enter the correct **name** and **password** defined when converting
+  the certificate as the **Key Alias** and **Store Password.**
 
 - Click **Confirm** to activate it.
-
 
 If the SSO login with this connector is successful, the client signature validation works.
 
@@ -373,6 +367,5 @@ To resolve the issue:
 - Refer to the **Client Certificate Signature validation** section 
   to review the certificate configuration. Ensure the certificate is up-to-date 
   and the private key is properly paired with it. 
-
 - Once the above has been verified, temporarily add the `spec.provider: ping` parameter 
   to the Keycloak auth connector to match Keycloak strict signature requirements.
