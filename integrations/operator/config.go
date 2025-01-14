@@ -35,6 +35,7 @@ type operatorConfig struct {
 	leaderElectionID string
 	syncPeriod       time.Duration
 	namespace        string
+	logLevel         string
 }
 
 // BindFlags binds operatorConfig fields to CLI flags.
@@ -50,6 +51,7 @@ func (c *operatorConfig) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.leaderElectionID, "leader-election-id", "431e83f4.teleport.dev", "Leader Election Id to use.")
 	fs.StringVar(&c.namespace, "namespace", "", "The namespace containing the Teleport CRs.")
 	fs.DurationVar(&c.syncPeriod, "sync-period", defaultSyncPeriod, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
+	fs.StringVar(&c.logLevel, "log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR).")
 }
 
 // CheckAndSetDefaults checks the operatorConfig and populates unspecified

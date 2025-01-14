@@ -20,12 +20,12 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
@@ -57,9 +57,6 @@ func (s *mockStore) PutCredentials(ctx context.Context, creds *storage.Credentia
 }
 
 func TestRotatedAccessTokenProvider(t *testing.T) {
-	log := logrus.New()
-	log.Level = logrus.DebugLevel
-
 	newProvider := func(ctx context.Context, store storage.Store, refresher oauth.Refresher, clock clockwork.Clock, initialCreds *storage.Credentials) *RotatedAccessTokenProvider {
 		return &RotatedAccessTokenProvider{
 			store:     store,
@@ -70,7 +67,7 @@ func TestRotatedAccessTokenProvider(t *testing.T) {
 			tokenBufferInterval: 1 * time.Hour,
 
 			creds: initialCreds,
-			log:   log,
+			log:   slog.Default(),
 		}
 	}
 

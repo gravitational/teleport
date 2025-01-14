@@ -36,17 +36,17 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
-	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/eks/eksiface"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -85,6 +85,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -173,10 +175,10 @@ func genEC2Instances(n int) []ec2types.Instance {
 	var ec2Instances []ec2types.Instance
 	for _, id := range genEC2InstanceIDs(n) {
 		ec2Instances = append(ec2Instances, ec2types.Instance{
-			InstanceId: awsv2.String(id),
+			InstanceId: aws.String(id),
 			Tags: []ec2types.Tag{{
-				Key:   awsv2.String("env"),
-				Value: awsv2.String("dev"),
+				Key:   aws.String("env"),
+				Value: aws.String("dev"),
 			}},
 			State: &ec2types.InstanceState{
 				Name: ec2types.InstanceStateNameRunning,
@@ -285,6 +287,26 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	dcForEC2StatusWithoutMatchName := uuid.NewString()
+	dcForEC2StatusWithoutMatch, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcForEC2StatusWithoutMatchName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
 	discoveryConfigForUserTaskEKSTestName := uuid.NewString()
 	discoveryConfigForUserTaskEKSTest, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{Name: discoveryConfigForUserTaskEKSTestName},
@@ -300,13 +322,39 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	discoveryConfigWithAndWithoutAppDiscoveryTestName := uuid.NewString()
+	discoveryConfigWithAndWithoutAppDiscovery, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigWithAndWithoutAppDiscoveryTestName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{
+				{
+					Types:            []string{"eks"},
+					Regions:          []string{"eu-west-2"},
+					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"No"}},
+					Integration:      "my-integration",
+					KubeAppDiscovery: false,
+				},
+				{
+					Types:            []string{"eks"},
+					Regions:          []string{"eu-west-2"},
+					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"Yes"}},
+					Integration:      "my-integration",
+					KubeAppDiscovery: true,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
 	tcs := []struct {
 		name string
-		// presentInstances is a list of servers already present in teleport
+		// presentInstances is a list of servers already present in teleport.
 		presentInstances          []types.Server
 		foundEC2Instances         []ec2types.Instance
 		ssm                       *mockSSMClient
 		emitter                   *mockEmitter
+		eksClusters               []*ekstypes.Cluster
 		eksEnroller               eksClustersEnroller
 		discoveryConfig           *discoveryconfig.DiscoveryConfig
 		staticMatchers            Matchers
@@ -317,14 +365,14 @@ func TestDiscoveryServer(t *testing.T) {
 		ssmRunError               error
 	}{
 		{
-			name:             "no nodes present, 1 found ",
+			name:             "no nodes present, 1 found",
 			presentInstances: []types.Server{},
 			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: awsv2.String("instance-id-1"),
+					InstanceId: aws.String("instance-id-1"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("dev"),
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNameRunning,
@@ -334,7 +382,7 @@ func TestDiscoveryServer(t *testing.T) {
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
 					Command: &ssmtypes.Command{
-						CommandId: awsv2.String("command-id-1"),
+						CommandId: aws.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
@@ -379,10 +427,10 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: awsv2.String("instance-id-1"),
+					InstanceId: aws.String("instance-id-1"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("dev"),
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNameRunning,
@@ -392,7 +440,7 @@ func TestDiscoveryServer(t *testing.T) {
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
 					Command: &ssmtypes.Command{
-						CommandId: awsv2.String("command-id-1"),
+						CommandId: aws.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
@@ -420,10 +468,10 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: awsv2.String("instance-id-1"),
+					InstanceId: aws.String("instance-id-1"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("dev"),
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNameRunning,
@@ -433,7 +481,7 @@ func TestDiscoveryServer(t *testing.T) {
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
 					Command: &ssmtypes.Command{
-						CommandId: awsv2.String("command-id-1"),
+						CommandId: aws.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
@@ -452,7 +500,7 @@ func TestDiscoveryServer(t *testing.T) {
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
 					Command: &ssmtypes.Command{
-						CommandId: awsv2.String("command-id-1"),
+						CommandId: aws.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
@@ -469,10 +517,10 @@ func TestDiscoveryServer(t *testing.T) {
 			presentInstances: []types.Server{},
 			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: awsv2.String("instance-id-1"),
+					InstanceId: aws.String("instance-id-1"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("dev"),
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNameRunning,
@@ -482,7 +530,7 @@ func TestDiscoveryServer(t *testing.T) {
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
 					Command: &ssmtypes.Command{
-						CommandId: awsv2.String("command-id-1"),
+						CommandId: aws.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
@@ -516,10 +564,10 @@ func TestDiscoveryServer(t *testing.T) {
 			presentInstances: []types.Server{},
 			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: awsv2.String("instance-id-1"),
+					InstanceId: aws.String("instance-id-1"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("dev"),
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNameRunning,
@@ -529,7 +577,7 @@ func TestDiscoveryServer(t *testing.T) {
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
 					Command: &ssmtypes.Command{
-						CommandId: awsv2.String("command-id-1"),
+						CommandId: aws.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
@@ -574,14 +622,39 @@ func TestDiscoveryServer(t *testing.T) {
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
+			name:              "no nodes found using DiscoveryConfig and Integration, but DiscoveryConfig Status is still updated",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: []ec2types.Instance{},
+			ssm:               &mockSSMClient{},
+			emitter:           &mockEmitter{},
+			staticMatchers:    Matchers{},
+			discoveryConfig:   dcForEC2StatusWithoutMatch,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 0,
+				LastSyncTime:        fakeClock.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					"my-integration": {
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+							Found:    0,
+							Enrolled: 0,
+							Failed:   0,
+						},
+					},
+				},
+			},
+			wantInstalledInstances: []string{},
+		},
+		{
 			name:             "one node found but SSM Run fails and DiscoverEC2 User Task is created",
 			presentInstances: []types.Server{},
 			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: awsv2.String("instance-id-1"),
+					InstanceId: aws.String("instance-id-1"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("dev"),
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNameRunning,
@@ -591,7 +664,7 @@ func TestDiscoveryServer(t *testing.T) {
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
 					Command: &ssmtypes.Command{
-						CommandId: awsv2.String("command-id-1"),
+						CommandId: aws.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
@@ -620,7 +693,7 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:         Matchers{},
 			discoveryConfig:        discoveryConfigForUserTaskEC2Test,
 			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			userTasksDiscoverCheck: func(t require.TestingT, i1 interface{}, i2 ...interface{}) {
 				existingTasks, ok := i1.([]*usertasksv1.UserTask)
 				require.True(t, ok, "failed to get existing tasks: %T", i1)
 				require.Len(t, existingTasks, 1)
@@ -646,26 +719,21 @@ func TestDiscoveryServer(t *testing.T) {
 			presentInstances:  []types.Server{},
 			foundEC2Instances: []ec2types.Instance{},
 			ssm:               &mockSSMClient{},
-			cloudClients: &cloud.TestCloudClients{
-				STS: &mocks.STSMock{},
-				EKS: &mocks.EKSMock{
-					Clusters: []*eks.Cluster{
-						{
-							Name:   aws.String("cluster01"),
-							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-							Status: aws.String(eks.ClusterStatusActive),
-							Tags: map[string]*string{
-								"RunDiscover": aws.String("Please"),
-							},
-						},
-						{
-							Name:   aws.String("cluster02"),
-							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-							Status: aws.String(eks.ClusterStatusActive),
-							Tags: map[string]*string{
-								"RunDiscover": aws.String("Please"),
-							},
-						},
+			eksClusters: []*ekstypes.Cluster{
+				{
+					Name:   aws.String("cluster01"),
+					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
+					Status: ekstypes.ClusterStatusActive,
+					Tags: map[string]string{
+						"RunDiscover": "Please",
+					},
+				},
+				{
+					Name:   aws.String("cluster02"),
+					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
+					Status: ekstypes.ClusterStatusActive,
+					Tags: map[string]string{
+						"RunDiscover": "Please",
 					},
 				},
 			},
@@ -690,7 +758,7 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:         Matchers{},
 			discoveryConfig:        discoveryConfigForUserTaskEKSTest,
 			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			userTasksDiscoverCheck: func(t require.TestingT, i1 interface{}, i2 ...interface{}) {
 				existingTasks, ok := i1.([]*usertasksv1.UserTask)
 				require.True(t, ok, "failed to get existing tasks: %T", i1)
 				require.Len(t, existingTasks, 1)
@@ -711,23 +779,92 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
 			},
 		},
+		{
+			name:              "multiple EKS clusters with different KubeAppDiscovery setting failed to autoenroll and user tasks are created",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: []ec2types.Instance{},
+			ssm:               &mockSSMClient{},
+			eksClusters: []*ekstypes.Cluster{
+				{
+					Name:   aws.String("cluster01"),
+					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
+					Status: ekstypes.ClusterStatusActive,
+					Tags: map[string]string{
+						"EnableAppDiscovery": "Yes",
+					},
+				},
+				{
+					Name:   aws.String("cluster02"),
+					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
+					Status: ekstypes.ClusterStatusActive,
+					Tags: map[string]string{
+						"EnableAppDiscovery": "No",
+					},
+				},
+			},
+			eksEnroller: &mockEKSClusterEnroller{
+				resp: &integrationpb.EnrollEKSClustersResponse{
+					Results: []*integrationpb.EnrollEKSClusterResult{
+						{
+							EksClusterName: "cluster01",
+							Error:          "access endpoint is not reachable",
+							IssueType:      "eks-cluster-unreachable",
+						},
+						{
+							EksClusterName: "cluster02",
+							Error:          "access endpoint is not reachable",
+							IssueType:      "eks-cluster-unreachable",
+						},
+					},
+				},
+				err: nil,
+			},
+			emitter:                &mockEmitter{},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        discoveryConfigWithAndWithoutAppDiscovery,
+			wantInstalledInstances: []string{},
+			userTasksDiscoverCheck: func(t require.TestingT, i1 interface{}, i2 ...interface{}) {
+				existingTasks, ok := i1.([]*usertasksv1.UserTask)
+				require.True(t, ok, "failed to get existing tasks: %T", i1)
+				require.Len(t, existingTasks, 2)
+				existingTask := existingTasks[0]
+				if existingTask.Spec.DiscoverEks.AppAutoDiscover == false {
+					existingTask = existingTasks[1]
+				}
+
+				require.Equal(t, "OPEN", existingTask.GetSpec().State)
+				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
+				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
+				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
+				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
+
+				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
+				require.Contains(t, taskClusters, "cluster01")
+				taskCluster := taskClusters["cluster01"]
+
+				require.Equal(t, "cluster01", taskCluster.Name)
+				require.Equal(t, discoveryConfigWithAndWithoutAppDiscoveryTestName, taskCluster.DiscoveryConfig)
+				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
+			},
+		},
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := context.Background()
 
-			ec2Client := &mockEC2Client{output: &ec2.DescribeInstancesOutput{
-				Reservations: []ec2types.Reservation{
-					{
-						OwnerId:   awsv2.String("owner"),
-						Instances: tc.foundEC2Instances,
+			ec2Client := &mockEC2Client{
+				output: &ec2.DescribeInstancesOutput{
+					Reservations: []ec2types.Reservation{
+						{
+							OwnerId:   aws.String("owner"),
+							Instances: tc.foundEC2Instances,
+						},
 					},
 				},
-			}}
+			}
 
-			ctx := context.Background()
 			// Create and start test auth server.
 			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 				Dir: t.TempDir(),
@@ -735,9 +872,24 @@ func TestDiscoveryServer(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
+			awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+				Name: "my-integration",
+			}, &types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:iam::123456789012:role/teleport",
+			})
+			require.NoError(t, err)
+			testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+				proxies: nil,
+				integrations: map[string]types.Integration{
+					awsOIDCIntegration.GetName(): awsOIDCIntegration,
+				},
+			}
+
 			tlsServer, err := testAuthServer.NewTestTLSServer()
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+			_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
+			require.NoError(t, err)
 
 			// Auth client for discovery service.
 			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
@@ -769,12 +921,20 @@ func TestDiscoveryServer(t *testing.T) {
 				eksEnroller = tc.eksEnroller
 			}
 
+			fakeConfigProvider := mocks.AWSConfigProvider{
+				OIDCIntegrationClient: tlsServer.Auth(),
+			}
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 					return ec2Client, nil
 				},
 				GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
 					return tc.ssm, nil
+				},
+				AWSConfigProvider: &fakeConfigProvider,
+				AWSFetchersClients: &mockFetchersClients{
+					AWSConfigProvider: fakeConfigProvider,
+					eksClusters:       tc.eksClusters,
 				},
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
@@ -869,20 +1029,20 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		output: &ec2.DescribeInstancesOutput{
 			Reservations: []ec2types.Reservation{
 				{
-					OwnerId: awsv2.String("123456789012"),
+					OwnerId: aws.String("123456789012"),
 					Instances: []ec2types.Instance{
 						{
-							InstanceId: awsv2.String("i-123456789012"),
+							InstanceId: aws.String("i-123456789012"),
 							Tags: []ec2types.Tag{
 								{
-									Key:   awsv2.String("env"),
-									Value: awsv2.String("dev"),
+									Key:   aws.String("env"),
+									Value: aws.String("dev"),
 								},
 							},
-							PrivateIpAddress: awsv2.String("172.0.1.2"),
-							VpcId:            awsv2.String("vpcId"),
-							SubnetId:         awsv2.String("subnetId"),
-							PrivateDnsName:   awsv2.String("privateDnsName"),
+							PrivateIpAddress: aws.String("172.0.1.2"),
+							VpcId:            aws.String("vpcId"),
+							SubnetId:         aws.String("subnetId"),
+							PrivateDnsName:   aws.String("privateDnsName"),
 							State: &ec2types.InstanceState{
 								Name: ec2types.InstanceStateNameRunning,
 							},
@@ -1165,11 +1325,12 @@ func TestDiscoveryKubeServices(t *testing.T) {
 }
 
 func TestDiscoveryInCloudKube(t *testing.T) {
+	t.Parallel()
+
 	const (
 		mainDiscoveryGroup  = "main"
 		otherDiscoveryGroup = "other"
 	)
-	t.Parallel()
 	tcs := []struct {
 		name                          string
 		existingKubeClusters          []types.KubeCluster
@@ -1393,15 +1554,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			sts := &mocks.STSMock{}
 
 			testCloudClients := &cloud.TestCloudClients{
-				STS:            sts,
 				AzureAKSClient: newPopulatedAKSMock(),
-				EKS:            newPopulatedEKSMock(),
 				GCPGKE:         newPopulatedGCPMock(),
 				GCPProjects:    newPopulatedGCPProjectsMock(),
 			}
@@ -1428,7 +1585,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				err := tlsServer.Auth().CreateKubernetesCluster(ctx, kubeCluster)
 				require.NoError(t, err)
 			}
-			// we analyze the logs emitted by discovery service to detect clusters that were not updated
+			// We analyze the logs emitted by discovery service to detect clusters that were not updated
 			// because their state didn't change.
 			r, w := io.Pipe()
 			t.Cleanup(func() {
@@ -1459,15 +1616,26 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					}
 				}
 			}()
+
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
+
+			mockedClients := &mockFetchersClients{
+				AWSConfigProvider: mocks.AWSConfigProvider{
+					STSClient:             &mocks.STSClient{},
+					OIDCIntegrationClient: newFakeAccessPoint(),
+				},
+				eksClusters: newPopulatedEKSMock().clusters,
+			}
+
 			discServer, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
-					CloudClients:     testCloudClients,
-					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(),
-					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+					CloudClients:       testCloudClients,
+					AWSFetchersClients: mockedClients,
+					ClusterFeatures:    func() proto.Features { return proto.Features{} },
+					KubernetesClient:   fake.NewSimpleClientset(),
+					AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1477,12 +1645,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					Log:            logger,
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
-
 			require.NoError(t, err)
 
-			t.Cleanup(func() {
-				discServer.Stop()
-			})
+			t.Cleanup(discServer.Stop)
 			go discServer.Start()
 
 			clustersNotUpdatedMap := sliceToSet(tc.clustersNotUpdated)
@@ -1515,8 +1680,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
 
-			require.ElementsMatch(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
-			require.ElementsMatch(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedAssumedRoles, mockedClients.STSClient.GetAssumedRoleARNs(), "roles incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedExternalIDs, mockedClients.STSClient.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
@@ -1535,14 +1700,15 @@ func TestDiscoveryServer_New(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		desc                string
-		cloudClients        cloud.Clients
+		cloudClients        fetchers.AWSClientGetter
 		matchers            Matchers
 		errAssertion        require.ErrorAssertionFunc
 		discServerAssertion require.ValueAssertionFunc
 	}{
 		{
-			desc:         "no matchers error",
-			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+			desc: "no matchers error",
+
+			cloudClients: &mockFetchersClients{},
 			matchers:     Matchers{},
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers or discovery group configured for discovery"})
@@ -1550,8 +1716,10 @@ func TestDiscoveryServer_New(t *testing.T) {
 			discServerAssertion: require.Nil,
 		},
 		{
-			desc:         "success with EKS matcher",
-			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}, EKS: &mocks.EKSMock{}},
+			desc: "success with EKS matcher",
+
+			cloudClients: &mockFetchersClients{},
+
 			matchers: Matchers{
 				AWS: []types.AWSMatcher{
 					{
@@ -1574,11 +1742,8 @@ func TestDiscoveryServer_New(t *testing.T) {
 			},
 		},
 		{
-			desc: "EKS fetcher is skipped on initialization error (missing region)",
-			cloudClients: &cloud.TestCloudClients{
-				STS: &mocks.STSMock{},
-				EKS: &mocks.EKSMock{},
-			},
+			desc:         "EKS fetcher is skipped on initialization error (missing region)",
+			cloudClients: &mockFetchersClients{},
 			matchers: Matchers{
 				AWS: []types.AWSMatcher{
 					{
@@ -1619,12 +1784,12 @@ func TestDiscoveryServer_New(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					CloudClients:    tt.cloudClients,
-					ClusterFeatures: func() proto.Features { return proto.Features{} },
-					AccessPoint:     newFakeAccessPoint(),
-					Matchers:        tt.matchers,
-					Emitter:         &mockEmitter{},
-					protocolChecker: &noopProtocolChecker{},
+					AWSFetchersClients: tt.cloudClients,
+					ClusterFeatures:    func() proto.Features { return proto.Features{} },
+					AccessPoint:        newFakeAccessPoint(),
+					Matchers:           tt.matchers,
+					Emitter:            &mockEmitter{},
+					protocolChecker:    &noopProtocolChecker{},
 				})
 
 			tt.errAssertion(t, err)
@@ -1712,28 +1877,33 @@ var aksMockClusters = map[string][]*azure.AKSCluster{
 }
 
 type mockEKSAPI struct {
-	eksiface.EKSAPI
-	clusters []*eks.Cluster
+	fetchers.EKSClient
+	clusters []*ekstypes.Cluster
 }
 
-func (m *mockEKSAPI) ListClustersPagesWithContext(ctx aws.Context, req *eks.ListClustersInput, f func(*eks.ListClustersOutput, bool) bool, _ ...request.Option) error {
-	var names []*string
+func (m *mockEKSAPI) ListClusters(ctx context.Context, req *eks.ListClustersInput, _ ...func(*eks.Options)) (*eks.ListClustersOutput, error) {
+	var names []string
 	for _, cluster := range m.clusters {
-		names = append(names, cluster.Name)
+		names = append(names, aws.ToString(cluster.Name))
 	}
-	f(&eks.ListClustersOutput{
-		Clusters: names[:len(names)/2],
-	}, false)
 
-	f(&eks.ListClustersOutput{
+	// First call, no NextToken. Return first half and a NextToken value.
+	if req.NextToken == nil {
+		return &eks.ListClustersOutput{
+			Clusters:  names[:len(names)/2],
+			NextToken: aws.String("next"),
+		}, nil
+	}
+
+	// Second call, we have a NextToken, return the second half.
+	return &eks.ListClustersOutput{
 		Clusters: names[len(names)/2:],
-	}, true)
-	return nil
+	}, nil
 }
 
-func (m *mockEKSAPI) DescribeClusterWithContext(_ aws.Context, req *eks.DescribeClusterInput, _ ...request.Option) (*eks.DescribeClusterOutput, error) {
+func (m *mockEKSAPI) DescribeCluster(_ context.Context, req *eks.DescribeClusterInput, _ ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
 	for _, cluster := range m.clusters {
-		if aws.StringValue(cluster.Name) == aws.StringValue(req.Name) {
+		if aws.ToString(cluster.Name) == aws.ToString(req.Name) {
 			return &eks.DescribeClusterOutput{
 				Cluster: cluster,
 			}, nil
@@ -1748,48 +1918,70 @@ func newPopulatedEKSMock() *mockEKSAPI {
 	}
 }
 
-var eksMockClusters = []*eks.Cluster{
+type mockFetchersClients struct {
+	mocks.AWSConfigProvider
+	eksClusters []*ekstypes.Cluster
+}
+
+func (m *mockFetchersClients) GetAWSEKSClient(aws.Config) fetchers.EKSClient {
+	return &mockEKSAPI{
+		clusters: m.eksClusters,
+	}
+}
+
+func (m *mockFetchersClients) GetAWSSTSClient(aws.Config) fetchers.STSClient {
+	if m.AWSConfigProvider.STSClient != nil {
+		return m.AWSConfigProvider.STSClient
+	}
+	return &mocks.STSClient{}
+}
+
+func (m *mockFetchersClients) GetAWSSTSPresignClient(aws.Config) fetchers.STSPresignClient {
+	return nil
+}
+
+var eksMockClusters = []*ekstypes.Cluster{
 	{
 		Name:   aws.String("eks-cluster1"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("prod"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "prod",
+			"location": "eu-west-1",
 		},
 	},
 	{
 		Name:   aws.String("eks-cluster2"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("prod"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "prod",
+			"location": "eu-west-1",
 		},
 	},
 
 	{
 		Name:   aws.String("eks-cluster3"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster3"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("stg"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "stg",
+			"location": "eu-west-1",
 		},
 	},
 	{
 		Name:   aws.String("eks-cluster4"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env":      aws.String("stg"),
-			"location": aws.String("eu-west-1"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env":      "stg",
+			"location": "eu-west-1",
 		},
 	},
 }
 
-func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryParams rewriteDiscoveryLabelsParams) types.KubeCluster {
-	cluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
+func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *ekstypes.Cluster, discoveryParams rewriteDiscoveryLabelsParams) types.KubeCluster {
+	cluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
 	discoveryParams.matcherType = types.AWSMatcherEKS
 	rewriteCloudResource(t, cluster, discoveryParams)
@@ -1965,17 +2157,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSMock{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
-			},
-		},
+		STS:      &mocks.STSClientV1{},
 		MemoryDB: &mocks.MemoryDBMock{},
-		Redshift: &mocks.RedshiftMock{
-			Clusters: []*redshift.Cluster{awsRedshiftResource},
-		},
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -1983,9 +2166,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 			&azure.ARMRedisEnterpriseClusterMock{},
 			&azure.ARMRedisEnterpriseDatabaseMock{},
 		),
-		EKS: &mocks.EKSMock{
-			Clusters: []*eks.Cluster{eksAWSResource},
-		},
 	}
 
 	tcs := []struct {
@@ -2259,7 +2439,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2277,6 +2456,23 @@ func TestDiscoveryDatabase(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
+			awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+				Name: integrationName,
+			}, &types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:iam::123456789012:role/teleport",
+			})
+			require.NoError(t, err)
+
+			testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+				proxies: nil,
+				integrations: map[string]types.Integration{
+					awsOIDCIntegration.GetName(): awsOIDCIntegration,
+				},
+			}
+
+			_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
+			require.NoError(t, err)
+
 			// Auth client for discovery service.
 			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
@@ -2292,14 +2488,41 @@ func TestDiscoveryDatabase(t *testing.T) {
 			waitForReconcile := make(chan struct{})
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
+			accessPoint := getDiscoveryAccessPoint(tlsServer.Auth(), authClient)
+			fakeConfigProvider := &mocks.AWSConfigProvider{
+				OIDCIntegrationClient: accessPoint,
+			}
+			dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+				AWSConfigProvider: fakeConfigProvider,
+				CloudClients:      testCloudClients,
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
+						DBEngineVersions: []rdstypes.DBEngineVersion{
+							{Engine: aws.String(services.RDSEnginePostgres)},
+						},
+					},
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
+					},
+				},
+			})
+			require.NoError(t, err)
+
 			srv, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
 					IntegrationOnlyCredentials: integrationOnlyCredential,
-					CloudClients:               testCloudClients,
-					ClusterFeatures:            func() proto.Features { return proto.Features{} },
-					KubernetesClient:           fake.NewSimpleClientset(),
-					AccessPoint:                getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+					AWSFetchersClients: &mockFetchersClients{
+						AWSConfigProvider: *fakeConfigProvider,
+						eksClusters:       []*ekstypes.Cluster{eksAWSResource},
+					},
+					CloudClients:              testCloudClients,
+					ClusterFeatures:           func() proto.Features { return proto.Features{} },
+					KubernetesClient:          fake.NewSimpleClientset(),
+					AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+					AWSDatabaseFetcherFactory: dbFetcherFactory,
+					AWSConfigProvider:         fakeConfigProvider,
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -2344,7 +2567,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s")
+				require.FailNow(t, "Didn't receive reconcile event after 1s")
 			}
 
 			if tc.wantEvents > 0 {
@@ -2376,15 +2599,25 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryConfigName: dc2Name, discoveryGroup: mainDiscoveryGroup})
 
+	fakeConfigProvider := &mocks.AWSConfigProvider{
+		STSClient: &mocks.STSClient{},
+	}
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSMock{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
+		STS: &fakeConfigProvider.STSClient.STSClientV1,
+	}
+	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+		AWSConfigProvider: fakeConfigProvider,
+		CloudClients:      testCloudClients,
+		AWSClients: fakeAWSClients{
+			rdsClient: &mocks.RDSClient{
+				DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
+				DBEngineVersions: []rdstypes.DBEngineVersion{
+					{Engine: aws.String(services.RDSEnginePostgres)},
+				},
 			},
 		},
-	}
+	})
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -2412,14 +2645,16 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	srv, err := New(
 		authz.ContextWithUser(ctx, identity.I),
 		&Config{
-			CloudClients:     testCloudClients,
-			ClusterFeatures:  func() proto.Features { return proto.Features{} },
-			KubernetesClient: fake.NewSimpleClientset(),
-			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-			Matchers:         Matchers{},
-			Emitter:          authClient,
-			DiscoveryGroup:   mainDiscoveryGroup,
-			clock:            clock,
+			AWSConfigProvider:         fakeConfigProvider,
+			AWSDatabaseFetcherFactory: dbFetcherFactory,
+			CloudClients:              testCloudClients,
+			ClusterFeatures:           func() proto.Features { return proto.Features{} },
+			KubernetesClient:          fake.NewSimpleClientset(),
+			AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+			Matchers:                  Matchers{},
+			Emitter:                   authClient,
+			DiscoveryGroup:            mainDiscoveryGroup,
+			clock:                     clock,
 		})
 
 	require.NoError(t, err)
@@ -2525,33 +2760,33 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	})
 }
 
-func makeEKSCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*eks.Cluster, types.KubeCluster) {
+func makeEKSCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*ekstypes.Cluster, types.KubeCluster) {
 	t.Helper()
-	eksAWSCluster := &eks.Cluster{
+	eksAWSCluster := &ekstypes.Cluster{
 		Name:   aws.String(name),
 		Arn:    aws.String(fmt.Sprintf("arn:aws:eks:%s:123456789012:cluster/%s", region, name)),
-		Status: aws.String(eks.ClusterStatusActive),
-		Tags: map[string]*string{
-			"env": aws.String("prod"),
+		Status: ekstypes.ClusterStatusActive,
+		Tags: map[string]string{
+			"env": "prod",
 		},
 	}
-	actual, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksAWSCluster.Name), aws.StringValue(eksAWSCluster.Arn), eksAWSCluster.Tags)
+	actual, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksAWSCluster.Name), aws.ToString(eksAWSCluster.Arn), eksAWSCluster.Tags)
 	require.NoError(t, err)
 	discoveryParams.matcherType = types.AWSMatcherEKS
 	rewriteCloudResource(t, actual, discoveryParams)
 	return eksAWSCluster, actual
 }
 
-func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rds.DBInstance, types.Database) {
-	instance := &rds.DBInstance{
+func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rdstypes.DBInstance, types.Database) {
+	instance := &rdstypes.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
 		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
 		DBInstanceStatus:     aws.String("available"),
-		Endpoint: &rds.Endpoint{
+		Endpoint: &rdstypes.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int64(5432),
+			Port:    aws.Int32(5432),
 		},
 	}
 	database, err := common.NewDatabaseFromRDSInstance(instance)
@@ -2561,15 +2796,15 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteD
 	return instance, database
 }
 
-func makeRedshiftCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*redshift.Cluster, types.Database) {
+func makeRedshiftCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*redshifttypes.Cluster, types.Database) {
 	t.Helper()
-	cluster := &redshift.Cluster{
+	cluster := &redshifttypes.Cluster{
 		ClusterIdentifier:   aws.String(name),
 		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:123456789012:namespace:%s", region, name)),
 		ClusterStatus:       aws.String("available"),
-		Endpoint: &redshift.Endpoint{
+		Endpoint: &redshifttypes.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int64(5439),
+			Port:    aws.Int32(5439),
 		},
 	}
 
@@ -2910,6 +3145,7 @@ func (m *mockGCPClient) getVMSForProject(projectID string) []*gcpimds.Instance {
 	}
 	return vms
 }
+
 func (m *mockGCPClient) ListInstances(_ context.Context, projectID, _ string) ([]*gcpimds.Instance, error) {
 	return m.getVMSForProject(projectID), nil
 }
@@ -3385,8 +3621,19 @@ type mockEKSClusterEnroller struct {
 	err  error
 }
 
-func (m *mockEKSClusterEnroller) EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-	return m.resp, m.err
+func (m *mockEKSClusterEnroller) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opt ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+	ret := &integrationpb.EnrollEKSClustersResponse{
+		Results: []*integrationpb.EnrollEKSClusterResult{},
+	}
+	// Filter out non-requested clusters.
+	for _, clusterName := range req.EksClusterNames {
+		for _, mockClusterResult := range m.resp.Results {
+			if clusterName == mockClusterResult.EksClusterName {
+				ret.Results = append(ret.Results, mockClusterResult)
+			}
+		}
+	}
+	return ret, m.err
 }
 
 type combinedDiscoveryClient struct {
@@ -3618,4 +3865,17 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 			},
 		},
 	}
+}
+
+type fakeAWSClients struct {
+	rdsClient      db.RDSClient
+	redshiftClient db.RedshiftClient
+}
+
+func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {
+	return f.rdsClient
+}
+
+func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
+	return f.redshiftClient
 }

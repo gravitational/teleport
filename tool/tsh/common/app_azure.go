@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -58,7 +59,7 @@ func onAzure(cf *CLIConf) error {
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close Azure app.")
+			logger.ErrorContext(cf.Context, "Failed to close Azure app", "error", err)
 		}
 	}()
 
@@ -149,7 +150,7 @@ func (a *azureApp) StartLocalProxies(ctx context.Context) error {
 			if ok {
 				azureMiddleware.SetPrivateKey(signer)
 			} else {
-				log.Warn("Provided tls.Certificate has no valid private key.")
+				logger.WarnContext(ctx, "Provided tls.Certificate has no valid private key")
 			}
 		}),
 	)
@@ -190,7 +191,7 @@ func (a *azureApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Running command: %q", cmd)
+	logger.DebugContext(a.cf.Context, "Running azure command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -236,7 +237,7 @@ func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (stri
 	// if flag is missing, try to find singleton identity; failing that, print available options.
 	if reqIdentity == "" {
 		if len(identities) == 1 {
-			log.Infof("Azure identity %v is selected by default as it is the only identity available for this Azure app.", identities[0])
+			logger.InfoContext(cf.Context, "Azure identity is selected by default as it is the only identity available for this Azure app", "identity", identities[0])
 			return identities[0], nil
 		}
 

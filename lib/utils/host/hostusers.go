@@ -180,7 +180,7 @@ func UserDel(username string) (exitCode int, err error) {
 	// userdel --remove (remove home) username
 	cmd := exec.Command(userdelBin, args...)
 	output, err := cmd.CombinedOutput()
-	slog.DebugContext(context.Background(), "usedel command completed",
+	slog.DebugContext(context.Background(), "userdel command completed",
 		"command_path", cmd.Path,
 		"output", string(output),
 	)

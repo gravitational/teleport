@@ -34,13 +34,13 @@ import (
 	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	rdsauth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
-	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -124,6 +125,23 @@ type AccessPoint interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
+// redshiftClient defines a subset of the AWS Redshift client API.
+type redshiftClient interface {
+	GetClusterCredentialsWithIAM(context.Context, *redshift.GetClusterCredentialsWithIAMInput, ...func(*redshift.Options)) (*redshift.GetClusterCredentialsWithIAMOutput, error)
+	GetClusterCredentials(context.Context, *redshift.GetClusterCredentialsInput, ...func(*redshift.Options)) (*redshift.GetClusterCredentialsOutput, error)
+}
+
+// awsClientProvider is an AWS SDK client provider.
+type awsClientProvider interface {
+	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
+	return redshift.NewFromConfig(cfg, optFns...)
+}
+
 // AuthConfig is the database access authenticator configuration.
 type AuthConfig struct {
 	// AuthClient is the cluster auth client.
@@ -136,6 +154,11 @@ type AuthConfig struct {
 	Clock clockwork.Clock
 	// Logger is used for logging.
 	Logger *slog.Logger
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -149,23 +172,26 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.Clients == nil {
 		return trace.BadParameter("missing Clients")
 	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "db:auth")
 	}
+
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
+	}
 	return nil
 }
 
 func (c *AuthConfig) withLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) AuthConfig {
-	return AuthConfig{
-		AuthClient:  c.AuthClient,
-		AccessPoint: c.AccessPoint,
-		Clients:     c.Clients,
-		Clock:       c.Clock,
-		Logger:      getUpdatedLogger(c.Logger),
-	}
+	cfg := *c
+	cfg.Logger = getUpdatedLogger(c.Logger)
+	return cfg
 }
 
 // dbAuth provides utilities for creating TLS configurations and
@@ -221,9 +247,9 @@ func (a *dbAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) Au
 // when connecting to RDS and Aurora databases.
 func (a *dbAuth) GetRDSAuthToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	meta := database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -232,11 +258,13 @@ func (a *dbAuth) GetRDSAuthToken(ctx context.Context, database types.Database, d
 		"database", database,
 		"database_user", databaseUser,
 	)
-	token, err := rdsutils.BuildAuthToken(
+	token, err := rdsauth.BuildAuthToken(
+		ctx,
 		database.GetURI(),
 		meta.Region,
 		databaseUser,
-		awsSession.Config.Credentials)
+		awsCfg.Credentials,
+	)
 	if err != nil {
 		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(database)
 		if getPolicyErr != nil {
@@ -272,18 +300,12 @@ func (a *dbAuth) getRedshiftIAMRoleAuthToken(ctx context.Context, database types
 		return "", "", trace.Wrap(err)
 	}
 
-	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
 	// Assume the configured AWS role before assuming the role we need to get the
 	// auth token. This allows cross-account AWS access.
-	client, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region,
-		cloud.WithChainedAssumeRole(baseSession, roleARN, externalIDForChainedAssumeRole(meta)),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAssumeRole(roleARN, externalIDForChainedAssumeRole(meta)),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift IAM role auth token:
@@ -300,7 +322,8 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 		"database_user", databaseUser,
 		"database_name", databaseName,
 	)
-	resp, err := client.GetClusterCredentialsWithIAMWithContext(ctx, &redshift.GetClusterCredentialsWithIAMInput{
+	client := a.cfg.awsClients.getRedshiftClient(awsCfg)
+	resp, err := client.GetClusterCredentialsWithIAM(ctx, &redshift.GetClusterCredentialsWithIAMInput{
 		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbName:            aws.String(databaseName),
 	})
@@ -318,14 +341,14 @@ Make sure that IAM role %q has permissions to generate credentials. Here is a sa
 %v
 `, err, roleARN, policy)
 	}
-	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
+	return aws.ToString(resp.DbUser), aws.ToString(resp.DbPassword), nil
 }
 
 func (a *dbAuth) getRedshiftDBUserAuthToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, string, error) {
 	meta := database.GetAWS()
-	redshiftClient, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", "", trace.Wrap(err)
@@ -335,7 +358,8 @@ func (a *dbAuth) getRedshiftDBUserAuthToken(ctx context.Context, database types.
 		"database_user", databaseUser,
 		"database_name", databaseName,
 	)
-	resp, err := redshiftClient.GetClusterCredentialsWithContext(ctx, &redshift.GetClusterCredentialsInput{
+	clt := a.cfg.awsClients.getRedshiftClient(awsCfg)
+	resp, err := clt.GetClusterCredentials(ctx, &redshift.GetClusterCredentialsInput{
 		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbUser:            aws.String(databaseUser),
 		DbName:            aws.String(databaseName),
@@ -344,7 +368,7 @@ func (a *dbAuth) getRedshiftDBUserAuthToken(ctx context.Context, database types.
 		AutoCreate: aws.Bool(false),
 		// TODO(r0mant): List of additional groups DbUser will join for the
 		// session. Do we need to let people control this?
-		DbGroups: []*string{},
+		DbGroups: []string{},
 	})
 	if err != nil {
 		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(database)
@@ -362,7 +386,7 @@ propagate):
 %v
 `, err, policy)
 	}
-	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
+	return aws.ToString(resp.DbUser), aws.ToString(resp.DbPassword), nil
 }
 
 // GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
@@ -422,7 +446,7 @@ Make sure that IAM role %q has permissions to generate credentials. Here is a sa
 %v
 `, err, roleARN, policy)
 	}
-	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
+	return aws.ToString(resp.DbUser), aws.ToString(resp.DbPassword), nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a

@@ -84,7 +84,6 @@ func (a *Server) UpdateTrustedCluster(ctx context.Context, tc types.TrustedClust
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	updated, err := a.updateTrustedCluster(ctx, tc, existingCluster)
 	return updated, trace.Wrap(err)
 }
@@ -343,7 +342,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit trusted cluster delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit trusted cluster delete event", "error", err)
 	}
 
 	return nil
@@ -384,12 +383,15 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// log the local certificate authorities that we are sending
-	log.Infof("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
+	a.logger.InfoContext(ctx, "Sending validate request",
+		"token", backend.MaskKeyName(validateRequest.Token),
+		"cas", validateRequest.CAs,
+	)
 
 	// send the request to the remote auth server via the proxy
-	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
+	validateResponse, err := a.sendValidateRequestToProxy(ctx, trustedCluster.GetProxyAddress(), &validateRequest)
 	if err != nil {
-		log.Error(err)
+		a.logger.ErrorContext(ctx, "failed to send validation request", "error", err)
 		if strings.Contains(err.Error(), "x509") {
 			return nil, trace.AccessDenied("the trusted cluster uses misconfigured HTTP/TLS certificate.")
 		}
@@ -397,7 +399,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// log the remote certificate authorities we are adding
-	log.Infof("Received validate response; CAs=%v", validateResponse.CAs)
+	a.logger.InfoContext(ctx, "Received validate response", "cas", validateResponse.CAs)
 
 	for _, ca := range validateResponse.CAs {
 		for _, keyPair := range ca.GetActiveKeys().TLS {
@@ -533,11 +535,14 @@ func (a *Server) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (resp *authclient.ValidateTrustedClusterResponse, err error) {
 	defer func() {
 		if err != nil {
-			log.WithError(err).Info("Trusted cluster validation failed")
+			a.logger.InfoContext(ctx, "Trusted cluster validation failed", "error", err)
 		}
 	}()
 
-	log.Debugf("Received validate request: token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
+	a.logger.DebugContext(ctx, "Received validate request",
+		"token", backend.MaskKeyName(validateRequest.Token),
+		"cas", validateRequest.CAs,
+	)
 
 	domainName, err := a.GetDomainName()
 	if err != nil {
@@ -604,7 +609,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 
 	// log the local certificate authorities we are sending
-	log.Debugf("Sending validate response: CAs=%v", validateResponse.CAs)
+	a.logger.DebugContext(ctx, "Sending validate response", "cas", validateResponse.CAs)
 
 	return &validateResponse, nil
 }
@@ -641,7 +646,7 @@ func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName stri
 	return provisionToken.GetMetadata().Labels, nil
 }
 
-func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
+func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	proxyAddr := url.URL{
 		Scheme: "https",
 		Host:   host,
@@ -652,7 +657,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 	}
 
 	if lib.IsInsecureDevMode() {
-		log.Warn("The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
+		a.logger.WarnContext(ctx, "The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
 		// Get the default transport, this allows picking up proxy from the
 		// environment.
@@ -673,7 +678,9 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}
 
-	clt, err := roundtrip.NewClient(proxyAddr.String(), teleport.WebAPIVersion, opts...)
+	// We do not add the version prefix since web api endpoints will
+	// contain differing version prefixes.
+	clt, err := roundtrip.NewClient(proxyAddr.String(), "" /* version prefix */, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -682,7 +689,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := httplib.ConvertResponse(clt.PostJSON(context.TODO(), clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
+	out, err := httplib.ConvertResponse(clt.PostJSON(ctx, clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

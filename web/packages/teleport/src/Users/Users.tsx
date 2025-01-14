@@ -19,7 +19,7 @@
 import React from 'react';
 
 import { Alert, Box, Button, Flex, Indicator, Link, Text } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   FeatureBox,

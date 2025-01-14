@@ -107,6 +107,18 @@ export const MenuItems = () => (
         <MenuItem>Amet nisi tempor</MenuItem>
       </OpenMenu>
     </Flex>
+    <Flex gap={3} flexDirection="column">
+      <H3>Label as first child</H3>
+      <OpenMenu>
+        <MenuItemSectionLabel>Tempus ut libero</MenuItemSectionLabel>
+        <MenuItem>Lorem ipsum</MenuItem>
+        <MenuItem>Dolor sit amet</MenuItem>
+        <MenuItemSectionSeparator />
+        <MenuItemSectionLabel>Leo vitae arcu</MenuItemSectionLabel>
+        <MenuItem>Donec volutpat</MenuItem>
+        <MenuItem>Mauris sit</MenuItem>
+      </OpenMenu>
+    </Flex>
   </Flex>
 );
 

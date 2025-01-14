@@ -17,6 +17,7 @@ package msteams
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	cards "github.com/DanielTitkov/go-adaptive-cards"
@@ -142,11 +143,7 @@ func loadConfig(configPath string) (*Bot, *Config, error) {
 
 	fmt.Printf(" - Checking application %v status...\n", c.MSAPI.TeamsAppID)
 
-	log, err := c.Log.NewSLogLogger()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	b, err := NewBot(c, "local", "", log)
+	b, err := NewBot(c, "local", "", slog.Default())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

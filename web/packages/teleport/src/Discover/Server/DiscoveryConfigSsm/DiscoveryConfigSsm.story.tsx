@@ -66,7 +66,7 @@ export const SuccessCloud = () => {
 SuccessCloud.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -90,7 +90,7 @@ export const SuccessSelfHosted = () => (
 SuccessSelfHosted.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -107,7 +107,7 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () => delay('infinite')),
@@ -122,7 +122,7 @@ export const Failed = () => {
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>

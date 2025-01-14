@@ -16,11 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, type ComponentPropsWithoutRef } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentPropsWithoutRef,
+} from 'react';
 import { useHistory, useLocation } from 'react-router';
 import styled from 'styled-components';
 
-import { Box, Flex, Link, P3, Text } from 'design';
+import { Alert, Box, Flex, Link, P3, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { NewTab } from 'design/Icon';
 import { getPlatform, Platform } from 'design/platform';
@@ -64,6 +69,15 @@ type UrlLocationState = {
   searchKeywords: string;
 };
 
+function getDefaultResources(
+  includeEnterpriseResources: boolean
+): ResourceSpec[] {
+  const RESOURCES = includeEnterpriseResources
+    ? [...BASE_RESOURCES, ...SAML_APPLICATIONS]
+    : BASE_RESOURCES;
+  return RESOURCES;
+}
+
 export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<UrlLocationState>();
@@ -71,12 +85,33 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const { preferences } = useUser();
 
   const [search, setSearch] = useState('');
-  const [resources, setResources] = useState<ResourceSpec[]>([]);
-  const [defaultResources, setDefaultResources] = useState<ResourceSpec[]>([]);
+  const { acl, authType } = ctx.storeUser.state;
+  const platform = getPlatform();
+  const defaultResources: ResourceSpec[] = useMemo(
+    () =>
+      sortResources(
+        // Apply access check to each resource.
+        addHasAccessField(
+          acl,
+          filterResources(
+            platform,
+            authType,
+            getDefaultResources(cfg.isEnterprise)
+          )
+        ),
+        preferences,
+        storageService.getOnboardDiscover()
+      ),
+    [acl, authType, platform, preferences]
+  );
+  const [resources, setResources] = useState(defaultResources);
+
+  // a user must be able to create tokens AND have access to create at least one
+  // type of resource in order to be considered eligible to "add resources"
+  const canAddResources =
+    acl.tokens.create && defaultResources.some(r => r.hasAccess);
+
   const [showApp, setShowApp] = useState(false);
-  const RESOURCES = !cfg.isEnterprise
-    ? BASE_RESOURCES
-    : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
@@ -95,23 +130,6 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   }
 
   useEffect(() => {
-    // Apply access check to each resource.
-    const userContext = ctx.storeUser.state;
-    const { acl, authType } = userContext;
-    const platform = getPlatform();
-
-    const resources = addHasAccessField(
-      acl,
-      filterResources(platform, authType, RESOURCES)
-    );
-    const onboardDiscover = storageService.getOnboardDiscover();
-    const sortedResources = sortResources(
-      resources,
-      preferences,
-      onboardDiscover
-    );
-    setDefaultResources(sortedResources);
-
     // A user can come to this screen by clicking on
     // a `add <specific-resource-type>` button.
     // We sort the list by the specified resource type,
@@ -127,7 +145,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     ) {
       const sortedResourcesByKind = sortResourcesByKind(
         resourceKindSpecifiedByUrlLoc,
-        sortedResources
+        defaultResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
       return;
@@ -135,11 +153,11 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
     const searchKeywordSpecifiedByUrlLoc = location.state?.searchKeywords;
     if (searchKeywordSpecifiedByUrlLoc) {
-      onSearch(searchKeywordSpecifiedByUrlLoc, sortedResources);
+      onSearch(searchKeywordSpecifiedByUrlLoc, defaultResources);
       return;
     }
 
-    setResources(sortedResources);
+    setResources(defaultResources);
     // Processing of the lists should only happen once on init.
     // User perms remain static and URL loc state does not change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,6 +165,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   return (
     <Box>
+      {!canAddResources && (
+        <Alert kind="info" mt={5}>
+          You cannot add new resources. Reach out to your Teleport administrator
+          for additional permissions.
+        </Alert>
+      )}
       <FeatureHeader>
         <FeatureHeaderTitle>Select Resource To Add</FeatureHeaderTitle>
       </FeatureHeader>

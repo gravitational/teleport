@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"slices"
@@ -34,7 +35,6 @@ import (
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -506,7 +507,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(rc.config.Log, role)
+	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
 
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
@@ -535,8 +536,8 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(rc.config.Log, role)
-	warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
+	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
+	warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -547,21 +548,21 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 
 // warnAboutKubernetesResources warns about kubernetes resources
 // if kubernetes_labels are set but kubernetes_resources are not.
-func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
+func warnAboutKubernetesResources(ctx context.Context, logger *slog.Logger, r types.Role) {
 	role, ok := r.(*types.RoleV6)
 	// only warn about kubernetes resources for v6 roles
 	if !ok || role.Version != types.V6 {
 		return
 	}
 	if len(role.Spec.Allow.KubernetesLabels) > 0 && len(role.Spec.Allow.KubernetesResources) == 0 {
-		logger.Warningf("role %q has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake. Teleport will restrict access to pods.", role.Metadata.Name)
+		logger.WarnContext(ctx, "role has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake - Teleport will restrict access to pods", "role", role.Metadata.Name)
 	}
 	if len(role.Spec.Allow.KubernetesLabels) == 0 && len(role.Spec.Allow.KubernetesResources) > 0 {
-		logger.Warningf("role %q has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake. kubernetes_resources won't be effective.", role.Metadata.Name)
+		logger.WarnContext(ctx, "role has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake - kubernetes_resources won't be effective", "role", role.Metadata.Name)
 	}
 
 	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
-		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
+		logger.WarnContext(ctx, "role has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake - deny.kubernetes_resources won't be effective", "role", role.Metadata.Name)
 	}
 }
 
@@ -573,13 +574,13 @@ func dynamicLabelWarningMessage(r types.Role) string {
 // warnAboutDynamicLabelsInDenyRule warns about using dynamic/ labels in deny
 // rules. Only applies to existing roles as adding dynamic/ labels to deny
 // rules in a new role is not allowed.
-func warnAboutDynamicLabelsInDenyRule(logger utils.Logger, r types.Role) {
+func warnAboutDynamicLabelsInDenyRule(ctx context.Context, logger *slog.Logger, r types.Role) {
 	if err := services.CheckDynamicLabelsInDenyRules(r); err == nil {
 		return
 	} else if trace.IsBadParameter(err) {
-		logger.Warningf(dynamicLabelWarningMessage(r))
+		logger.WarnContext(ctx, "existing role has labels with the a dynamic prefix in its deny rules, this is not recommended due to the volatility of dynamic labels and is not allowed for new roles", "role", r.GetName())
 	} else {
-		logger.WithError(err).Warningf("error checking deny rules labels")
+		logger.WarnContext(ctx, "error checking deny rules labels", "error", err)
 	}
 }
 
@@ -1368,7 +1369,10 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 
 		// issue warning about unsupported ACS bindings.
 		if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
-			log.Warnf("Entity descriptor for SAML IdP service provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
+			slog.WarnContext(ctx, "Entity descriptor for SAML IdP service provider contains unsupported ACS bindings",
+				"entity_id", sp.GetEntityID(),
+				"error", err,
+			)
 		}
 	}
 
@@ -2249,7 +2253,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
 					if trace.IsBadParameter(err) {
-						log.Warnf("failed to get certificate authority: %v; skipping", err)
+						slog.WarnContext(ctx, "failed to get certificate authority; skipping", "error", err)
 						continue
 					}
 					return nil, trace.Wrap(err)
@@ -2287,7 +2291,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			for _, r := range page {
 				srv, ok := r.ResourceWithLabels.(types.Server)
 				if !ok {
-					log.Warnf("expected types.Server but received unexpected type %T", r)
+					slog.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
 					continue
 				}
 
@@ -2353,7 +2357,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
+		warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
 		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {

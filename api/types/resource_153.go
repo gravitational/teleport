@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -123,6 +125,10 @@ func (r *legacyToResource153Adapter) GetVersion() string {
 // Resource153ToLegacy transforms an RFD 153 style resource into a legacy
 // [Resource] type. Implements [ResourceWithLabels] and CloneResource (where the)
 // wrapped resource supports cloning).
+//
+// Resources153 implemented by proto-generated structs should use ProtoResource153ToLegacy
+// instead as it will ensure the protobuf message is properly marshaled to JSON
+// with protojson.
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
@@ -347,4 +353,37 @@ func (r *resource153ToUnifiedResourceAdapter) CloneResource() ResourceWithLabels
 	// is the only externally-visible constructor function.
 	clone := r.inner.(ClonableResource153).CloneResource()
 	return Resource153ToUnifiedResource(clone)
+}
+
+// ProtoResource153 is a Resource153 implemented by a protobuf-generated struct.
+type ProtoResource153 interface {
+	Resource153
+	proto.Message
+}
+
+type protoResource153ToLegacyAdapter struct {
+	inner ProtoResource153
+	resource153ToLegacyAdapter
+}
+
+// MarshalJSON adds support for marshaling the wrapped resource (instead of
+// marshaling the adapter itself).
+func (r *protoResource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
+	return protojson.MarshalOptions{
+		UseProtoNames: true,
+	}.Marshal(r.inner)
+}
+
+// ProtoResource153ToLegacy transforms an RFD 153 style resource implemented by
+// a proto-generated struct into a legacy [Resource] type. Implements
+// [ResourceWithLabels] and CloneResource (where the wrapped resource supports
+// cloning).
+//
+// Note that CheckAndSetDefaults is a noop for the returned resource and
+// SetSubKind is not implemented and panics on use.
+func ProtoResource153ToLegacy(r ProtoResource153) Resource {
+	return &protoResource153ToLegacyAdapter{
+		r,
+		resource153ToLegacyAdapter{r},
+	}
 }

@@ -18,23 +18,22 @@
 
 package slices
 
-import (
-	"cmp"
-	"slices"
-)
-
 // FilterMapUnique applies a function to all elements of a slice and collects them.
 // The function returns the value to collect and whether the current element should be included.
-// Returned values are sorted and deduplicated.
-func FilterMapUnique[T any, S cmp.Ordered](ts []T, fn func(T) (s S, include bool)) []S {
+// Returned values are deduplicated.
+func FilterMapUnique[T any, S comparable](ts []T, fn func(T) (s S, include bool)) []S {
 	ss := make([]S, 0, len(ts))
+	seen := make(map[S]struct{}, len(ts))
 	for _, t := range ts {
 		if s, include := fn(t); include {
-			ss = append(ss, s)
+			if _, found := seen[s]; !found {
+				seen[s] = struct{}{}
+				ss = append(ss, s)
+			}
 		}
 	}
-	slices.Sort(ss)
-	return slices.Compact(ss)
+
+	return ss
 }
 
 // ToPointers converts a slice of values to a slice of pointers to those values

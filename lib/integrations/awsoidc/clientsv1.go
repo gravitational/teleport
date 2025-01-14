@@ -44,9 +44,6 @@ type IntegrationTokenGenerator interface {
 	// GetIntegration returns the specified integration resources.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 
-	// GetProxies returns a list of registered proxies.
-	GetProxies() ([]types.Server, error)
-
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 }

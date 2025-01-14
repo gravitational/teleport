@@ -516,8 +516,6 @@ type standaloneBundle struct {
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
-	console := io.Discard
-
 	staticToken := uuid.New().String()
 
 	// Prepare role and user.
@@ -549,7 +547,6 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
-	cfg.Console = console
 	cfg.Logger = utils.NewSlogLoggerForTests()
 	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
@@ -633,7 +630,6 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
 	cfg.Clock = clock
-	cfg.Console = console
 	cfg.Logger = utils.NewSlogLoggerForTests()
 	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
