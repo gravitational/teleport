@@ -1,4 +1,4 @@
-.version: &version "16.4.7"
+.version: &version "16.4.7-dev-tross-ssh-listener.1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
