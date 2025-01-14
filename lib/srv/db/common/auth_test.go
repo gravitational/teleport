@@ -609,7 +609,6 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		AccessPoint: new(accessPointMock),
 		Clients: &cloud.TestCloudClients{
 			STS: &fakeSTS.STSClientV1,
-			RDS: &mocks.RDSMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
@@ -617,10 +616,12 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
-		redshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-			GetClusterCredentialsOutput:        mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
-			GetClusterCredentialsWithIAMOutput: mocks.RedshiftGetClusterCredentialsWithIAMOutput("IAM:some-role", "some-password-for-some-role", clock),
-		}),
+		awsClients: fakeAWSClients{
+			redshiftClient: &mocks.RedshiftClient{
+				GetClusterCredentialsOutput:        mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
+				GetClusterCredentialsWithIAMOutput: mocks.RedshiftGetClusterCredentialsWithIAMOutput("IAM:some-role", "some-password-for-some-role", clock),
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -957,8 +958,7 @@ func generateAzureVM(t *testing.T, identities []string) armcompute.VirtualMachin
 }
 
 // authClientMock is a mock that implements AuthClient interface.
-type authClientMock struct {
-}
+type authClientMock struct{}
 
 // GenerateDatabaseCert generates a cert using fixtures TLS CA.
 func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -996,8 +996,7 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 	}, nil
 }
 
-type accessPointMock struct {
-}
+type accessPointMock struct{}
 
 // GetAuthPreference always returns types.DefaultAuthPreference().
 func (m accessPointMock) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
@@ -1022,8 +1021,10 @@ func (m *imdsMock) GetType() types.InstanceMetadataType {
 	return m.instanceType
 }
 
-func newFakeRedshiftClientProvider(c redshiftClient) redshiftClientProviderFunc {
-	return func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
-		return c
-	}
+type fakeAWSClients struct {
+	redshiftClient redshiftClient
+}
+
+func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)) redshiftClient {
+	return f.redshiftClient
 }

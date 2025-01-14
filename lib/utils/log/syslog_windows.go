@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,6 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import HelmChart from './HelmChart';
+package log
 
-export { HelmChart };
+import (
+	"io"
+
+	"github.com/gravitational/trace"
+)
+
+// NewSyslogWriter always returns an error on Windows.
+func NewSyslogWriter() (io.Writer, error) {
+	return nil, trace.NotImplemented("cannot use syslog on Windows")
+}

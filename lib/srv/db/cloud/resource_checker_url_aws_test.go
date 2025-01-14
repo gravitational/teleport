@@ -22,11 +22,11 @@ import (
 	"context"
 	"testing"
 
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
 
@@ -54,7 +54,7 @@ func TestURLChecker_AWS(t *testing.T) {
 		mocks.WithRDSClusterReader,
 		mocks.WithRDSClusterCustomEndpoint("my-custom"),
 	)
-	rdsClusterDBs, err := common.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
+	rdsClusterDBs, err := common.NewDatabasesFromRDSCluster(rdsCluster, []rdstypes.DBInstance{})
 	require.NoError(t, err)
 	require.Len(t, rdsClusterDBs, 3) // Primary, reader, custom.
 	testCases = append(testCases, append(rdsClusterDBs, rdsInstanceDB)...)
@@ -121,12 +121,6 @@ func TestURLChecker_AWS(t *testing.T) {
 
 	// Mock cloud clients.
 	mockClients := &cloud.TestCloudClients{
-		RDS: &mocks.RDSMock{
-			DBInstances:      []*rds.DBInstance{rdsInstance},
-			DBClusters:       []*rds.DBCluster{rdsCluster, docdbCluster},
-			DBProxies:        []*rds.DBProxy{rdsProxy},
-			DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyCustomEndpoint},
-		},
 		RedshiftServerless: &mocks.RedshiftServerlessMock{
 			Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
 			Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlessVPCEndpoint},
@@ -143,7 +137,6 @@ func TestURLChecker_AWS(t *testing.T) {
 		STS: &mocks.STSClientV1{},
 	}
 	mockClientsUnauth := &cloud.TestCloudClients{
-		RDS:                &mocks.RDSMockUnauth{},
 		RedshiftServerless: &mocks.RedshiftServerlessMock{Unauth: true},
 		ElastiCache:        &mocks.ElastiCacheMock{Unauth: true},
 		MemoryDB:           &mocks.MemoryDBMock{Unauth: true},
@@ -158,21 +151,32 @@ func TestURLChecker_AWS(t *testing.T) {
 		name              string
 		clients           cloud.Clients
 		awsConfigProvider awsconfig.Provider
-		redshiftClient    redshiftClient
+		awsClients        awsClientProvider
 	}{
 		{
 			name:              "API check",
 			clients:           mockClients,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
-			redshiftClient: &mocks.RedshiftClient{
-				Clusters: []redshifttypes.Cluster{redshiftCluster},
+			awsClients: fakeAWSClients{
+				rdsClient: &mocks.RDSClient{
+					DBInstances:      []rdstypes.DBInstance{*rdsInstance},
+					DBClusters:       []rdstypes.DBCluster{*rdsCluster, *docdbCluster},
+					DBProxies:        []rdstypes.DBProxy{*rdsProxy},
+					DBProxyEndpoints: []rdstypes.DBProxyEndpoint{*rdsProxyCustomEndpoint},
+				},
+				redshiftClient: &mocks.RedshiftClient{
+					Clusters: []redshifttypes.Cluster{redshiftCluster},
+				},
 			},
 		},
 		{
 			name:              "basic endpoint check",
 			clients:           mockClientsUnauth,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
-			redshiftClient:    &mocks.RedshiftClient{Unauth: true},
+			awsClients: fakeAWSClients{
+				rdsClient:      &mocks.RDSClient{Unauth: true},
+				redshiftClient: &mocks.RedshiftClient{Unauth: true},
+			},
 		},
 	}
 
@@ -183,7 +187,7 @@ func TestURLChecker_AWS(t *testing.T) {
 				AWSConfigProvider: method.awsConfigProvider,
 				Logger:            utils.NewSlogLoggerForTests(),
 			})
-			c.redshiftClientProviderFn = newFakeRedshiftClientProvider(method.redshiftClient)
+			c.awsClients = method.awsClients
 
 			for _, database := range testCases {
 				t.Run(database.GetName(), func(t *testing.T) {

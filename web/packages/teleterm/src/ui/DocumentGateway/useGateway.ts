@@ -30,6 +30,7 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useGateway(doc: DocumentGateway) {
   const ctx = useAppContext();
+  const { clustersService } = ctx;
   const { documentsService } = useWorkspaceContext();
   // The port to show as default in the input field in case creating a gateway fails.
   // This is typically the case if someone reopens the app and the port of the gateway is already
@@ -51,7 +52,7 @@ export function useGateway(doc: DocumentGateway) {
 
     try {
       gw = await retryWithRelogin(ctx, doc.targetUri, () =>
-        ctx.clustersService.createGateway({
+        clustersService.createGateway({
           targetUri: doc.targetUri,
           localPort: port,
           targetUser: doc.targetUser,
@@ -92,34 +93,52 @@ export function useGateway(doc: DocumentGateway) {
   });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
-    await ctx.clustersService.removeGateway(doc.gatewayUri);
+    await clustersService.removeGateway(doc.gatewayUri);
     documentsService.close(doc.uri);
   });
 
   const [changeTargetSubresourceNameAttempt, changeTargetSubresourceName] =
-    useAsync(async (name: string) => {
-      const updatedGateway =
-        await ctx.clustersService.setGatewayTargetSubresourceName(
+    useAsync(
+      useCallback(
+        (name: string) =>
+          retryWithRelogin(ctx, doc.targetUri, async () => {
+            const updatedGateway =
+              await clustersService.setGatewayTargetSubresourceName(
+                doc.gatewayUri,
+                name
+              );
+
+            documentsService.update(doc.uri, {
+              targetSubresourceName: updatedGateway.targetSubresourceName,
+            });
+          }),
+        [
+          clustersService,
+          documentsService,
+          doc.uri,
           doc.gatewayUri,
-          name
-        );
-
-      documentsService.update(doc.uri, {
-        targetSubresourceName: updatedGateway.targetSubresourceName,
-      });
-    });
-
-  const [changePortAttempt, changePort] = useAsync(async (port: string) => {
-    const updatedGateway = await ctx.clustersService.setGatewayLocalPort(
-      doc.gatewayUri,
-      port
+          ctx,
+          doc.targetUri,
+        ]
+      )
     );
 
-    documentsService.update(doc.uri, {
-      targetSubresourceName: updatedGateway.targetSubresourceName,
-      port: updatedGateway.localPort,
-    });
-  });
+  const [changePortAttempt, changePort] = useAsync(
+    useCallback(
+      async (port: string) => {
+        const updatedGateway = await clustersService.setGatewayLocalPort(
+          doc.gatewayUri,
+          port
+        );
+
+        documentsService.update(doc.uri, {
+          targetSubresourceName: updatedGateway.targetSubresourceName,
+          port: updatedGateway.localPort,
+        });
+      },
+      [clustersService, documentsService, doc.uri, doc.gatewayUri]
+    )
+  );
 
   useEffect(
     function createGatewayOnMount() {

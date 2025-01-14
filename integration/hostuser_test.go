@@ -637,7 +637,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
 	// Create a user that can create a host user.
@@ -661,11 +661,13 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		Roles:         []types.Role{role},
 	}
 
-	require.NoError(t, instance.Create(t, nil, true, nil))
+	require.NoError(t, instance.Create(t, nil, true))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
 	})
+
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
 
 	tests := []struct {
 		name      string
@@ -735,10 +737,10 @@ func TestRootStaticHostUsers(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
-	require.NoError(t, instance.Create(t, nil, false, nil))
+	require.NoError(t, instance.Create(t, nil, false))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
@@ -749,6 +751,8 @@ func TestRootStaticHostUsers(t *testing.T) {
 	}
 	_, err = instance.StartNode(nodeCfg)
 	require.NoError(t, err)
+
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
 
 	// Create host user resources.
 	groups := []string{"foo", "bar"}

@@ -202,7 +202,6 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 	default:
 		return nil, trace.NotImplemented("sorting by %v is not supported in unified resources", sortField)
 	}
-
 }
 
 func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Key, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
@@ -503,7 +502,6 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
-
 }
 
 // getNodes will get all nodes
@@ -595,7 +593,6 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 
 	for {
 		resp, nextKey, err := c.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
-
 		if err != nil {
 			return nil, trace.Wrap(err, "getting SAML apps for unified resource watcher")
 		}
@@ -818,23 +815,9 @@ func (i *item) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
 	case *item:
 		return i.Key.Compare(other.Key) < 0
-	case *prefixItem:
-		return !iother.Less(i)
 	default:
 		return false
 	}
-}
-
-// prefixItem is used for prefix matches on a B-Tree
-type prefixItem struct {
-	// prefix is a prefix to match
-	prefix backend.Key
-}
-
-// Less is used for Btree operations
-func (p *prefixItem) Less(iother btree.Item) bool {
-	other := iother.(*item)
-	return !other.Key.HasPrefix(p.prefix)
 }
 
 type resource interface {
@@ -946,7 +929,8 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 							AppServer: appOrSP,
 						},
 					},
-				}, RequiresRequest: requiresRequest}
+				}, RequiresRequest: requiresRequest,
+			}
 		case *types.SAMLIdPServiceProviderV1:
 			protoResource = &proto.PaginatedResource{
 				Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
@@ -955,7 +939,8 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 							SAMLIdPServiceProvider: appOrSP,
 						},
 					},
-				}, RequiresRequest: requiresRequest}
+				}, RequiresRequest: requiresRequest,
+			}
 		default:
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}

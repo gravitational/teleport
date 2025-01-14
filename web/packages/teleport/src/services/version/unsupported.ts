@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,10 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  /** @deprecated Use `TooltipInfo` from `design/Tooltip` */
-  IconTooltip as ToolTipInfo,
+import { ApiError } from '../api/parseError';
 
-  /** @deprecated Use `HoverTooltip` from `design/Tooltip` */
-  HoverTooltip,
-} from 'design/Tooltip';
+export const ProxyRequiresUpgrade = 'Ensure all proxies are upgraded';
+
+export function withUnsupportedLabelFeatureErrorConversion(
+  err: unknown
+): never {
+  if (err instanceof ApiError && err.response.status === 404) {
+    throw new Error(
+      'We could not complete your request. ' +
+        'Your proxy may be behind the minimum required version ' +
+        `(v17.2.0) to support adding resource labels. ` +
+        `${ProxyRequiresUpgrade} or remove labels and try again.`
+    );
+  }
+  throw err;
+}

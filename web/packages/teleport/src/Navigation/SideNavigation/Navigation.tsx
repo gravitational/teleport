@@ -18,6 +18,7 @@
 
 import type * as history from 'history';
 import React, {
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -87,7 +88,7 @@ export type NavigationSubsection = {
   title: string;
   route: string;
   exact: boolean;
-  icon: (props) => JSX.Element;
+  icon: (props) => ReactNode;
   parent?: TeleportFeature;
   searchableTags?: string[];
   /**
