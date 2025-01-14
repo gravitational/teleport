@@ -27,18 +27,17 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-// RunAdminProcess must run as root. It creates and sets up a TUN device and passes
-// the file descriptor for that device over the unix socket found at config.socketPath.
+// RunDarwinAdminProcess must run as root. It creates and sets up a TUN device
+// and passes the file descriptor for that device over the unix socket found at
+// config.socketPath.
 //
-// It also handles host OS configuration that must run as root, and stays alive to keep the host configuration
-// up to date. It will stay running until the socket at config.socketPath is deleted or until encountering an
-// unrecoverable error.
-//
-// OS configuration is updated every [osConfigurationInterval]. During the update, it temporarily
-// changes egid and euid of the process to that of the client connecting to the daemon.
-func RunAdminProcess(ctx context.Context, config daemon.Config) error {
+// It also handles host OS configuration that must run as root, and stays alive
+// to keep the host configuration up to date. It will stay running until the
+// socket at config.socketPath is deleted, [ctx] is canceled, or until
+// encountering an unrecoverable error.
+func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 	if err := config.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "checking daemon process config")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)

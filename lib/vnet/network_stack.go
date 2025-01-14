@@ -41,8 +41,11 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
 
 const (
 	nicID                            = 1
