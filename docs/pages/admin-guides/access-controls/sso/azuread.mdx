@@ -3,26 +3,28 @@ title: Teleport Authentication with Azure Active Directory (AD)
 description: How to configure Teleport access with Azure Active Directory.
 ---
 
-This guide will cover how to configure Microsoft Azure Active Directory to issue
-credentials to specific groups of users with a SAML Authentication Connector.
-When used in combination with role-based access control (RBAC), it allows Teleport
+This guide will cover how to configure Microsoft Entra ID to issue credentials
+to specific groups of users with a SAML Authentication Connector. When used in
+combination with role-based access control (RBAC), it allows Teleport
 administrators to define policies like:
 
-- Only members of the "DBA" Azure AD group can connect to PostgreSQL databases.
+- Only members of the "DBA" Microsoft Entra ID group can connect to PostgreSQL
+  databases.
 - Developers must never SSH into production servers.
 
 The following steps configure an example SAML authentication connector matching
-Azure AD groups with security roles. You can choose to configure other options.
+Microsoft Entra ID groups with security roles. You can choose to configure other
+options.
 
 ## Prerequisites
 
 Before you get started, you’ll need:
 
-- An Azure AD admin account with access to creating non-gallery applications
-  (P2 License).
+- A Microsoft Entra ID admin account with access to creating non-gallery
+  applications (P2 License).
 - To register one or more users in the directory.
-- To create at least two security groups in Azure AD and assign one or more
-  users to each group.
+- To create at least two security groups in Microsoft Entra ID and assign one or
+  more users to each group.
 - A Teleport role with access to maintaining `saml` resources. This is available
   in the default `editor` role.
 
@@ -30,7 +32,7 @@ Before you get started, you’ll need:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Configure Azure AD
+## Step 1/3. Configure Microsoft Entra ID
 
 ### Create an enterprise application
 
