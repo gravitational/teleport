@@ -36,7 +36,7 @@ func TestWorkloadIdentityX509Command(t *testing.T) {
 				"--join-method=github",
 				"--proxy-server=example.com:443",
 				"--include-federated-trust-bundles",
-				"--workload-identity-labels=*=*,foo=bar",
+				"--label-selector=*=*,foo=bar",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				require.Len(t, cfg.Services, 1)
@@ -66,7 +66,7 @@ func TestWorkloadIdentityX509Command(t *testing.T) {
 				"--join-method=github",
 				"--proxy-server=example.com:443",
 				"--include-federated-trust-bundles",
-				"--workload-identity-name=jim",
+				"--name-selector=jim",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				require.Len(t, cfg.Services, 1)
