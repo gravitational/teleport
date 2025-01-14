@@ -84,7 +84,6 @@ func (a *Server) UpdateTrustedCluster(ctx context.Context, tc types.TrustedClust
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	updated, err := a.updateTrustedCluster(ctx, tc, existingCluster)
 	return updated, trace.Wrap(err)
 }

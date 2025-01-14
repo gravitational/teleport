@@ -45,19 +45,60 @@ const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
   'certificatesigningrequest',
 ];
 
-export function validateRoleEditorModel({
-  metadata,
-  resources,
-  rules,
-}: RoleEditorModel) {
+export type RoleEditorModelValidationResult = {
+  metadata: MetadataValidationResult;
+  resources: ResourceAccessValidationResult[];
+  rules: AccessRuleValidationResult[];
+};
+
+/**
+ * Validates the role editor model. In addition to the model itself, this
+ * function also takes the previous model and previous validation result. The
+ * intention here is to only return a newly created result if the previous
+ * model is indeed different. This pattern is then repeated in other validation
+ * functions.
+ *
+ * The purpose of this is less about the performance of the validation process
+ * itself, and more about enabling memoization-based rendering optimizations:
+ * UI components that take either entire or partial validation results can be
+ * cached if the validation results don't change.
+ *
+ * Note that we can't use `useMemo` here, because `validateRoleEditorModel` is
+ * called from the state reducer. Also `highbar.memoize` was not applicable, as
+ * it caches an arbitrary amount of previous results.
+ */
+export function validateRoleEditorModel(
+  model: RoleEditorModel,
+  previousModel: RoleEditorModel | undefined,
+  previousResult: RoleEditorModelValidationResult | undefined
+): RoleEditorModelValidationResult {
   return {
-    metadata: validateMetadata(metadata),
-    resources: resources.map(validateResourceAccess),
-    rules: rules.map(validateAccessRule),
+    metadata: validateMetadata(
+      model.metadata,
+      previousModel?.metadata,
+      previousResult?.metadata
+    ),
+    resources: validateResourceAccessList(
+      model.resources,
+      previousModel?.resources,
+      previousResult?.resources
+    ),
+    rules: validateAccessRuleList(
+      model.rules,
+      previousModel?.rules,
+      previousResult?.rules
+    ),
   };
 }
 
-function validateMetadata(model: MetadataModel): MetadataValidationResult {
+function validateMetadata(
+  model: MetadataModel,
+  previousModel: MetadataModel,
+  previousResult: MetadataValidationResult
+): MetadataValidationResult {
+  if (previousModel === model) {
+    return previousResult;
+  }
   return runRules(model, metadataRules);
 }
 
@@ -69,21 +110,40 @@ export type MetadataValidationResult = RuleSetValidationResult<
   typeof metadataRules
 >;
 
+function validateResourceAccessList(
+  resources: ResourceAccess[],
+  previousResources: ResourceAccess[],
+  previousResults: ResourceAccessValidationResult[]
+): ResourceAccessValidationResult[] {
+  if (previousResources === resources) {
+    return previousResults;
+  }
+  return resources.map((res, i) =>
+    validateResourceAccess(res, previousResources?.[i], previousResults?.[i])
+  );
+}
+
 export function validateResourceAccess(
-  res: ResourceAccess
+  resource: ResourceAccess,
+  previousResource: ResourceAccess,
+  previousResult: ResourceAccessValidationResult
 ): ResourceAccessValidationResult {
-  const { kind } = res;
+  if (resource === previousResource) {
+    return previousResult;
+  }
+
+  const { kind } = resource;
   switch (kind) {
     case 'kube_cluster':
-      return runRules(res, kubernetesAccessValidationRules);
+      return runRules(resource, kubernetesAccessValidationRules);
     case 'node':
-      return runRules(res, serverAccessValidationRules);
+      return runRules(resource, serverAccessValidationRules);
     case 'app':
-      return runRules(res, appAccessValidationRules);
+      return runRules(resource, appAccessValidationRules);
     case 'db':
-      return runRules(res, databaseAccessValidationRules);
+      return runRules(resource, databaseAccessValidationRules);
     case 'windows_desktop':
-      return runRules(res, windowsDesktopAccessValidationRules);
+      return runRules(resource, windowsDesktopAccessValidationRules);
     default:
       kind satisfies never;
   }
@@ -171,8 +231,29 @@ export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
   typeof windowsDesktopAccessValidationRules
 >;
 
-export const validateAccessRule = (accessRule: RuleModel) =>
-  runRules(accessRule, accessRuleValidationRules);
+export function validateAccessRuleList(
+  rules: RuleModel[],
+  previousRules: RuleModel[],
+  previousResults: AccessRuleValidationResult[]
+): AccessRuleValidationResult[] {
+  if (previousRules === rules) {
+    return previousResults;
+  }
+  return rules.map((rule, i) =>
+    validateAccessRule(rule, previousRules?.[i], previousResults?.[i])
+  );
+}
+
+export const validateAccessRule = (
+  rule: RuleModel,
+  previousRule: RuleModel,
+  previousResult: AccessRuleValidationResult
+): AccessRuleValidationResult => {
+  if (previousRule === rule) {
+    return previousResult;
+  }
+  return runRules(rule, accessRuleValidationRules);
+};
 
 const accessRuleValidationRules = {
   resources: requiredField('At least one resource kind is required'),

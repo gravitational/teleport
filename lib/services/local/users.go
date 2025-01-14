@@ -70,12 +70,6 @@ type IdentityService struct {
 	notificationsSvc *NotificationsService
 }
 
-// TODO(tross): DELETE ONCE e is updated to use  NewIdentityService
-// NewIdentityServiceV2 returns a new instance of IdentityService object
-func NewIdentityServiceV2(backend backend.Backend) (*IdentityService, error) {
-	return NewIdentityService(backend)
-}
-
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) (*IdentityService, error) {
 	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
@@ -100,7 +94,7 @@ func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
 		panic("Attempted to create a test identity service outside of a test")
 	}
 
-	s, err := NewIdentityServiceV2(backend)
+	s, err := NewIdentityService(backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

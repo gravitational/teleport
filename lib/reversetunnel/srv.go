@@ -309,8 +309,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: cfg.Component,
 			Client:    cfg.LocalAccessPoint,
-			// TODO(tross): update this after converting to slog here
-			// Logger:       cfg.Log,
+			Logger:    cfg.Logger,
 		},
 		ProxiesC:    make(chan []types.Server, 10),
 		ProxyGetter: cfg.LocalAccessPoint,
@@ -1217,10 +1216,9 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.remoteAccessPoint = accessPoint
 	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: srv.Component,
-			Client:    accessPoint,
-			// TODO(tross) update this after converting to use slog
-			// Logger:          srv.Log,
+			Component:    srv.Component,
+			Client:       accessPoint,
+			Logger:       srv.Logger,
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
@@ -1253,10 +1251,9 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			// TODO(tross): update this after converting to slog
-			// Logger:       srv.log,
-			Clock:  srv.Clock,
-			Client: remoteSite.remoteAccessPoint,
+			Logger:    srv.logger,
+			Clock:     srv.Clock,
+			Client:    remoteSite.remoteAccessPoint,
 		},
 		Types: []types.CertAuthType{types.HostCA},
 	})

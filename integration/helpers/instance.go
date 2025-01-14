@@ -447,10 +447,9 @@ func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 
 // Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
-func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
+func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool) error {
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.SSH.Enabled = enableSSH
-	tconf.Console = console
 	tconf.Logger = i.Log
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
@@ -1129,7 +1128,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
 	tconf.Logger = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.SetAuthServerAddress(*authServer)

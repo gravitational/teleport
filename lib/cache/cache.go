@@ -1026,7 +1026,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	identityService, err := local.NewIdentityServiceV2(config.Backend)
+	identityService, err := local.NewIdentityService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

@@ -661,7 +661,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		Roles:         []types.Role{role},
 	}
 
-	require.NoError(t, instance.Create(t, nil, true, nil))
+	require.NoError(t, instance.Create(t, nil, true))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
@@ -740,7 +740,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
-	require.NoError(t, instance.Create(t, nil, false, nil))
+	require.NoError(t, instance.Create(t, nil, false))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())

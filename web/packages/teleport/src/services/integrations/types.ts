@@ -759,3 +759,16 @@ export type AwsDatabaseVpcsResponse = {
   vpcs: Vpc[];
   nextToken: string;
 };
+
+/**
+ * Object that contains request fields for
+ * when requesting to create an AWS console app.
+ *
+ * This request object is only supported with v2 endpoint.
+ */
+export type CreateAwsAppAccessRequest = {
+  /**
+   * resource labels that will be set as app_server's labels
+   */
+  labels?: Record<string, string>;
+};
