@@ -524,7 +524,7 @@ type handlerWithAuthFuncStd func(ctx *authContext, w http.ResponseWriter, r *htt
 const accessDeniedMsg = "[00] access denied"
 
 // authenticate function authenticates request
-func (f *Forwarder) authenticate(req *http.Request, params httprouter.Params) (*authContext, error) {
+func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	// If the cluster is not licensed for Kubernetes, return an error to the client.
 	if !f.cfg.ClusterFeatures.GetEntitlement(entitlements.K8s).Enabled {
 		// If the cluster is not licensed for Kubernetes, return an error to the client.
@@ -591,7 +591,7 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		defer span.End()
 
 		// note: empty params as this has no route
-		authContext, err := f.authenticate(req, httprouter.Params{})
+		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -651,7 +651,6 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 	for _, opt := range opts {
 		opt(&authOpts)
 	}
-
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
@@ -664,7 +663,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 		)
 		req = req.WithContext(ctx)
 		defer span.End()
-		authContext, err := f.authenticate(req, p)
+		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -681,14 +680,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 
 // withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
 // doesn't have RBAC access to the Kubernetes cluster.
-func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc, opts ...authOption) httprouter.Handle {
-	authOpts := authOptions{
-		errFormater: f.formatStatusResponseError,
-	}
-	for _, opt := range opts {
-		opt(&authOpts)
-	}
-
+func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
@@ -702,7 +694,7 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc, opts ...aut
 		req = req.WithContext(ctx)
 		defer span.End()
 
-		authContext, err := f.authenticate(req, p)
+		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -797,7 +789,6 @@ func (f *Forwarder) setupContext(
 	)
 
 	kubeCluster := identity.KubernetesCluster
-
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
@@ -2556,19 +2547,19 @@ func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authCon
 // - for HTTP2 in all other cases.
 // The reason being is that streaming requests are going to be upgraded to SPDY, which is only
 // supported coming from an HTTP1 request.
-func (f *Forwarder) makeSessionForwarder(sess *clusterSession, extraOptions ...reverseproxy.Option) (*reverseproxy.Forwarder, error) {
+func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Forwarder, error) {
 	transport, err := f.transportForRequest(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	opts := append([]reverseproxy.Option{
+	opts := []reverseproxy.Option{
 		reverseproxy.WithFlushInterval(100 * time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
 		// TODO(tross): convert this to use f.log once it has been converted to use slog
 		reverseproxy.WithLogger(slog.Default()),
 		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
-	}, extraOptions...)
+	}
 	if sess.isLocalKubernetesCluster {
 		// If the target cluster is local, i.e. the cluster that is served by this
 		// teleport service, then we set up the forwarder to allow re-writing
