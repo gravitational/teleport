@@ -95,6 +95,5 @@ export const Cycle = ({
 const UsageGroup = styled(Box)`
   background-color: ${({ theme }) => theme.colors.levels.surface};
   border-radius: 8px;
-  margin: 20px 0 0;
   padding: 20px 0 40px 40px;
 `;

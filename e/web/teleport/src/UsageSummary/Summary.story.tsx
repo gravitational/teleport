@@ -31,6 +31,32 @@ export function SummaryPageViewWithUsage() {
       free: 0,
       perMau: 5,
     },
+    usageHistory: [
+      {
+        cycleStart: 1727762400,
+        cycleStartFormatted: 'Oct 01, 2024',
+        cycleEnd: 1730354400,
+        cycleEndFormatted: 'Oct 31, 2024',
+        mau: 45,
+        tpr: 43009,
+      },
+      {
+        cycleStart: 1725159600,
+        cycleStartFormatted: 'Sep 01, 2024',
+        cycleEnd: 1725073200,
+        cycleEndFormatted: 'Aug 31, 2024',
+        mau: 52,
+        tpr: 43020,
+      },
+      {
+        cycleStart: 1722481200,
+        cycleStartFormatted: 'Aug 01, 2024',
+        cycleEnd: 1722394800,
+        cycleEndFormatted: 'Jul 31, 2024',
+        mau: 38,
+        tpr: 42120,
+      },
+    ],
   });
 
   return (

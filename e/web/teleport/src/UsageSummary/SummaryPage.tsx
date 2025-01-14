@@ -1,9 +1,12 @@
 import styled from 'styled-components';
 
 import Box from 'design/Box';
+import Flex from 'design/Flex';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { Cycle } from 'e-teleport/UsageSummary/Cycle';
+
+import { UsageHistory } from './UsageHistory';
 
 export interface SummaryProps {
   summary: UsageSummary;
@@ -12,7 +15,14 @@ export interface SummaryProps {
 export const SummaryPage = ({ summary }: SummaryProps) => (
   <>
     {summary ? (
-      <Cycle summary={summary} />
+      <Flex gap="4" flexDirection="column">
+        <Cycle summary={summary} />
+        <UsageHistory
+          history={summary.usageHistory}
+          maxMau={summary.mau.maximum}
+          maxTpr={summary.tpr.maximum}
+        />
+      </Flex>
     ) : (
       <StyledBox>
         Usage data is being gathered. This page updates every 12 hours.

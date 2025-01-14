@@ -43,8 +43,19 @@ class CloudService {
 
 export default CloudService;
 
-function makeBillingSummaryInformation(json: any) {
-  return json as BillingSummaryInformation;
+function makeBillingSummaryInformation(json: any): BillingSummaryInformation {
+  const { usageHistory } = json.usageSummary;
+  return {
+    ...json,
+    usageSummary: {
+      ...json.usageSummary,
+      usageHistory: usageHistory.map(u => ({
+        ...u,
+        mau: parseInt(u.mau) || 0,
+        tpr: parseInt(u.tpr) || 0,
+      })),
+    },
+  };
 }
 
 function makeNonBillableUsageSummary(json: any) {
