@@ -4,7 +4,6 @@ SCRIPT_NAME="teleport-installer"
 
 # default values
 ALIVE_CHECK_DELAY=3
-APP_BUNDLE_COPY_COMMAND="cp -rf" # macOS App Bundles must be copied recursively
 CONNECTIVITY_TEST_METHOD=""
 COPY_COMMAND="cp"
 DISTRO_TYPE=""
@@ -16,11 +15,10 @@ MACOS_STDERR_LOG="/var/log/teleport-stderr.log"
 MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
 SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=443
-TELEPORT_APP_BUNDLES_darwin="tctl.app tsh.app"
 TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh teleport-update"
-TELEPORT_BINARY_LIST_darwin="teleport"
+TELEPORT_BINARY_LIST_darwin="teleport" # only install server binaries for macOS
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
@@ -264,10 +262,6 @@ log_cleanup_message() {
         log_only "- unload and remove Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
         log_only "  - launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
         log_only "  - rm -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
-
-        log_only "- remove any teleport application bundles"
-        for APP_BUNDLE in ${TELEPORT_APP_BUNDLES_darwin}; do EXAMPLE_DELETE_COMMAND+="/Applications/${APP_BUNDLE} "; done
-        log_only "  - rm -rf ${EXAMPLE_DELETE_COMMAND}"
     fi
     log_only "Run this installer again when done."
     log_only
@@ -648,12 +642,6 @@ teleport_config_exists() { if [ -f ${TELEPORT_CONFIG_PATH} ]; then return 0; els
 teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else return 1; fi; }
 # checks whether a launchd plist file for teleport already exists on the host
 launchd_plist_file_exists() { if [ -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE} ]; then return 0; else return 1; fi; }
-# checks whether application bundles for teleport clients already exist on the host
-application_bundles_exist() {
-    for APP_BUNDLE in ${TELEPORT_APP_BUNDLES_darwin}; do
-        if [ -d "/Applications/${APP_BUNDLE}" ]; then return 0; else return 1; fi
-    done
-}
 
 # error out if any required values are not set
 check_set TELEPORT_VERSION
@@ -760,6 +748,7 @@ if [[ "${OSTYPE}" == "linux"* ]]; then
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
     # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
+    TELEPORT_BINARY_LIST="${TELEPORT_BINARY_LIST_darwin}"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
     if [[ ${ARCH} == "arm64" ]]; then
@@ -772,16 +761,8 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     fi
     log "Detected macOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
     TELEPORT_FORMAT="tarball"
-    TELEPORT_BINARY_LIST="${TELEPORT_BINARY_LIST_darwin}"
-
     if launchd_plist_file_exists; then
         log_header "Warning: Found existing Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}."
-        log_cleanup_message
-        exit 1
-    fi
-
-    if application_bundles_exist; then
-        log_header "Warning: Found existing Teleport Application Bundles ${TELEPORT_APP_BUNDLES_darwin}"
         log_cleanup_message
         exit 1
     fi
@@ -873,11 +854,6 @@ install_from_file() {
                 ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
             fi
         done
-        if is_macos_host; then
-            for APP_BUNDLE in ${TELEPORT_APP_BUNDLES_darwin}; do
-                ${APP_BUNDLE_COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${APP_BUNDLE}/" "/Applications/${APP_BUNDLE}/"
-            done
-        fi
     elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
         # convert teleport arch to deb arch
         if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
