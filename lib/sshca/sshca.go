@@ -20,6 +20,12 @@
 package sshca
 
 import (
+	"time"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -33,5 +39,34 @@ type Authority interface {
 
 	// GenerateUserCert generates user ssh certificate, it takes pkey as a signing
 	// private key (user certificate authority)
-	GenerateUserCert(certParams services.UserCertParams) ([]byte, error)
+	GenerateUserCert(UserCertificateRequest) ([]byte, error)
+}
+
+// UserCertificateRequest is a request to generate a new ssh user certificate.
+type UserCertificateRequest struct {
+	// CASigner is the signer that will sign the public key of the user with the CA private key
+	CASigner ssh.Signer
+	// PublicUserKey is the public key of the user in SSH authorized_keys format.
+	PublicUserKey []byte
+	// TTL defines how long a certificate is valid for (if specified, ValidAfter/ValidBefore within the
+	// identity must not be set).
+	TTL time.Duration
+	// CertificateFormat is the format of the SSH certificate.
+	CertificateFormat string
+	// Identity is the user identity to be encoded in the certificate.
+	Identity Identity
+}
+
+func (r *UserCertificateRequest) CheckAndSetDefaults() error {
+	if r.CASigner == nil {
+		return trace.BadParameter("ssh user certificate request missing ca signer")
+	}
+	if r.TTL < apidefaults.MinCertDuration {
+		r.TTL = apidefaults.MinCertDuration
+	}
+	if err := r.Identity.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

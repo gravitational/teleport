@@ -9,7 +9,9 @@ resource "teleport_workload_identity" "test" {
         {
           conditions = [{
             attribute = "user.name"
-            equals    = "foo"
+            eq = {
+              value = "foo"
+            }
           }]
         }
       ]

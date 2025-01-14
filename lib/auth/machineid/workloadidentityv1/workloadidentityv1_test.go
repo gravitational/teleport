@@ -19,6 +19,7 @@ package workloadidentityv1_test
 import (
 	"context"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -34,23 +35,32 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	apiproto "github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -137,6 +147,197 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	}
 }
 
+// TestIssueWorkloadIdentityE2E performs a more E2E test than the RPC specific
+// tests in this package. The idea is to validate that the various Auth Server
+// APIs necessary for a bot to join and then issue a workload identity are
+// functioning correctly.
+func TestIssueWorkloadIdentityE2E(t *testing.T) {
+	experimentStatus := experiment.Enabled()
+	defer experiment.SetEnabled(experimentStatus)
+	experiment.SetEnabled(true)
+
+	ctx := context.Background()
+	tp := newIssuanceTestPack(t, ctx)
+
+	role, err := types.NewRole("my-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindWorkloadIdentity, []string{types.VerbRead, types.VerbList}),
+			},
+			WorkloadIdentityLabels: map[string]apiutils.Strings{
+				"my-label": []string{"my-value"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	wid, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "my-wid",
+			Labels: map[string]string{
+				"my-label": "my-value",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "join.kubernetes.service_account.namespace",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "my-namespace",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/example/{{ user.name }}/{{ join.kubernetes.service_account.namespace }}/{{ join.kubernetes.pod.name }}/{{ workload.unix.pid }}",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	bot := &machineidv1.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "my-bot",
+		},
+		Spec: &machineidv1.BotSpec{
+			Roles: []string{
+				role.GetName(),
+			},
+		},
+	}
+
+	k8s, err := fakejoin.NewKubernetesSigner(tp.clock)
+	require.NoError(t, err)
+	jwks, err := k8s.GetMarshaledJWKS()
+	require.NoError(t, err)
+	fakePSAT, err := k8s.SignServiceAccountJWT(
+		"my-pod",
+		"my-namespace",
+		"my-service-account",
+		tp.srv.ClusterName(),
+	)
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec(
+		"my-k8s-token",
+		time.Time{},
+		types.ProvisionTokenSpecV2{
+			Roles:      types.SystemRoles{types.RoleBot},
+			JoinMethod: types.JoinMethodKubernetes,
+			BotName:    bot.Metadata.Name,
+			Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+				Type: types.KubernetesJoinTypeStaticJWKS,
+				StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+					JWKS: jwks,
+				},
+				Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+					{
+						ServiceAccount: "my-namespace:my-service-account",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	adminClient, err := tp.srv.NewClient(auth.TestAdmin())
+	require.NoError(t, err)
+	_, err = adminClient.CreateRole(ctx, role)
+	require.NoError(t, err)
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+		Bot: bot,
+	})
+	require.NoError(t, err)
+	err = adminClient.CreateToken(ctx, token)
+	require.NoError(t, err)
+
+	// With the basic setup complete, we can now "fake" a join.
+	botCerts, err := join.Register(ctx, join.RegisterParams{
+		Token:      token.GetName(),
+		JoinMethod: types.JoinMethodKubernetes,
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers: []utils.NetAddr{*utils.MustParseAddr(tp.srv.Addr().String())},
+		KubernetesReadFileFunc: func(name string) ([]byte, error) {
+			return []byte(fakePSAT), nil
+		},
+	})
+	require.NoError(t, err)
+
+	// We now have to actually impersonate the role cert to be able to issue
+	// a workload identity.
+	privateKeyPEM, err := keys.MarshalPrivateKey(botCerts.PrivateKey)
+	require.NoError(t, err)
+	tlsCert, err := tls.X509KeyPair(botCerts.Certs.TLS, privateKeyPEM)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(botCerts.PrivateKey.Public())
+	require.NoError(t, err)
+	tlsPub, err := keys.MarshalPublicKey(botCerts.PrivateKey.Public())
+	require.NoError(t, err)
+	botClient := tp.srv.NewClientWithCert(tlsCert)
+	certs, err := botClient.GenerateUserCerts(ctx, apiproto.UserCertsRequest{
+		SSHPublicKey: ssh.MarshalAuthorizedKey(sshPub),
+		TLSPublicKey: tlsPub,
+		Username:     "bot-my-bot",
+		RoleRequests: []string{
+			role.GetName(),
+		},
+		UseRoleRequests: true,
+		Expires:         tp.clock.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	roleTLSCert, err := tls.X509KeyPair(certs.TLS, privateKeyPEM)
+	require.NoError(t, err)
+	roleClient := tp.srv.NewClientWithCert(roleTLSCert)
+
+	// Generate a keypair to generate x509 SVIDs for.
+	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
+	require.NoError(t, err)
+	// Finally, we can request the issuance of a SVID
+	c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(
+		roleClient.GetConnection(),
+	)
+	res, err := c.IssueWorkloadIdentity(ctx, &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+		Name: wid.Metadata.Name,
+		WorkloadAttrs: &workloadidentityv1pb.WorkloadAttrs{
+			Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
+				Pid: 123,
+			},
+		},
+		Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+				PublicKey: workloadKeyPubBytes,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Perform a minimal validation of the returned credential - enough to prove
+	// that the returned value is a valid SVID with the SPIFFE ID we expect.
+	// Other tests in this package validate this more fully.
+	x509SVID := res.GetCredential().GetX509Svid()
+	require.NotNil(t, x509SVID)
+	cert, err := x509.ParseCertificate(x509SVID.GetCert())
+	require.NoError(t, err)
+	// Check included public key matches
+	require.Equal(t, workloadKey.Public(), cert.PublicKey)
+	require.Equal(t, "spiffe://localhost/example/bot-my-bot/my-namespace/my-pod/123", cert.URIs[0].String())
+}
+
 func TestIssueWorkloadIdentity(t *testing.T) {
 	experimentStatus := experiment.Enabled()
 	defer experiment.SetEnabled(experimentStatus)
@@ -205,11 +406,19 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "user.name",
-								Equals:    "dog",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "dog",
+									},
+								},
 							},
 							{
 								Attribute: "workload.kubernetes.namespace",
-								Equals:    "default",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "default",
+									},
+								},
 							},
 						},
 					},
@@ -571,7 +780,11 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "workload.kubernetes.namespace",
-								Equals:    "default",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "default",
+									},
+								},
 							},
 						},
 					},
@@ -601,7 +814,11 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "workload.kubernetes.namespace",
-								Equals:    "default",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "default",
+									},
+								},
 							},
 						},
 					},

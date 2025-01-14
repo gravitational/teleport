@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -31,17 +32,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ConvertRequestFailureError converts `error` into AWS RequestFailure errors
-// to trace errors. If the provided error is not an `RequestFailure` it returns
-// the error without modifying it.
+// ConvertRequestFailureError converts `err` into AWS errors to trace errors.
+// If the provided error is not a [awserr.RequestFailure] it delegates
+// error conversion to [ConvertRequestFailureErrorV2] for SDK v2 compatibility.
+// Prefer using [ConvertRequestFailureErrorV2] directly for AWS SDK v2 client
+// errors.
 func ConvertRequestFailureError(err error) error {
 	var requestErr awserr.RequestFailure
-	if !errors.As(err, &requestErr) {
-		return err
+	if errors.As(err, &requestErr) {
+		return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
 	}
-
-	return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
+	return ConvertRequestFailureErrorV2(err)
 }
+
+// ConvertRequestFailureErrorV2 converts AWS SDK v2 errors to trace errors.
+// If the provided error is not a [awshttp.ResponseError] it returns the error
+// without modifying it.
+func ConvertRequestFailureErrorV2(err error) error {
+	var re *awshttp.ResponseError
+	if errors.As(err, &re) {
+		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)
+	}
+	return err
+}
+
+var (
+	ecsClusterNotFoundException *ecstypes.ClusterNotFoundException
+)
 
 func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) error {
 	switch statusCode {
@@ -56,6 +73,10 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 		// "AccessDeniedException" instead of 403.
 		if strings.Contains(requestErr.Error(), redshiftserverless.ErrCodeAccessDeniedException) {
 			return trace.AccessDenied(requestErr.Error())
+		}
+
+		if strings.Contains(requestErr.Error(), ecsClusterNotFoundException.ErrorCode()) {
+			return trace.NotFound(requestErr.Error())
 		}
 	}
 

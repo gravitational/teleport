@@ -466,17 +466,22 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	portMapping, err := libclient.ParsePortMapping(cf.LocalProxyPortMapping)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var (
 		appInfo *appInfo
 		app     types.Application
 	)
 	if err := libclient.RetryWithRelogin(cf.Context, tc, func() error {
 		var err error
-		profile, err := tc.ProfileStatus()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
@@ -494,13 +499,21 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, proxyApp.GetAddr())
-	if cf.LocalProxyPort == "" {
+	appName := cf.AppName
+	if portMapping.TargetPort != 0 {
+		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
+	}
+	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+	// If target port is not equal to zero, the user must know about the port flag.
+	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
 		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 

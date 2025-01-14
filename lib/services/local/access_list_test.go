@@ -888,7 +888,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	// Verify that access lists reviews are gone.
 	_, _, err = service.ListAccessListReviews(ctx, accessList1.GetName(), 0, "")
-	require.Empty(t, err)
+	require.NoError(t, err)
 }
 
 func TestAccessListRequiresEqual(t *testing.T) {

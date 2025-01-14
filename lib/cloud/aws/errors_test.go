@@ -73,6 +73,30 @@ func TestConvertRequestFailureError(t *testing.T) {
 			inputError:     errors.New("not-aws-error"),
 			wantUnmodified: true,
 		},
+		{
+			name: "v2 sdk error",
+			inputError: &awshttp.ResponseError{
+				ResponseError: &smithyhttp.ResponseError{
+					Response: &smithyhttp.Response{Response: &http.Response{
+						StatusCode: http.StatusNotFound,
+					}},
+					Err: trace.Errorf(""),
+				},
+			},
+			wantIsError: trace.IsNotFound,
+		},
+		{
+			name: "v2 sdk error for ecs ClusterNotFoundException",
+			inputError: &awshttp.ResponseError{
+				ResponseError: &smithyhttp.ResponseError{
+					Response: &smithyhttp.Response{Response: &http.Response{
+						StatusCode: http.StatusBadRequest,
+					}},
+					Err: trace.Errorf("ClusterNotFoundException"),
+				},
+			},
+			wantIsError: trace.IsNotFound,
+		},
 	}
 
 	for _, test := range tests {

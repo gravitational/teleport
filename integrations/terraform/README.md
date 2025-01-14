@@ -7,9 +7,9 @@ Please, refer to [official documentation](https://goteleport.com/docs/admin-guid
 ## Development
 
 1. Install [`protobuf`](https://grpc.io/docs/protoc-installation/).
-2. Install [`protoc-gen-terraform`](https://github.com/gravitational/protoc-gen-terraform) @v3.0.0.
+2. Install [`protoc-gen-terraform`](https://github.com/gravitational/protoc-gen-terraform) @v3.0.2.
 
-    ```go install github.com/gravitational/protoc-gen-terraform@c91cc3ef4d7d0046c36cb96b1cd337e466c61225```
+    ```go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2```
 
 3. Install [`Terraform`](https://learn.hashicorp.com/tutorials/terraform/install-cli) v1.1.0+. Alternatively, you can use [`tfenv`](https://github.com/tfutils/tfenv). Please note that on Mac M1 you need to specify `TFENV_ARCH` (ex: `TFENV_ARCH=arm64 tfenv install 1.1.6`).
 
