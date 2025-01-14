@@ -34,8 +34,8 @@ func TestNewWorkloadIdentityAPICommand(t *testing.T) {
 				"--token=foo",
 				"--join-method=github",
 				"--proxy-server=example.com:443",
-				"--listen-addr=tcp://0.0.0.0:8080",
-				"--workload-identity-labels=*=*,foo=bar",
+				"--listen=tcp://0.0.0.0:8080",
+				"--label-selector=*=*,foo=bar",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				require.Len(t, cfg.Services, 1)
@@ -58,8 +58,8 @@ func TestNewWorkloadIdentityAPICommand(t *testing.T) {
 				"--token=foo",
 				"--join-method=github",
 				"--proxy-server=example.com:443",
-				"--listen-addr=unix:///opt/workload.sock",
-				"--workload-identity-name=jim",
+				"--listen=unix:///opt/workload.sock",
+				"--name-selector=jim",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				require.Len(t, cfg.Services, 1)
