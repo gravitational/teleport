@@ -501,6 +501,7 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 		fetcher, err := aws_sync.NewAWSFetcher(
 			ctx,
 			aws_sync.Config{
+				AWSConfigProvider:   s.AWSConfigProvider,
 				CloudClients:        s.CloudClients,
 				GetEKSClient:        s.GetAWSSyncEKSClient,
 				GetEC2Client:        s.GetEC2Client,

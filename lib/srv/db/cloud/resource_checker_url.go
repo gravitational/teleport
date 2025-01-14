@@ -28,7 +28,6 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -42,9 +41,8 @@ import (
 type urlChecker struct {
 	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
 	awsConfigProvider awsconfig.Provider
-	// redshiftClientProviderFn is an internal-only [redshiftClient] provider
-	// func that is only set in tests.
-	redshiftClientProviderFn redshiftClientProviderFunc
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
 
 	clients     cloud.Clients
 	logger      *slog.Logger
@@ -61,12 +59,10 @@ type urlChecker struct {
 func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
 		awsConfigProvider: cfg.AWSConfigProvider,
-		redshiftClientProviderFn: func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		},
-		clients:     cfg.Clients,
-		logger:      cfg.Logger,
-		warnOnError: getWarnOnError(),
+		awsClients:        defaultAWSClients{},
+		clients:           cfg.Clients,
+		logger:            cfg.Logger,
+		warnOnError:       getWarnOnError(),
 	}
 }
 

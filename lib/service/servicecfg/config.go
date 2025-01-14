@@ -21,7 +21,6 @@ package servicecfg
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -132,9 +131,6 @@ type Config struct {
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
 	HostUUID string
-
-	// Console writer to speak to a user
-	Console io.Writer
 
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
@@ -551,7 +547,6 @@ func ApplyDefaults(cfg *Config) {
 	// Global defaults.
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
-	cfg.Console = os.Stdout
 	cfg.CipherSuites = utils.DefaultCipherSuites()
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
@@ -693,10 +688,6 @@ func ValidateConfig(cfg *Config) error {
 func applyDefaults(cfg *Config) {
 	if cfg.Version == "" {
 		cfg.Version = defaults.TeleportConfigVersionV1
-	}
-
-	if cfg.Console == nil {
-		cfg.Console = io.Discard
 	}
 
 	if cfg.Logger == nil {

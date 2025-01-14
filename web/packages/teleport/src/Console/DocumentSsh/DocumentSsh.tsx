@@ -30,7 +30,7 @@ import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import * as stores from 'teleport/Console/stores';
-import { useMfa, useMfaTty } from 'teleport/lib/useMfa';
+import { useMfa, useMfaEmitter } from 'teleport/lib/useMfa';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { useConsoleContext } from '../consoleContextProvider';
@@ -54,7 +54,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
 
-  const ttyMfa = useMfaTty(tty);
+  const ttyMfa = useMfaEmitter(tty);
   const ftMfa = useMfa({
     isMfaRequired: ttyMfa.required,
     req: {

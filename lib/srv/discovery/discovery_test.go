@@ -41,11 +41,12 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -317,6 +318,31 @@ func TestDiscoveryServer(t *testing.T) {
 				Tags:        map[string]utils.Strings{"RunDiscover": {"Please"}},
 				Integration: "my-integration",
 			}},
+		},
+	)
+	require.NoError(t, err)
+
+	discoveryConfigWithAndWithoutAppDiscoveryTestName := uuid.NewString()
+	discoveryConfigWithAndWithoutAppDiscovery, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigWithAndWithoutAppDiscoveryTestName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{
+				{
+					Types:            []string{"eks"},
+					Regions:          []string{"eu-west-2"},
+					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"No"}},
+					Integration:      "my-integration",
+					KubeAppDiscovery: false,
+				},
+				{
+					Types:            []string{"eks"},
+					Regions:          []string{"eu-west-2"},
+					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"Yes"}},
+					Integration:      "my-integration",
+					KubeAppDiscovery: true,
+				},
+			},
 		},
 	)
 	require.NoError(t, err)
@@ -750,6 +776,74 @@ func TestDiscoveryServer(t *testing.T) {
 
 				require.Equal(t, "cluster01", taskCluster.Name)
 				require.Equal(t, discoveryConfigForUserTaskEKSTestName, taskCluster.DiscoveryConfig)
+				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
+			},
+		},
+		{
+			name:              "multiple EKS clusters with different KubeAppDiscovery setting failed to autoenroll and user tasks are created",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: []ec2types.Instance{},
+			ssm:               &mockSSMClient{},
+			eksClusters: []*ekstypes.Cluster{
+				{
+					Name:   aws.String("cluster01"),
+					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
+					Status: ekstypes.ClusterStatusActive,
+					Tags: map[string]string{
+						"EnableAppDiscovery": "Yes",
+					},
+				},
+				{
+					Name:   aws.String("cluster02"),
+					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
+					Status: ekstypes.ClusterStatusActive,
+					Tags: map[string]string{
+						"EnableAppDiscovery": "No",
+					},
+				},
+			},
+			eksEnroller: &mockEKSClusterEnroller{
+				resp: &integrationpb.EnrollEKSClustersResponse{
+					Results: []*integrationpb.EnrollEKSClusterResult{
+						{
+							EksClusterName: "cluster01",
+							Error:          "access endpoint is not reachable",
+							IssueType:      "eks-cluster-unreachable",
+						},
+						{
+							EksClusterName: "cluster02",
+							Error:          "access endpoint is not reachable",
+							IssueType:      "eks-cluster-unreachable",
+						},
+					},
+				},
+				err: nil,
+			},
+			emitter:                &mockEmitter{},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        discoveryConfigWithAndWithoutAppDiscovery,
+			wantInstalledInstances: []string{},
+			userTasksDiscoverCheck: func(t require.TestingT, i1 interface{}, i2 ...interface{}) {
+				existingTasks, ok := i1.([]*usertasksv1.UserTask)
+				require.True(t, ok, "failed to get existing tasks: %T", i1)
+				require.Len(t, existingTasks, 2)
+				existingTask := existingTasks[0]
+				if existingTask.Spec.DiscoverEks.AppAutoDiscover == false {
+					existingTask = existingTasks[1]
+				}
+
+				require.Equal(t, "OPEN", existingTask.GetSpec().State)
+				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
+				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
+				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
+				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
+
+				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
+				require.Contains(t, taskClusters, "cluster01")
+				taskCluster := taskClusters["cluster01"]
+
+				require.Equal(t, "cluster01", taskCluster.Name)
+				require.Equal(t, discoveryConfigWithAndWithoutAppDiscoveryTestName, taskCluster.DiscoveryConfig)
 				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
 			},
 		},
@@ -2063,13 +2157,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSClientV1{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
-			},
-		},
+		STS:      &mocks.STSClientV1{},
 		MemoryDB: &mocks.MemoryDBMock{},
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
@@ -2407,9 +2495,17 @@ func TestDiscoveryDatabase(t *testing.T) {
 			dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
 				AWSConfigProvider: fakeConfigProvider,
 				CloudClients:      testCloudClients,
-				RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-					Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
-				}),
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
+						DBEngineVersions: []rdstypes.DBEngineVersion{
+							{Engine: aws.String(services.RDSEnginePostgres)},
+						},
+					},
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*awsRedshiftResource},
+					},
+				},
 			})
 			require.NoError(t, err)
 
@@ -2503,15 +2599,25 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryConfigName: dc2Name, discoveryGroup: mainDiscoveryGroup})
 
+	fakeConfigProvider := &mocks.AWSConfigProvider{
+		STSClient: &mocks.STSClient{},
+	}
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSClientV1{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
+		STS: &fakeConfigProvider.STSClient.STSClientV1,
+	}
+	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+		AWSConfigProvider: fakeConfigProvider,
+		CloudClients:      testCloudClients,
+		AWSClients: fakeAWSClients{
+			rdsClient: &mocks.RDSClient{
+				DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
+				DBEngineVersions: []rdstypes.DBEngineVersion{
+					{Engine: aws.String(services.RDSEnginePostgres)},
+				},
 			},
 		},
-	}
+	})
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -2539,14 +2645,16 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	srv, err := New(
 		authz.ContextWithUser(ctx, identity.I),
 		&Config{
-			CloudClients:     testCloudClients,
-			ClusterFeatures:  func() proto.Features { return proto.Features{} },
-			KubernetesClient: fake.NewSimpleClientset(),
-			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-			Matchers:         Matchers{},
-			Emitter:          authClient,
-			DiscoveryGroup:   mainDiscoveryGroup,
-			clock:            clock,
+			AWSConfigProvider:         fakeConfigProvider,
+			AWSDatabaseFetcherFactory: dbFetcherFactory,
+			CloudClients:              testCloudClients,
+			ClusterFeatures:           func() proto.Features { return proto.Features{} },
+			KubernetesClient:          fake.NewSimpleClientset(),
+			AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+			Matchers:                  Matchers{},
+			Emitter:                   authClient,
+			DiscoveryGroup:            mainDiscoveryGroup,
+			clock:                     clock,
 		})
 
 	require.NoError(t, err)
@@ -2669,16 +2777,16 @@ func makeEKSCluster(t *testing.T, name, region string, discoveryParams rewriteDi
 	return eksAWSCluster, actual
 }
 
-func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rds.DBInstance, types.Database) {
-	instance := &rds.DBInstance{
+func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rdstypes.DBInstance, types.Database) {
+	instance := &rdstypes.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
 		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
 		DBInstanceStatus:     aws.String("available"),
-		Endpoint: &rds.Endpoint{
+		Endpoint: &rdstypes.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int64(5432),
+			Port:    aws.Int32(5432),
 		},
 	}
 	database, err := common.NewDatabaseFromRDSInstance(instance)
@@ -3513,8 +3621,19 @@ type mockEKSClusterEnroller struct {
 	err  error
 }
 
-func (m *mockEKSClusterEnroller) EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-	return m.resp, m.err
+func (m *mockEKSClusterEnroller) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opt ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+	ret := &integrationpb.EnrollEKSClustersResponse{
+		Results: []*integrationpb.EnrollEKSClusterResult{},
+	}
+	// Filter out non-requested clusters.
+	for _, clusterName := range req.EksClusterNames {
+		for _, mockClusterResult := range m.resp.Results {
+			if clusterName == mockClusterResult.EksClusterName {
+				ret.Results = append(ret.Results, mockClusterResult)
+			}
+		}
+	}
+	return ret, m.err
 }
 
 type combinedDiscoveryClient struct {
@@ -3748,8 +3867,15 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 	}
 }
 
-func newFakeRedshiftClientProvider(c redshift.DescribeClustersAPIClient) db.RedshiftClientProviderFunc {
-	return func(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
-		return c
-	}
+type fakeAWSClients struct {
+	rdsClient      db.RDSClient
+	redshiftClient db.RedshiftClient
+}
+
+func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {
+	return f.rdsClient
+}
+
+func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
+	return f.redshiftClient
 }

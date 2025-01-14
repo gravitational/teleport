@@ -16,6 +16,7 @@ require (
 	connectrpc.com/connect v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.2.0
@@ -48,6 +49,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.23
 	github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue v1.14.58
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.22
+	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.2
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.45
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/athena v1.49.2
