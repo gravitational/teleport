@@ -1060,7 +1060,7 @@ func TestPluginAWSICSettings(t *testing.T) {
 			name: "missing oidc integration is allowed with ambient creds",
 			mutateSettings: func(cfg *PluginAWSICSettings) {
 				cfg.IntegrationName = ""
-				cfg.UseAmbientAwsCreds = true
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
 			},
 			assertErr: require.NoError,
 		}, {

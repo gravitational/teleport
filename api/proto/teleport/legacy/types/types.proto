@@ -6788,6 +6788,21 @@ message PluginDatadogAccessSettings {
   string fallback_recipient = 2;
 }
 
+// AWSICCredentialsSource indicates where the AWS Identity Center plugin will
+// draw its AWS credentials from
+enum AWSICCredentialsSource {
+  // AWSIC_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not
+  // specified. For backwards compatability, UNKNOWN is handled as OIDC.
+  AWSIC_CREDENTIALS_SOURCE_UNKNOWN = 0;
+  // AWSIC_CREDENTIALS_SOURCE_OIDC indicates that the Identity Center plugin will
+  // draw its credentials from a configured Teleport OIDC integration and
+  // authenticate  woth OIDC
+  AWSIC_CREDENTIALS_SOURCE_OIDC = 1;
+  // AWSIC_CREDENTIALS_SOURCE_SYSTEM indicates that the Identity Center plugin
+  // will rely on system-provided credentials
+  AWSIC_CREDENTIALS_SOURCE_SYSTEM = 2;
+}
+
 // PluginAWSICSettings holds the settings for an AWS Identity Center integration.
 message PluginAWSICSettings {
   option (gogoproto.equal) = true;
@@ -6813,9 +6828,9 @@ message PluginAWSICSettings {
   // for the Identity Center.
   string saml_idp_service_provider_name = 6;
 
-  // UseAmbientAwsCreds indicates that the integration should use the ambient
-  // AWS credentials rather than
-  bool use_ambient_aws_creds = 7;
+  // CredentialsSource indicates how the Identity Center plugin should source
+  // its AWS login credentials
+  AWSICCredentialsSource credentials_source = 7;
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
