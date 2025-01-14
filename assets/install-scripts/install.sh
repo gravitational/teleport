@@ -301,7 +301,7 @@ install_teleport() {
   fi
   # Some $ID_LIKE values include multiple distro names in an arbitrary order, so
   # evaluate the first one.
-  ID_LIKE="$(echo "${ID_LIKE}" | awk '{print $1}')"
+  ID_LIKE="${ID_LIKE%% *}"
 
   # detect architecture
   ARCH=""
