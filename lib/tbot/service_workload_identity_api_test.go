@@ -18,11 +18,15 @@ package tbot
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,24 +128,45 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 
 	// This has a little flexibility internally in terms of waiting for the
 	// socket to come up, so we don't need a manual sleep/retry here.
+	client, err := workloadapi.New(ctx, workloadapi.WithAddr(listenAddr.String()))
+	require.NoError(t, err)
+
 	source, err := workloadapi.NewX509Source(
 		ctx,
-		workloadapi.WithClientOptions(workloadapi.WithAddr(listenAddr.String())),
+		workloadapi.WithClient(client),
 	)
 	require.NoError(t, err)
 	defer source.Close()
 
+	// Test FetchX509SVID
 	svid, err := source.GetX509SVID()
 	require.NoError(t, err)
 
-	require.Equal(t, "", svid.ID.String())
-	// Check issued by bundle etc
+	expectedSPIFFEID := fmt.Sprintf("spiffe://root/valid/api/%d", os.Getpid())
+	require.Equal(t, expectedSPIFFEID, svid.ID.String())
+	require.Equal(t, expectedSPIFFEID, svid.Certificates[0].URIs[0].String())
+	_, _, err = x509svid.Verify(svid.Certificates, source)
+	require.NoError(t, err)
 
-	// NewX509Source only invokes the FetchX509SVID RPC. So we also need to
-	// invoke the FetchX509Bundles RPC.
-	_, err = workloadapi.FetchX509Bundles(ctx, workloadapi.WithAddr(listenAddr.String()))
+	// Test FetchX509Bundles
+	set, err := client.FetchX509Bundles(ctx)
+	require.NoError(t, err)
+	_, _, err = x509svid.Verify(svid.Certificates, set)
+	require.NoError(t, err)
 
-	// Then check JWT
-	// And check JWT issuers
-	// And check JWT validation
+	// Test FetchJWTSVID
+	jwtSVID, err := client.FetchJWTSVID(ctx, jwtsvid.Params{
+		Audience: "example.com",
+	})
+	require.NoError(t, err)
+
+	// Check against ValidateJWTSVID
+	parsed, err := client.ValidateJWTSVID(ctx, jwtSVID.Marshal(), "example.com")
+	require.NoError(t, err)
+	require.Equal(t, expectedSPIFFEID, parsed.ID.String())
+	// Perform local validation with bundles from FetchJWTBundles
+	jwtBundles, err := client.FetchJWTBundles(ctx)
+	require.NoError(t, err)
+	_, err = jwtsvid.ParseAndValidate(jwtSVID.Marshal(), jwtBundles, []string{"example.com"})
+	require.NoError(t, err)
 }
