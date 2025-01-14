@@ -503,6 +503,10 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *AccessRequestExpire) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *AccessRequestResourceSearch) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
