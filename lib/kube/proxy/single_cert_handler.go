@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -87,7 +88,7 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 
 		userTypeI, err := authz.UserFromContext(req.Context())
 		if err != nil {
-			f.log.WithError(err).Warn("error getting user from context")
+			f.log.WarnContext(req.Context(), "error getting user from context", "error", err)
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		}
 
@@ -122,7 +123,7 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 			o.Identity.KubernetesCluster = kubeCluster
 			userType = o
 		default:
-			f.log.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
+			f.log.WarnContext(req.Context(), "Denying proxy access to unsupported user type", "user_type", logutils.TypeAttr(userTypeI))
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		}
 
