@@ -98,6 +98,7 @@ export enum DiscoverEvent {
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
   TestConnection = 'tp.ui.discover.testConnection',
   Completed = 'tp.ui.discover.completed',
+  Overview = 'tp.ui.discover.overview',
 }
 
 // DiscoverResource represents a resource type.

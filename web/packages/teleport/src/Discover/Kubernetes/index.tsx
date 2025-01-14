@@ -21,7 +21,7 @@ import React from 'react';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { EnrollEksCluster } from 'teleport/Discover/Kubernetes/EnrollEKSCluster';
 import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
-import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
+import { AwsAccount, Finished, Overview, ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { KubeWrapper } from './KubeWrapper';
@@ -69,6 +69,11 @@ export const KubernetesResource: ResourceViewConfig = {
     }
 
     return [
+      {
+        title: 'Overview',
+        component: Overview,
+        eventName: DiscoverEvent.Overview,
+      },
       ...configuredResourceViews,
       {
         title: 'Set Up Access',
