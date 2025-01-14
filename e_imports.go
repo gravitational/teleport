@@ -89,7 +89,6 @@ import (
 	_ "github.com/gravitational/license/generate"
 	_ "github.com/gravitational/roundtrip"
 	_ "github.com/gravitational/trace"
-	_ "github.com/gravitational/trace/trail"
 	_ "github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/pgtype"
