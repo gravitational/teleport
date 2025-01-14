@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -62,8 +63,14 @@ func parseRouteFromPath(p httprouter.Params) (string, string, error) {
 		return "", "", trace.Wrap(err)
 	}
 
-	// TODO: do we care to otherwise validate these results before casting
-	// to a string?
+	if !utf8.Valid(decodedTeleportCluster) {
+		return "", "", trace.BadParameter("invalid Teleport cluster name")
+	}
+
+	if !utf8.Valid(decodedKubernetesCluster) {
+		return "", "", trace.BadParameter("invalid Kubernetes cluster name")
+	}
+
 	return string(decodedTeleportCluster), string(decodedKubernetesCluster), nil
 }
 

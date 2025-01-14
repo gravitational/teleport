@@ -590,7 +590,6 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		req = req.WithContext(ctx)
 		defer span.End()
 
-		// note: empty params as this has no route
 		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2552,7 +2551,6 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	opts := []reverseproxy.Option{
 		reverseproxy.WithFlushInterval(100 * time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
