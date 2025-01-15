@@ -32,6 +32,7 @@ func TestReconcileResults(t *testing.T) {
 	vms := generateVms()
 
 	tests := []struct {
+		name            string
 		oldResults      *Resources
 		newResults      *Resources
 		expectedUpserts *accessgraphv1alpha.AzureResourceList
@@ -39,6 +40,7 @@ func TestReconcileResults(t *testing.T) {
 	}{
 		// Overlapping old and new results
 		{
+			name: "OverlapOldAndNewResults",
 			oldResults: &Resources{
 				Principals:      principals[0:2],
 				RoleDefinitions: roleDefs[0:2],
@@ -56,6 +58,7 @@ func TestReconcileResults(t *testing.T) {
 		},
 		// Completely new results
 		{
+			name: "CompletelyNewResults",
 			oldResults: &Resources{
 				Principals:      nil,
 				RoleDefinitions: nil,
@@ -73,6 +76,7 @@ func TestReconcileResults(t *testing.T) {
 		},
 		// No new results
 		{
+			name: "NoNewResults",
 			oldResults: &Resources{
 				Principals:      principals[1:3],
 				RoleDefinitions: roleDefs[1:3],
@@ -91,9 +95,11 @@ func TestReconcileResults(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		upserts, deletes := ReconcileResults(tt.oldResults, tt.newResults)
-		require.ElementsMatch(t, upserts.Resources, tt.expectedUpserts.Resources)
-		require.ElementsMatch(t, deletes.Resources, tt.expectedDeletes.Resources)
+		t.Run(tt.name, func(t *testing.T) {
+			upserts, deletes := ReconcileResults(tt.oldResults, tt.newResults)
+			require.ElementsMatch(t, upserts.Resources, tt.expectedUpserts.Resources)
+			require.ElementsMatch(t, deletes.Resources, tt.expectedDeletes.Resources)
+		})
 	}
 
 }
