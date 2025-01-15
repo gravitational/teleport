@@ -460,6 +460,21 @@ func (m *mockPluginsClient) UpdatePlugin(ctx context.Context, in *pluginsv1.Upda
 	return result.Get(0).(*types.PluginV1), result.Error(1)
 }
 
+func (m *mockPluginsClient) NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error) {
+	result := m.Called(ctx, in, opts)
+	return result.Get(0).(*pluginsv1.NeedsCleanupResponse), result.Error(1)
+}
+
+func (m *mockPluginsClient) Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	result := m.Called(ctx, in, opts)
+	return result.Get(0).(*emptypb.Empty), result.Error(1)
+}
+
+func (m *mockPluginsClient) DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	result := m.Called(ctx, in, opts)
+	return result.Get(0).(*emptypb.Empty), result.Error(1)
+}
+
 type mockAuthClient struct {
 	mock.Mock
 }
@@ -497,6 +512,11 @@ func (m *mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
 
 func (m *mockAuthClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	return &proto.MFAAuthenticateResponse{}, nil
+}
+
+func (m *mockAuthClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	result := m.Called(ctx, name)
+	return result.Get(0).(types.Role), result.Error(1)
 }
 
 // anyContext is an argument matcher for testify mocks that matches any context.
