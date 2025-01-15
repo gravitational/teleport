@@ -52,7 +52,7 @@ type CreateJoinToken = Base & {
   kind: 'create-join-token';
   req: JoinTokenRequest;
   ctx: TeleportContext;
-  abortSignal: AbortSignal;
+  abortSignal?: AbortSignal;
 };
 
 type EnrollEks = Base & {
