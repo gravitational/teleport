@@ -24,12 +24,13 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/gravitational/teleport/api/types"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
 // pathRoutedKubeClient uses the given rest.Config to build a Kubernetes client
