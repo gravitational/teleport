@@ -2954,16 +2954,8 @@ type getSiteNamespacesResponse struct {
 //
 // {"namespaces": [{..namespace resource...}]}
 func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	clt, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespaces, err := clt.GetNamespaces()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return getSiteNamespacesResponse{
-		Namespaces: namespaces,
+		Namespaces: []types.Namespace{types.DefaultNamespace()},
 	}, nil
 }
 

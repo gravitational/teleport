@@ -145,12 +145,6 @@ type ReadNodeAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 }
@@ -208,12 +202,6 @@ type ReadProxyAccessPoint interface {
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
-
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
@@ -382,12 +370,6 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
@@ -476,12 +458,6 @@ type ReadKubernetesAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -555,12 +531,6 @@ type ReadAppsAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
@@ -622,12 +592,6 @@ type ReadDatabaseAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
@@ -686,12 +650,6 @@ type ReadWindowsDesktopAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
 	// GetWindowsDesktops returns windows desktop hosts.
 	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
@@ -731,12 +689,6 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
@@ -997,12 +949,6 @@ type Cache interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
-
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)

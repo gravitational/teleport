@@ -4346,38 +4346,6 @@ func (a *ServerWithRoles) findSessionEndEvent(ctx context.Context, sid session.I
 	return nil, trace.NotFound("session end event not found for session ID %q", sid)
 }
 
-// GetNamespaces returns a list of namespaces
-func (a *ServerWithRoles) GetNamespaces() ([]types.Namespace, error) {
-	if err := a.action(types.KindNamespace, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetNamespaces()
-}
-
-// GetNamespace returns namespace by name
-func (a *ServerWithRoles) GetNamespace(name string) (*types.Namespace, error) {
-	if err := a.action(types.KindNamespace, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetNamespace(name)
-}
-
-// UpsertNamespace upserts namespace
-func (a *ServerWithRoles) UpsertNamespace(ns types.Namespace) error {
-	if err := a.action(types.KindNamespace, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertNamespace(ns)
-}
-
-// DeleteNamespace deletes namespace by name
-func (a *ServerWithRoles) DeleteNamespace(name string) error {
-	if err := a.action(types.KindNamespace, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteNamespace(name)
-}
-
 // GetRoles returns a list of roles
 func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 	// delegate all access-control logic to ListRoles, which will eventually
