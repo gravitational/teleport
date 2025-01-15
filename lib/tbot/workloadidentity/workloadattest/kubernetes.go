@@ -19,53 +19,8 @@
 package workloadattest
 
 import (
-	"log/slog"
-
 	"github.com/gravitational/trace"
 )
-
-// KubernetesAttestation holds the Kubernetes pod information retrieved from
-// the workload attestation process.
-type KubernetesAttestation struct {
-	// Attested is true if the PID was successfully attested to a Kubernetes
-	// pod. This indicates the validity of the rest of the fields.
-	Attested bool
-	// Namespace is the namespace of the pod.
-	Namespace string
-	// ServiceAccount is the service account of the pod.
-	ServiceAccount string
-	// PodName is the name of the pod.
-	PodName string
-	// PodUID is the UID of the pod.
-	PodUID string
-	// Labels is a map of labels on the pod.
-	Labels map[string]string
-}
-
-// LogValue implements slog.LogValue to provide a nicely formatted set of
-// log keys for a given attestation.
-func (a KubernetesAttestation) LogValue() slog.Value {
-	values := []slog.Attr{
-		slog.Bool("attested", a.Attested),
-	}
-	if a.Attested {
-		labels := []slog.Attr{}
-		for k, v := range a.Labels {
-			labels = append(labels, slog.String(k, v))
-		}
-		values = append(values,
-			slog.String("namespace", a.Namespace),
-			slog.String("service_account", a.ServiceAccount),
-			slog.String("pod_name", a.PodName),
-			slog.String("pod_uid", a.PodUID),
-			slog.Attr{
-				Key:   "labels",
-				Value: slog.GroupValue(labels...),
-			},
-		)
-	}
-	return slog.GroupValue(values...)
-}
 
 // KubernetesAttestorConfig holds the configuration for the KubernetesAttestor.
 type KubernetesAttestorConfig struct {
