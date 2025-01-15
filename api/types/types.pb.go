@@ -17500,7 +17500,7 @@ var xxx_messageInfo_PluginDatadogAccessSettings proto.InternalMessageInfo
 // PluginAWSICSettings holds the settings for an AWS Identity Center integration.
 type PluginAWSICSettings struct {
 	// IntegrationName is the Teleport OIDC integration used to gain access to the
-	// AWS account. May be empty if [UseAmbientAwsCreds] is `true`.
+	// AWS account. May be empty if [CredentialsSource] is `SYSTEM`.
 	IntegrationName string `protobuf:"bytes,1,opt,name=integration_name,json=integrationName,proto3" json:"integration_name,omitempty"`
 	// Region is the AWS region the target Identity Center instance is configured in
 	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`

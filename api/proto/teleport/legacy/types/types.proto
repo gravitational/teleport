@@ -6808,7 +6808,7 @@ message PluginAWSICSettings {
   option (gogoproto.equal) = true;
 
   // IntegrationName is the Teleport OIDC integration used to gain access to the
-  // AWS account. May be empty if [UseAmbientAwsCreds] is `true`.
+  // AWS account. May be empty if [CredentialsSource] is `SYSTEM`.
   string integration_name = 1;
 
   // Region is the AWS region the target Identity Center instance is configured in
