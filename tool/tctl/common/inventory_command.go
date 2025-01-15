@@ -88,7 +88,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 // TryRun takes the CLI command as an argument (like "inventory status") and executes it.
 func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.inventoryStatus.FullCommand():
 		commandFunc = c.Status
@@ -109,7 +109,7 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 	return true, trace.Wrap(err)
 }
 
-func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
+func (c *InventoryCommand) Status(ctx context.Context, client authclient.ClientI) error {
 	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
 		Connected: c.getConnected,
 	})
@@ -184,7 +184,7 @@ func printHierarchicalData(data map[string]any, indent string, depth int) {
 	}
 }
 
-func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) error {
+func (c *InventoryCommand) List(ctx context.Context, client authclient.ClientI) error {
 	var services []types.SystemRole
 	var err error
 	var omitControlPlane bool
@@ -272,7 +272,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 	}
 }
 
-func (c *InventoryCommand) Ping(ctx context.Context, client *authclient.Client) error {
+func (c *InventoryCommand) Ping(ctx context.Context, client authclient.ClientI) error {
 	rsp, err := client.PingInventory(ctx, proto.InventoryPingRequest{
 		ServerID:   c.serverID,
 		ControlLog: c.controlLog,

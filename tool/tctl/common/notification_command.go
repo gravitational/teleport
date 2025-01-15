@@ -101,7 +101,7 @@ func (n *NotificationCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Gl
 
 // TryRun takes the CLI command as an argument and executes it.
 func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case n.create.FullCommand():
 		commandFunc = n.Create
@@ -122,7 +122,7 @@ func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, clientFunc
 }
 
 // Create creates a new notification.
-func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Client) error {
+func (n *NotificationCommand) Create(ctx context.Context, client authclient.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(n.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -239,7 +239,7 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 	return nil
 }
 
-func (n *NotificationCommand) List(ctx context.Context, client *authclient.Client) error {
+func (n *NotificationCommand) List(ctx context.Context, client authclient.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(n.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -316,7 +316,7 @@ func displayNotifications(format string, notifications []*notificationspb.Notifi
 }
 
 // Remove removes a notification.
-func (n *NotificationCommand) Remove(ctx context.Context, client *authclient.Client) error {
+func (n *NotificationCommand) Remove(ctx context.Context, client authclient.ClientI) error {
 	// Prompt for admin action MFA re-auth.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {

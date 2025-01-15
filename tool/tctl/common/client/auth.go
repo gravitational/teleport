@@ -44,11 +44,11 @@ import (
 // InitFunc initiates connection to auth service, makes ping request and return the client instance.
 // If the function does not return an error, the caller is responsible for calling the client close function
 // once it does not need the client anymore.
-type InitFunc func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error)
+type InitFunc func(ctx context.Context) (client authclient.ClientI, close func(context.Context), err error)
 
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
 func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
-	return func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+	return func(ctx context.Context) (authclient.ClientI, func(context.Context), error) {
 		clientConfig, err := tctlcfg.ApplyConfig(&ccf, cfg)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

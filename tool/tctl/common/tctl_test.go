@@ -60,7 +60,7 @@ func TestCommandMatchBeforeAuthConnect(t *testing.T) {
 	testError := errors.New("auth client must not be initialized before match")
 
 	ctx := context.Background()
-	clientFunc := func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
+	clientFunc := func(ctx context.Context) (client authclient.ClientI, close func(context.Context), err error) {
 		return nil, nil, testError
 	}
 

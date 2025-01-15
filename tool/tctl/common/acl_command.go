@@ -96,7 +96,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
 func (c *ACLCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.ls.FullCommand():
 		commandFunc = c.List
@@ -122,7 +122,7 @@ func (c *ACLCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncl
 }
 
 // List will list access lists visible to the user.
-func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error {
+func (c *ACLCommand) List(ctx context.Context, client authclient.ClientI) error {
 	var accessLists []*accesslist.AccessList
 	var nextKey string
 	for {
@@ -149,7 +149,7 @@ func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error 
 }
 
 // Get will display information about an access list visible to the user.
-func (c *ACLCommand) Get(ctx context.Context, client *authclient.Client) error {
+func (c *ACLCommand) Get(ctx context.Context, client authclient.ClientI) error {
 	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -159,7 +159,7 @@ func (c *ACLCommand) Get(ctx context.Context, client *authclient.Client) error {
 }
 
 // UsersAdd will add a user to an access list.
-func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) error {
+func (c *ACLCommand) UsersAdd(ctx context.Context, client authclient.ClientI) error {
 	var expires time.Time
 	if c.expires != "" {
 		var err error
@@ -205,7 +205,7 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 }
 
 // UsersRemove will remove a user to an access list.
-func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client) error {
+func (c *ACLCommand) UsersRemove(ctx context.Context, client authclient.ClientI) error {
 	err := client.AccessListClient().DeleteAccessListMember(ctx, c.accessListName, c.userName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -217,7 +217,7 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client)
 }
 
 // UsersList will list the users in an access list.
-func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) error {
+func (c *ACLCommand) UsersList(ctx context.Context, client authclient.ClientI) error {
 	var (
 		allMembers []*accesslist.AccessListMember
 		nextToken  string

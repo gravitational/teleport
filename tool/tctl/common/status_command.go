@@ -63,7 +63,7 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
 func (c *StatusCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.status.FullCommand():
 		commandFunc = c.Status
@@ -81,7 +81,7 @@ func (c *StatusCommand) TryRun(ctx context.Context, cmd string, clientFunc commo
 }
 
 // Status is called to execute "status" CLI command.
-func (c *StatusCommand) Status(ctx context.Context, client *authclient.Client) error {
+func (c *StatusCommand) Status(ctx context.Context, client authclient.ClientI) error {
 	pingResp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -102,7 +102,7 @@ type statusModel struct {
 	authorities []*authorityStatusModel
 }
 
-func newStatusModel(ctx context.Context, client *authclient.Client, pingResp proto.PingResponse) (*statusModel, error) {
+func newStatusModel(ctx context.Context, client authclient.ClientI, pingResp proto.PingResponse) (*statusModel, error) {
 	var authorities []types.CertAuthority
 	for _, caType := range types.CertAuthTypes {
 		cas, err := client.GetCertAuthorities(ctx, caType, false)

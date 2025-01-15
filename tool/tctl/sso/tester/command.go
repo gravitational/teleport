@@ -55,7 +55,7 @@ type SSOTestCommand struct {
 	connectorFileName string
 
 	// Handlers is a mapping between auth kind and appropriate handling function
-	Handlers map[string]func(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error)
+	Handlers map[string]func(c authclient.ClientI, connBytes []byte) (*AuthRequestInfo, error)
 	// GetDiagInfoFields provides auth kind-specific diagnostic info fields.
 	GetDiagInfoFields map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string
 	// Browser to use in login flow.
@@ -86,7 +86,7 @@ Examples:
 
   > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 
-	cmd.Handlers = map[string]func(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error){
+	cmd.Handlers = map[string]func(c authclient.ClientI, connBytes []byte) (*AuthRequestInfo, error){
 		types.KindGithubConnector: handleGithubConnector,
 		types.KindSAMLConnector:   handleSAMLConnector,
 		types.KindOIDCConnector:   handleOIDCConnector,
@@ -109,7 +109,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 	return kinds
 }
 
-func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *authclient.Client) error {
+func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c authclient.ClientI) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
 		f, err := utils.OpenFileAllowingUnsafeLinks(cmd.connectorFileName)
@@ -185,7 +185,7 @@ type AuthRequestInfo struct {
 // SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
 type SSOLoginConsoleRequestFn func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error)
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c authclient.ClientI, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
 	proxies, err := c.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)

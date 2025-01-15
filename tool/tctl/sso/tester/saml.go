@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func handleSAMLConnector(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error) {
+func handleSAMLConnector(c authclient.ClientI, connBytes []byte) (*AuthRequestInfo, error) {
 	conn, err := services.UnmarshalSAMLConnector(connBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to load SAML connector. Correct the definition and try again.")
@@ -42,7 +42,7 @@ func handleSAMLConnector(c *authclient.Client, connBytes []byte) (*AuthRequestIn
 	return requestInfo, nil
 }
 
-func samlTest(c *authclient.Client, samlConnector types.SAMLConnector) (*AuthRequestInfo, error) {
+func samlTest(c authclient.ClientI, samlConnector types.SAMLConnector) (*AuthRequestInfo, error) {
 	ctx := context.Background()
 	// get connector spec
 	var spec types.SAMLConnectorSpecV2

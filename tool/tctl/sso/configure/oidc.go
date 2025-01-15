@@ -206,7 +206,7 @@ Examples:
   Generate the configuration and immediately test it using "tctl sso test" command.`, presets))
 
 	preset := &AuthKindCommand{
-		Run: func(ctx context.Context, clt *authclient.Client) error {
+		Run: func(ctx context.Context, clt authclient.ClientI) error {
 			return oidcRunFunc(ctx, cmd, &spec, extra, clt)
 		},
 	}
@@ -219,7 +219,7 @@ Examples:
 	return preset
 }
 
-func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDCConnectorSpecV3, flags *oidcExtraFlags, clt *authclient.Client) error {
+func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDCConnectorSpecV3, flags *oidcExtraFlags, clt authclient.ClientI) error {
 	if flags.googleID != "" {
 		if spec.ClientID != "" {
 			return trace.BadParameter("Conflicting flags: --id and --google-id. Provide only one.")

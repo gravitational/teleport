@@ -128,7 +128,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
 func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.requestList.FullCommand():
 		commandFunc = c.List
@@ -160,7 +160,7 @@ func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, clientFun
 	return true, trace.Wrap(err)
 }
 
-func (c *AccessRequestCommand) List(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) List(ctx context.Context, client authclient.ClientI) error {
 	var index proto.AccessRequestSort
 	switch c.sortIndex {
 	case "created":
@@ -203,7 +203,7 @@ func (c *AccessRequestCommand) List(ctx context.Context, client *authclient.Clie
 	return nil
 }
 
-func (c *AccessRequestCommand) Get(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) Get(ctx context.Context, client authclient.ClientI) error {
 	reqs := []types.AccessRequest{}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		req, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
@@ -258,7 +258,7 @@ func (c *AccessRequestCommand) splitRoles() []string {
 	return roles
 }
 
-func (c *AccessRequestCommand) Approve(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) Approve(ctx context.Context, client authclient.ClientI) error {
 	if c.delegator != "" {
 		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
@@ -289,7 +289,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client *authclient.C
 	return nil
 }
 
-func (c *AccessRequestCommand) Deny(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) Deny(ctx context.Context, client authclient.ClientI) error {
 	if c.delegator != "" {
 		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
@@ -310,7 +310,7 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client *authclient.Clie
 	return nil
 }
 
-func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) Create(ctx context.Context, client authclient.ClientI) error {
 	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
 		c.roles = "*"
 	}
@@ -326,10 +326,10 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 
 	if c.dryRun {
 		users := &struct {
-			*authclient.Client
+			authclient.ClientI
 			services.UserLoginStatesGetter
 		}{
-			Client:                client,
+			ClientI:               client,
 			UserLoginStatesGetter: client.UserLoginStateClient(),
 		}
 		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.ExpandVars(true))
@@ -346,7 +346,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (c *AccessRequestCommand) Delete(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) Delete(ctx context.Context, client authclient.ClientI) error {
 	var approvedTokens []string
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		// Fetch the requests first to see if they were approved to provide the
@@ -386,7 +386,7 @@ func (c *AccessRequestCommand) Delete(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) Caps(ctx context.Context, client authclient.ClientI) error {
 	caps, err := client.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 		User:               c.user,
 		RequestableRoles:   true,
@@ -422,7 +422,7 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 	}
 }
 
-func (c *AccessRequestCommand) Review(ctx context.Context, client *authclient.Client) error {
+func (c *AccessRequestCommand) Review(ctx context.Context, client authclient.ClientI) error {
 	if c.approve == c.deny {
 		return trace.BadParameter("must supply exactly one of '--approve' or '--deny'")
 	}

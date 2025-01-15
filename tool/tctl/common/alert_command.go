@@ -96,7 +96,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 
 // TryRun takes the CLI command as an argument (like "alerts ls") and executes it.
 func (c *AlertCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.alertList.FullCommand():
 		commandFunc = c.List
@@ -117,7 +117,7 @@ func (c *AlertCommand) TryRun(ctx context.Context, cmd string, clientFunc common
 	return true, trace.Wrap(err)
 }
 
-func (c *AlertCommand) ListAck(ctx context.Context, client *authclient.Client) error {
+func (c *AlertCommand) ListAck(ctx context.Context, client authclient.ClientI) error {
 	acks, err := client.GetAlertAcks(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -135,7 +135,7 @@ func (c *AlertCommand) ListAck(ctx context.Context, client *authclient.Client) e
 	return nil
 }
 
-func (c *AlertCommand) Ack(ctx context.Context, client *authclient.Client) error {
+func (c *AlertCommand) Ack(ctx context.Context, client authclient.ClientI) error {
 	if c.clear {
 		return c.ClearAck(ctx, client)
 	}
@@ -164,7 +164,7 @@ func (c *AlertCommand) Ack(ctx context.Context, client *authclient.Client) error
 	return nil
 }
 
-func (c *AlertCommand) ClearAck(ctx context.Context, client *authclient.Client) error {
+func (c *AlertCommand) ClearAck(ctx context.Context, client authclient.ClientI) error {
 	req := proto.ClearAlertAcksRequest{
 		AlertID: c.alertID,
 	}
@@ -178,7 +178,7 @@ func (c *AlertCommand) ClearAck(ctx context.Context, client *authclient.Client) 
 	return nil
 }
 
-func (c *AlertCommand) List(ctx context.Context, client *authclient.Client) error {
+func (c *AlertCommand) List(ctx context.Context, client authclient.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -269,7 +269,7 @@ func displayAlertsJSON(alerts []types.ClusterAlert) error {
 	return nil
 }
 
-func (c *AlertCommand) Create(ctx context.Context, client *authclient.Client) error {
+func (c *AlertCommand) Create(ctx context.Context, client authclient.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

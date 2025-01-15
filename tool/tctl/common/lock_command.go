@@ -63,7 +63,7 @@ func (c *LockCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 // TryRun attempts to run subcommands.
 func (c *LockCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.mainCmd.FullCommand():
 		commandFunc = c.CreateLock
@@ -81,7 +81,7 @@ func (c *LockCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 }
 
 // CreateLock creates a lock for the main `tctl lock` command.
-func (c *LockCommand) CreateLock(ctx context.Context, client *authclient.Client) error {
+func (c *LockCommand) CreateLock(ctx context.Context, client authclient.ClientI) error {
 	lockExpiry, err := computeLockExpiry(c.expires, c.ttl)
 	if err != nil {
 		return trace.Wrap(err)

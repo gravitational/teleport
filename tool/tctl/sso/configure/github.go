@@ -87,7 +87,7 @@ Examples:
   Generate the configuration and immediately test it using "tctl sso test" command.`)
 
 	preset := &AuthKindCommand{
-		Run: func(ctx context.Context, clt *authclient.Client) error { return ghRunFunc(ctx, cmd, &spec, gh, clt) },
+		Run: func(ctx context.Context, clt authclient.ClientI) error { return ghRunFunc(ctx, cmd, &spec, gh, clt) },
 	}
 
 	sub.Action(func(ctx *kingpin.ParseContext) error {
@@ -98,7 +98,7 @@ Examples:
 	return preset
 }
 
-func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flags *ghExtraFlags, clt *authclient.Client) error {
+func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flags *ghExtraFlags, clt authclient.ClientI) error {
 	if err := specCheckRoles(ctx, cmd.Logger, spec, flags.ignoreMissingRoles, clt); err != nil {
 		return trace.Wrap(err)
 	}
@@ -115,7 +115,7 @@ func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.Github
 }
 
 // ResolveCallbackURL deals with common pattern of resolving callback URL for IdP to use.
-func ResolveCallbackURL(ctx context.Context, logger *slog.Logger, clt *authclient.Client, fieldName string, callbackPattern string) string {
+func ResolveCallbackURL(ctx context.Context, logger *slog.Logger, clt authclient.ClientI, fieldName string, callbackPattern string) string {
 	var callbackURL string
 
 	logger.InfoContext(ctx, "resolving callback url automatically", "field_name", fieldName)
@@ -142,7 +142,7 @@ func ResolveCallbackURL(ctx context.Context, logger *slog.Logger, clt *authclien
 	return callbackURL
 }
 
-func specCheckRoles(ctx context.Context, logger *slog.Logger, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt *authclient.Client) error {
+func specCheckRoles(ctx context.Context, logger *slog.Logger, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt authclient.ClientI) error {
 	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
 		logger.WarnContext(ctx, "Unable to get roles list, skipping teams-to-roles sanity checks", "error", err)

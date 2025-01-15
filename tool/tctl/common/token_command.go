@@ -151,7 +151,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
 func (c *TokensCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.tokenAdd.FullCommand():
 		commandFunc = c.Add
@@ -173,7 +173,7 @@ func (c *TokensCommand) TryRun(ctx context.Context, cmd string, clientFunc commo
 }
 
 // Add is called to execute "tokens add ..." command.
-func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) error {
+func (c *TokensCommand) Add(ctx context.Context, client authclient.ClientI) error {
 	// Parse string to see if it's a type of role that Teleport supports.
 	roles, err := types.ParseTeleportRoles(c.tokenType)
 	if err != nil {
@@ -375,7 +375,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 }
 
 // Del is called to execute "tokens del ..." command.
-func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) error {
+func (c *TokensCommand) Del(ctx context.Context, client authclient.ClientI) error {
 	if c.value == "" {
 		return trace.Errorf("Need an argument: token")
 	}
@@ -387,7 +387,7 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 }
 
 // List is called to execute "tokens ls" command.
-func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
+func (c *TokensCommand) List(ctx context.Context, client authclient.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

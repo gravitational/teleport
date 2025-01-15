@@ -71,7 +71,7 @@ func (c *DBCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFla
 
 // TryRun attempts to run subcommands like "db ls".
 func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.dbList.FullCommand():
 		commandFunc = c.ListDatabases
@@ -90,7 +90,7 @@ func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncli
 
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
-func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) error {
+func (c *DBCommand) ListDatabases(ctx context.Context, clt authclient.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

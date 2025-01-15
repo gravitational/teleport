@@ -111,7 +111,7 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 // runner is used as a simple interface for subcommands.
 type runner interface {
-	Run(context.Context, *authclient.Client) error
+	Run(context.Context, authclient.ClientI) error
 }
 
 func (c *DevicesCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
@@ -147,7 +147,7 @@ type deviceAddCommand struct {
 	enrollTTL time.Duration
 }
 
-func (c *deviceAddCommand) Run(ctx context.Context, authClient *authclient.Client) error {
+func (c *deviceAddCommand) Run(ctx context.Context, authClient authclient.ClientI) error {
 	if _, err := c.setCurrentDevice(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,7 +215,7 @@ tsh device enroll --token=%v
 
 type deviceListCommand struct{}
 
-func (c *deviceListCommand) Run(ctx context.Context, authClient *authclient.Client) error {
+func (c *deviceListCommand) Run(ctx context.Context, authClient authclient.ClientI) error {
 	devices := authClient.DevicesClient()
 
 	// List all devices.
@@ -274,7 +274,7 @@ type deviceRemoveCommand struct {
 	deviceID string
 }
 
-func (c *deviceRemoveCommand) Run(ctx context.Context, authClient *authclient.Client) error {
+func (c *deviceRemoveCommand) Run(ctx context.Context, authClient authclient.ClientI) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)
@@ -314,7 +314,7 @@ type deviceEnrollCommand struct {
 	ttl      time.Duration
 }
 
-func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *authclient.Client) error {
+func (c *deviceEnrollCommand) Run(ctx context.Context, authClient authclient.ClientI) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)
@@ -362,7 +362,7 @@ type deviceLockCommand struct {
 	ttl      time.Duration
 }
 
-func (c *deviceLockCommand) Run(ctx context.Context, authClient *authclient.Client) error {
+func (c *deviceLockCommand) Run(ctx context.Context, authClient authclient.ClientI) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)

@@ -131,7 +131,7 @@ func (c *TerraformCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 // - exports certificates and Terraform configuration in environment variables
 // envOutput and userOutput parameters are respectively stdout and stderr,
 // except during tests where we want to catch the command output.
-func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient.Client, envOutput, userOutput io.Writer) error {
+func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client authclient.ClientI, envOutput, userOutput io.Writer) error {
 	// If we're not actively debugging, suppress any kind of logging from other teleport components
 	if !c.cfg.Debug {
 		utils.InitLogger(utils.LoggingForCLI, slog.LevelError)
@@ -217,7 +217,7 @@ If you got a role granted recently, you might have to run "tsh logout" and login
 // createTransientBotAndToken creates a Bot resource and a secret Token.
 // The token is single use (secret tokens are consumed on MachineID join)
 // and the bot expires after the given TTL.
-func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, client *authclient.Client, roleName string) (string, error) {
+func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, client authclient.ClientI, roleName string) (string, error) {
 	// Create token and bot name
 	suffix, err := utils.CryptoRandomHex(4)
 	if err != nil {
@@ -295,7 +295,7 @@ func (c *TerraformCommand) checkIfRoleExists(ctx context.Context, client roleCli
 // Later, the Terraform provider will read those environment variables to build its Teleport client.
 // Note: the function also returns the SSH Host CA cert encoded in the known host format.
 // The identity.Identity uses a different format (authorized keys).
-func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, [][]byte, error) {
+func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt authclient.ClientI) (*identity.Identity, [][]byte, error) {
 	credential := &config.UnstableClientCredentialOutput{}
 	cfg := &config.BotConfig{
 		Version: "",

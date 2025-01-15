@@ -104,7 +104,7 @@ func (e *EditCommand) runEditor(ctx context.Context, name string) error {
 	return nil
 }
 
-func (e *EditCommand) editResource(ctx context.Context, client *authclient.Client) error {
+func (e *EditCommand) editResource(ctx context.Context, client authclient.ClientI) error {
 	f, err := os.CreateTemp("", "teleport-resource*.yaml")
 	if err != nil {
 		return trace.Wrap(err)

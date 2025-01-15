@@ -147,7 +147,7 @@ type testAttributeMapping struct {
 	outFormat       string
 }
 
-func (t *testAttributeMapping) run(ctx context.Context, c *authclient.Client) error {
+func (t *testAttributeMapping) run(ctx context.Context, c authclient.ClientI) error {
 	serviceProvider, err := parseSPFile(t.serviceProvider)
 	if err != nil {
 		return trace.Wrap(err)
@@ -225,7 +225,7 @@ func parseSPFile(fileName string) (types.SAMLIdPServiceProviderV1, error) {
 }
 
 // getUsersFromAPIOrFile parses user from spec file. If file is not found, it fetches user from backend.
-func getUsersFromAPIOrFile(ctx context.Context, usernamesOrFileNames []string, c *authclient.Client) ([]*types.UserV2, error) {
+func getUsersFromAPIOrFile(ctx context.Context, usernamesOrFileNames []string, c authclient.ClientI) ([]*types.UserV2, error) {
 	flattenedUsernamesOrFileNames := flattenSlice(usernamesOrFileNames)
 	var users []*types.UserV2
 

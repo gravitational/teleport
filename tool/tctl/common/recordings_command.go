@@ -71,7 +71,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Glob
 
 // TryRun attempts to run subcommands like "recordings ls".
 func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.recordingsList.FullCommand():
 		commandFunc = c.ListRecordings
@@ -88,7 +88,7 @@ func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 	return true, trace.Wrap(err)
 }
 
-func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc *authclient.Client) error {
+func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc authclient.ClientI) error {
 	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.fromUTC, c.toUTC, c.recordingsSince)
 	if err != nil {
 		return trace.Errorf("cannot request recordings: %v", err)

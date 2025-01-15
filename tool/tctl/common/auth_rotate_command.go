@@ -90,7 +90,7 @@ func (c *authRotateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 	return false, nil
 }
 
-func (c *authRotateCommand) Run(ctx context.Context, client *authclient.Client) error {
+func (c *authRotateCommand) Run(ctx context.Context, client authclient.ClientI) error {
 	if c.interactiveMode {
 		return trace.Wrap(c.runInteractive(ctx, client))
 	}
@@ -105,7 +105,7 @@ func (c *authRotateCommand) Run(ctx context.Context, client *authclient.Client) 
 	return trace.Wrap(c.runNoninteractive(ctx, client))
 }
 
-func (c *authRotateCommand) runNoninteractive(ctx context.Context, client *authclient.Client) error {
+func (c *authRotateCommand) runNoninteractive(ctx context.Context, client authclient.ClientI) error {
 	if c.caType == "" {
 		return trace.BadParameter("required flag --type not provided")
 	}
@@ -130,7 +130,7 @@ func (c *authRotateCommand) runNoninteractive(ctx context.Context, client *authc
 	return nil
 }
 
-func (c *authRotateCommand) runInteractive(ctx context.Context, client *authclient.Client) error {
+func (c *authRotateCommand) runInteractive(ctx context.Context, client authclient.ClientI) error {
 	pingResp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err, "failed to ping cluster")
@@ -159,7 +159,7 @@ var authRotateTheme = authRotateStyle{
 }
 
 type rotateModel struct {
-	client   *authclient.Client
+	client   authclient.ClientI
 	pingResp proto.PingResponse
 
 	logsModel                     *writerModel
@@ -178,7 +178,7 @@ type rotateModel struct {
 	help                          help.Model
 }
 
-func newRotateModel(client *authclient.Client, pingResp proto.PingResponse, caType types.CertAuthType) *rotateModel {
+func newRotateModel(client authclient.ClientI, pingResp proto.PingResponse, caType types.CertAuthType) *rotateModel {
 	m := &rotateModel{
 		client:            client,
 		pingResp:          pingResp,
@@ -386,7 +386,7 @@ func (m *rotateModel) View() string {
 }
 
 type rotateStatusModel struct {
-	client   *authclient.Client
+	client   authclient.ClientI
 	pingResp proto.PingResponse
 	spinner  spinner.Model
 
@@ -394,7 +394,7 @@ type rotateStatusModel struct {
 	err    error
 }
 
-func newRotateStatusModel(client *authclient.Client, pingResp proto.PingResponse) *rotateStatusModel {
+func newRotateStatusModel(client authclient.ClientI, pingResp proto.PingResponse) *rotateStatusModel {
 	status, err := newStatusModel(context.TODO(), client, pingResp)
 	return &rotateStatusModel{
 		client:   client,
@@ -499,7 +499,7 @@ func (m *caTypeModel) view() string {
 }
 
 type currentPhaseModel struct {
-	client   *authclient.Client
+	client   authclient.ClientI
 	pingResp proto.PingResponse
 
 	spinner spinner.Model
@@ -509,7 +509,7 @@ type currentPhaseModel struct {
 	err     error
 }
 
-func newCurrentPhaseModel(client *authclient.Client, pingResp proto.PingResponse, caType types.CertAuthType) *currentPhaseModel {
+func newCurrentPhaseModel(client authclient.ClientI, pingResp proto.PingResponse, caType types.CertAuthType) *currentPhaseModel {
 	return &currentPhaseModel{
 		client:   client,
 		pingResp: pingResp,
@@ -639,7 +639,7 @@ func (m *targetPhaseModel) view() string {
 }
 
 type sendRotateRequestModel struct {
-	client      *authclient.Client
+	client      authclient.ClientI
 	spinner     spinner.Model
 	caType      types.CertAuthType
 	targetPhase string
@@ -649,7 +649,7 @@ type sendRotateRequestModel struct {
 
 type sendRotateRequestTag struct{}
 
-func newSendRotateRequestModel(client *authclient.Client, caType types.CertAuthType, targetPhase string) *sendRotateRequestModel {
+func newSendRotateRequestModel(client authclient.ClientI, caType types.CertAuthType, targetPhase string) *sendRotateRequestModel {
 	return &sendRotateRequestModel{
 		client:      client,
 		spinner:     spinner.New(spinner.WithSpinner(spinner.Dot)),
@@ -747,7 +747,7 @@ func (m *writerModel) Write(b []byte) (int, error) {
 }
 
 type waitForReadyModel struct {
-	client             *authclient.Client
+	client             authclient.ClientI
 	targetPhase        string
 	kindReadyModels    []*waitForKindReadyModel
 	manualSteps        []string
@@ -759,7 +759,7 @@ type waitForReadyModel struct {
 	help               help.Model
 }
 
-func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targetPhase string) *waitForReadyModel {
+func newWaitForReadyModel(client authclient.ClientI, caID types.CertAuthID, targetPhase string) *waitForReadyModel {
 	m := &waitForReadyModel{
 		client:             client,
 		targetPhase:        targetPhase,
@@ -1289,7 +1289,7 @@ func setupLoggers(logWriter io.Writer) {
 	)))
 }
 
-func setupMFAPrompt(client *authclient.Client, pingResp proto.PingResponse, promptWriter io.Writer) {
+func setupMFAPrompt(client authclient.ClientI, pingResp proto.PingResponse, promptWriter io.Writer) {
 	client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(pingResp.ProxyPublicAddr, opts...)
 		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{

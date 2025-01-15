@@ -89,7 +89,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 
 // TryRun takes the CLI command as an argument and executes it.
 func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch {
 	case cmd == c.targetCmd.FullCommand():
 		commandFunc = c.TargetVersion
@@ -117,7 +117,7 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 }
 
 // TargetVersion creates or updates AutoUpdateVersion resource with client tools target version.
-func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client *authclient.Client) error {
+func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client authclient.ClientI) error {
 	var err error
 	switch {
 	case c.clear:
@@ -140,8 +140,8 @@ func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client *authclien
 }
 
 // SetModeCommand returns a command to enable or disable client tools auto-updates in the cluster.
-func (c *AutoUpdateCommand) SetModeCommand(enabled bool) func(ctx context.Context, client *authclient.Client) error {
-	return func(ctx context.Context, client *authclient.Client) error {
+func (c *AutoUpdateCommand) SetModeCommand(enabled bool) func(ctx context.Context, client authclient.ClientI) error {
+	return func(ctx context.Context, client authclient.ClientI) error {
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
@@ -165,7 +165,7 @@ type getResponse struct {
 }
 
 // Status makes request to auth service to fetch client tools auto update version and mode.
-func (c *AutoUpdateCommand) Status(ctx context.Context, client *authclient.Client) error {
+func (c *AutoUpdateCommand) Status(ctx context.Context, client authclient.ClientI) error {
 	var response getResponse
 	config, err := client.GetAutoUpdateConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
@@ -207,7 +207,7 @@ func (c *AutoUpdateCommand) StatusByProxy(ctx context.Context) error {
 	})
 }
 
-func (c *AutoUpdateCommand) setMode(ctx context.Context, client *authclient.Client, enabled bool) error {
+func (c *AutoUpdateCommand) setMode(ctx context.Context, client authclient.ClientI, enabled bool) error {
 	setMode := client.UpdateAutoUpdateConfig
 	config, err := client.GetAutoUpdateConfig(ctx)
 	if trace.IsNotFound(err) {
@@ -235,7 +235,7 @@ func (c *AutoUpdateCommand) setMode(ctx context.Context, client *authclient.Clie
 	return nil
 }
 
-func (c *AutoUpdateCommand) setTargetVersion(ctx context.Context, client *authclient.Client) error {
+func (c *AutoUpdateCommand) setTargetVersion(ctx context.Context, client authclient.ClientI) error {
 	if _, err := semver.NewVersion(c.toolsTargetVersion); err != nil {
 		return trace.WrapWithMessage(err, "not semantic version")
 	}
@@ -262,7 +262,7 @@ func (c *AutoUpdateCommand) setTargetVersion(ctx context.Context, client *authcl
 	return nil
 }
 
-func (c *AutoUpdateCommand) clearTargetVersion(ctx context.Context, client *authclient.Client) error {
+func (c *AutoUpdateCommand) clearTargetVersion(ctx context.Context, client authclient.ClientI) error {
 	version, err := client.GetAutoUpdateVersion(ctx)
 	if trace.IsNotFound(err) {
 		return nil

@@ -98,7 +98,7 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Global
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
 func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.nodeHeartbeats.FullCommand():
 		commandFunc = c.NodeHeartbeats
@@ -118,7 +118,7 @@ func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, clientFunc com
 	return true, trace.Wrap(err)
 }
 
-func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient.Client) error {
+func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client authclient.ClientI) error {
 	infof := func(format string, args ...any) {
 		fmt.Fprintf(os.Stderr, "[i] "+format+"\n", args...)
 	}
@@ -238,7 +238,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 	}
 }
 
-func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) error {
+func (c *LoadtestCommand) Watch(ctx context.Context, client authclient.ClientI) error {
 	var kinds []types.WatchKind
 	for _, kind := range strings.Split(c.kind, ",") {
 		kind = strings.TrimSpace(kind)
@@ -345,7 +345,7 @@ Outer:
 	}
 }
 
-func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Client) error {
+func (c *LoadtestCommand) AuditEvents(ctx context.Context, client authclient.ClientI) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

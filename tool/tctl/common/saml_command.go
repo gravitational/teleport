@@ -66,7 +66,7 @@ func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, clie
 }
 
 // export executes 'tctl saml export <connector_name>'
-func (cmd *SAMLCommand) export(ctx context.Context, c *authclient.Client) error {
+func (cmd *SAMLCommand) export(ctx context.Context, c authclient.ClientI) error {
 	sc, err := c.GetSAMLConnector(ctx, cmd.connectorName, false)
 	if err != nil {
 		return trace.Wrap(err)

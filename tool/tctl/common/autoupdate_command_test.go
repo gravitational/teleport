@@ -111,7 +111,7 @@ func runAutoUpdateCommand(t *testing.T, client *authclient.Client, args []string
 	selectedCmd, err := app.Parse(append([]string{"autoupdate"}, args...))
 	require.NoError(t, err)
 
-	_, err = command.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+	_, err = command.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (authclient.ClientI, func(context.Context), error) {
 		return client, func(context.Context) {}, nil
 	})
 	return &stdoutBuff, err

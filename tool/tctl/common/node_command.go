@@ -102,7 +102,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
 func (c *NodeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.nodeAdd.FullCommand():
 		commandFunc = c.Invite
@@ -145,7 +145,7 @@ Please note:
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) error {
+func (c *NodeCommand) Invite(ctx context.Context, client authclient.ClientI) error {
 	// parse --roles flag
 	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
@@ -238,7 +238,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 
 // ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) error {
+func (c *NodeCommand) ListActive(ctx context.Context, clt authclient.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func githubTest(c *authclient.Client, connector types.GithubConnector) (*AuthRequestInfo, error) {
+func githubTest(c authclient.ClientI, connector types.GithubConnector) (*AuthRequestInfo, error) {
 	ctx := context.Background()
 	// get connector spec
 	var spec types.GithubConnectorSpecV3
@@ -79,7 +79,7 @@ func githubTest(c *authclient.Client, connector types.GithubConnector) (*AuthReq
 	return requestInfo, nil
 }
 
-func handleGithubConnector(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error) {
+func handleGithubConnector(c authclient.ClientI, connBytes []byte) (*AuthRequestInfo, error) {
 	conn, err := services.UnmarshalGithubConnector(connBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to load GitHub connector. Correct the definition and try again.")

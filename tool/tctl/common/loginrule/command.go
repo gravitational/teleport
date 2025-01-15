@@ -131,7 +131,7 @@ func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, client
 	return true, trace.Wrap(t.run(ctx, client))
 }
 
-func (t *testCommand) run(ctx context.Context, c *authclient.Client) error {
+func (t *testCommand) run(ctx context.Context, c authclient.ClientI) error {
 	loginRules, err := parseLoginRuleFiles(t.inputResourceFiles)
 	if err != nil {
 		return trace.Wrap(err)

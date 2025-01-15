@@ -114,7 +114,7 @@ func (c *Command) initAuditReportsCommands(auditCmd *kingpin.CmdClause, cfg *ser
 	})
 }
 
-type runFunc func(context.Context, *authclient.Client) error
+type runFunc func(context.Context, authclient.ClientI) error
 
 func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	handler, ok := c.innerCmdMap[cmd]
@@ -136,7 +136,7 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	}
 }
 
-func (c *cmdHandler) onAuditQueryExec(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditQueryExec(ctx context.Context, authClient authclient.ClientI) error {
 	if c.auditQuery == "" {
 		buff, err := io.ReadAll(os.Stdin)
 		if err != nil {
@@ -154,7 +154,7 @@ func (c *cmdHandler) onAuditQueryExec(ctx context.Context, authClient *authclien
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryGet(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditQueryGet(ctx context.Context, authClient authclient.ClientI) error {
 	auditQuery, err := authClient.SecReportsClient().GetSecurityAuditQuery(ctx, c.name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -165,7 +165,7 @@ func (c *cmdHandler) onAuditQueryGet(ctx context.Context, authClient *authclient
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryLs(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditQueryLs(ctx context.Context, authClient authclient.ClientI) error {
 	auditQueries, err := authClient.SecReportsClient().GetSecurityAuditQueries(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -176,14 +176,14 @@ func (c *cmdHandler) onAuditQueryLs(ctx context.Context, authClient *authclient.
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryRm(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditQueryRm(ctx context.Context, authClient authclient.ClientI) error {
 	if err := authClient.SecReportsClient().DeleteSecurityAuditQuery(ctx, c.name); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient authclient.ClientI) error {
 	resp, err := authClient.SecReportsClient().GetSchema(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -201,7 +201,7 @@ func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient *authcli
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryCreate(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditQueryCreate(ctx context.Context, authClient authclient.ClientI) error {
 	if c.auditQuery == "" {
 		return trace.BadParameter("audit query required")
 	}
@@ -221,7 +221,7 @@ func (c *cmdHandler) onAuditQueryCreate(ctx context.Context, authClient *authcli
 	return nil
 }
 
-func (c *cmdHandler) onAuditReportLs(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditReportLs(ctx context.Context, authClient authclient.ClientI) error {
 	reports, err := authClient.SecReportsClient().GetSecurityReports(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -232,7 +232,7 @@ func (c *cmdHandler) onAuditReportLs(ctx context.Context, authClient *authclient
 	return trace.Wrap(err)
 }
 
-func (c *cmdHandler) onAuditReportGet(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditReportGet(ctx context.Context, authClient authclient.ClientI) error {
 	details, err := authClient.SecReportsClient().GetSecurityReportResult(ctx, c.name, c.days)
 	if err != nil {
 		return trace.Wrap(err)
@@ -243,7 +243,7 @@ func (c *cmdHandler) onAuditReportGet(ctx context.Context, authClient *authclien
 	return nil
 }
 
-func (c *cmdHandler) onAuditReportRun(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditReportRun(ctx context.Context, authClient authclient.ClientI) error {
 	err := authClient.SecReportsClient().RunSecurityReport(ctx, c.name, c.days)
 	if err != nil {
 		return trace.Wrap(err)
@@ -251,7 +251,7 @@ func (c *cmdHandler) onAuditReportRun(ctx context.Context, authClient *authclien
 	return nil
 }
 
-func (c *cmdHandler) onAuditReportState(ctx context.Context, authClient *authclient.Client) error {
+func (c *cmdHandler) onAuditReportState(ctx context.Context, authClient authclient.ClientI) error {
 	state, err := authClient.SecReportsClient().GetSecurityReportExecutionState(ctx, c.name, int32(c.days))
 	if err != nil {
 		return trace.Wrap(err)

@@ -58,7 +58,7 @@ func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, _ *tc
 
 // TryRun attempts to run subcommands.
 func (c *ExternalAuditStorageCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.promote.FullCommand():
 		commandFunc = c.Promote
@@ -78,13 +78,13 @@ func (c *ExternalAuditStorageCommand) TryRun(ctx context.Context, cmd string, cl
 
 // Promote calls PromoteToClusterExternalAuditStorage, which results in enabling
 // External Audit Storage in the cluster based on existing draft.
-func (c *ExternalAuditStorageCommand) Promote(ctx context.Context, clt *authclient.Client) error {
+func (c *ExternalAuditStorageCommand) Promote(ctx context.Context, clt authclient.ClientI) error {
 	return trace.Wrap(clt.ExternalAuditStorageClient().PromoteToClusterExternalAuditStorage(ctx))
 }
 
 // Generate creates an External Audit Storage configuration with randomized
 // resource names and saves it as the current draft.
-func (c *ExternalAuditStorageCommand) Generate(ctx context.Context, clt *authclient.Client) error {
+func (c *ExternalAuditStorageCommand) Generate(ctx context.Context, clt authclient.ClientI) error {
 	_, err := clt.ExternalAuditStorageClient().GenerateDraftExternalAuditStorage(ctx, c.integrationName, c.region)
 	return trace.Wrap(err)
 }

@@ -45,7 +45,7 @@ type SSOConfigureCommand struct {
 
 type AuthKindCommand struct {
 	Parsed bool
-	Run    func(ctx context.Context, clt *authclient.Client) error
+	Run    func(ctx context.Context, clt authclient.ClientI) error
 }
 
 // Initialize allows a caller-defined command to plug itself into CLI

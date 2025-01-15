@@ -77,7 +77,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 	selectedCmd, err := app.Parse(args)
 	require.NoError(t, err)
 
-	_, err = cmd.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+	_, err = cmd.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (authclient.ClientI, func(context.Context), error) {
 		return client, func(context.Context) {}, nil
 	})
 	return err

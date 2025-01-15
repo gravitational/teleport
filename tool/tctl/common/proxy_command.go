@@ -51,7 +51,7 @@ func (p *ProxyCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 }
 
 // ListProxies prints currently connected proxies
-func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.Client) error {
+func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI authclient.ClientI) error {
 	proxies, err := clusterAPI.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
@@ -75,7 +75,7 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.C
 
 // TryRun runs the proxy command
 func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case p.lsCmd.FullCommand():
 		commandFunc = p.ListProxies

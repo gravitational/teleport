@@ -66,7 +66,7 @@ func (c *DesktopCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 // TryRun attempts to run subcommands like "desktop ls".
 func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.desktopList.FullCommand():
 		commandFunc = c.ListDesktop
@@ -86,7 +86,7 @@ func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 
 // ListDesktop prints the list of desktops that have recently sent heartbeats
 // to the cluster.
-func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Client) error {
+func (c *DesktopCommand) ListDesktop(ctx context.Context, client authclient.ClientI) error {
 	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,7 +107,7 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Cli
 }
 
 // BootstrapAD generates a PowerShell script that can be used to bootstrap Active Directory.
-func (c *DesktopCommand) BootstrapAD(ctx context.Context, client *authclient.Client) error {
+func (c *DesktopCommand) BootstrapAD(ctx context.Context, client authclient.ClientI) error {
 	script, err := client.GetDesktopBootstrapScript(ctx)
 	if err != nil {
 		return trace.Wrap(err)

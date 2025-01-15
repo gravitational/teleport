@@ -88,7 +88,7 @@ func (c *WorkloadIdentityCommand) Initialize(
 func (c *WorkloadIdentityCommand) TryRun(
 	ctx context.Context, cmd string, clientFunc commonclient.InitFunc,
 ) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.listCmd.FullCommand():
 		commandFunc = c.ListWorkloadIdentities
@@ -110,7 +110,7 @@ func (c *WorkloadIdentityCommand) TryRun(
 
 func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 	ctx context.Context,
-	client *authclient.Client,
+	client authclient.ClientI,
 ) error {
 	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
 	_, err := workloadIdentityClient.DeleteWorkloadIdentity(
@@ -132,7 +132,7 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 
 // ListWorkloadIdentities writes a listing of the WorkloadIdentity resources
 func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
-	ctx context.Context, client *authclient.Client,
+	ctx context.Context, client authclient.ClientI,
 ) error {
 	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
 	var workloadIdentities []*workloadidentityv1pb.WorkloadIdentity

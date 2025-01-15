@@ -153,7 +153,7 @@ Examples:
 `, presets))
 
 	preset := &AuthKindCommand{
-		Run: func(ctx context.Context, clt *authclient.Client) error {
+		Run: func(ctx context.Context, clt authclient.ClientI) error {
 			return samlRunFunc(ctx, cmd, &spec, saml, clt)
 		},
 	}
@@ -171,7 +171,7 @@ func samlRunFunc(
 	cmd *SSOConfigureCommand,
 	spec *types.SAMLConnectorSpecV2,
 	flags *samlExtraFlags,
-	clt *authclient.Client,
+	clt authclient.ClientI,
 ) error {
 	// apply preset, if chosen
 	p := samlPresets.getPreset(flags.chosenPreset)
