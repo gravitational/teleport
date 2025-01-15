@@ -20,19 +20,24 @@ package client
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,7 +55,7 @@ type Store struct {
 	ProfileStore
 }
 
-// NewMemClientStore initializes an FS backed client store with the given base dir.
+// NewFSClientStore initializes an FS backed client store with the given base dir.
 func NewFSClientStore(dirPath string) *Store {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
@@ -69,6 +74,98 @@ func NewMemClientStore() *Store {
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
 	}
+}
+
+// NewClientStoreFromAgent initializes a new in-memory client store and
+// loads any keys found in the ssh agent found at the given socket. If the
+// ssh agent does not support the key@goteleport.com and sign@goteleport.com
+// extensions, an unsupported agent extension error is returned.
+func NewClientStoreFromAgent(agentClient agent.ExtendedAgent, dirPath string) (*Store, error) {
+	supportedExtensions, err := callQueryExtension(agentClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !supportedExtensions[keyAgentExtension] || !supportedExtensions[signAgentExtension] {
+		return nil, agent.ErrExtensionUnsupported
+	}
+
+	profile, forwardedKey, err := callKeyExtension(agentClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create an agent signer using the forwarded ssh certificate.
+	sshCert, err := apisshutils.ParseCertificate(forwardedKey.SSHCertificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPriv, err := keys.NewPrivateKey(newAgentSigner(agentClient, sshCert), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	x509Cert, err := tlsca.ParseCertificatePEM(forwardedKey.TLSCertificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPub, err := ssh.NewPublicKey(x509Cert.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPriv, err := keys.NewPrivateKey(newAgentSigner(agentClient, tlsPub), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := NewKeyRing(sshPriv, tlsPriv)
+	key.KeyRingIndex = forwardedKey.KeyRingIndex
+	key.Cert = forwardedKey.SSHCertificate
+	key.TLSCert = forwardedKey.TLSCertificate
+	key.TrustedCerts = forwardedKey.TrustedCerts
+
+	// Preload the client key and profile from the agent.
+	clientStore := NewMemClientStore()
+	if err := clientStore.AddKeyRing(key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := clientStore.SaveProfile(profile, true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clientStore, nil
+}
+
+// agentSigner is a crypto.Signer backed by an ssh agent with the sign@goteleport.com extension.
+// We use a custom signer because it can be used to perform various signature algorithms, while
+// ssh.Signer can only perform ssh signatures which does not hash signature messages.
+type agentSigner struct {
+	agent  agent.ExtendedAgent
+	sshPub ssh.PublicKey
+}
+
+func newAgentSigner(agent agent.ExtendedAgent, sshPub ssh.PublicKey) crypto.Signer {
+	return &agentSigner{
+		agent:  agent,
+		sshPub: sshPub,
+	}
+}
+
+func (as *agentSigner) Public() crypto.PublicKey {
+	if sshcert, ok := as.sshPub.(*ssh.Certificate); ok {
+		if pubGetter, ok := sshcert.Key.(ssh.CryptoPublicKey); ok {
+			return pubGetter.CryptoPublicKey()
+		}
+	}
+
+	if pubGetter, ok := as.sshPub.(ssh.CryptoPublicKey); ok {
+		return pubGetter.CryptoPublicKey()
+	}
+	return nil
+}
+
+func (as *agentSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	return callSignExtension(as.agent, as.sshPub, digest, opts)
 }
 
 // AddKeyRing adds the given key ring to the key store. The key's trusted certificates are

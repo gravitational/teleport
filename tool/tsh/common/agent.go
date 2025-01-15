@@ -83,7 +83,7 @@ func (c *agentCommand) run(cf *CLIConf) error {
 	}
 	context.AfterFunc(ctx, func() { l.Close() })
 
-	fmt.Fprintln(clt.Stderr, "Listening for Teleport key agent requests")
+	fmt.Fprintln(clt.Stderr, "Listening for Teleport key agent")
 	for {
 		conn, err := l.Accept()
 		if err != nil {

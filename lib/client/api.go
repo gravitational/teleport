@@ -1283,6 +1283,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.Stdin = os.Stdin
 	}
 
+	// TODO: ClientStore should always be set by caller.
 	if tc.ClientStore == nil {
 		if tc.TLS != nil || tc.AuthMethods != nil {
 			// Client will use static auth methods instead of client store.

@@ -436,6 +436,30 @@ func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
 	}, nil
 }
 
+// AsAgentKeys converts client.KeyRing struct to an []agent.AddedKey.
+func (k *KeyRing) AsAgentKeys() ([]agent.AddedKey, error) {
+	sshCert, err := k.SSHCert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []agent.AddedKey{
+		{
+			PrivateKey:       k.SSHPrivateKey.Signer,
+			Certificate:      sshCert,
+			Comment:          teleportAgentKeyComment(k.KeyRingIndex),
+			LifetimeSecs:     0,
+			ConfirmBeforeUse: false,
+		},
+		{
+			PrivateKey:       k.TLSPrivateKey.Signer,
+			Comment:          teleportAgentKeyComment(k.KeyRingIndex) + ":tls",
+			LifetimeSecs:     0,
+			ConfirmBeforeUse: false,
+		},
+	}, nil
+}
+
 // canAddToSystemAgent returns whether this agent key can be added to an SSH system agent.
 // Non-standard private keys will return false.
 func canAddToSystemAgent(agentKey agent.AddedKey) bool {

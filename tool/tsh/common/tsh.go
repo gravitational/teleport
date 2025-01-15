@@ -52,6 +52,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 
@@ -67,6 +68,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -4582,6 +4584,13 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+	homePath := profile.FullProfilePath(cf.HomePath)
+
+	keyAgentConn, err := net.Dial("unix", keypaths.KeyAgentPath(homePath))
+	if err == nil {
+		context.AfterFunc(cf.Context, func() { keyAgentConn.Close() })
+		return client.NewClientStoreFromAgent(agent.NewClient(keyAgentConn), cf.HomePath)
+	}
 
 	switch {
 	case cf.IdentityFileIn != "":

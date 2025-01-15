@@ -924,3 +924,113 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 // SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
 // Does nothing.
 func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ keys.HardwareKeyPrompt) {}
+
+// type AgentKeyStore struct {
+// 	agent agent.ExtendedAgent
+
+// 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+// 	// for a hardware key PIN, touch, etc.
+// 	// If nil, a default CLI prompt is used.
+// 	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
+// }
+
+// func NewAgentKeyStore(agent agent.ExtendedAgent) *AgentKeyStore {
+// 	return &AgentKeyStore{
+// 		agent: agent,
+// 	}
+// }
+
+// // AddKeyRing writes a key ring to the underlying key store.
+// func (as *AgentKeyStore) AddKeyRing(keyRing *KeyRing) error {
+// 	return nil
+// }
+
+// // GetKeyRing returns the user's key ring including the specified certs.
+// func (as *AgentKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
+// 	keys, err := as.agent.List()
+// 	if err != nil {
+// 		return nil, trace.Wrap(err)
+// 	}
+// 	if len(opts) > 0 {
+// 		if err := idx.Check(); err != nil {
+// 			return nil, trace.Wrap(err, "GetKeyRing with CertOptions requires a fully specified KeyRingIndex")
+// 		}
+// 	}
+
+// 	// If clusterName is not specified then the cluster-dependent fields
+// 	// are not considered relevant and we may simply return any key ring
+// 	// associated with any cluster name whatsoever.
+// 	var keyRing *KeyRing
+// 	if idx.ClusterName == "" {
+// 		for _, k := range as.keyRings[idx.ProxyHost][idx.Username] {
+// 			keyRing = k
+// 			break
+// 		}
+// 	} else {
+// 		if k, ok := as.keyRings[idx.ProxyHost][idx.Username][idx.ClusterName]; ok {
+// 			keyRing = k
+// 		}
+// 	}
+
+// 	if keyRing == nil {
+// 		return nil, trace.NotFound("key ring for %+v not found", idx)
+// 	}
+
+// 	retKeyRing := NewKeyRing(keyRing.SSHPrivateKey, keyRing.TLSPrivateKey)
+// 	retKeyRing.KeyRingIndex = idx
+// 	retKeyRing.TLSCert = keyRing.TLSCert
+// 	for _, o := range opts {
+// 		switch o.(type) {
+// 		case WithSSHCerts:
+// 			retKeyRing.Cert = keyRing.Cert
+// 		case WithKubeCerts:
+// 			retKeyRing.KubeTLSCredentials = keyRing.KubeTLSCredentials
+// 		case WithDBCerts:
+// 			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
+// 		case WithAppCerts:
+// 			retKeyRing.AppTLSCredentials = keyRing.AppTLSCredentials
+// 		}
+// 	}
+
+// 	return retKeyRing, nil
+// }
+
+// // DeleteKeyRing deletes the user's key ring with all its certs.
+// func (as *AgentKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
+// 	return nil
+// }
+
+// // DeleteKeys removes all session keys.
+// func (as *AgentKeyStore) DeleteKeys() error {
+// 	return nil
+// }
+
+// // DeleteUserCerts deletes only the specified parts of the user's keyring,
+// // keeping the rest intact.
+// // Empty clusterName indicates to delete the certs for all clusters.
+// //
+// // Useful when needing to log out of a specific service, like a particular
+// // database proxy.
+// func (as *AgentKeyStore) DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) error {
+// 	return nil
+// }
+
+// // GetSSHCertificates gets all certificates signed for the given user and proxy.
+// func (as *AgentKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error) {
+// 	var sshCerts []*ssh.Certificate
+// 	for _, keyRing := range as.keyRings[proxyHost][username] {
+// 		sshCert, err := keyRing.SSHCert()
+// 		if err != nil {
+// 			return nil, trace.Wrap(err)
+// 		}
+// 		sshCerts = append(sshCerts, sshCert)
+// 	}
+
+// 	return sshCerts, nil
+// }
+
+// // SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
+// // Does nothing.
+// func (as *AgentKeyStore) SetCustomHardwareKeyPrompt(p keys.HardwareKeyPrompt) {
+// 	as.CustomHardwareKeyPrompt = p
+// }

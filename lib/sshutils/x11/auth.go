@@ -131,6 +131,51 @@ func (x *XAuthCommand) ReadEntry(display Display) (*XAuthEntry, error) {
 	}, nil
 }
 
+// ReadFirstEntry runs "xauth list" to read the first xauth entry.
+func (x *XAuthCommand) ReadFirstEntry() (*XAuthEntry, error) {
+	x.Cmd.Args = append(x.Cmd.Args, "list")
+	out, err := x.output()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(out) == 0 {
+		return nil, trace.NotFound("no xauth entry found")
+	}
+
+	// Ignore entries beyond the first listed.
+	firstEntry, _, ok := strings.Cut(string(out), "\n")
+	if !ok {
+		return nil, trace.Errorf("invalid xAuthEntry; expected entries to be separated by new lines")
+	}
+
+	displayLongString, protoCookie, ok := strings.Cut(firstEntry, "  ")
+	if !ok {
+		return nil, trace.Errorf("invalid xAuthEntry; expected entry parts to be separated by two spaces")
+	}
+
+	_, displayString, ok := strings.Cut(displayLongString, "/")
+	if !ok {
+		return nil, trace.Errorf("invalid xAuthEntry; invalid display")
+	}
+
+	display, err := ParseDisplay(displayString)
+	if err != nil {
+		return nil, trace.Wrap(err, "invalid xAuthEntry; could not parse display")
+	}
+
+	proto, cookie, ok := strings.Cut(protoCookie, "  ")
+	if !ok {
+		return nil, trace.Errorf("invalid xAuthEntry; expected entry parts to be separated by two spaces")
+	}
+
+	return &XAuthEntry{
+		Display: display,
+		Proto:   proto,
+		Cookie:  cookie,
+	}, nil
+}
+
 // RemoveEntries runs "xauth remove" to remove any xauth entries for the given display.
 func (x *XAuthCommand) RemoveEntries(display Display) error {
 	x.Cmd.Args = append(x.Cmd.Args, "remove", display.String())

@@ -606,7 +606,7 @@ func (p *ProfileStatus) KubeConfigPath(name string) string {
 //
 // <baseDir>/keys/<proxy>/agent.sock
 func (p *ProfileStatus) KeyAgentPath() string {
-	return keypaths.KeyAgentPath(p.Dir, p.Name)
+	return keypaths.KeyAgentPath(p.Dir)
 }
 
 // DatabaseServices returns a list of database service names for this profile.

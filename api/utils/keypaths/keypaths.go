@@ -371,9 +371,9 @@ func KubeCredLockfilePath(baseDir, proxy string) string {
 
 // KeyAgentPath returns the path to the local key agent, served by `tsh agent`.
 //
-// <baseDir>/keys/<proxy>/agent.sock
-func KeyAgentPath(baseDir, proxy string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), keyAgentName)
+// <baseDir>/keys/agent.sock
+func KeyAgentPath(baseDir string) string {
+	return filepath.Join(KeyDir(baseDir), keyAgentName)
 }
 
 // IsProfileKubeConfigPath makes a best effort attempt to check if the given
