@@ -236,9 +236,6 @@ describe('useMfa', () => {
 
     await expect(respPromise).rejects.toThrow(new MfaCanceledError());
 
-    // If the user cancels the MFA attempt and closes the dialog, the mfa status
-    // should be 'success', or else the dialog would remain open to display the error.
-    // This error is meant to be handled by the caller.
     await waitFor(() => {
       expect(mfa.current.attempt.status).toEqual('error');
     });
