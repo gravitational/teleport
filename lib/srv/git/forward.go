@@ -23,6 +23,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -323,11 +324,18 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 
 	s.logger.Log(ctx, logutils.TraceLevel, "New connection accepted")
 	ccx.AddCloser(serverCtx)
-	return ctx, nil
+	return context.WithValue(ctx, serverContextKey{}, serverCtx), nil
 }
 
 func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
 	s.logger.DebugContext(ctx, "Handling channel request", "channel", nch.ChannelType())
+
+	serverCtx, ok := ctx.Value(serverContextKey{}).(*srv.ServerContext)
+	if !ok {
+		// This should not happen. Double check just in case.
+		s.reply.RejectChannel(ctx, nch, ssh.ResourceShortage, "server context not found")
+		return
+	}
 
 	// Only expecting a session to execute a command.
 	if nch.ChannelType() != teleport.ChanSession {
@@ -353,7 +361,7 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 	}
 	defer ch.Close()
 
-	sctx := newSessionContext(ch, remoteSession)
+	sctx := newSessionContext(serverCtx, ch, remoteSession)
 	for {
 		select {
 		case req := <-in:
@@ -382,13 +390,16 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 }
 
 type sessionContext struct {
+	*srv.ServerContext
+
 	channel       ssh.Channel
 	remoteSession *tracessh.Session
 	waitExec      chan error
 }
 
-func newSessionContext(ch ssh.Channel, remoteSession *tracessh.Session) *sessionContext {
+func newSessionContext(serverCtx *srv.ServerContext, ch ssh.Channel, remoteSession *tracessh.Session) *sessionContext {
 	return &sessionContext{
+		ServerContext: serverCtx,
 		channel:       ch,
 		remoteSession: remoteSession,
 		waitExec:      make(chan error, 1),
@@ -415,13 +426,27 @@ func (s *ForwardServer) dispatch(ctx context.Context, sctx *sessionContext, req 
 }
 
 // handleExec proxies the Git command between client and the target server.
-func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, req *ssh.Request) error {
+func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, req *ssh.Request) (err error) {
 	var r sshutils.ExecReq
+	defer func() {
+		if err != nil {
+			s.emitEvent(s.makeGitCommandEvent(sctx, r.Command, err))
+		}
+	}()
+
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return trace.Wrap(err, "failed to unmarshal exec request")
 	}
 
-	// TODO(greedy52) enable command recorder for audit log
+	command, err := ParseSSHCommand(r.Command)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkSSHCommand(s.cfg.TargetServer, command); err != nil {
+		return trace.Wrap(err)
+	}
+	recorder := NewCommandRecorder(ctx, *command)
+
 	sctx.remoteSession.Stdout = sctx.channel
 	sctx.remoteSession.Stderr = sctx.channel.Stderr()
 	remoteStdin, err := sctx.remoteSession.StdinPipe()
@@ -430,7 +455,7 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 	}
 	go func() {
 		defer remoteStdin.Close()
-		if _, err := io.Copy(remoteStdin, sctx.channel); err != nil {
+		if _, err := io.Copy(io.MultiWriter(remoteStdin, recorder), sctx.channel); err != nil {
 			s.logger.WarnContext(ctx, "Failed to copy git command stdin", "error", err)
 		}
 	}()
@@ -442,8 +467,59 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 	go func() {
 		execErr := sctx.remoteSession.Wait()
 		sctx.waitExec <- execErr
+		s.emitEvent(s.makeGitCommandEventWithExecResult(sctx, recorder, execErr))
 	}()
 	return nil
+}
+
+func (s *ForwardServer) emitEvent(event apievents.AuditEvent) {
+	if err := s.cfg.Emitter.EmitAuditEvent(s.cfg.ParentContext, event); err != nil {
+		s.logger.WarnContext(s.cfg.ParentContext, "Failed to emit event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_code", event.GetCode(),
+		)
+	}
+}
+
+func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string, err error) *apievents.GitCommand {
+	event := &apievents.GitCommand{
+		Metadata: apievents.Metadata{
+			Type: events.GitCommandEvent,
+			Code: events.GitCommandCode,
+		},
+		UserMetadata:    sctx.Identity.GetUserMetadata(),
+		SessionMetadata: sctx.GetSessionMetadata(),
+		CommandMetadata: apievents.CommandMetadata{
+			Command: command,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: sctx.ServerConn.RemoteAddr().String(),
+			LocalAddr:  sctx.ServerConn.LocalAddr().String(),
+		},
+		ServerMetadata: s.TargetMetadata(),
+	}
+	if err != nil {
+		event.Metadata.Code = events.GitCommandFailureCode
+		event.Error = err.Error()
+	}
+	return event
+}
+
+func (s *ForwardServer) makeGitCommandEventWithExecResult(sctx *sessionContext, recorder CommandRecorder, execErr error) *apievents.GitCommand {
+	event := s.makeGitCommandEvent(sctx, recorder.GetCommand().SSHCommand, execErr)
+
+	event.ExitCode = strconv.Itoa(sshutils.ExitCodeFromExecError(execErr))
+	event.Path = string(recorder.GetCommand().Repository)
+	event.Service = recorder.GetCommand().Service
+
+	actions, err := recorder.GetActions()
+	if err != nil {
+		s.logger.WarnContext(s.cfg.ParentContext, "Failed to get actions from Git command recorder. No actions will be recorded in the event.", "error", err)
+	} else {
+		event.Actions = actions
+	}
+	return event
 }
 
 // handleEnv sets env on the target server.
@@ -593,6 +669,8 @@ func (s *ForwardServer) GetHostUsers() srv.HostUsers {
 func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 	return nil
 }
+
+type serverContextKey struct{}
 
 const (
 	gitUser = "git"

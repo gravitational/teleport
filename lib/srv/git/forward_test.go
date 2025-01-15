@@ -28,18 +28,21 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -66,6 +69,7 @@ func TestForwardServer(t *testing.T) {
 		verifyRemoteHost   ssh.HostKeyCallback
 		wantNewClientError bool
 		verifyWithClient   func(t *testing.T, ctx context.Context, client *tracessh.Client, m *mockGitHostingService)
+		verifyEvent        func(t *testing.T, event apievents.AuditEvent)
 	}{
 		{
 			name:               "success",
@@ -84,6 +88,45 @@ func TestForwardServer(t *testing.T) {
 				err = session.Run(ctx, gitCommand)
 				require.NoError(t, err)
 				require.Equal(t, gitCommand, m.receivedExec.Command)
+			},
+			verifyEvent: func(t *testing.T, event apievents.AuditEvent) {
+				gitEvent, ok := event.(*apievents.GitCommand)
+				require.True(t, ok)
+				assert.Equal(t, libevents.GitCommandEvent, gitEvent.Metadata.Type)
+				assert.Equal(t, libevents.GitCommandCode, gitEvent.Metadata.Code)
+				assert.Equal(t, "alice", gitEvent.User)
+				assert.Equal(t, "0", gitEvent.CommandMetadata.ExitCode)
+				assert.Equal(t, "git-upload-pack", gitEvent.Service)
+				assert.Equal(t, "org/my-repo.git", gitEvent.Path)
+			},
+		},
+		{
+			name:               "command failure",
+			allowedGitHubOrg:   "*",
+			clientLogin:        "git",
+			verifyRemoteHost:   ssh.InsecureIgnoreHostKey(),
+			wantNewClientError: false,
+			verifyWithClient: func(t *testing.T, ctx context.Context, client *tracessh.Client, m *mockGitHostingService) {
+				m.exitCode = 1
+
+				session, err := client.NewSession(ctx)
+				require.NoError(t, err)
+				defer session.Close()
+
+				gitCommand := "git-receive-pack 'org/my-repo.git'"
+				session.Stderr = io.Discard
+				session.Stdout = io.Discard
+				require.Error(t, session.Run(ctx, gitCommand))
+			},
+			verifyEvent: func(t *testing.T, event apievents.AuditEvent) {
+				gitEvent, ok := event.(*apievents.GitCommand)
+				require.True(t, ok)
+				assert.Equal(t, libevents.GitCommandEvent, gitEvent.Metadata.Type)
+				assert.Equal(t, libevents.GitCommandFailureCode, gitEvent.Metadata.Code)
+				assert.Equal(t, "alice", gitEvent.User)
+				assert.Equal(t, "1", gitEvent.CommandMetadata.ExitCode)
+				assert.Equal(t, "git-receive-pack", gitEvent.Service)
+				assert.Equal(t, "org/my-repo.git", gitEvent.Path)
 			},
 		},
 		{
@@ -122,6 +165,31 @@ func TestForwardServer(t *testing.T) {
 				_, _, err := client.OpenChannel(ctx, "unknown", nil)
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "unknown channel type")
+			},
+		},
+		{
+			name:               "org mismatch",
+			allowedGitHubOrg:   "*",
+			clientLogin:        "git",
+			verifyRemoteHost:   ssh.InsecureIgnoreHostKey(),
+			wantNewClientError: false,
+			verifyWithClient: func(t *testing.T, ctx context.Context, client *tracessh.Client, m *mockGitHostingService) {
+				session, err := client.NewSession(ctx)
+				require.NoError(t, err)
+				defer session.Close()
+
+				gitCommand := "git-upload-pack 'some-other-org/my-repo.git'"
+				session.Stderr = io.Discard
+				session.Stdout = io.Discard
+				require.Error(t, session.Run(ctx, gitCommand))
+			},
+			verifyEvent: func(t *testing.T, event apievents.AuditEvent) {
+				gitEvent, ok := event.(*apievents.GitCommand)
+				require.True(t, ok)
+				assert.Equal(t, libevents.GitCommandEvent, gitEvent.Metadata.Type)
+				assert.Equal(t, libevents.GitCommandFailureCode, gitEvent.Metadata.Code)
+				assert.Equal(t, "alice", gitEvent.User)
+				assert.Contains(t, gitEvent.Error, "expect organization")
 			},
 		},
 	}
@@ -189,6 +257,9 @@ func TestForwardServer(t *testing.T) {
 			defer client.Close()
 
 			test.verifyWithClient(t, ctx, client, mockGitService)
+			if test.verifyEvent != nil {
+				test.verifyEvent(t, mockEmitter.LastEvent())
+			}
 		})
 	}
 
@@ -248,6 +319,7 @@ type mockGitHostingService struct {
 	*sshutils.Server
 	*sshutils.Reply
 	receivedExec sshutils.ExecReq
+	exitCode     int
 }
 
 func newMockGitHostingService(t *testing.T, caSigner ssh.Signer) *mockGitHostingService {
@@ -300,7 +372,7 @@ func (m *mockGitHostingService) HandleNewChan(ctx context.Context, ccx *sshutils
 				m.ReplyRequest(ctx, req, true, nil)
 			}
 			slog.DebugContext(ctx, "mock git service receives new exec request", "req", m.receivedExec)
-			m.SendExitStatus(ctx, ch, 0)
+			m.SendExitStatus(ctx, ch, m.exitCode)
 			return
 
 		case <-ctx.Done():
