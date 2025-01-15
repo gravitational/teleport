@@ -23,9 +23,6 @@ import (
 	"time"
 )
 
-// WebAPIVersion is a current webapi version
-const WebAPIVersion = "v1"
-
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.

@@ -465,8 +465,6 @@ func (h *APIHandler) Close() error {
 
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
-	const apiPrefix = "/" + teleport.WebAPIVersion
-
 	cfg.SetDefaults()
 
 	h := &Handler{
@@ -617,13 +615,31 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.nodeWatcher = cfg.NodeWatcher
 	}
 
-	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// ensure security headers are set for all responses
-		httplib.SetDefaultSecurityHeaders(w.Header())
-
-		// request is going to the API?
-		if strings.HasPrefix(r.URL.Path, apiPrefix) {
-			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
+	const v1Prefix = "/v1"
+	notFoundRoutingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Request is going to the API?
+		// If no routes were matched, it could be because it's a path with `v1` prefix
+		// (eg: the Teleport web app will call "most" endpoints with v1 prefixed).
+		//
+		// `v1` paths are not defined with `v1` prefix. If the path turns out to be prefixed
+		// with `v1`, it will be stripped and served again. Historically, that's how it started
+		// and should be kept that way to prevent breakage.
+		//
+		// v2+ prefixes will be expected by both caller and definition and will not be stripped.
+		if strings.HasPrefix(r.URL.Path, v1Prefix) {
+			pathParts := strings.Split(r.URL.Path, "/")
+			if len(pathParts) > 2 {
+				// check against known second part of path to ensure we
+				// aren't allowing paths like /v1/v2/webapi
+				// part[0] is empty space from leading slash "/"
+				// part[1] is the prefix "v1"
+				switch pathParts[2] {
+				case "webapi", "enterprise", "scripts", ".well-known", "workload-identity":
+					http.StripPrefix(v1Prefix, h).ServeHTTP(w, r)
+					return
+				}
+			}
+			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
 			return
 		}
 
@@ -675,11 +691,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.log.WithError(err).Error("Failed to execute index page template.")
 			}
 		} else {
-			http.NotFound(w, r)
+			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			return
 		}
 	})
 
-	h.NotFound = routingHandler
+	h.NotFound = notFoundRoutingHandler
 
 	if cfg.PluginRegistry != nil {
 		if err := cfg.PluginRegistry.RegisterProxyWebHandlers(h); err != nil {
@@ -872,8 +889,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
 	// used for updating a token
 	h.PUT("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
-	// used for creating tokens used during guided discover flows
+	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2/webapi/token endpoint
+	// MUST delete with related code found in web/packages/teleport/src/services/joinToken/joinToken.ts(fetchJoinToken)
 	h.POST("/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
+	// used for creating tokens used during guided discover flows
+	// v2 endpoint processes "suggestedLabels" field
+	h.POST("/v2/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
@@ -1004,7 +1025,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
+	// TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters
+	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(enrollEksClusters)
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
+	// v2 endpoint introduces "extraLabels" field.
+	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
@@ -1015,7 +1040,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
+	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	// v2 endpoint introduces "labels" field
+	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(createAwsAppAccess)
+	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
 	// The Integration DELETE endpoint already sets the expected named param after `/integrations/`
 	// It must be re-used here, otherwise the router will not start.
 	// See https://github.com/julienschmidt/httprouter/issues/364
