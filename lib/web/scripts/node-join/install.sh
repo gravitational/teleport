@@ -935,9 +935,10 @@ install_from_repo() {
             curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
             echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
+            mkdir -p /etc/apt/keyrings
             curl -fsSL https://apt.releases.teleport.dev/gpg \
-                -o /usr/share/keyrings/teleport-archive-keyring.asc
-            echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+                -o /etc/apt/keyrings/teleport-archive-keyring.asc
+            echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update
