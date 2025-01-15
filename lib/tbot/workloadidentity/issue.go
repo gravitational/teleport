@@ -28,7 +28,7 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -68,9 +68,7 @@ func IssueX509WorkloadIdentity(
 		"issueX509WorkloadIdentity",
 	)
 	defer span.End()
-	privateKey, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
-		cryptosuites.BotSVID)
+	privateKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
