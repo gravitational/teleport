@@ -32,6 +32,7 @@ import {
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
+  CreateAwsAppAccessRequest,
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   Ec2InstanceConnectEndpoint,
@@ -292,6 +293,21 @@ export const integrationService = {
       .then(resp => resp.serviceDashboardUrl);
   },
 
+  async createAwsAppAccessV2(
+    integrationName,
+    req: CreateAwsAppAccessRequest
+  ): Promise<App> {
+    return (
+      api
+        .post(cfg.getAwsAppAccessUrlV2(integrationName), req)
+        .then(makeApp)
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0
+  // replaced by createAwsAppAccessV2 that accepts request body
   async createAwsAppAccess(integrationName): Promise<App> {
     return api
       .post(cfg.getAwsAppAccessUrl(integrationName), null)
@@ -314,21 +330,11 @@ export const integrationService = {
       .then(resp => resp.clusterDashboardUrl);
   },
 
-  async enrollEksClusters(
+  async enrollEksClustersV2(
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
     const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
-
-    // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
-    if (!req.extraLabels?.length) {
-      return api.post(
-        cfg.getEnrollEksClusterUrl(integrationName),
-        req,
-        null,
-        mfaResponse
-      );
-    }
 
     return (
       api
@@ -340,6 +346,22 @@ export const integrationService = {
         )
         // TODO(kimlisa): DELETE IN 19.0
         .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+  // replaced by enrollEksClustersV2 that accepts labels.
+  async enrollEksClusters(
+    integrationName: string,
+    req: Omit<EnrollEksClustersRequest, 'extraLabels'>
+  ): Promise<EnrollEksClustersResponse> {
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return api.post(
+      cfg.getEnrollEksClusterUrl(integrationName),
+      req,
+      null,
+      mfaResponse
     );
   },
 
