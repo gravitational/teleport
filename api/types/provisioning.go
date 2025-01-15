@@ -96,6 +96,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodToken,
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
+	JoinMethodOracle,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {

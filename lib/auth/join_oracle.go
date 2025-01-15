@@ -93,6 +93,7 @@ func fetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (oracle.
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
+	fmt.Printf("%+v\n", req)
 	authResp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return oracle.Claims{}, trace.Wrap(err)

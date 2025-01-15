@@ -37,9 +37,9 @@ const (
 )
 
 const (
-	TenancyClaim     = "opc-tenancy-id"
-	CompartmentClaim = "opc-compartment-id"
-	InstanceClaim    = "opc-instance-id"
+	TenancyClaim     = "opc-tenant"
+	CompartmentClaim = "opc-compartment"
+	InstanceClaim    = "opc-instance"
 )
 
 func FormatDateHeader(d time.Time) string {
@@ -125,7 +125,7 @@ func newAuthenticateClientRequest(time time.Time, challenge string, headers http
 func createAuthenticationRequest(endpoint string, auth authenticateClientRequest) (*http.Request, error) {
 	req, err := common.MakeDefaultHTTPRequestWithTaggedStruct(
 		http.MethodPost,
-		"/v1/authentication/authenticateClient",
+		"",
 		auth,
 	)
 	if err != nil {
@@ -135,8 +135,13 @@ func createAuthenticationRequest(endpoint string, auth authenticateClientRequest
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	endpointURL.Path = "/v1/authentication/authenticateClient"
 	req.Header.Set("Host", endpointURL.Host)
+	req.Host = endpointURL.Host
 	req.URL = endpointURL
+	if len(auth.Details.RequestHeaders) == 0 {
+		req.Header.Set("(request-target)", fmt.Sprintf("%s %s", strings.ToLower(req.Method), endpointURL.RequestURI()))
+	}
 	return &req, nil
 }
 
