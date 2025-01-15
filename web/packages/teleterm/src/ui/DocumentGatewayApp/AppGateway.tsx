@@ -22,6 +22,7 @@ import {
   PropsWithChildren,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import styled from 'styled-components';
@@ -91,6 +92,7 @@ export function AppGateway(props: {
   // When the app is not multi-port, targetSubresourceName is empty and the user cannot change it.
   const isMultiPort =
     gateway.protocol === 'TCP' && gateway.targetSubresourceName;
+  const targetPortRef = useRef<HTMLInputElement>(null);
 
   return (
     <Flex
@@ -141,16 +143,31 @@ export function AppGateway(props: {
                 defaultValue={gateway.targetSubresourceName}
                 onChange={handleTargetPortChange}
                 mb={0}
+                ref={targetPortRef}
               />
             )}
           </Validation>
         </Flex>
 
         {props.tcpPortsAttempt.status === 'success' && (
-          <Box>
+          <Flex gap={1} flexWrap="wrap">
             Available target ports:{' '}
-            {props.tcpPortsAttempt.data.map(formatPortRange).join(', ')}.
-          </Box>
+            {props.tcpPortsAttempt.data.map((portRange, index) => (
+              <ButtonSecondary
+                // This list can't be dynamically reordered, so index as key is fine. Port ranges are
+                // not guaranteed to be unique, the user might add the same range twice.
+                key={index}
+                size="small"
+                onClick={() => {
+                  const port = portRange.port.toString();
+                  targetPortRef.current.value = port;
+                  changeTargetPort(port);
+                }}
+              >
+                {formatPortRange(portRange)}
+              </ButtonSecondary>
+            ))}
+          </Flex>
         )}
         {props.tcpPortsAttempt.status === 'processing' && (
           <Box>
