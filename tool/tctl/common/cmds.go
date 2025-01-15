@@ -20,6 +20,7 @@ package common
 
 import (
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
+	"github.com/gravitational/teleport/tool/tctl/common/decision"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/plugin"
 	"github.com/gravitational/teleport/tool/tctl/common/stableunixusers"
@@ -70,5 +71,6 @@ func Commands() []CLICommand {
 		&TerraformCommand{},
 		&AutoUpdateCommand{},
 		&stableunixusers.Command{},
+		&decision.Command{},
 	}
 }
