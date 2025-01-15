@@ -803,7 +803,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		}
 		kubeGw, err := gateway.AsKube(gw)
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+			s.cfg.Log.Error("Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
 		}
 		kubeGw.ClearCerts()
 	}
