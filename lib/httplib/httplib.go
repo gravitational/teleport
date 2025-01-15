@@ -258,7 +258,7 @@ func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter, proxyVers
 
 	ver, err := semver.NewVersion(proxyVersion)
 	if err != nil {
-		slog.DebugContext(ctx, "Error parsing Teleport proxy semver version", "err", err)
+		log.Debug("Error parsing Teleport proxy semver version", "err", err)
 	} else {
 		verObj := ProxyVersion{
 			Major:      ver.Major,
