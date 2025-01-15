@@ -74,7 +74,7 @@ updates to keep individual Auth Servers in sync, and requires Firestore configur
 in native mode.
 
 To configure Teleport to store audit events in Firestore, add the following to
-the teleport section of your Auth Server's config file (by default it's `/etc/teleport.yaml`):
+the teleport section of your Auth Service's config file (by default it's `/etc/teleport.yaml`):
 
 ```yaml
 teleport:
@@ -123,7 +123,7 @@ Cloud DNS is used to set up the public URL of the Teleport Proxy.
 
 ### Access: Service accounts
 
-The Teleport Auth Server will need to read and write to Firestore and
+The Teleport Auth Service will need to read and write to Firestore and
 Google Cloud Storage. For this you will need a Service Account with the
 correct permissions.
 
@@ -160,7 +160,7 @@ custom role and must be used in later steps.
 $ export IAM_ROLE=<role name output from above>
 ```
 
-If you don't already have a GCP service account for your Teleport Auth Server
+If you don't already have a GCP service account for your Teleport Auth Service
 you can create one with the following command, otherwise use your existing
 service account.
 
@@ -219,8 +219,8 @@ Follow install instructions from our [installation page](../../../installation.m
 We recommend configuring Teleport as per the below steps:
 
 <Tabs>
-	<TabItem label="Open Source" scope="oss">
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`,and start it
+	<TabItem label="Teleport Community Edition" scope="oss">
+**1. Configure Teleport Auth Service** using the below example `teleport.yaml`,and start it
 using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
@@ -255,7 +255,7 @@ ssh_service:
 ```
 	</TabItem>
 	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
+**1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
 using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 

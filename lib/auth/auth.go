@@ -194,7 +194,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity, err = local.NewIdentityServiceV2(cfg.Backend)
+		cfg.Identity, err = local.NewIdentityService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5063,21 +5063,6 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
-}
-
-func (a *Server) DeleteNamespace(namespace string) error {
-	ctx := context.TODO()
-	if namespace == apidefaults.Namespace {
-		return trace.AccessDenied("can't delete default namespace")
-	}
-	nodes, err := a.GetNodes(ctx, namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(nodes) != 0 {
-		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
-	}
-	return a.Services.DeleteNamespace(namespace)
 }
 
 // IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle

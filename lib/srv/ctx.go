@@ -840,7 +840,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// Never emit session data events for the proxy or from a Teleport node if
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
-	if c.GetServer().Component() == teleport.ComponentProxy {
+	// Do not emit session data for git commands as they have their own events.
+	if c.GetServer().Component() == teleport.ComponentProxy ||
+		c.GetServer().Component() == teleport.ComponentForwardingGit {
 		return
 	}
 	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&

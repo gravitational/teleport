@@ -39,12 +39,13 @@ import {
   DiscoverEventResource,
   userEventService,
 } from 'teleport/services/userEvent';
+import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 import TeleportContext from 'teleport/teleportContext';
 
 import { CreateAppAccess } from './CreateAppAccess';
 
 beforeEach(() => {
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+  jest.spyOn(integrationService, 'createAwsAppAccessV2').mockResolvedValue(app);
   jest
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
@@ -59,6 +60,25 @@ test('create app access', async () => {
 
   renderCreateAppAccess(ctx, discoverCtx);
   await screen.findByText(/bash/i);
+
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  await screen.findByText(/aws-console/i);
+  expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
+});
+
+test('create app access with v1 endpoint', async () => {
+  jest
+    .spyOn(integrationService, 'createAwsAppAccessV2')
+    .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
+  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+
+  const { ctx, discoverCtx } = getMockedContexts();
+
+  renderCreateAppAccess(ctx, discoverCtx);
+  await screen.findByText(/bash/i);
+
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  await screen.findByText(ProxyRequiresUpgrade);
 
   await userEvent.click(screen.getByRole('button', { name: /next/i }));
   await screen.findByText(/aws-console/i);

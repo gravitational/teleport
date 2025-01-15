@@ -1,5 +1,3 @@
-//go:build windows
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -22,20 +20,31 @@ package workloadattest
 
 import (
 	"context"
-	"log/slog"
+	"os"
+	"testing"
 
-	"github.com/gravitational/trace"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
-// WindowsKubernetesAttestor is the windows stub for KubernetesAttestor.
-type WindowsKubernetesAttestor struct {
-}
+func TestUnixAttestor_Attest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
 
-func (a WindowsKubernetesAttestor) Attest(_ context.Context, _ int) (KubernetesAttestation, error) {
-	return KubernetesAttestation{}, trace.NotImplemented("kubernetes attestation is not supported on windows")
-}
+	pid := os.Getpid()
+	uid := os.Getuid()
+	gid := os.Getgid()
 
-// NewKubernetesAttestor creates a new KubernetesAttestor.
-func NewKubernetesAttestor(_ KubernetesAttestorConfig, _ *slog.Logger) *WindowsKubernetesAttestor {
-	return &WindowsKubernetesAttestor{}
+	attestor := NewUnixAttestor()
+	att, err := attestor.Attest(ctx, pid)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(&workloadidentityv1pb.WorkloadAttrsUnix{
+		Attested: true,
+		Pid:      int32(pid),
+		Uid:      uint32(uid),
+		Gid:      uint32(gid),
+	}, att, protocmp.Transform()))
 }

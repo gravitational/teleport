@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useId } from 'react';
+import { memo, useId } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
@@ -35,7 +35,11 @@ import {
   sessionRecordingModeOptions,
 } from './standardmodel';
 
-export function Options({
+/**
+ * Options tab. This component is memoized to optimize performance; make sure
+ * that the properties don't change unless necessary.
+ */
+export const Options = memo(function Options({
   value,
   isProcessing,
   onChange,
@@ -189,7 +193,7 @@ export function Options({
       />
     </OptionsGridContainer>
   );
-}
+});
 
 const OptionsGridContainer = styled(Box)`
   display: grid;
