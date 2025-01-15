@@ -332,6 +332,16 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		// Keep ResourceMatchers as nil to disable resource matchers.
 		OnReconcile: func(d types.Databases) {
+			if len(d) == 0 {
+				// The dynamic resource matchers and cloud watchers will both
+				// trigger a reconciliation, but dynamic matchers should return
+				// 0 resources from first init, whereas the cloud watchers
+				// should return databases.
+				// Dynamic matchers are included in config to test that the
+				// dynamic matcher AWS settings are not applied to cloud watcher
+				// databases.
+				return
+			}
 			reconcileCh <- d
 		},
 		ResourceMatchers: []services.ResourceMatcher{{
