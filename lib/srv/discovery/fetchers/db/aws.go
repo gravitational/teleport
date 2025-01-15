@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -74,8 +72,8 @@ type awsFetcherConfig struct {
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
 	DiscoveryConfigName string
 
-	// redshiftClientProviderFn provides an AWS Redshift client.
-	redshiftClientProviderFn RedshiftClientProviderFunc
+	// awsClients provides AWS SDK v2 clients.
+	awsClients AWSClientProvider
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -109,10 +107,8 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 		)
 	}
 
-	if cfg.redshiftClientProviderFn == nil {
-		cfg.redshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		}
+	if cfg.awsClients == nil {
+		cfg.awsClients = defaultAWSClients{}
 	}
 	return nil
 }

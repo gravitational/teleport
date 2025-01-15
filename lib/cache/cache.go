@@ -142,7 +142,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNamespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
@@ -225,7 +224,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUIConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNamespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
@@ -277,7 +275,6 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNamespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
@@ -288,6 +285,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -314,10 +312,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindRole},
-		// Node only needs to "know" about default
-		// namespace events to avoid matching too much
-		// data about other namespaces or node events
-		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindStaticHostUser},
 	}
@@ -338,7 +332,6 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindKubeWaitingContainer},
@@ -360,9 +353,6 @@ func ForApps(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindProxy},
-		// Applications only need to "know" about default namespace events to avoid
-		// matching too much data about other namespaces or events.
-		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindApp},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
@@ -382,9 +372,6 @@ func ForDatabases(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindProxy},
-		// Databases only need to "know" about default namespace events to
-		// avoid matching too much data about other namespaces or events.
-		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindDatabase},
 	}
 	cfg.QueueSize = defaults.DatabasesQueueSize
@@ -403,7 +390,6 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
@@ -418,7 +404,6 @@ func ForDiscovery(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindKubeServer},
@@ -1025,7 +1010,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	identityService, err := local.NewIdentityServiceV2(config.Backend)
+	identityService, err := local.NewIdentityService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -2175,32 +2160,6 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		}
 	}
 	return role, err
-}
-
-// GetNamespace returns namespace
-func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.namespaces)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetNamespace(name)
-}
-
-// GetNamespaces is a part of auth.Cache implementation
-func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespaces")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.namespaces)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetNamespaces()
 }
 
 // GetNode finds and returns a node by name and namespace.

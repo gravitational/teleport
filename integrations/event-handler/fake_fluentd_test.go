@@ -31,8 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 type FakeFluentd struct {
@@ -150,7 +148,6 @@ func (f *FakeFluentd) GetURL() string {
 func (f *FakeFluentd) Respond(w http.ResponseWriter, r *http.Request) {
 	req, err := io.ReadAll(r.Body)
 	if err != nil {
-		logger.Standard().WithError(err).Error("FakeFluentd Respond() failed to read body")
 		fmt.Fprintln(w, "NOK")
 		return
 	}

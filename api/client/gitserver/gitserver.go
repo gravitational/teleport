@@ -22,6 +22,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// ReadOnlyClient defines getter functions for Git servers.
+type ReadOnlyClient interface {
+	// ListGitServers returns a paginated list of Git servers.
+	ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	// GetGitServer returns a Git server by name.
+	GetGitServer(ctx context.Context, name string) (types.Server, error)
+}
+
 // Client is an Git servers client.
 type Client struct {
 	grpcClient gitserverv1.GitServerServiceClient

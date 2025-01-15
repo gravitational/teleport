@@ -28,7 +28,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
-import { OfflineGateway } from '../components/OfflineGateway';
+import { emptyFormSchema, OfflineGateway } from '../components/OfflineGateway';
 
 /**
  * DocumentGatewayKube creates a terminal session that presets KUBECONFIG env
@@ -96,8 +96,8 @@ export const DocumentGatewayKube = (props: {
           connectAttempt={connectAttempt}
           targetName={params.kubeId}
           gatewayKind="kube"
+          formSchema={emptyFormSchema}
           reconnect={createGateway}
-          gatewayPort={{ isSupported: false }}
         />
       </Document>
     );

@@ -639,3 +639,9 @@ type AWSOIDCPingRequest struct {
 	// AWS OIDC integration.
 	RoleARN string `json:"roleArn,omitempty"`
 }
+
+// AWSOIDCDeployEC2ICERequest contains request fields for creating an app server.
+type AWSOIDCCreateAWSAppAccessRequest struct {
+	// Labels added to the app server resource that will be created.
+	Labels map[string]string `json:"labels"`
+}

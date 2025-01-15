@@ -23,11 +23,12 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
 
@@ -40,8 +41,8 @@ import (
 // TestAWSMetadata tests fetching AWS metadata for RDS and Redshift databases.
 func TestAWSMetadata(t *testing.T) {
 	// Configure RDS API mock.
-	rds := &mocks.RDSMock{
-		DBInstances: []*rds.DBInstance{
+	rdsClt := &mocks.RDSClient{
+		DBInstances: []rdstypes.DBInstance{
 			// Standalone RDS instance.
 			{
 				DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:postgres-rds"),
@@ -56,7 +57,7 @@ func TestAWSMetadata(t *testing.T) {
 				DBClusterIdentifier:  aws.String("postgres-aurora"),
 			},
 		},
-		DBClusters: []*rds.DBCluster{
+		DBClusters: []rdstypes.DBCluster{
 			// Aurora cluster.
 			{
 				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:postgres-aurora"),
@@ -64,16 +65,17 @@ func TestAWSMetadata(t *testing.T) {
 				DbClusterResourceId: aws.String("cluster-xyz"),
 			},
 		},
-		DBProxies: []*rds.DBProxy{
+		DBProxies: []rdstypes.DBProxy{
 			{
 				DBProxyArn:  aws.String("arn:aws:rds:us-east-1:123456789012:db-proxy:prx-resource-id"),
 				DBProxyName: aws.String("rds-proxy"),
 			},
 		},
-		DBProxyEndpoints: []*rds.DBProxyEndpoint{
+		DBProxyEndpoints: []rdstypes.DBProxyEndpoint{
 			{
 				DBProxyEndpointName: aws.String("rds-proxy-endpoint"),
 				DBProxyName:         aws.String("rds-proxy"),
+				Endpoint:            aws.String("localhost"),
 			},
 		},
 	}
@@ -130,7 +132,6 @@ func TestAWSMetadata(t *testing.T) {
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
-			RDS:                rds,
 			ElastiCache:        elasticache,
 			MemoryDB:           memorydb,
 			RedshiftServerless: redshiftServerless,
@@ -139,7 +140,10 @@ func TestAWSMetadata(t *testing.T) {
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
-		redshiftClientProviderFn: newFakeRedshiftClientProvider(redshiftClt),
+		awsClients: fakeAWSClients{
+			rdsClient:      rdsClt,
+			redshiftClient: redshiftClt,
+		},
 	})
 	require.NoError(t, err)
 
@@ -407,7 +411,7 @@ func TestAWSMetadata(t *testing.T) {
 // cause an error.
 func TestAWSMetadataNoPermissions(t *testing.T) {
 	// Create unauthorized mocks.
-	rds := &mocks.RDSMockUnauth{}
+	rdsClt := &mocks.RDSClient{Unauth: true}
 	redshiftClt := &mocks.RedshiftClient{Unauth: true}
 
 	fakeSTS := &mocks.STSClient{}
@@ -415,13 +419,15 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
-			RDS: rds,
 			STS: &fakeSTS.STSClientV1,
 		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
-		redshiftClientProviderFn: newFakeRedshiftClientProvider(redshiftClt),
+		awsClients: fakeAWSClients{
+			rdsClient:      rdsClt,
+			redshiftClient: redshiftClt,
+		},
 	})
 	require.NoError(t, err)
 
@@ -494,8 +500,15 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 	}
 }
 
-func newFakeRedshiftClientProvider(c redshiftClient) redshiftClientProviderFunc {
-	return func(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
-		return c
-	}
+type fakeAWSClients struct {
+	rdsClient      rdsClient
+	redshiftClient redshiftClient
+}
+
+func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClient {
+	return f.rdsClient
+}
+
+func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)) redshiftClient {
+	return f.redshiftClient
 }

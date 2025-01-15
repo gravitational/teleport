@@ -57,6 +57,10 @@ spec:
                       description: SAMLSingleLogoutURL is the SAML Single log-out
                         URL to initiate SAML SLO (single log-out), if applicable.
                       type: string
+                    user_id:
+                      description: UserID is the ID of the identity. Some connectors
+                        like GitHub have an unique ID apart from the username.
+                      type: string
                     username:
                       description: Username is username supplied by external identity
                         provider
@@ -75,6 +79,10 @@ spec:
                     samlSingleLogoutUrl:
                       description: SAMLSingleLogoutURL is the SAML Single log-out
                         URL to initiate SAML SLO (single log-out), if applicable.
+                      type: string
+                    user_id:
+                      description: UserID is the ID of the identity. Some connectors
+                        like GitHub have an unique ID apart from the username.
                       type: string
                     username:
                       description: Username is username supplied by external identity
@@ -100,6 +108,10 @@ spec:
                     samlSingleLogoutUrl:
                       description: SAMLSingleLogoutURL is the SAML Single log-out
                         URL to initiate SAML SLO (single log-out), if applicable.
+                      type: string
+                    user_id:
+                      description: UserID is the ID of the identity. Some connectors
+                        like GitHub have an unique ID apart from the username.
                       type: string
                     username:
                       description: Username is username supplied by external identity

@@ -18,7 +18,8 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 func Uninstall(ctx context.Context, configPath string) error {
@@ -26,10 +27,12 @@ func Uninstall(ctx context.Context, configPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = checkApp(ctx, b)
-	if err != nil {
+
+	if err := checkApp(ctx, b); err != nil {
 		return trace.Wrap(err)
 	}
+
+	log := logger.Get(ctx)
 
 	var errs []error
 	for _, recipient := range c.Recipients.GetAllRawRecipients() {
@@ -38,11 +41,11 @@ func Uninstall(ctx context.Context, configPath string) error {
 			errs = append(errs, b.UninstallAppForUser(ctx, recipient))
 		}
 	}
-	err = trace.NewAggregate(errs...)
-	if err != nil {
-		log.Errorln("The following error(s) happened when uninstalling the Teams App:")
+
+	if trace.NewAggregate(errs...) != nil {
+		log.ErrorContext(ctx, "Encountered error(s) when uninstalling the Teams App", "error", err)
 		return err
 	}
-	log.Info("Successfully uninstalled app for all recipients")
+	log.InfoContext(ctx, "Successfully uninstalled app for all recipients")
 	return nil
 }

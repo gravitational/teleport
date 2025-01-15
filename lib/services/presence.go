@@ -126,21 +126,6 @@ type Presence interface {
 	// ListReverseTunnels returns a page of ReverseTunnels.
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
-	// DeleteAllNamespaces deletes all namespaces
-	DeleteAllNamespaces() error
-
-	// UpsertNamespace upserts namespace
-	UpsertNamespace(types.Namespace) error
-
-	// DeleteNamespace deletes namespace by name
-	DeleteNamespace(name string) error
-
 	// GetServerInfos returns a stream of ServerInfos.
 	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
 

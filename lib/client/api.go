@@ -35,6 +35,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -2850,6 +2851,21 @@ type execResult struct {
 	exitStatus int
 }
 
+// sharedWriter is an [io.Writer] implementation that protects
+// writes with a mutex. This allows a single [io.Writer] to be shared
+// by multiple command runners.
+type sharedWriter struct {
+	mu sync.Mutex
+	io.Writer
+}
+
+func (s *sharedWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.Writer.Write(p)
+}
+
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
 func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
 	cluster := clt.ClusterName()
@@ -2909,10 +2925,10 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 		}
 	}
 
-	stdout := logutils.NewSharedWriter(tc.Stdout)
+	stdout := &sharedWriter{Writer: tc.Stdout}
 	stderr := stdout
 	if tc.Stdout != tc.Stderr {
-		stderr = logutils.NewSharedWriter(tc.Stderr)
+		stderr = &sharedWriter{Writer: tc.Stderr}
 	}
 
 	for _, node := range nodes {

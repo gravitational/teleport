@@ -889,6 +889,12 @@ func (c *Client) WorkloadIdentityResourceServiceClient() workloadidentityv1pb.Wo
 	return workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(c.conn)
 }
 
+// WorkloadIdentityIssuanceClient returns an unadorned client for the workload
+// identity service.
+func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient {
+	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
+}
+
 // PresenceServiceClient returns an unadorned client for the presence service.
 func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)
@@ -4942,9 +4948,14 @@ func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
 	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
 }
 
-// GitServerClient returns a client for managing git servers
+// GitServerClient returns a client for managing Git servers
 func (c *Client) GitServerClient() *gitserverclient.Client {
 	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
+}
+
+// GitServerReadOnlyClient returns the read-only client for Git servers.
+func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
+	return c.GitServerClient()
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

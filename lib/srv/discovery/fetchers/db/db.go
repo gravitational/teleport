@@ -23,6 +23,7 @@ import (
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
@@ -67,14 +68,32 @@ func IsAzureMatcherType(matcherType string) bool {
 	return len(makeAzureFetcherFuncs[matcherType]) > 0
 }
 
+// AWSClientProvider provides AWS service API clients.
+type AWSClientProvider interface {
+	// GetRDSClient provides an [RDSClient].
+	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
+	// GetRedshiftClient provides an [RedshiftClient].
+	GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
+	return rds.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
+	return redshift.NewFromConfig(cfg, optFns...)
+}
+
 // AWSFetcherFactoryConfig is the configuration for an [AWSFetcherFactory].
 type AWSFetcherFactoryConfig struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
+	// AWSClients provides AWS SDK clients.
+	AWSClients AWSClientProvider
 	// CloudClients is an interface for retrieving AWS SDK v1 cloud clients.
 	CloudClients cloud.AWSClients
-	// RedshiftClientProviderFn is an optional function that provides
-	RedshiftClientProviderFn RedshiftClientProviderFunc
 }
 
 func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
@@ -84,10 +103,8 @@ func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
-	if c.RedshiftClientProviderFn == nil {
-		c.RedshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		}
+	if c.AWSClients == nil {
+		c.AWSClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -125,15 +142,15 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:               f.cfg.CloudClients,
-						Type:                     matcherType,
-						AssumeRole:               assumeRole,
-						Labels:                   matcher.Tags,
-						Region:                   region,
-						Integration:              matcher.Integration,
-						DiscoveryConfigName:      discoveryConfigName,
-						AWSConfigProvider:        f.cfg.AWSConfigProvider,
-						redshiftClientProviderFn: f.cfg.RedshiftClientProviderFn,
+						AWSClients:          f.cfg.CloudClients,
+						Type:                matcherType,
+						AssumeRole:          assumeRole,
+						Labels:              matcher.Tags,
+						Region:              region,
+						Integration:         matcher.Integration,
+						DiscoveryConfigName: discoveryConfigName,
+						AWSConfigProvider:   f.cfg.AWSConfigProvider,
+						awsClients:          f.cfg.AWSClients,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)

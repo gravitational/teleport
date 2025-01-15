@@ -109,7 +109,13 @@ export interface DocumentGateway extends DocumentBase {
   targetUri: uri.DatabaseUri | uri.AppUri;
   targetUser: string;
   targetName: string;
-  targetSubresourceName?: string;
+  /**
+   * targetSubresourceName contains database name for db gateways and target port for TCP app
+   * gateways.
+   * A DocumentGateway created for a multi-port TCP app is expected to always have this field
+   * present.
+   */
+  targetSubresourceName: string | undefined;
   port?: string;
   origin: DocumentOrigin;
 }

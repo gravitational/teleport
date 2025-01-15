@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
@@ -1113,11 +1112,11 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *auth
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	require.NoError(tt, err)
+	if err != nil {
+		tt.Fatalf("error creating auth client: %v", err.Error())
+	}
 
-	tt.Cleanup(func() {
-		require.NoError(tt, newClient.Close())
-	})
+	tt.Cleanup(func() { _ = newClient.Close() })
 	return newClient
 }
 
@@ -1458,12 +1457,12 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 
 // flushClt is the set of methods expected by the flushCache helper.
 type flushClt interface {
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-	// UpsertNamespace upserts namespace
-	UpsertNamespace(types.Namespace) error
-	// DeleteNamespace deletes namespace by name
-	DeleteNamespace(name string) error
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+	// CreateRole creates a new role.
+	CreateRole(context.Context, types.Role) (types.Role, error)
+	// DeleteRole deletes the role by name.
+	DeleteRole(ctx context.Context, name string) error
 }
 
 // flushCache is a helper for waiting until preceding changes have propagated to the
@@ -1473,19 +1472,35 @@ type flushClt interface {
 // write events for different keys show up in the order in which the writes were performed, which
 // is not necessarily true for all backends.
 func flushCache(t *testing.T, clt flushClt) {
+	ctx := context.Background()
+
 	// the pattern of writing a resource and then waiting for it to appear
-	// works for any resource type (when using memory backend). we use namespaces
-	// here because namespaces are deprecated and therefore unlikely to interfer
-	// with tests.
+	// works for any resource type (when using memory backend).
 	name := strings.ReplaceAll(uuid.NewString(), "-", "")
-	defer clt.DeleteNamespace(name)
+	defer clt.DeleteRole(ctx, name)
 
-	ns, err := types.NewNamespace(name)
-	require.NoError(t, err)
+	role, err := types.NewRole(name, types.RoleSpecV6{})
+	if err != nil {
+		t.Fatalf("Failed to instantiate new role: %v", err)
+	}
 
-	require.NoError(t, clt.UpsertNamespace(ns))
-	require.Eventually(t, func() bool {
-		_, err := clt.GetNamespace(name)
-		return err == nil
-	}, time.Second*20, time.Millisecond*200)
+	role, err = clt.CreateRole(ctx, role)
+	if err != nil {
+		t.Fatalf("Failed to create new role: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	for {
+		r, err := clt.GetRole(ctx, name)
+		if err == nil && r.GetRevision() == role.GetRevision() {
+			return
+		}
+
+		select {
+		case <-time.After(200 * time.Millisecond):
+		case <-ctx.Done():
+			t.Fatal("Time out waiting for role to be replicated")
+		}
+	}
 }

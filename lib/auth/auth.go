@@ -194,7 +194,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity, err = local.NewIdentityServiceV2(cfg.Backend)
+		cfg.Identity, err = local.NewIdentityService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3241,39 +3241,41 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			return nil, trace.Wrap(err)
 		}
 
-		params := services.UserCertParams{
-			CASigner:                sshSigner,
-			PublicUserKey:           req.sshPublicKey,
-			Username:                req.user.GetName(),
-			Impersonator:            req.impersonator,
-			AllowedLogins:           allowedLogins,
-			TTL:                     sessionTTL,
-			Roles:                   req.checker.RoleNames(),
-			CertificateFormat:       certificateFormat,
-			PermitPortForwarding:    req.checker.CanPortForward(),
-			PermitAgentForwarding:   req.checker.CanForwardAgents(),
-			PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
-			RouteToCluster:          req.routeToCluster,
-			Traits:                  req.traits,
-			ActiveRequests:          req.activeRequests,
-			MFAVerified:             req.mfaVerified,
-			PreviousIdentityExpires: req.previousIdentityExpires,
-			LoginIP:                 req.loginIP,
-			PinnedIP:                pinnedIP,
-			DisallowReissue:         req.disallowReissue,
-			Renewable:               req.renewable,
-			Generation:              req.generation,
-			BotName:                 req.botName,
-			BotInstanceID:           req.botInstanceID,
-			CertificateExtensions:   req.checker.CertificateExtensions(),
-			AllowedResourceIDs:      requestedResourcesStr,
-			ConnectionDiagnosticID:  req.connectionDiagnosticID,
-			PrivateKeyPolicy:        attestedKeyPolicy,
-			DeviceID:                req.deviceExtensions.DeviceID,
-			DeviceAssetTag:          req.deviceExtensions.AssetTag,
-			DeviceCredentialID:      req.deviceExtensions.CredentialID,
-			GitHubUserID:            githubUserID,
-			GitHubUsername:          githubUsername,
+		params := sshca.UserCertificateRequest{
+			CASigner:          sshSigner,
+			PublicUserKey:     req.sshPublicKey,
+			TTL:               sessionTTL,
+			CertificateFormat: certificateFormat,
+			Identity: sshca.Identity{
+				Username:                req.user.GetName(),
+				Impersonator:            req.impersonator,
+				AllowedLogins:           allowedLogins,
+				Roles:                   req.checker.RoleNames(),
+				PermitPortForwarding:    req.checker.CanPortForward(),
+				PermitAgentForwarding:   req.checker.CanForwardAgents(),
+				PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
+				RouteToCluster:          req.routeToCluster,
+				Traits:                  req.traits,
+				ActiveRequests:          req.activeRequests,
+				MFAVerified:             req.mfaVerified,
+				PreviousIdentityExpires: req.previousIdentityExpires,
+				LoginIP:                 req.loginIP,
+				PinnedIP:                pinnedIP,
+				DisallowReissue:         req.disallowReissue,
+				Renewable:               req.renewable,
+				Generation:              req.generation,
+				BotName:                 req.botName,
+				BotInstanceID:           req.botInstanceID,
+				CertificateExtensions:   req.checker.CertificateExtensions(),
+				AllowedResourceIDs:      requestedResourcesStr,
+				ConnectionDiagnosticID:  req.connectionDiagnosticID,
+				PrivateKeyPolicy:        attestedKeyPolicy,
+				DeviceID:                req.deviceExtensions.DeviceID,
+				DeviceAssetTag:          req.deviceExtensions.AssetTag,
+				DeviceCredentialID:      req.deviceExtensions.CredentialID,
+				GitHubUserID:            githubUserID,
+				GitHubUsername:          githubUsername,
+			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {
@@ -5061,21 +5063,6 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
-}
-
-func (a *Server) DeleteNamespace(namespace string) error {
-	ctx := context.TODO()
-	if namespace == apidefaults.Namespace {
-		return trace.AccessDenied("can't delete default namespace")
-	}
-	nodes, err := a.GetNodes(ctx, namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(nodes) != 0 {
-		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
-	}
-	return a.Services.DeleteNamespace(namespace)
 }
 
 // IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle

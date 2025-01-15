@@ -51,7 +51,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,6 +71,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	apihelpers "github.com/gravitational/teleport/api/testhelpers"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -711,7 +711,7 @@ func (s *integrationTestSuite) newUnstartedTeleport(t *testing.T, logins []strin
 	for _, login := range logins {
 		teleport.AddUser(login, []string{login})
 	}
-	require.NoError(t, teleport.Create(t, nil, enableSSH, nil))
+	require.NoError(t, teleport.Create(t, nil, enableSSH))
 	return teleport
 }
 
@@ -2564,9 +2564,9 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
-	require.NoError(t, b.Create(t, a.Secrets.AsSlice(), false, nil))
+	require.NoError(t, b.Create(t, a.Secrets.AsSlice(), false))
 	defer b.StopAll()
-	require.NoError(t, a.Create(t, b.Secrets.AsSlice(), true, nil))
+	require.NoError(t, a.Create(t, b.Secrets.AsSlice(), true))
 	defer a.StopAll()
 
 	require.NoError(t, b.Start())
@@ -2602,8 +2602,8 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
-	require.NoError(t, b.Create(t, a.Secrets.AsSlice(), true, nil))
-	require.NoError(t, a.Create(t, b.Secrets.AsSlice(), true, nil))
+	require.NoError(t, b.Create(t, a.Secrets.AsSlice(), true))
+	require.NoError(t, a.Create(t, b.Secrets.AsSlice(), true))
 
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
@@ -3950,13 +3950,13 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	remote.AddUser(username, []string{username})
 	main.AddUser(username, []string{username})
 
-	require.NoError(t, main.Create(t, remote.Secrets.AsSlice(), false, nil))
+	require.NoError(t, main.Create(t, remote.Secrets.AsSlice(), false))
 	mainSecrets := main.Secrets
 	// switch listen address of the main cluster to load balancer
 	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
 	mainSecrets.TunnelAddr = lb.Addr().String()
-	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
+	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true))
 
 	require.NoError(t, main.Start())
 	require.NoError(t, remote.Start())
@@ -4085,13 +4085,13 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	remote.AddUser(username, []string{username})
 	main.AddUser(username, []string{username})
 
-	require.NoError(t, main.Create(t, remote.Secrets.AsSlice(), false, nil))
+	require.NoError(t, main.Create(t, remote.Secrets.AsSlice(), false))
 	mainSecrets := main.Secrets
 	// switch listen address of the main cluster to load balancer
 	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
 	mainSecrets.TunnelAddr = lb.Addr().String()
-	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
+	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true))
 
 	require.NoError(t, main.Start())
 	require.NoError(t, remote.Start())
@@ -7223,7 +7223,6 @@ func WithListeners(setupFn helpers.InstanceListenerSetupFunc) InstanceConfigOpti
 
 func (s *integrationTestSuite) defaultServiceConfig() *servicecfg.Config {
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.Console = nil
 	cfg.Logger = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
@@ -8572,7 +8571,6 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 
 			// Create auth config.
 			authCfg := servicecfg.MakeDefaultConfig()
-			authCfg.Console = nil
 			authCfg.Logger = utils.NewSlogLoggerForTests()
 			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
@@ -8635,7 +8633,6 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true
 			nodeCfg.DataDir = t.TempDir()
-			nodeCfg.Console = nil
 			nodeCfg.Logger = utils.NewSlogLoggerForTests()
 			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
@@ -8716,7 +8713,6 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 
 	// Create auth config.
 	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.Console = nil
 	authCfg.Logger = utils.NewSlogLoggerForTests()
 	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
@@ -8776,7 +8772,6 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	nodeCfg.SetToken("token")
 	nodeCfg.CachePolicy.Enabled = true
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.Console = nil
 	nodeCfg.Logger = utils.NewSlogLoggerForTests()
 	nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
