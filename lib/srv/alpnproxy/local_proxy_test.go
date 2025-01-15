@@ -618,7 +618,7 @@ func TestKubeMiddleware(t *testing.T) {
 			km := NewKubeMiddleware(KubeMiddlewareConfig{
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
-				Logger:       utils.NewSlogLoggerForTests(),
+				Logger:       utils.NewLoggerForTests(),
 				Clock:        tt.clock,
 				CloseContext: context.Background(),
 			})
