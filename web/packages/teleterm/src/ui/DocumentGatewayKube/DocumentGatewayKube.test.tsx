@@ -78,5 +78,7 @@ test('it allows reconnecting when the gateway fails to be created', async () => 
 
   await user.click(screen.getByText('Reconnect'));
 
+  // Verify that the gateway was created by checking if the terminal was rendered.
+  // "Terminal input" is an ARIA label added by xterm.js.
   expect(await screen.findByLabelText('Terminal input')).toBeInTheDocument();
 });
