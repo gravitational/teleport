@@ -50,18 +50,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 type mockTrustBundleCache struct {
-	currentBundle *spiffe.BundleSet
+	currentBundle *workloadidentity.BundleSet
 }
 
-func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*spiffe.BundleSet, error) {
+func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error) {
 	return m.currentBundle, nil
 }
 
@@ -98,7 +98,7 @@ func TestSDS_FetchSecrets(t *testing.T) {
 	federatedBundle.AddX509Authority(ca)
 
 	mockBundleCache := &mockTrustBundleCache{
-		currentBundle: &spiffe.BundleSet{
+		currentBundle: &workloadidentity.BundleSet{
 			Local: bundle,
 			Federated: map[string]*spiffebundle.Bundle{
 				"federated.example.com": federatedBundle,
@@ -118,13 +118,13 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				SpiffeId:    "spiffe://example.com/default",
 				X509Svid:    []byte("CERT-spiffe://example.com/default"),
 				X509SvidKey: []byte("KEY-spiffe://example.com/default"),
-				Bundle:      spiffe.MarshalX509Bundle(localBundle.X509Bundle()),
+				Bundle:      workloadidentity.MarshalX509Bundle(localBundle.X509Bundle()),
 			},
 			{
 				SpiffeId:    "spiffe://example.com/second",
 				X509Svid:    []byte("CERT-spiffe://example.com/second"),
 				X509SvidKey: []byte("KEY-spiffe://example.com/second"),
-				Bundle:      spiffe.MarshalX509Bundle(localBundle.X509Bundle()),
+				Bundle:      workloadidentity.MarshalX509Bundle(localBundle.X509Bundle()),
 			},
 		}, nil
 	}

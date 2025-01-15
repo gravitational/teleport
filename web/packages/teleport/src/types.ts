@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
@@ -36,7 +36,7 @@ export interface Context {
 
 export interface TeleportFeatureNavigationItem {
   title: NavTitle;
-  icon: (props) => JSX.Element;
+  icon: (props) => ReactNode;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;

@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestConfigFile(t *testing.T) {
@@ -263,6 +263,14 @@ func TestBotConfig_YAML(t *testing.T) {
 						Listen:  "tcp://127.0.0.1:123",
 						Roles:   []string{"access"},
 						AppName: "my-app",
+					},
+					&WorkloadIdentityX509Service{
+						Destination: &DestinationDirectory{
+							Path: "/an/output/path",
+						},
+						Selector: WorkloadIdentitySelector{
+							Name: "my-workload-identity",
+						},
 					},
 				},
 			},

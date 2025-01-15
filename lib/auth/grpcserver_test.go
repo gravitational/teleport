@@ -4678,7 +4678,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - enabled",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    enabledRole,
 			expectedRole: enabledRole,
@@ -4686,7 +4686,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - disabled",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    disabledRole,
 			expectedRole: disabledRole,
@@ -4694,7 +4694,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - undefined",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    undefinedRole,
 			expectedRole: undefinedRole,

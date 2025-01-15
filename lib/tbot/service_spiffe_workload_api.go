@@ -57,8 +57,8 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
 
@@ -79,7 +79,7 @@ type SPIFFEWorkloadAPIService struct {
 	cfg              *config.SPIFFEWorkloadAPIService
 	log              *slog.Logger
 	resolver         reversetunnelclient.Resolver
-	trustBundleCache *spiffe.TrustBundleCache
+	trustBundleCache *workloadidentity.TrustBundleCache
 
 	// client holds the impersonated client for the service
 	client           *authclient.Client
@@ -320,7 +320,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		return nil, trace.Wrap(err)
 	}
 
-	marshaledBundle := spiffe.MarshalX509Bundle(localBundle.X509Bundle())
+	marshaledBundle := workloadidentity.MarshalX509Bundle(localBundle.X509Bundle())
 
 	// Convert responses from the Teleport API to the SPIFFE Workload API
 	// format.
