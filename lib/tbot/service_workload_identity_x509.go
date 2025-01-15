@@ -209,7 +209,19 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	default:
 		// We could eventually implement some kind of hint selection mechanism
 		// to pick the "right" one.
-		return nil, nil, trace.BadParameter("multiple X509 SVIDs received")
+		received := make([]string, 0, len(x509Credentials))
+		for _, cred := range x509Credentials {
+			received = append(received,
+				fmt.Sprintf(
+					"%s:%s",
+					cred.WorkloadIdentityName,
+					cred.SpiffeId,
+				),
+			)
+		}
+		return nil, nil, trace.BadParameter(
+			"multiple X509 SVIDs received: %v", received,
+		)
 	}
 
 	return x509Credential, privateKey, nil
