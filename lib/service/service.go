@@ -1006,6 +1006,15 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		"pid", fmt.Sprintf("%v.%v", os.Getpid(), processID),
 	)
 
+	// Use the custom metrics registry if specified, else create a new one.
+	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// because some tests are running multiple Teleport instances from the same
+	// config.
+	metricsRegistry := cfg.MetricsRegistry
+	if metricsRegistry == nil {
+		metricsRegistry = prometheus.NewRegistry()
+	}
+
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
@@ -1189,7 +1198,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
-		metricsRegistry:        cfg.MetricsRegistry,
+		metricsRegistry:        metricsRegistry,
 	}
 
 	process.registerExpectedServices(cfg)
