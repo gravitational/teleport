@@ -1403,3 +1403,66 @@ func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
 	require.NoError(t, err)
 	return assignment
 }
+
+func TestGitServerWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	gitServerService, err := local.NewGitServerService(bk)
+	require.NoError(t, err)
+	w, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    "test",
+			Client:       local.NewEventsService(bk),
+			MaxStaleness: time.Minute,
+		},
+		GitServerGetter: gitServerService,
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+	require.NoError(t, w.WaitInitialization())
+
+	// Add some git servers.
+	servers := make([]types.Server, 0, 5)
+	for i := 0; i < 5; i++ {
+		server := newGitServer(t, fmt.Sprintf("org%v", i+1))
+		_, err = gitServerService.CreateGitServer(ctx, server)
+		require.NoError(t, err)
+		servers = append(servers, server)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers))
+	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
+
+	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
+		if github := s.GetGitHub(); github != nil {
+			return github.Organization == "org1" || github.Organization == "org2"
+		}
+		return false
+	})
+	require.NoError(t, err)
+	require.Len(t, filtered, 2)
+
+	// Delete a server.
+	require.NoError(t, gitServerService.DeleteGitServer(ctx, servers[0].GetName()))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers)-1)
+	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
+
+	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
+		if github := s.GetGitHub(); github != nil {
+			return github.Organization == "org1"
+		}
+		return false
+	})
+	require.NoError(t, err)
+	require.Empty(t, filtered)
+}

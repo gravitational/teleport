@@ -35,6 +35,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -207,9 +208,6 @@ type Config struct {
 
 	// Labels represent host Labels
 	Labels map[string]string
-
-	// Namespace is nodes namespace
-	Namespace string
 
 	// HostLogin is a user login on a remote host
 	HostLogin string
@@ -1191,7 +1189,7 @@ func (c *Config) ProxySpecified() bool {
 func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	return &proto.ListResourcesRequest{
 		ResourceType:        kind,
-		Namespace:           c.Namespace,
+		Namespace:           apidefaults.Namespace,
 		Labels:              c.Labels,
 		SearchKeywords:      c.SearchKeywords,
 		PredicateExpression: c.PredicateExpression,
@@ -1259,8 +1257,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
 	}
-
-	c.Namespace = types.ProcessNamespace(c.Namespace)
 
 	if c.Tracer == nil {
 		c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
@@ -2165,7 +2161,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
-		NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: cluster},
+		NodeDetails{Addr: nodeAddr, Cluster: cluster},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2283,7 +2279,7 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipantMode, namespace string, sessionID session.ID, input io.Reader) (err error) {
+func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipantMode, sessionID session.ID, input io.Reader) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Join",
@@ -2295,9 +2291,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	)
 	defer span.End()
 
-	if namespace == "" {
-		return trace.BadParameter(authclient.MissingNamespaceError)
-	}
 	tc.Stdin = input
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
@@ -2346,7 +2339,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	// connect to server:
 	nc, err := tc.ConnectToNode(ctx,
 		clt,
-		NodeDetails{Addr: session.GetAddress() + ":0", Namespace: tc.Namespace, Cluster: clt.ClusterName()},
+		NodeDetails{Addr: session.GetAddress() + ":0", Cluster: clt.ClusterName()},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2606,9 +2599,8 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient,
 		ctx,
 		clt,
 		NodeDetails{
-			Addr:      nodeAddr,
-			Namespace: tc.Namespace,
-			Cluster:   clt.ClusterName(),
+			Addr:    nodeAddr,
+			Cluster: clt.ClusterName(),
 		},
 		hostLogin,
 	)
@@ -2850,6 +2842,21 @@ type execResult struct {
 	exitStatus int
 }
 
+// sharedWriter is an [io.Writer] implementation that protects
+// writes with a mutex. This allows a single [io.Writer] to be shared
+// by multiple command runners.
+type sharedWriter struct {
+	mu sync.Mutex
+	io.Writer
+}
+
+func (s *sharedWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.Writer.Write(p)
+}
+
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
 func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
 	cluster := clt.ClusterName()
@@ -2909,10 +2916,10 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 		}
 	}
 
-	stdout := logutils.NewSharedWriter(tc.Stdout)
+	stdout := &sharedWriter{Writer: tc.Stdout}
 	stderr := stdout
 	if tc.Stdout != tc.Stderr {
-		stderr = logutils.NewSharedWriter(tc.Stderr)
+		stderr = &sharedWriter{Writer: tc.Stderr}
 	}
 
 	for _, node := range nodes {
@@ -2930,11 +2937,10 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 				ctx,
 				clt,
 				NodeDetails{
-					Addr:      node.Addr,
-					Namespace: tc.Namespace,
-					Cluster:   cluster,
-					MFACheck:  mfaRequiredCheck,
-					hostname:  node.Hostname,
+					Addr:     node.Addr,
+					Cluster:  cluster,
+					MFACheck: mfaRequiredCheck,
+					hostname: node.Hostname,
 				},
 				tc.Config.HostLogin,
 			)

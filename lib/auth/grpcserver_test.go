@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -60,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
@@ -4741,7 +4741,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - enabled",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    enabledRole,
 			expectedRole: enabledRole,
@@ -4749,7 +4749,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - disabled",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    disabledRole,
 			expectedRole: disabledRole,
@@ -4757,7 +4757,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - undefined",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    undefinedRole,
 			expectedRole: undefinedRole,

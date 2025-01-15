@@ -91,6 +91,11 @@ type Config struct {
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
 	// KubeconfigsDir is the directory containing kubeconfigs for kube gateways.
 	KubeconfigsDir string
+	// ClearCertsOnTargetSubresourceNameChange is useful in situations where TargetSubresourceName is
+	// used to generate a cert. In that case, after TargetSubresourceName is changed, the gateway will
+	// clear the cert from the local proxy and the middleware is going to request a new cert on the
+	// next connection.
+	ClearCertsOnTargetSubresourceNameChange bool
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is

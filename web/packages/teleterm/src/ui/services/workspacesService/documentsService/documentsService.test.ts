@@ -79,6 +79,7 @@ describe('document should be added', () => {
     targetUri: '/clusters/bar/dbs/quux',
     targetName: 'quux',
     targetUser: 'foo',
+    targetSubresourceName: undefined,
     origin: 'resource_table',
     status: '',
   };
@@ -155,6 +156,7 @@ test('only gateway documents should be returned', () => {
     targetUri: '/clusters/bar/dbs/quux',
     targetName: 'quux',
     targetUser: 'foo',
+    targetSubresourceName: undefined,
     origin: 'resource_table',
     status: '',
   };

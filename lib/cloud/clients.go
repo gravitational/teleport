@@ -39,8 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -51,10 +49,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
-	"github.com/aws/aws-sdk-go/service/redshift"
-	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -113,10 +107,6 @@ type GCPClients interface {
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region and any role(s).
 	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
-	// GetAWSRDSClient returns AWS RDS client for the specified region.
-	GetAWSRDSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (rdsiface.RDSAPI, error)
-	// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
-	GetAWSRedshiftClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftiface.RedshiftAPI, error)
 	// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
 	GetAWSRedshiftServerlessClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftserverlessiface.RedshiftServerlessAPI, error)
 	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
@@ -131,8 +121,6 @@ type AWSClients interface {
 	GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
-	// GetAWSEKSClient returns AWS EKS client for the specified region.
-	GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error)
 	// GetAWSKMSClient returns AWS KMS client for the specified region.
 	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error)
 	// GetAWSS3Client returns AWS S3 client.
@@ -356,6 +344,10 @@ type azureClients struct {
 	azurePostgresFlexServersClients azure.ClientMap[azure.PostgresFlexServersClient]
 	// azureRunCommandClients contains the cached Azure Run Command clients.
 	azureRunCommandClients azure.ClientMap[azure.RunCommandClient]
+	// azureRoleDefinitionsClients contains the cached Azure Role Definitions clients.
+	azureRoleDefinitionsClients azure.ClientMap[azure.RoleDefinitionsClient]
+	// azureRoleAssignmentsClients contains the cached Azure Role Assignments clients.
+	azureRoleAssignmentsClients azure.ClientMap[azure.RoleAssignmentsClient]
 }
 
 // credentialsSource defines where the credentials must come from.
@@ -508,24 +500,6 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 	return c.getAWSSessionForRole(ctx, region, options)
 }
 
-// GetAWSRDSClient returns AWS RDS client for the specified region.
-func (c *cloudClients) GetAWSRDSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (rdsiface.RDSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rds.New(session), nil
-}
-
-// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
-func (c *cloudClients) GetAWSRedshiftClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftiface.RedshiftAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return redshift.New(session), nil
-}
-
 // GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
 func (c *cloudClients) GetAWSRedshiftServerlessClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
 	session, err := c.GetAWSSession(ctx, region, opts...)
@@ -596,15 +570,6 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 		return nil, trace.Wrap(err)
 	}
 	return sts.New(session), nil
-}
-
-// GetAWSEKSClient returns AWS EKS client for the specified region.
-func (c *cloudClients) GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return eks.New(session), nil
 }
 
 // GetAWSKMSClient returns AWS KMS client for the specified region.
@@ -754,6 +719,16 @@ func (c *cloudClients) GetAzurePostgresFlexServersClient(subscription string) (a
 // subscription.
 func (c *cloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
 	return c.azureRunCommandClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client
+func (c *cloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+	return c.azureRoleDefinitionsClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client
+func (c *cloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+	return c.azureRoleAssignmentsClients.Get(subscription, c.GetAzureCredential)
 }
 
 // Close closes all initialized clients.
@@ -1031,9 +1006,6 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS                     rdsiface.RDSAPI
-	RDSPerRegion            map[string]rdsiface.RDSAPI
-	Redshift                redshiftiface.RedshiftAPI
 	RedshiftServerless      redshiftserverlessiface.RedshiftServerlessAPI
 	ElastiCache             elasticacheiface.ElastiCacheAPI
 	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
@@ -1046,7 +1018,6 @@ type TestCloudClients struct {
 	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
 	InstanceMetadata        imds.Client
-	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
 	S3                      s3iface.S3API
 	AzureMySQL              azure.DBServersClient
@@ -1064,6 +1035,8 @@ type TestCloudClients struct {
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
 	AzureRunCommand         azure.RunCommandClient
+	AzureRoleDefinitions    azure.RoleDefinitionsClient
+	AzureRoleAssignments    azure.RoleAssignmentsClient
 }
 
 // GetAWSSession returns AWS session for the specified region, optionally
@@ -1101,27 +1074,6 @@ func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Se
 		Region:          aws.String(region),
 		UseFIPSEndpoint: useFIPSEndpoint,
 	})
-}
-
-// GetAWSRDSClient returns AWS RDS client for the specified region.
-func (c *TestCloudClients) GetAWSRDSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (rdsiface.RDSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(c.RDSPerRegion) != 0 {
-		return c.RDSPerRegion[region], nil
-	}
-	return c.RDS, nil
-}
-
-// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
-func (c *TestCloudClients) GetAWSRedshiftClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftiface.RedshiftAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.Redshift, nil
 }
 
 // GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
@@ -1194,15 +1146,6 @@ func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.STS, nil
-}
-
-// GetAWSEKSClient returns AWS EKS client for the specified region.
-func (c *TestCloudClients) GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.EKS, nil
 }
 
 // GetAWSKMSClient returns AWS KMS client for the specified region.
@@ -1317,9 +1260,19 @@ func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string
 	return c.AzurePostgresFlex, nil
 }
 
-// GetAzureRunCommand returns an Azure Run Command client for the given subscription.
+// GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
 func (c *TestCloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
 	return c.AzureRunCommand, nil
+}
+
+// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client for the given subscription.
+func (c *TestCloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+	return c.AzureRoleDefinitions, nil
+}
+
+// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client for the given subscription.
+func (c *TestCloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+	return c.AzureRoleAssignments, nil
 }
 
 // Close closes all initialized clients.

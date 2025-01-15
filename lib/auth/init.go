@@ -35,7 +35,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -44,7 +43,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -75,7 +73,6 @@ import (
 )
 
 var (
-	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentAuth)
 	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 )
 
@@ -501,13 +498,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		defer span.End()
 		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
-	})
-
-	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterNamespace")
-		defer span.End()
-		asrv.logger.InfoContext(ctx, "Creating namespace", "namespace", apidefaults.Namespace)
-		return trace.Wrap(asrv.UpsertNamespace(types.DefaultNamespace()))
 	})
 
 	var cn types.ClusterName

@@ -714,7 +714,7 @@ func (f *fakeRolloutStrategy) name() string {
 	return f.strategyName
 }
 
-func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
+func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	f.calls++
 	return nil
 }

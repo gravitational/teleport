@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -52,11 +52,6 @@ func onAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if shouldUseAWSEndpointURLMode(cf) {
-		log.Debugf("Forcing endpoint URL mode for AWS command %q.", cf.AWSCommandArgs)
-		cf.AWSEndpointURLMode = true
-	}
-
 	err = awsApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -64,7 +59,7 @@ func onAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close AWS app.")
+			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
 		}
 	}()
 
@@ -80,55 +75,6 @@ func onAWS(cf *CLIConf) error {
 
 	cmd := exec.Command(commandToRun, args...)
 	return awsApp.RunCommand(cmd)
-}
-
-func shouldUseAWSEndpointURLMode(cf *CLIConf) bool {
-	inputAWSCommand := strings.Join(removeAWSCommandFlags(cf.AWSCommandArgs), " ")
-	switch inputAWSCommand {
-	// `aws ssm start-session` first calls ssm.<region>.amazonaws.com to get an
-	// stream URL and an token. Then it makes a wss connection with the
-	// provided token to the provided stream URL. The wss request currently
-	// respects HTTPS_PROXY but does not respect local CA bundle we provided
-	// thus causing a failure. Even if this is resolved one day, the wss send
-	// the token through websocket data channel for authentication, instead of
-	// sigv4, which likely we won't support.
-	//
-	// When using the endpoint URL mode, only the first request goes through
-	// Teleport Proxy. The wss connection does not respect the endpoint URL and
-	// goes to AWS directly (thus working fine).
-	//
-	// Reference:
-	// https://github.com/aws/session-manager-plugin/
-	//
-	// "aws ecs execute-command" also start SSM sessions.
-	case "ssm start-session", "ecs execute-command":
-		return true
-	default:
-		return false
-	}
-}
-
-func removeAWSCommandFlags(args []string) (ret []string) {
-	for i := 0; i < len(args); i++ {
-		switch {
-		case isAWSFlag(args, i):
-			// Skip next arg, if next arg is not a flag but a flag value.
-			if !isAWSFlag(args, i+1) {
-				i++
-			}
-			continue
-		default:
-			ret = append(ret, args[i])
-		}
-	}
-	return
-}
-
-func isAWSFlag(args []string, i int) bool {
-	if i >= len(args) {
-		return false
-	}
-	return strings.HasPrefix(args[i], "--")
 }
 
 // awsApp is an AWS app that can start local proxies to serve AWS APIs.
@@ -262,7 +208,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Running command: %q", cmd)
+	logger.DebugContext(a.cf.Context, "Running AWS command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -301,7 +247,7 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 
 	if cf.AWSRole == "" {
 		if len(roles) == 1 {
-			log.Infof("AWS Role %v is selected by default as it is the only role configured for this AWS app.", roles[0].Display)
+			logger.InfoContext(cf.Context, "AWS Role is selected by default as it is the only role configured for this AWS app", "role", roles[0].Display)
 			return roles[0].ARN, nil
 		}
 
@@ -344,13 +290,13 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 func getARNFromRoles(cf *CLIConf, roleGetter services.CurrentUserRoleGetter, profile *client.ProfileStatus, siteName string, app types.Application) []string {
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), siteName, roleGetter)
 	if err != nil {
-		log.WithError(err).Debugf("Failed to fetch user roles.")
+		logger.DebugContext(cf.Context, "Failed to fetch user roles", "error", err)
 		return profile.AWSRolesARNs
 	}
 
 	logins, err := accessChecker.GetAllowedLoginsForResource(app)
 	if err != nil {
-		log.WithError(err).Debugf("Failed to fetch app logins.")
+		logger.DebugContext(cf.Context, "Failed to fetch app logins", "error", err)
 		return profile.AWSRolesARNs
 	}
 

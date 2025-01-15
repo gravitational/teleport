@@ -65,7 +65,7 @@ func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		Connector: connectorName,
 		Roles:     new.GetRoles(),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit user update event.")
+		a.logger.WarnContext(ctx, "Failed to emit user update event", "error", err)
 	}
 
 	usagereporter.EmitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles(), a.AnonymizeAndSubmit)

@@ -25,15 +25,16 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
@@ -66,12 +67,15 @@ func ConvertError(err error) error {
 
 	var googleAPIErr *googleapi.Error
 	var awsRequestFailureErr awserr.RequestFailure
+	var awsRequestFailureErrV2 *awshttp.ResponseError
 	var azResponseErr *azcore.ResponseError
 	var pgError *pgconn.PgError
 	var myError *mysql.MyError
 	switch err := trace.Unwrap(err); {
 	case errors.As(err, &googleAPIErr):
 		return convertGCPError(googleAPIErr)
+	case errors.As(err, &awsRequestFailureErrV2):
+		return awslib.ConvertRequestFailureErrorV2(awsRequestFailureErrV2)
 	case errors.As(err, &awsRequestFailureErr):
 		return awslib.ConvertRequestFailureError(awsRequestFailureErr)
 	case errors.As(err, &azResponseErr):

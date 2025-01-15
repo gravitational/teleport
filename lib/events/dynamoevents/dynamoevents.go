@@ -42,6 +42,8 @@ import (
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	legacydynamo "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
@@ -435,14 +437,14 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBTableReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBTableWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s", l.Tablename),
-				readPolicy:     fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
+				readPolicy:     fmt.Sprintf("%s-read-target-tracking-scaling-policy", l.Tablename),
 				writePolicy:    fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
 			},
 			{
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBIndexReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBIndexWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s/index/%s", l.Tablename, indexTimeSearchV2),
-				readPolicy:     fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
+				readPolicy:     fmt.Sprintf("%s/index/%s-read-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 				writePolicy:    fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 			},
 		}
@@ -470,20 +472,39 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 
 			// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 			// provisioned capacity DynamoDB will try and maintain.
-			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
-				PolicyName:        aws.String(p.readPolicy),
-				PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
-				ResourceId:        aws.String(p.resourceID),
-				ScalableDimension: p.readDimension,
-				ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
-				TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
-					PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
-						PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+			for i := 0; i < 2; i++ {
+				if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
+					PolicyName:        aws.String(p.readPolicy),
+					PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
+					ResourceId:        aws.String(p.resourceID),
+					ScalableDimension: p.readDimension,
+					ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
+						PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
+							PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+						},
+						TargetValue: aws.Float64(l.ReadTargetValue),
 					},
-					TargetValue: aws.Float64(l.ReadTargetValue),
-				},
-			}); err != nil {
-				return trace.Wrap(convertError(err))
+				}); err != nil {
+					// The read policy name was accidentally changed to match the write policy in 17.0.0-17.1.4. This
+					// prevented upgrading a cluster with autoscaling enabled from v16 to v17. To resolve in
+					// a backwards compatible way, the read policy name was restored, however, any new clusters that
+					// were created between 17.0.0 and 17.1.4 need to have the misnamed policy deleted and recreated
+					// with the correct name.
+					if i == 1 || !strings.Contains(err.Error(), "ValidationException: Only one TargetTrackingScaling policy for a given metric specification is allowed.") {
+						return trace.Wrap(convertError(err))
+					}
+
+					l.logger.DebugContext(ctx, "Fixing incorrectly named scaling policy")
+					if _, err := svc.DeleteScalingPolicy(ctx, &applicationautoscaling.DeleteScalingPolicyInput{
+						PolicyName:        aws.String(p.writePolicy),
+						ResourceId:        aws.String(p.resourceID),
+						ScalableDimension: p.readDimension,
+						ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					}); err != nil {
+						return trace.Wrap(convertError(err))
+					}
+				}
 			}
 
 			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
@@ -687,6 +708,24 @@ type checkpointKey struct {
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
 	Iterator string `json:"iterator,omitempty"`
+
+	// EventKey is a derived identifier for an event used for resuming
+	// sub-page breaks due to size constraints.
+	EventKey string `json:"event_key,omitempty"`
+}
+
+// legacyCheckpointKey is the old checkpoint key returned by older auth versions. Used to decode
+// checkpoints originating from old auths. Commonly we don't bother supporting pagination/cursors
+// across teleport versions since the benefit of doing so is usually minimal, but this value is used
+// as on-disk state by long running event export operations, and so must be supported.
+//
+// DELETE IN: 19.0.0
+type legacyCheckpointKey struct {
+	// The date that the Dynamo iterator corresponds to.
+	Date string `json:"date,omitempty"`
+
+	// A DynamoDB query iterator. Allows us to resume a partial query.
+	Iterator map[string]*legacydynamo.AttributeValue `json:"iterator,omitempty"`
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
@@ -940,9 +979,47 @@ func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	}
 	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
 	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+		// attempt to decode as legacy format.
+		if checkpoint, err = getCheckpointFromLegacyStartKey(startKey); err == nil {
+			return checkpoint, nil
+		}
 		return checkpointKey{}, trace.Wrap(err)
 	}
 	return checkpoint, nil
+}
+
+// getCheckpointFromLegacyStartKey is a helper function that decodes a legacy checkpoint key
+// into the new format. The old format used raw dynamo attribute values for the iterator, where
+// the new format uses a json-serialized map with bare values.
+//
+// DELETE IN: 19.0.0
+func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
+	var checkpoint legacyCheckpointKey
+	if startKey == "" {
+		return checkpointKey{}, nil
+	}
+	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
+	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	// decode the dynamo attrs into the go map repr common to the old and new formats.
+	m := make(map[string]any)
+	if err := dynamodbattribute.UnmarshalMap(checkpoint.Iterator, &m); err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	// encode the map into json, making it equivalent to the new format.
+	iterator, err := json.Marshal(m)
+	if err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	return checkpointKey{
+		Date:     checkpoint.Date,
+		Iterator: string(iterator),
+		EventKey: checkpoint.EventKey,
+	}, nil
 }
 
 func getExprFilter(filter searchEventsFilter) *string {

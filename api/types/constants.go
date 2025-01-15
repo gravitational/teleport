@@ -1496,5 +1496,5 @@ const (
 const (
 	// GitHubOrgServerDomain is the sub domain used in the hostname of a
 	// types.Server to indicate the GitHub organization of a Git server.
-	GitHubOrgServerDomain = "github-org"
+	GitHubOrgServerDomain = "teleport-github-org"
 )

@@ -25,9 +25,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// WebAPIVersion is a current webapi version
-const WebAPIVersion = "v1"
-
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.
@@ -290,6 +287,9 @@ const (
 
 	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
 	ComponentRolloutController = "rollout-controller"
+
+	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
+	ComponentForwardingGit = "git:forward"
 
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"

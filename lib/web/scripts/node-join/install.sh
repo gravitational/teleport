@@ -441,6 +441,11 @@ get_yaml_list() {
 install_teleport_app_config() {
     log "Writing Teleport app service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
+    # shellcheck disable=SC2154
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 version: v3
 teleport:
@@ -463,6 +468,9 @@ app_service:
   - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
+    labels:{{range $index, $line := .appServerResourceLabels}}
+      {{$line -}}
+{{end}}
 EOF
 }
 # installs the provided teleport config (for database service)
@@ -937,9 +945,10 @@ install_from_repo() {
             curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
             echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
+            mkdir -p /etc/apt/keyrings
             curl -fsSL https://apt.releases.teleport.dev/gpg \
-                -o /usr/share/keyrings/teleport-archive-keyring.asc
-            echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+                -o /etc/apt/keyrings/teleport-archive-keyring.asc
+            echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update
