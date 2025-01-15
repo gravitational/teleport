@@ -86,7 +86,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
-	jitter := retryutils.DefaultJitter
+	jitter := retryutils.NewJitter()
 	var x509Cred *workloadidentityv1pb.Credential
 	var privateKey crypto.Signer
 	var failures int
