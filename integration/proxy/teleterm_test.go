@@ -455,6 +455,8 @@ func TestTeletermKubeGateway(t *testing.T) {
 		})
 	})
 	t.Run("reissue cert after clearing it for root kube", func(t *testing.T) {
+		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
+
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
 		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
@@ -473,6 +475,8 @@ func TestTeletermKubeGateway(t *testing.T) {
 		})
 	})
 	t.Run("reissue cert after clearing it for leaf kube", func(t *testing.T) {
+		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
+
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
 		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
