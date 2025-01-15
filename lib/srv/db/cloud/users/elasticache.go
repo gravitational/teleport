@@ -34,6 +34,13 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
+type elasticacheClient interface {
+	elasticache.DescribeUsersAPIClient
+
+	ListTagsForResource(ctx context.Context, in *elasticache.ListTagsForResourceInput, optFns ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error)
+	ModifyUser(ctx context.Context, in *elasticache.ModifyUserInput, optFns ...func(*elasticache.Options)) (*elasticache.ModifyUserOutput, error)
+}
+
 // elastiCacheFetcher is a fetcher for discovering ElastiCache users.
 type elastiCacheFetcher struct {
 	cfg   Config

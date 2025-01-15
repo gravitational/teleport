@@ -129,13 +129,8 @@ func requireDatabaseIsEndpoint(ctx context.Context, database types.Database, isE
 	return trace.Wrap(convIsEndpoint(isEndpoint)(ctx, database))
 }
 
-// TODO(gavin): remove the generic type parameter after all callers are migrated from AWS SDK v1 (uses *int64) to SDK v2 (uses *int32).
-func requireDatabaseAddressPort[T ~int32 | ~int64](database types.Database, wantURLHost *string, wantURLPort *T) error {
-	var port int
-	if wantURLPort != nil {
-		port = int(*wantURLPort)
-	}
-	wantURL := fmt.Sprintf("%v:%v", aws.ToString(wantURLHost), port)
+func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int32) error {
+	wantURL := fmt.Sprintf("%v:%v", aws.ToString(wantURLHost), aws.ToInt32(wantURLPort))
 	if database.GetURI() != wantURL {
 		return trace.BadParameter("expect database URL %q but got %q for database %q", wantURL, database.GetURI(), database.GetName())
 	}

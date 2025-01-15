@@ -42,6 +42,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -2159,8 +2160,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS:      &mocks.STSClientV1{},
-		MemoryDB: &mocks.MemoryDBMock{},
+		STS: &mocks.STSClientV1{},
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -2422,8 +2422,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
 				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
 					AWS: []types.AWSMatcher{{
-						// MemoryDB mock client returns no resources.
-						Types:       []string{types.AWSMatcherMemoryDB},
+						// ElastiCache and MemoryDB fake clients return no resources.
+						Types:       []string{types.AWSMatcherElastiCache, types.AWSMatcherMemoryDB},
 						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 						Regions:     []string{"us-east-1"},
 						Integration: integrationName,
@@ -2498,6 +2498,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 				AWSConfigProvider: fakeConfigProvider,
 				CloudClients:      testCloudClients,
 				AWSClients: fakeAWSClients{
+					ecClient:  &mocks.ElastiCacheClient{},
+					mdbClient: &mocks.MemoryDBClient{},
 					rdsClient: &mocks.RDSClient{
 						DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
 						DBEngineVersions: []rdstypes.DBEngineVersion{
@@ -3871,6 +3873,7 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 
 type fakeAWSClients struct {
 	ecClient       db.ElastiCacheClient
+	mdbClient      db.MemoryDBClient
 	rdsClient      db.RDSClient
 	redshiftClient db.RedshiftClient
 	rssClient      db.RSSClient
@@ -3878,6 +3881,10 @@ type fakeAWSClients struct {
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {
 	return f.ecClient
+}
+
+func (f fakeAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) db.MemoryDBClient {
+	return f.mdbClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {

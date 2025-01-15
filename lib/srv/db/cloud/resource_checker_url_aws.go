@@ -237,18 +237,19 @@ func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Databa
 
 func (c *urlChecker) checkMemoryDB(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	memoryDBClient, err := c.clients.GetAWSMemoryDBClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, meta.MemoryDB.ClusterName)
+	clt := c.awsClients.getMemoryDBClient(awsCfg)
+	cluster, err := describeMemoryDBCluster(ctx, clt, meta.MemoryDB.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(requireDatabaseAddressPort(database, cluster.ClusterEndpoint.Address, cluster.ClusterEndpoint.Port))
+	return trace.Wrap(requireDatabaseAddressPort(database, cluster.ClusterEndpoint.Address, &cluster.ClusterEndpoint.Port))
 }
 
 func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Database) error {
