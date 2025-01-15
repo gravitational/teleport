@@ -135,7 +135,7 @@ Next assign the managed identity desired permissions that the Teleport user
 should have. In this example, the "Reader" role is assigned to the managed
 identity:
 ```code
-$ az role assignment create --role "<Var name="Reader" />" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
+$ az role assignment create --role "Reader" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
 ```
 
 ### Associate the managed identity with the Kubernetes service account

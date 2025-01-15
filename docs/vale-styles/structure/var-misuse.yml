@@ -7,7 +7,7 @@ script: |
 
   getMatches := func() {
     // Find all uses of the Var component
-    varMatches := text.re_find(`<\s*Var\s+name=["']([^"']+)["']`, scope, -1)
+    varMatches := text.re_find(`<\s*Var[^>]+name=["']([^"']+)["']`, scope, -1)
     if varMatches == undefined {
       return []
     }
