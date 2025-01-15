@@ -192,6 +192,11 @@ type AuthPreference interface {
 	// algorithm suite is incompatible with [params].
 	CheckSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams) error
 
+	// GetStableUNIXUserConfig returns the stable UNIX user configuration.
+	GetStableUNIXUserConfig() *StableUNIXUserConfig
+	// SetStableUNIXUserConfig sets the stable UNIX user configuration.
+	SetStableUNIXUserConfig(*StableUNIXUserConfig)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 
@@ -671,6 +676,19 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 	return nil
 }
 
+// GetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) GetStableUNIXUserConfig() *StableUNIXUserConfig {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.StableUnixUserConfig
+}
+
+// SetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) SetStableUNIXUserConfig(cfg *StableUNIXUserConfig) {
+	c.Spec.StableUnixUserConfig = cfg
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -846,6 +864,18 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// Make sure the Okta field is populated.
 	if c.Spec.Okta == nil {
 		c.Spec.Okta = &OktaOptions{}
+	}
+
+	if cfg := c.Spec.StableUnixUserConfig; cfg != nil && cfg.Enabled {
+		if cfg.FirstUid > cfg.LastUid {
+			return trace.BadParameter("stable UNIX user is enabled but UID range is empty")
+		}
+
+		// see https://github.com/systemd/systemd/blob/cc7300fc5868f6d47f3f47076100b574bf54e58d/docs/UIDS-GIDS.md
+		const firstUserUID = 1000
+		if cfg.FirstUid < firstUserUID {
+			return trace.BadParameter("stable UNIX user UID range includes negative or system UIDs; the configured range should be contained between 1000 and 2147483647")
+		}
 	}
 
 	return nil

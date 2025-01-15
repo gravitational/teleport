@@ -63,6 +63,7 @@ Optional:
 - `second_factor` (String) SecondFactor is the type of mult-factor. Deprecated: Prefer using SecondFactors instead.
 - `second_factors` (List of Number) SecondFactors is a list of supported multi-factor types. 1 is "otp", 2 is "webauthn", 3 is "sso", If unspecified, the current default value is [1], or ["otp"].
 - `signature_algorithm_suite` (Number) SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. If unspecified, the current default value is "legacy". 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
+- `stable_unix_user_config` (Attributes) StableUnixUserConfig contains the cluster-wide configuration for stable UNIX users. (see [below for nested schema](#nested-schema-for-specstable_unix_user_config))
 - `type` (String) Type is the type of authentication.
 - `u2f` (Attributes) U2F are the settings for the U2F device. (see [below for nested schema](#nested-schema-for-specu2f))
 - `webauthn` (Attributes) Webauthn are the settings for server-side Web Authentication support. (see [below for nested schema](#nested-schema-for-specwebauthn))
@@ -111,6 +112,15 @@ Optional:
 Optional:
 
 - `sync_period` (String) SyncPeriod is the duration between synchronization calls in nanoseconds.
+
+
+### Nested Schema for `spec.stable_unix_user_config`
+
+Optional:
+
+- `enabled` (Boolean) Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from the control plane if they're about to provision a host user with no other configured UID.
+- `first_uid` (Number) FirstUid is the start of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.
+- `last_uid` (Number) LastUid is the end of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.
 
 
 ### Nested Schema for `spec.u2f`
