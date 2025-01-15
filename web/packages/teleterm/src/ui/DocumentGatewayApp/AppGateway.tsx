@@ -198,6 +198,7 @@ export function AppGateway(props: {
           <Alert
             kind="warning"
             details={props.tcpPortsAttempt.statusText}
+            m={0}
             primaryAction={{ content: 'Retry', onClick: props.getTcpPorts }}
           >
             Could not fetch available target ports
