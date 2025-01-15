@@ -741,7 +741,7 @@ func (m fakeKubeGateway) TargetName() string            { return m.targetURI.Get
 func (m fakeKubeGateway) TargetUser() string            { return "alice" }
 func (m fakeKubeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeKubeGateway) Protocol() string              { return "" }
-func (m fakeKubeGateway) Log() *slog.Logger             { return nil }
+func (m fakeKubeGateway) Log() *logrus.Entry            { return nil }
 func (m fakeKubeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeKubeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeKubeGateway) LocalPort() string             { return "8888" }
