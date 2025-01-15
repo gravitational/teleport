@@ -235,7 +235,7 @@ var ErrUserInputRequired = errors.New("user input required")
 func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, serverName string) error {
 	needsReissue := false
 	if len(cert.Certificate) == 0 {
-		m.logger.InfoContext(ctx, "missing TLS certificate, attempting to reissue a new one")
+		m.logger.Info("missing TLS certificate, attempting to reissue a new one")
 		needsReissue = true
 	} else {
 		x509Cert, err := utils.TLSCertLeaf(cert)
