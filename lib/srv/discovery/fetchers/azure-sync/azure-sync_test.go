@@ -229,7 +229,6 @@ func TestPoll(t *testing.T) {
 				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
 				require.Equal(t, *vm.Name, resource.Name)
 			}
-
 		})
 	}
 }

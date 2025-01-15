@@ -38,6 +38,7 @@ const (
 	featNameRoleAssignments = "azure/roleassignments"
 	featNameVms             = "azure/virtualmachines"
 )
+const numFeatures = 4
 
 // FetcherConcurrency is an arbitrary per-resource type concurrency to ensure significant throughput. As we increase
 // the number of resource types, we may increase this value or use some other approach to fetching concurrency.
@@ -155,7 +156,7 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(FetcherConcurrency)
 	var result = &Resources{}
-	errsCh := make(chan error)
+	errsCh := make(chan error, 4)
 	if feats.Principals {
 		eg.Go(func() error {
 			principals, err := fetchPrincipals(ctx, a.SubscriptionID, a.graphClient)
