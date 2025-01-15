@@ -26,9 +26,11 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 
-export function OfflineGateway(props: {
+export function OfflineGateway<
+  FormFieldsT extends Partial<Record<FormFieldNames, string>>,
+>(props: {
   connectAttempt: Attempt<void>;
-  reconnect(args: { localPort?: string }): void;
+  reconnect(args: FormFieldsT): void;
   /** Gateway target displayed in the UI, for example, 'cockroachdb'. */
   targetName: string;
   /** Gateway kind displayed in the UI, for example, 'database'. */
@@ -39,7 +41,7 @@ export function OfflineGateway(props: {
    * emptyFormSchema. We cannot do params.formSchema || emptyFormSchema, as that would mess with
    * type inference.
    */
-  formSchema: z.ZodType<Partial<Record<FormFieldNames, string>>>;
+  formSchema: z.ZodType<FormFieldsT>;
   /**
    * renderFormControls allows each consumer to provide its own form fields with specific HTML form
    * validation rules. The form fields are read through FormData – names on the inputs must match
