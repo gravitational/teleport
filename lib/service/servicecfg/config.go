@@ -535,10 +535,6 @@ func ApplyDefaults(cfg *Config) {
 		cfg.LoggerLevel = new(slog.LevelVar)
 	}
 
-	if cfg.MetricsRegistry == nil {
-		cfg.MetricsRegistry = prometheus.NewRegistry()
-	}
-
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
