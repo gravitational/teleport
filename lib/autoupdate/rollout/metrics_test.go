@@ -32,7 +32,9 @@ import (
 
 func newMetricsForTest(t *testing.T) *metrics {
 	reg := prometheus.NewRegistry()
-	return newMetrics(reg)
+	m, err := newMetrics(reg)
+	require.NoError(t, err)
+	return m
 }
 
 func Test_setVersionMetric(t *testing.T) {

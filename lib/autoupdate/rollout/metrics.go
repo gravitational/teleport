@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/constraints"
 
@@ -86,7 +87,7 @@ const (
 	metricsVersionLabelName     = "version"
 )
 
-func newMetrics(reg prometheus.Registerer) *metrics {
+func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 	m := metrics{
 		previousVersions: make(map[string]time.Time),
 		reconciliations: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -196,27 +197,29 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 		}, []string{metricsGroupNumberLabelName}),
 	}
 
-	reg.MustRegister(m.reconciliations)
-	reg.MustRegister(m.reconciliationDuration)
-	reg.MustRegister(m.reconciliationTries)
-	reg.MustRegister(m.reconciliationTryDuration)
+	errs := trace.NewAggregate(
+		reg.Register(m.reconciliations),
+		reg.Register(m.reconciliationDuration),
+		reg.Register(m.reconciliationTries),
+		reg.Register(m.reconciliationTryDuration),
 
-	reg.MustRegister(m.versionPresent)
-	reg.MustRegister(m.versionTarget)
-	reg.MustRegister(m.versionStart)
-	reg.MustRegister(m.versionMode)
-	reg.MustRegister(m.configPresent)
-	reg.MustRegister(m.configMode)
-	reg.MustRegister(m.rolloutPresent)
-	reg.MustRegister(m.rolloutTarget)
-	reg.MustRegister(m.rolloutStart)
-	reg.MustRegister(m.rolloutMode)
+		reg.Register(m.versionPresent),
+		reg.Register(m.versionTarget),
+		reg.Register(m.versionStart),
+		reg.Register(m.versionMode),
+		reg.Register(m.configPresent),
+		reg.Register(m.configMode),
+		reg.Register(m.rolloutPresent),
+		reg.Register(m.rolloutTarget),
+		reg.Register(m.rolloutStart),
+		reg.Register(m.rolloutMode),
 
-	reg.MustRegister(m.rolloutTimeOverride)
-	reg.MustRegister(m.rolloutState)
-	reg.MustRegister(m.rolloutGroupState)
+		reg.Register(m.rolloutTimeOverride),
+		reg.Register(m.rolloutState),
+		reg.Register(m.rolloutGroupState),
+	)
 
-	return &m
+	return &m, errs
 }
 
 func valuesHelpString[K constraints.Integer](possibleValues map[K]string) string {

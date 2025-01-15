@@ -82,7 +82,10 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 		return nil, trace.Wrap(err, "failed to initialize time-based strategy")
 	}
 
-	m := newMetrics(reg)
+	m, err := newMetrics(reg)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize metrics")
+	}
 
 	return &Controller{
 		metrics: m,
