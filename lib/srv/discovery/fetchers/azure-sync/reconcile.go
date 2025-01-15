@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -24,7 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // MergeResources merges Azure resources fetched from multiple configured Azure fetchers
@@ -42,10 +42,10 @@ func MergeResources(results ...*Resources) *Resources {
 		result.RoleDefinitions = append(result.RoleDefinitions, r.RoleDefinitions...)
 		result.VirtualMachines = append(result.VirtualMachines, r.VirtualMachines...)
 	}
-	result.Principals = common.DeduplicateSlice(result.Principals, azurePrincipalsKey)
-	result.RoleAssignments = common.DeduplicateSlice(result.RoleAssignments, azureRoleAssignKey)
-	result.RoleDefinitions = common.DeduplicateSlice(result.RoleDefinitions, azureRoleDefKey)
-	result.VirtualMachines = common.DeduplicateSlice(result.VirtualMachines, azureVmKey)
+	result.Principals = utils.DeduplicateSlice(result.Principals, azurePrincipalsKey)
+	result.RoleAssignments = utils.DeduplicateSlice(result.RoleAssignments, azureRoleAssignKey)
+	result.RoleDefinitions = utils.DeduplicateSlice(result.RoleDefinitions, azureRoleDefKey)
+	result.VirtualMachines = utils.DeduplicateSlice(result.VirtualMachines, azureVmKey)
 	return result
 }
 
@@ -86,7 +86,7 @@ func reconcile[T proto.Message](
 	wrapFn func(T) *accessgraphv1alpha.AzureResource,
 ) *reconcilePair {
 	// Remove duplicates from the new items
-	newItems = common.DeduplicateSlice(newItems, keyFn)
+	newItems = utils.DeduplicateSlice(newItems, keyFn)
 	upsertRes := newResourceList()
 	deleteRes := newResourceList()
 

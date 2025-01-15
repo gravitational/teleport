@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -138,6 +138,7 @@ func TestPoll(t *testing.T) {
 	noVmsFeats.VirtualMachines = false
 
 	tests := []struct {
+		name        string
 		returnErr   bool
 		roleDefs    []*armauthorization.RoleDefinition
 		roleAssigns []*armauthorization.RoleAssignment
@@ -146,6 +147,7 @@ func TestPoll(t *testing.T) {
 	}{
 		// Process no results from clients
 		{
+			name:        "WithoutResults",
 			returnErr:   false,
 			roleDefs:    []*armauthorization.RoleDefinition{},
 			roleAssigns: []*armauthorization.RoleAssignment{},
@@ -154,6 +156,7 @@ func TestPoll(t *testing.T) {
 		},
 		// Process test results from clients
 		{
+			name:        "WithResults",
 			returnErr:   false,
 			roleDefs:    roleDefs,
 			roleAssigns: roleAssigns,
@@ -162,6 +165,7 @@ func TestPoll(t *testing.T) {
 		},
 		// Handle errors from clients
 		{
+			name:        "PollErrors",
 			returnErr:   true,
 			roleDefs:    roleDefs,
 			roleAssigns: roleAssigns,
@@ -170,6 +174,7 @@ func TestPoll(t *testing.T) {
 		},
 		// Handle VM features being disabled
 		{
+			name:        "NoVmsFeats",
 			returnErr:   false,
 			roleDefs:    roleDefs,
 			roleAssigns: roleAssigns,
@@ -179,49 +184,52 @@ func TestPoll(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		// Set the test data
-		roleDefClient.returnErr = tt.returnErr
-		roleDefClient.roleDefs = tt.roleDefs
-		roleAssignClient.returnErr = tt.returnErr
-		roleAssignClient.roleAssigns = tt.roleAssigns
-		vmClient.returnErr = tt.returnErr
-		vmClient.vms = tt.vms
+		t.Run(tt.name, func(t *testing.T) {
+			// Set the test data
+			roleDefClient.returnErr = tt.returnErr
+			roleDefClient.roleDefs = tt.roleDefs
+			roleAssignClient.returnErr = tt.returnErr
+			roleAssignClient.roleAssigns = tt.roleAssigns
+			vmClient.returnErr = tt.returnErr
+			vmClient.vms = tt.vms
 
-		// Poll for resources
-		resources, err := fetcher.Poll(ctx, tt.feats)
+			// Poll for resources
+			resources, err := fetcher.Poll(ctx, tt.feats)
 
-		// Require no error unless otherwise specified
-		if tt.returnErr {
-			require.Error(t, err)
-			continue
-		}
-		require.NoError(t, err)
+			// Require no error unless otherwise specified
+			if tt.returnErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 
-		// Verify the results, based on the features set
-		require.NotNil(t, resources)
-		require.Equal(t, tt.feats.RoleDefinitions == false || len(tt.roleDefs) == 0, len(resources.RoleDefinitions) == 0)
-		for idx, resource := range resources.RoleDefinitions {
-			roleDef := tt.roleDefs[idx]
-			require.Equal(t, *roleDef.ID, resource.Id)
-			require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
-			require.Equal(t, *roleDef.Properties.RoleName, resource.Name)
-			require.Len(t, roleDef.Properties.Permissions, len(resource.Permissions))
-		}
-		require.Equal(t, tt.feats.RoleAssignments == false || len(tt.roleAssigns) == 0, len(resources.RoleAssignments) == 0)
-		for idx, resource := range resources.RoleAssignments {
-			roleAssign := tt.roleAssigns[idx]
-			require.Equal(t, *roleAssign.ID, resource.Id)
-			require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
-			require.Equal(t, *roleAssign.Properties.PrincipalID, resource.PrincipalId)
-			require.Equal(t, *roleAssign.Properties.RoleDefinitionID, resource.RoleDefinitionId)
-			require.Equal(t, *roleAssign.Properties.Scope, resource.Scope)
-		}
-		require.Equal(t, tt.feats.VirtualMachines == false || len(tt.vms) == 0, len(resources.VirtualMachines) == 0)
-		for idx, resource := range resources.VirtualMachines {
-			vm := tt.vms[idx]
-			require.Equal(t, *vm.ID, resource.Id)
-			require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
-			require.Equal(t, *vm.Name, resource.Name)
-		}
+			// Verify the results, based on the features set
+			require.NotNil(t, resources)
+			require.Equal(t, tt.feats.RoleDefinitions == false || len(tt.roleDefs) == 0, len(resources.RoleDefinitions) == 0)
+			for idx, resource := range resources.RoleDefinitions {
+				roleDef := tt.roleDefs[idx]
+				require.Equal(t, *roleDef.ID, resource.Id)
+				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
+				require.Equal(t, *roleDef.Properties.RoleName, resource.Name)
+				require.Len(t, roleDef.Properties.Permissions, len(resource.Permissions))
+			}
+			require.Equal(t, tt.feats.RoleAssignments == false || len(tt.roleAssigns) == 0, len(resources.RoleAssignments) == 0)
+			for idx, resource := range resources.RoleAssignments {
+				roleAssign := tt.roleAssigns[idx]
+				require.Equal(t, *roleAssign.ID, resource.Id)
+				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
+				require.Equal(t, *roleAssign.Properties.PrincipalID, resource.PrincipalId)
+				require.Equal(t, *roleAssign.Properties.RoleDefinitionID, resource.RoleDefinitionId)
+				require.Equal(t, *roleAssign.Properties.Scope, resource.Scope)
+			}
+			require.Equal(t, tt.feats.VirtualMachines == false || len(tt.vms) == 0, len(resources.VirtualMachines) == 0)
+			for idx, resource := range resources.VirtualMachines {
+				vm := tt.vms[idx]
+				require.Equal(t, *vm.ID, resource.Id)
+				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
+				require.Equal(t, *vm.Name, resource.Name)
+			}
+
+		})
 	}
 }

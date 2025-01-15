@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -20,7 +20,6 @@ package azuresync
 
 import (
 	"context"
-	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
@@ -30,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/msgraph"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -81,7 +80,7 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the clients
+	// Create the clients for the fetcher
 	graphClient, err := msgraph.NewClient(msgraph.Config{
 		TokenProvider: cred,
 	})
@@ -101,7 +100,6 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create and return the fetcher
 	return &Fetcher{
 		Config:           cfg,
 		lastResult:       &Resources{},
@@ -144,10 +142,10 @@ func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) 
 	if res == nil {
 		return nil, err
 	}
-	res.Principals = common.DeduplicateSlice(res.Principals, azurePrincipalsKey)
-	res.RoleAssignments = common.DeduplicateSlice(res.RoleAssignments, azureRoleAssignKey)
-	res.RoleDefinitions = common.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
-	res.VirtualMachines = common.DeduplicateSlice(res.VirtualMachines, azureVmKey)
+	res.Principals = utils.DeduplicateSlice(res.Principals, azurePrincipalsKey)
+	res.RoleAssignments = utils.DeduplicateSlice(res.RoleAssignments, azureRoleAssignKey)
+	res.RoleDefinitions = utils.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
+	res.VirtualMachines = utils.DeduplicateSlice(res.VirtualMachines, azureVmKey)
 	return res, trace.Wrap(err)
 }
 
@@ -157,7 +155,6 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(FetcherConcurrency)
 	var result = &Resources{}
-	var errs []error
 	errsCh := make(chan error)
 	if feats.Principals {
 		eg.Go(func() error {
@@ -166,11 +163,12 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 				errsCh <- err
 				return err
 			}
-			result.Principals, err = expandMemberships(ctx, a.graphClient, principals)
+			principals, err = expandMemberships(ctx, a.graphClient, principals)
 			if err != nil {
 				errsCh <- err
 				return err
 			}
+			result.Principals = principals
 			return nil
 		})
 	}
@@ -208,28 +206,10 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 		})
 	}
 
-	// Collect the error messages from the error channel
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			err, ok := <-errsCh
-			if !ok {
-				return
-			}
-			errs = append(errs, err)
-		}
-	}()
+	// Return the result along with any errors collected
 	_ = eg.Wait()
 	close(errsCh)
-	wg.Wait()
-	if len(errs) > 0 {
-		return result, trace.NewAggregate(errs...)
-	}
-
-	// Return the resources
-	return result, nil
+	return result, trace.NewAggregateFromChannel(errsCh, ctx)
 }
 
 // Status returns the number of resources last fetched and/or the last fetching/reconciling error
