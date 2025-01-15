@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
@@ -78,6 +79,8 @@ type AWSClientProvider interface {
 	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
 	// GetMemoryDBClient provides an [MemoryDBClient].
 	GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient
+	// GetOpenSearchClient provides an [OpenSearchClient].
+	GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient
 	// GetRDSClient provides an [RDSClient].
 	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
 	// GetRedshiftClient provides an [RedshiftClient].
@@ -94,6 +97,10 @@ func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*el
 
 func (defaultAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
 	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient {
+	return opensearch.NewFromConfig(cfg, optFns...)
 }
 
 func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {

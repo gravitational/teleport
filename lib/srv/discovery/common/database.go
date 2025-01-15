@@ -32,10 +32,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -878,7 +878,7 @@ func newElastiCacheDatabase(cluster *ectypes.ReplicationGroup, endpoint *ectypes
 }
 
 // NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
-func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+func NewDatabasesFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, tags []opensearchtypes.Tag) (types.Databases, error) {
 	var databases types.Databases
 
 	if aws.ToString(domain.Endpoint) != "" {
@@ -933,7 +933,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		databases = append(databases, db)
 	}
 
-	for name, url := range domain.Endpoints {
+	for name, endpoint := range domain.Endpoints {
 		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchVPCEndpoint)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -951,7 +951,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		meta = setAWSDBName(meta, aws.ToString(domain.DomainName), name)
 		spec := types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.ToString(url)),
+			URI:      fmt.Sprintf("%v:443", endpoint),
 			AWS:      *metadata,
 		}
 
@@ -1181,7 +1181,7 @@ func MetadataFromElastiCacheCluster(cluster *ectypes.ReplicationGroup, endpointT
 }
 
 // MetadataFromOpenSearchDomain creates AWS metadata for the provided OpenSearch domain.
-func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpointType string) (*types.AWS, error) {
+func MetadataFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(domain.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1506,7 +1506,7 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	return labels
 }
 
-func labelsFromOpenSearchDomain(domain *opensearchservice.DomainStatus, meta *types.AWS, endpointType string, tags []*opensearchservice.Tag) map[string]string {
+func labelsFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, meta *types.AWS, endpointType string, tags []opensearchtypes.Tag) map[string]string {
 	labels := labelsFromMetaAndEndpointType(meta, endpointType, libcloudaws.TagsToLabels(tags))
 	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(domain.EngineVersion)
 	return labels
