@@ -420,6 +420,7 @@ type kubeExecCommand struct {
 	target                         string
 	container                      string
 	filename                       string
+	namespace                      string
 	quiet                          bool
 	stdin                          bool
 	tty                            bool
@@ -442,6 +443,7 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
 	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
+	c.Flag("kube-namespace", "Kubernetes namespace").Short('n').StringVar(&c.namespace)
 	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
 	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
 	return c
@@ -478,6 +480,10 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if c.namespace != "" {
+		p.Namespace = c.namespace
 	}
 
 	p.Config, err = f.ToRESTConfig()
