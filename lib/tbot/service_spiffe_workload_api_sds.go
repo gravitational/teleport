@@ -39,8 +39,8 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -60,7 +60,7 @@ const (
 )
 
 type bundleSetGetter interface {
-	GetBundleSet(ctx context.Context) (*spiffe.BundleSet, error)
+	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
 }
 
 // spiffeSDSHandler implements an Envoy SDS API.
@@ -369,7 +369,7 @@ func elementsMatch(a, b []string) bool {
 }
 
 func (s *spiffeSDSHandler) generateResponse(
-	bundleSet *spiffe.BundleSet,
+	bundleSet *workloadidentity.BundleSet,
 	svids []*workloadpb.X509SVID,
 	req *discoveryv3pb.DiscoveryRequest,
 ) (*discoveryv3pb.DiscoveryResponse, error) {
