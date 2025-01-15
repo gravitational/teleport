@@ -23,7 +23,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 func TestUnixAttestor_Attest(t *testing.T) {
@@ -37,10 +41,10 @@ func TestUnixAttestor_Attest(t *testing.T) {
 	attestor := NewUnixAttestor()
 	att, err := attestor.Attest(ctx, pid)
 	require.NoError(t, err)
-	require.Equal(t, UnixAttestation{
+	require.Empty(t, cmp.Diff(&workloadidentityv1pb.WorkloadAttrsUnix{
 		Attested: true,
-		PID:      pid,
-		UID:      uid,
-		GID:      gid,
-	}, att)
+		Pid:      int32(pid),
+		Uid:      uint32(uid),
+		Gid:      uint32(gid),
+	}, att, protocmp.Transform()))
 }
