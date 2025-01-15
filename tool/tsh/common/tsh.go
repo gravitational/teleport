@@ -260,8 +260,6 @@ type CLIConf struct {
 	ShowVersion bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
-	// Namespace is used to select cluster namespace
-	Namespace string
 	// NoCache is used to turn off client cache for nodes discovery
 	NoCache bool
 	// BenchDuration is a duration for the benchmark
@@ -774,7 +772,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
-	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	// we don't want to add `.Envar(debugEnvVar)` here:
 	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
@@ -1135,7 +1132,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
-	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
+	// kube-namespace exists for backwards compatibility.
+	benchKube.Flag("kube-namespace", "Selects the ").Default("default").Hidden().StringVar(&benchKubeOpts.namespace)
+	benchKube.Flag("namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
 	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods").Hidden()
 	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
 	benchExecKube := benchKube.Command("exec", "Run a benchmark test to exec into the specified Pod").Hidden()
@@ -1214,7 +1213,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
-	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
+	// kube-namespace exists for backwards compatibility.
+	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Hidden().Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
+	reqSearch.Flag("namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
 	reqSearch.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
@@ -3781,7 +3782,7 @@ func onSSHLatency(cf *CLIConf) error {
 	nodeClient, err := tc.ConnectToNode(
 		cf.Context,
 		clt,
-		client.NodeDetails{Addr: target.Addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		client.NodeDetails{Addr: target.Addr, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -4081,7 +4082,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
+		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), *sid, nil)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4393,10 +4394,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
 
-	// 3: override with the CLI flags
-	if cf.Namespace != "" {
-		c.Namespace = cf.Namespace
-	}
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
