@@ -598,8 +598,8 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 			},
 			testGatewayConnectionFunc: testKubeConnection,
 			webauthnLogin:             params.webauthnLogin,
-			customCertsExpireFunc: params.customCertsExpireFunc,
-			expectNoRelogin:       params.expectNoRelogin,
+			customCertsExpireFunc:     params.customCertsExpireFunc,
+			expectNoRelogin:           params.expectNoRelogin,
 			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.suite.root.Process,
