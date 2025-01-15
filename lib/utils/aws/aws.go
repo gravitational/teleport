@@ -94,24 +94,33 @@ type SigV4 struct {
 }
 
 // ParseSigV4 AWS SigV4 credentials string sections.
-// AWS SigV4 header example:
-// Authorization: AWS4-HMAC-SHA256
-// Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
+// AWS SigV4 header example below adds newlines for readability only - the real
+// header must be a single continuous string with commas (and optional spaces)
+// between the Credential, SignedHeaders, and Signature:
+// Authorization: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
 // SignedHeaders=host;range;x-amz-date,
 // Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024
 func ParseSigV4(header string) (*SigV4, error) {
 	if header == "" {
 		return nil, trace.BadParameter("empty AWS SigV4 header")
 	}
-	sectionParts := strings.Split(header, " ")
+	if !strings.HasPrefix(header, AmazonSigV4AuthorizationPrefix+" ") {
+		return nil, trace.BadParameter("missing AWS SigV4 authorization algorithm")
+	}
+	header = strings.TrimPrefix(header, AmazonSigV4AuthorizationPrefix+" ")
+
+	components := strings.Split(header, ",")
+	if len(components) != 3 {
+		return nil, trace.BadParameter("expected AWS SigV4 Authorization header with 3 comma-separated components but got %d", len(components))
+	}
 
 	m := make(map[string]string)
-	for _, v := range sectionParts {
-		kv := strings.Split(v, "=")
+	for _, v := range components {
+		kv := strings.Split(strings.Trim(v, " "), "=")
 		if len(kv) != 2 {
 			continue
 		}
-		m[kv[0]] = strings.TrimSuffix(kv[1], ",")
+		m[kv[0]] = kv[1]
 	}
 
 	authParts := strings.Split(m[credentialAuthHeaderElem], "/")
