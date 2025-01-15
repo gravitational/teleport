@@ -67,6 +67,7 @@ test('updating target port creates new connection', async () => {
   expect(await screen.findByText('Close Connection')).toBeInTheDocument();
   expect(ctx.connectionTracker.getConnections()).toHaveLength(1);
   const conn1337 = ctx.connectionTracker.getConnections()[0];
+  expect(conn1337.title).toEqual(`${app.name}:1337`);
 
   // Update target port.
   let targetPortInput = screen.getByLabelText('Target Port');
@@ -86,6 +87,7 @@ test('updating target port creates new connection', async () => {
   expect(ctx.connectionTracker.getConnections()).toHaveLength(2);
   const conn4242 = ctx.connectionTracker.getConnections()[1];
   expect(conn4242.id).not.toEqual(conn1337.id);
+  expect(conn4242.title).toEqual(`${app.name}:4242`);
 
   await act(async () => {
     await ctx.connectionTracker.activateItem(conn4242.id, {

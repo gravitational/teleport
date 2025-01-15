@@ -24,7 +24,10 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
-import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
+import {
+  DocumentGateway,
+  getDocumentGatewayTitle,
+} from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -120,8 +123,12 @@ export function useGateway(doc: DocumentGateway) {
                 name
               );
 
-            documentsService.update(doc.uri, {
-              targetSubresourceName: updatedGateway.targetSubresourceName,
+            documentsService.update(doc.uri, draft => {
+              const draftDoc = draft as DocumentGateway;
+
+              draftDoc.targetSubresourceName =
+                updatedGateway.targetSubresourceName;
+              draftDoc.title = getDocumentGatewayTitle(draftDoc);
             });
           }),
         [

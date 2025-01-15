@@ -132,6 +132,7 @@ describe('setUpAppGateway', () => {
         tcpPorts: [{ port: 1234, endPort: 0 }],
       }),
       expectedTargetSubresourceName: '1234',
+      expectedTitle: 'foo:1234',
     },
     {
       name: 'creates tunnel for a multi-port TCP app with a preselected target port',
@@ -140,6 +141,7 @@ describe('setUpAppGateway', () => {
         tcpPorts: [{ port: 1234, endPort: 0 }],
       }),
       targetPort: 1234,
+      expectedTitle: 'foo:1234',
     },
     {
       name: 'creates tunnel for a web app',
@@ -147,33 +149,41 @@ describe('setUpAppGateway', () => {
         endpointUri: 'http://localhost:3000',
       }),
     },
-  ])('$name', async ({ app, targetPort, expectedTargetSubresourceName }) => {
-    const appContext = new MockAppContext();
-    setTestCluster(appContext);
-
-    await setUpAppGateway(appContext, app, {
-      telemetry: { origin: 'resource_table' },
+  ])(
+    '$name',
+    async ({
+      app,
       targetPort,
-    });
-    const documents = appContext.workspacesService
-      .getActiveWorkspaceDocumentService()
-      .getGatewayDocuments();
-    expect(documents).toHaveLength(1);
-    expect(documents[0]).toEqual({
-      gatewayUri: undefined,
-      kind: 'doc.gateway',
-      origin: 'resource_table',
-      port: undefined,
-      status: '',
-      targetName: 'foo',
-      targetSubresourceName:
-        expectedTargetSubresourceName || targetPort?.toString() || undefined,
-      targetUri: '/clusters/teleport-local/apps/foo',
-      targetUser: '',
-      title: 'foo',
-      uri: expect.any(String),
-    });
-  });
+      expectedTargetSubresourceName,
+      expectedTitle,
+    }) => {
+      const appContext = new MockAppContext();
+      setTestCluster(appContext);
+
+      await setUpAppGateway(appContext, app, {
+        telemetry: { origin: 'resource_table' },
+        targetPort,
+      });
+      const documents = appContext.workspacesService
+        .getActiveWorkspaceDocumentService()
+        .getGatewayDocuments();
+      expect(documents).toHaveLength(1);
+      expect(documents[0]).toEqual({
+        gatewayUri: undefined,
+        kind: 'doc.gateway',
+        origin: 'resource_table',
+        port: undefined,
+        status: '',
+        targetName: 'foo',
+        targetSubresourceName:
+          expectedTargetSubresourceName || targetPort?.toString() || undefined,
+        targetUri: '/clusters/teleport-local/apps/foo',
+        targetUser: '',
+        title: expectedTitle || 'foo',
+        uri: expect.any(String),
+      });
+    }
+  );
 });
 
 test('cloud app triggers alert', async () => {

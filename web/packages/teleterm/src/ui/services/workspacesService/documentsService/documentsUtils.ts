@@ -93,3 +93,22 @@ export function getDocumentGatewayTargetUriKind(
   // However, at the moment that field is essentially of type string, so there's not much we can do
   // with regards to type safety.
 }
+
+export function getDocumentGatewayTitle(doc: DocumentGateway): string {
+  const { targetName, targetUri, targetUser, targetSubresourceName } = doc;
+  const targetKind = getDocumentGatewayTargetUriKind(targetUri);
+
+  switch (targetKind) {
+    case 'db': {
+      return targetUser ? `${targetUser}@${targetName}` : targetName;
+    }
+    case 'app': {
+      return targetSubresourceName
+        ? `${targetName}:${targetSubresourceName}`
+        : targetName;
+    }
+    default: {
+      targetKind satisfies never;
+    }
+  }
+}
