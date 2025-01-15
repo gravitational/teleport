@@ -45,7 +45,7 @@ afterEach(() => {
   clearCachedJoinTokenResult([ResourceKind.Server]);
 });
 
-test('create join token', async () => {
+test('create join token without labels', async () => {
   const ctx = new TeleportContext();
 
   jest
@@ -78,7 +78,7 @@ test('create join token', async () => {
   expect(result.current.joinToken).toEqual(tokenResp);
 });
 
-test('create join token with v1 fallback', async () => {
+test('create join token without labels with v1 fallback', async () => {
   const ctx = new TeleportContext();
 
   jest

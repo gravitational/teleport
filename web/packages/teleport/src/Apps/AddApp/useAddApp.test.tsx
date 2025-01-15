@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -38,7 +38,7 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
-test('create token', async () => {
+test('create token without labels', async () => {
   jest
     .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
     .mockResolvedValue(tokenResp);
@@ -58,7 +58,7 @@ test('create token', async () => {
   expect(result.current.token).toEqual(tokenResp);
 });
 
-test('create token with v1 fallback', async () => {
+test('create token without labels with v1 fallback', async () => {
   jest
     .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
     .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));

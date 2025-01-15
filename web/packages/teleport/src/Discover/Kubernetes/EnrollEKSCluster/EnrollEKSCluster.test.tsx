@@ -185,7 +185,7 @@ describe('test EnrollEksCluster.tsx', () => {
     expect(integrationService.enrollEksClustersV2).not.toHaveBeenCalled();
   });
 
-  test('auto enroll disabled, enrolls cluster', async () => {
+  test('auto enroll disabled, enrolls cluster without labels', async () => {
     jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
@@ -218,7 +218,7 @@ describe('test EnrollEksCluster.tsx', () => {
     expect(integrationService.enrollEksClusters).not.toHaveBeenCalled();
   });
 
-  test('enroll eks with v1 fallback', async () => {
+  test('enroll eks without labels with v1 fallback', async () => {
     jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });

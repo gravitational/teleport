@@ -33,12 +33,13 @@ test('fetchJoinToken with an empty request properly sets defaults', () => {
   // Test with all empty fields.
   svc.fetchJoinTokenV2({} as any);
   expect(api.post).toHaveBeenCalledWith(
-    cfg.api.discoveryJoinToken.create,
+    cfg.api.discoveryJoinToken.createV2,
     {
       roles: undefined,
       join_method: 'token',
       allow: [],
       suggested_agent_matcher_labels: {},
+      suggested_labels: {},
     },
     null
   );
@@ -56,12 +57,13 @@ test('fetchJoinToken request fields are set as requested', () => {
   };
   svc.fetchJoinTokenV2(mock);
   expect(api.post).toHaveBeenCalledWith(
-    cfg.api.discoveryJoinToken.create,
+    cfg.api.discoveryJoinToken.createV2,
     {
       roles: ['Node'],
       join_method: 'iam',
       allow: [{ aws_account: '1234', aws_arn: 'xxxx' }],
       suggested_agent_matcher_labels: { env: ['dev'] },
+      suggested_labels: {},
     },
     null
   );
