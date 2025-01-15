@@ -51,6 +51,7 @@ type AuthPreference interface {
 	GetAllowPasswordless() bool
 	GetStableUNIXUserConfig() *types.StableUNIXUserConfig
 
+	GetRevision() string
 	Clone() types.AuthPreference
 }
 

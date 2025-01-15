@@ -674,6 +674,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	return &as, nil
 }
 
+// TODO(espadolini): a test in e refers to ClusterConfiguration as a result of
+// creating a cache in almost exactly the same way as it's done in
+// [NewTestAuthServer]; we should get rid of this alias by hoisting the creation
+// of that cache into a function in helpers.go and changing e to use that.
+type ClusterConfiguration = services.ClusterConfigurationInternal
+
 // Services is a collection of services that are used by the auth server.
 // Avoid using this type as a dependency and instead depend on the actual
 // methods/services you need. It should really only be necessary to directly
@@ -686,7 +692,7 @@ type Services struct {
 	services.Identity
 	services.Access
 	services.DynamicAccessExt
-	services.ClusterConfiguration
+	ClusterConfiguration
 	services.Restrictions
 	services.Apps
 	services.Kubernetes

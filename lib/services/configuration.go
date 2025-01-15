@@ -23,6 +23,7 @@ import (
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
@@ -127,4 +128,18 @@ type ClusterConfiguration interface {
 	UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
 	// DeleteAccessGraphSettings deletes the access graph settings from the backend.
 	DeleteAccessGraphSettings(context.Context) error
+}
+
+// ClusterConfigurationInternal extends [ClusterConfiguration] with
+// auth-specific methods.
+type ClusterConfigurationInternal interface {
+	ClusterConfiguration
+
+	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
+	// given slice that will check that the currently stored cluster auth
+	// preference has the given revision when applied as part of a
+	// [backend.Backend.AtomicWrite]. The backend to which the actions are
+	// applied should be the same backend used by the
+	// ClusterConfigurationInternal.
+	AppendCheckAuthPreferenceActions(actions []backend.ConditionalAction, revision string) ([]backend.ConditionalAction, error)
 }
