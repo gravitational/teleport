@@ -3625,7 +3625,7 @@ func retryWithAccessRequest(
 	}
 
 	// Print and log the original AccessDenied error.
-	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr, shouldEnableColors()))
 	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 	if err := promptUserForAccessRequestDetails(cf, req); err != nil {
 		return trace.Wrap(err)
@@ -3924,7 +3924,7 @@ func onSSH(cf *CLIConf) error {
 		if err != nil {
 			if errors.Is(err, teleport.ErrNodeIsAmbiguous) ||
 				// TODO(tross) DELETE IN v20.0.0
-				strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+				strings.Contains(utils.UserMessageFromError(err, false), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
 				if err != nil {
 					return trace.Wrap(err)
@@ -3959,12 +3959,26 @@ func onSSH(cf *CLIConf) error {
 		}
 		if err != nil {
 			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err, utils.IsTerminal(os.Stderr)))
 		}
 		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
+}
+
+// shouldEnableColors determines whether tsh should use ANSI escape
+// sequences to render colored error messages.
+func shouldEnableColors() bool {
+	// TODO(timothyb89): Due to complications with globally enabling +
+	// properly resetting Windows terminal ANSI processing, for now we just
+	// disable color output. Otherwise, raw ANSI escapes will be visible to
+	// users.
+	if runtime.GOOS == constants.WindowsOS {
+		return false
+	}
+
+	return utils.IsTerminal(os.Stderr)
 }
 
 // onBenchmark executes benchmark
@@ -3978,9 +3992,11 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 		Rate:          cf.BenchRate,
 	}
 
+	enableColors := shouldEnableColors()
+
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err, enableColors))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")
@@ -4004,7 +4020,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err, enableColors))
 		} else {
 			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}

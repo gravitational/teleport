@@ -2138,7 +2138,7 @@ func applyMetricsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if !utils.IsSelfSigned(certificateChain) {
 			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
 				return trace.BadParameter("unable to verify the metrics service certificate chain in %v: %s",
-					p.Certificate, utils.UserMessageFromError(err))
+					p.Certificate, utils.UserMessageFromError(err, false))
 			}
 		}
 

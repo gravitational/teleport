@@ -129,6 +129,8 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 	)
 	switch o.format {
 	case LogFormatText, "":
+		// TODO(zmb3): tsh hits this twice?
+		//
 		textFormatter := logutils.NewDefaultTextFormatter(enableColors)
 
 		// Calling CheckAndSetDefaults enables the timestamp field to
@@ -216,7 +218,12 @@ type Logger interface {
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
 // information, sends it to the logger, strips it off and prints a clean message to stderr
 func FatalError(err error) {
-	fmt.Fprintln(os.Stderr, UserMessageFromError(err))
+	// TODO(timothyb89): Due to complications with globally enabling +
+	// properly resetting Windows terminal ANSI processing, for now we just
+	// disable color output. Otherwise, raw ANSI escapes will be visible to
+	// users.
+	enableColors := runtime.GOOS != constants.WindowsOS && IsTerminal(os.Stderr)
+	fmt.Fprintln(os.Stderr, UserMessageFromError(err, enableColors))
 	os.Exit(1)
 }
 
@@ -238,7 +245,7 @@ func GetIterations() int {
 // UserMessageFromError returns user-friendly error message from error.
 // The error message will be formatted for output depending on the debug
 // flag
-func UserMessageFromError(err error) string {
+func UserMessageFromError(err error, enableColors bool) string {
 	if err == nil {
 		return ""
 	}
@@ -246,15 +253,12 @@ func UserMessageFromError(err error) string {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
-	if runtime.GOOS == constants.WindowsOS {
-		// TODO(timothyb89): Due to complications with globally enabling +
-		// properly resetting Windows terminal ANSI processing, for now we just
-		// disable color output. Otherwise, raw ANSI escapes will be visible to
-		// users.
-		fmt.Fprint(&buf, "ERROR: ")
-	} else {
+	if enableColors {
 		fmt.Fprint(&buf, Color(Red, "ERROR: "))
+	} else {
+		fmt.Fprint(&buf, "ERROR: ")
 	}
+
 	formatErrorWriter(err, &buf)
 	return buf.String()
 }

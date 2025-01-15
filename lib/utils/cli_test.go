@@ -63,7 +63,7 @@ func TestUserMessageFromError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		message := UserMessageFromError(tt.inError)
+		message := UserMessageFromError(tt.inError, true)
 		require.Contains(t, message, tt.outString)
 	}
 }
