@@ -57,6 +57,7 @@ import {
 } from 'teleport/services/discovery';
 import {
   AwsEksCluster,
+  EnrollEksClustersResponse,
   integrationService,
   Regions,
 } from 'teleport/services/integrations';
@@ -66,6 +67,7 @@ import {
   DiscoverEvent,
   DiscoverEventStatus,
 } from 'teleport/services/userEvent';
+import { useV1Fallback } from 'teleport/services/version/unsupported';
 import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons, Header, LabelsCreater } from '../../Shared';
@@ -139,6 +141,9 @@ export function EnrollEksCluster(props: AgentStepProps) {
   // we delay it to avoid premature admin action MFA confirmation request.
   const [joinToken, setJoinToken] = useState<JoinToken>(null);
   const [customLabels, setCustomLabels] = useState<ResourceLabel[]>([]);
+
+  // TODO(kimlisa): DELETE IN 19.0
+  const { tryV1Fallback } = useV1Fallback();
 
   const ctx = useTeleport();
 
@@ -313,15 +318,26 @@ export function EnrollEksCluster(props: AgentStepProps) {
     setEnrollmentState({ status: 'enrolling' });
 
     try {
-      const response = await integrationService.enrollEksClusters(
-        integrationName,
-        {
-          region: selectedRegion,
-          enableAppDiscovery: isAppDiscoveryEnabled,
-          clusterNames: [selectedCluster.name],
-          extraLabels: customLabels,
-        }
-      );
+      const req = {
+        region: selectedRegion,
+        enableAppDiscovery: isAppDiscoveryEnabled,
+        clusterNames: [selectedCluster.name],
+        extraLabels: customLabels,
+      };
+      let response: EnrollEksClustersResponse;
+      try {
+        response = await integrationService.enrollEksClustersV2(
+          integrationName,
+          req
+        );
+      } catch (err) {
+        response = await tryV1Fallback({
+          kind: 'enroll-eks',
+          err,
+          integrationName,
+          req,
+        });
+      }
 
       const result = response.results?.find(
         c => c.clusterName === selectedCluster.name
