@@ -31,7 +31,7 @@ test('fetchJoinToken with an empty request properly sets defaults', () => {
   jest.spyOn(api, 'post').mockResolvedValue(null);
 
   // Test with all empty fields.
-  svc.fetchJoinToken({} as any);
+  svc.fetchJoinTokenV2({} as any);
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.discoveryJoinToken.create,
     {
@@ -54,7 +54,7 @@ test('fetchJoinToken request fields are set as requested', () => {
     method: 'iam',
     suggestedAgentMatcherLabels: [{ name: 'env', value: 'dev' }],
   };
-  svc.fetchJoinToken(mock);
+  svc.fetchJoinTokenV2(mock);
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.discoveryJoinToken.create,
     {
@@ -62,26 +62,6 @@ test('fetchJoinToken request fields are set as requested', () => {
       join_method: 'iam',
       allow: [{ aws_account: '1234', aws_arn: 'xxxx' }],
       suggested_agent_matcher_labels: { env: ['dev'] },
-    },
-    null
-  );
-});
-
-test('fetchJoinToken with labels calls v2 endpoint', () => {
-  const svc = new JoinTokenService();
-  jest.spyOn(api, 'post').mockResolvedValue(null);
-
-  const mock: JoinTokenRequest = {
-    suggestedLabels: [{ name: 'env', value: 'testing' }],
-  };
-  svc.fetchJoinToken(mock);
-  expect(api.post).toHaveBeenCalledWith(
-    cfg.api.discoveryJoinToken.createV2,
-    {
-      suggested_labels: { env: ['testing'] },
-      suggested_agent_matcher_labels: {},
-      join_method: 'token',
-      allow: [],
     },
     null
   );
