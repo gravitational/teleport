@@ -25,14 +25,16 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // WindowsKubernetesAttestor is the windows stub for KubernetesAttestor.
 type WindowsKubernetesAttestor struct {
 }
 
-func (a WindowsKubernetesAttestor) Attest(_ context.Context, _ int) (KubernetesAttestation, error) {
-	return KubernetesAttestation{}, trace.NotImplemented("kubernetes attestation is not supported on windows")
+func (a WindowsKubernetesAttestor) Attest(_ context.Context, _ int) (*workloadidentityv1pb.WorkloadAttrsKubernetes, error) {
+	return nil, trace.NotImplemented("kubernetes attestation is not supported on windows")
 }
 
 // NewKubernetesAttestor creates a new KubernetesAttestor.
