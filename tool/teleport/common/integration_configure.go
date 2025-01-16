@@ -64,24 +64,6 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 	return trace.Wrap(awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, confReq))
 }
 
-func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConfEICEIAM) error {
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	clt, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	confReq := awsoidc.EICEIAMConfigureRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
-	}
-	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, clt, confReq))
-}
-
 func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationConfEC2SSMIAM) error {
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)

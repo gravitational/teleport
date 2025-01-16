@@ -439,25 +439,6 @@ type AWSOIDCListEKSClustersResponse struct {
 	NextToken string `json:"nextToken,omitempty"`
 }
 
-// AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
-type AWSOIDCListEC2Request struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken"`
-}
-
-// AWSOIDCListEC2Response contains a list of Servers and a next token if more pages are available.
-type AWSOIDCListEC2Response struct {
-	// Servers contains the page of Servers
-	Servers []Server `json:"servers"`
-
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken string `json:"nextToken,omitempty"`
-}
-
 // AWSOIDCListSecurityGroupsRequest is a request to ListSecurityGroups using the AWS OIDC Integration.
 type AWSOIDCListSecurityGroupsRequest struct {
 	// Region is the AWS Region.
@@ -547,78 +528,6 @@ type AWSOIDCRequiredVPCSResponse struct {
 	// VPCMapOfSubnets is a map of vpc ids and its subnets.
 	// Will be empty if no vpc's are required.
 	VPCMapOfSubnets map[string][]string `json:"vpcMapOfSubnets"`
-}
-
-// AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.
-type AWSOIDCListEC2ICERequest struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
-	// Deprecated: use VPCIDs instead.
-	VPCID string `json:"vpcId"`
-	// VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
-	VPCIDs []string `json:"vpcIds"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken"`
-}
-
-// AWSOIDCListEC2ICEResponse contains a list of AWS Instance Connect Endpoints and a next token if more pages are available.
-type AWSOIDCListEC2ICEResponse struct {
-	// EC2ICEs contains the page of Endpoints
-	EC2ICEs []awsoidc.EC2InstanceConnectEndpoint `json:"ec2Ices"`
-
-	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
-	DashboardLink string `json:"dashboardLink,omitempty"`
-
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken string `json:"nextToken,omitempty"`
-}
-
-// AWSOIDCDeployEC2ICERequest is a request to create an AWS EC2 Instance Connect Endpoint.
-type AWSOIDCDeployEC2ICERequest struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// Endpoints is a list of endpoinst to create.
-	Endpoints []AWSOIDCDeployEC2ICERequestEndpoint `json:"endpoints"`
-
-	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-	// Deprecated: use Endpoints instead.
-	SubnetID string `json:"subnetId"`
-	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	// Deprecated: use Endpoints instead.
-	SecurityGroupIDs []string `json:"securityGroupIds"`
-}
-
-// AWSOIDCDeployEC2ICERequestEndpoint is a single Endpoint that should be created.
-type AWSOIDCDeployEC2ICERequestEndpoint struct {
-	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-	SubnetID string `json:"subnetId"`
-	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	SecurityGroupIDs []string `json:"securityGroupIds"`
-}
-
-// AWSOIDCDeployEC2ICEResponse is the response after creating an AWS EC2 Instance Connect Endpoint.
-type AWSOIDCDeployEC2ICEResponse struct {
-	// Name is the name of the endpoint that was created.
-	// If multiple endpoints were created, this will contain all of them joined by a `,`.
-	// Eg, eice-1,eice-2
-	// Deprecated: use Endpoints instead.
-	Name string `json:"name"`
-
-	// Endpoints is a list of created endpoints
-	Endpoints []AWSOIDCDeployEC2ICEResponseEndpoint `json:"endpoints"`
-}
-
-// AWSOIDCDeployEC2ICEResponseEndpoint describes a single endpoint that was created.
-type AWSOIDCDeployEC2ICEResponseEndpoint struct {
-	// Name is the EC2 Instance Connect Endpoint name.
-	Name string `json:"name"`
-	// SubnetID is the subnet where this endpoint was created.
-	SubnetID string `json:"subnetId"`
 }
 
 // AWSOIDCPingResponse contains the result of the Ping request.
