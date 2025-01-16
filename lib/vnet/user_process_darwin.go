@@ -31,11 +31,14 @@ import (
 // background. To do this, it also needs to launch an admin process in the
 // background. It returns a [ProcessManager] which controls the lifecycle of
 // both background tasks.
-//
-// The caller is expected to call Close on the process manager to close the
-// network stack, clean up any resources used by it and terminate the admin
-// process.
-func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (*ProcessManager, error) {
+func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
+	// Make sure to close the process manager if returning a non-nil error.
+	defer func() {
+		if pm != nil && err != nil {
+			pm.Close()
+		}
+	}()
+
 	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
 		return nil, trace.Wrap(err)

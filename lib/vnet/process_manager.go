@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -70,7 +71,11 @@ func (pm *ProcessManager) Wait() error {
 	select {
 	case <-pm.closed:
 		// Errors are expected after the process manager has been closed,
-		// usually due to context cancellation.
+		// usually due to context cancellation, but other error types may be
+		// returned. Log unexpected errors at debug level but return nil.
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.DebugContext(context.Background(), "ProcessManager exited with error after being closed", "error", err)
+		}
 		return nil
 	default:
 		return trace.Wrap(err)

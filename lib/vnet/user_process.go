@@ -49,24 +49,18 @@ func (c *UserProcessConfig) checkAndSetDefaults() error {
 }
 
 // RunUserProcess is called by all VNet client applications (tsh, Connect) to
-// start and run all VNet tasks.
+// start and run all VNet tasks.  It returns a [ProcessManager] which controls
+// the lifecycle of all tasks and background processes.
 //
-// It returns a [ProcessManager] which controls the lifecycle of all tasks and
-// background processes. The caller is expected to call Close on the process
-// manager to clean up any resources, terminate all processes, and remove and OS
-// configuration used for actively running VNet.
-//
-// ctx is used to wait for setup steps that happen before RunUserProcess hands out the
-// control to the process manager. If ctx gets canceled during RunUserProcess, the process
-// manager gets closed along with its background tasks.
+// ctx is used for setup steps that happen before RunUserProcess passes control
+// to the process manager. Canceling ctx after RunUserProcess returns will _not_
+// cancel the background tasks. If [RunUserProcess] returns without error, the
+// caller is expected to call Close on the process manager to clean up any
+// resources, terminate all processes, and remove any OS configuration used for
+// actively running VNet.
 func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *ProcessManager, err error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer func() {
-		if pm != nil && err != nil {
-			pm.Close()
-		}
-	}()
 	return runPlatformUserProcess(ctx, cfg)
 }

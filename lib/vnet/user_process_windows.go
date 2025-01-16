@@ -25,22 +25,16 @@ import (
 // runPlatformUserProcess launches a Windows service in the background that will
 // handle all networking and OS configuration. The user process exposes a gRPC
 // interface that the admin process uses to query application names and get user
-// certificates for apps.
-//
-// RunUserProcess returns a [ProcessManager] which controls the lifecycle of
-// both the user and admin processes.
-//
-// The caller is expected to call Close on the process manager to clean up any
-// resources and terminate the admin process, which will in turn stop the
-// networking stack and deconfigure the host OS.
-//
-// ctx is used to wait for setup steps that happen before RunUserProcess hands out the
-// control to the process manager. If ctx gets canceled during RunUserProcess, the process
-// manager gets closed along with its background tasks.
+// certificates for apps. It returns a [ProcessManager] which controls the
+// lifecycle of both the user and admin processes.
 func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
-	if err := config.checkAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Make sure to close the process manager if returning a non-nil error.
+	defer func() {
+		if pm != nil && err != nil {
+			pm.Close()
+		}
+	}()
+
 	pm, processCtx := newProcessManager()
 	pm.AddCriticalBackgroundTask("VNet Windows service", func() error {
 		return trace.Wrap(runService(processCtx), "running VNet Windows service in the background")

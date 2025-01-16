@@ -33,7 +33,7 @@ import (
 //
 // It also handles host OS configuration that must run as root, and stays alive
 // to keep the host configuration up to date. It will stay running until the
-// socket at config.socketPath is deleted, [ctx] is canceled, or until
+// socket at config.socketPath is deleted, ctx is canceled, or until
 // encountering an unrecoverable error.
 func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -73,7 +73,7 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 }
 
 // createAndSendTUNDevice creates a virtual network TUN device and sends the open file descriptor on
-// [socketPath]. It returns the name of the TUN device or an error.
+// socketPath. It returns the name of the TUN device or an error.
 func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, error) {
 	tun, tunName, err := createTUNDevice(ctx)
 	if err != nil {
@@ -106,7 +106,7 @@ func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
 	return dev, name, nil
 }
 
-// osConfigurationLoop will keep running until [ctx] is canceled or an unrecoverable error is encountered, in
+// osConfigurationLoop will keep running until ctx] is canceled or an unrecoverable error is encountered, in
 // order to keep the host OS configuration up to date.
 func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, homePath string, clientCred daemon.ClientCred) error {
 	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath, clientCred)
@@ -127,7 +127,7 @@ func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, home
 	}
 
 	defer func() {
-		// Shutting down, deconfigure OS. Pass context.Background because [ctx] has likely been canceled
+		// Shutting down, deconfigure OS. Pass context.Background because ctx has likely been canceled
 		// already but we still need to clean up.
 		if err := osConfigurator.deconfigureOS(context.Background()); err != nil {
 			log.ErrorContext(ctx, "Error deconfiguring host OS before shutting down.", "error", err)
