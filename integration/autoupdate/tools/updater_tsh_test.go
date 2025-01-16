@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/integration/autoupdate/tools/updater"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -84,7 +85,10 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	require.NoError(t, err)
 	_, err = authService.UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
-	err = authService.UpsertPassword("alice", []byte(updater.TestPassword))
+	password, err := utils.CryptoRandomHex(6)
+	require.NoError(t, err)
+	t.Setenv(updater.TestPassword, password)
+	err = authService.UpsertPassword("alice", []byte(password))
 	require.NoError(t, err)
 
 	// Assign alias to the login command for test cluster.

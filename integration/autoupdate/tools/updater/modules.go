@@ -35,9 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-const (
-	TestPassword = "abc123def456"
-)
+// TestPassword is password generated during the test to login in test cluster.
+const TestPassword = "UPDATER_TEST_PASSWORD"
 
 var (
 	version = teleport.Version
