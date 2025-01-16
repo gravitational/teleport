@@ -1166,7 +1166,7 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	if w.Disabled {
 		const msg = `The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), msg)
 	}
 	return &types.Webauthn{
