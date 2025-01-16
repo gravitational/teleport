@@ -256,6 +256,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
               const newItem = createGatewayConnection(doc);
               draft.connections.push(newItem);
             } else {
+              gwConn.title = doc.title;
               gwConn.gatewayUri = doc.gatewayUri;
               gwConn.targetSubresourceName = doc.targetSubresourceName;
               gwConn.port = doc.port;
