@@ -1392,8 +1392,6 @@ export interface UrlDeployServiceIamConfigureScriptParams {
 export interface UrlAwsOidcConfigureIdp {
   integrationName: string;
   roleName: string;
-  s3Bucket?: string;
-  s3Prefix?: string;
   policyPreset?: AwsOidcPolicyPreset;
 }
 

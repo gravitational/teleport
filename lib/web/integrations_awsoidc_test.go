@@ -20,7 +20,6 @@ package web
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -613,11 +612,6 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 	}
 	scriptEndpoint := publicClt.Endpoint(pathVars...)
 
-	jwksEndpoint := publicClt.Endpoint(".well-known", "jwks-oidc")
-	resp, err := publicClt.Get(ctx, jwksEndpoint, nil)
-	require.NoError(t, err)
-	jwksBase64 := base64.StdEncoding.EncodeToString(resp.Bytes())
-
 	tests := []struct {
 		name                 string
 		reqRelativeURL       string
@@ -631,8 +625,6 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"myRole"},
 				"integrationName": []string{"myintegration"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
 				"policyPreset":    []string{""},
 			},
 			errCheck: require.NoError,
@@ -640,8 +632,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=myRole " +
-				`--s3-bucket-uri=s3://my-bucket/prefix ` +
-				"--s3-jwks-base64=" + jwksBase64,
+				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
 			name: "valid with proxy endpoint",
@@ -663,16 +654,13 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"Test+1=2,3.4@5-6_7"},
 				"integrationName": []string{"myintegration"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=Test\\+1=2,3.4\\@5-6_7 " +
-				`--s3-bucket-uri=s3://my-bucket/prefix ` +
-				"--s3-jwks-base64=" + jwksBase64,
+				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
 			name: "valid with supported policy preset",
@@ -687,42 +675,20 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=myRole " +
-				"--policy-preset=aws-identity-center " +
-				"--proxy-public-url=" + proxyPublicURL.String(),
+				"--proxy-public-url=" + proxyPublicURL.String() + " " +
+				"--policy-preset=aws-identity-center",
 		},
 		{
 			name: "missing role",
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing integration name",
 			reqQuery: url.Values{
-				"role":     []string{"role"},
-				"s3Bucket": []string{"my-bucket"},
-				"s3Prefix": []string{"prefix"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing s3 bucket",
-			reqQuery: url.Values{
-				"integrationName": []string{"myintegration"},
-				"role":            []string{"role"},
-				"s3Prefix":        []string{"prefix"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing s3 prefix",
-			reqQuery: url.Values{
-				"integrationName": []string{"myintegration"},
-				"role":            []string{"role"},
-				"s3Bucket":        []string{"my-bucket"},
+				"role": []string{"role"},
 			},
 			errCheck: isBadParamErrFn,
 		},
@@ -731,9 +697,13 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},
 				"role":            []string{"role"},
-				"s3Bucket":        []string{"my-bucket"},
 			},
-			errCheck: isBadParamErrFn,
+			expectedTeleportArgs: "integration configure awsoidc-idp " +
+				"--cluster=localhost " +
+				"--name=myintegration " +
+				"--role=role " +
+				"--proxy-public-url=" + proxyPublicURL.String(),
+			errCheck: require.NoError,
 		},
 	}
 
