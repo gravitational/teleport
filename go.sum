@@ -1561,8 +1561,8 @@ github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFE
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 h1:TjiJ98fWU5N28MBktP5vj1/xohin7cX/JBPPJ8iCiTE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624/go.mod h1:pERQ8qtFfvV0Pfw9jA5o1WH1snupQQ3SZ+n8CVdRJNs=
-github.com/gravitational/predicate v1.3.1 h1:f1uGg2FF6z5wZbcafYpLZJ1gl+82I0MlSd0cQKDPQe0=
-github.com/gravitational/predicate v1.3.1/go.mod h1:H5e9dUW7zb/cuKkkhfnyT9SsI/WHWJ8Ra011La16DTY=
+github.com/gravitational/predicate v1.3.2 h1:NAdaWihgGVS3nuKDZZHTda4wwNjGlvG4a+UYQ4f3gQc=
+github.com/gravitational/predicate v1.3.2/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
 github.com/gravitational/protobuf v1.3.2-teleport.1 h1:h5mh+UOKPurqDxn1hRVcr1WzSkmBi+D9qkXpaXA9PFM=
 github.com/gravitational/protobuf v1.3.2-teleport.1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/gravitational/redis/v9 v9.6.1-teleport.1 h1:gPirfPKArN2nPhTKR3h9fnEg5YuYU933+CjlDJMo4H0=
@@ -1571,8 +1571,8 @@ github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyP
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/saml v0.4.15-teleport.1 h1:kYSLpxEBEc7JLJJ+VjsZU8PbWI4gWxdCgll5cq1/rGU=
 github.com/gravitational/saml v0.4.15-teleport.1/go.mod h1:S4+611dxnKt8z/ulbvaJzcgSHsuhjVc1QHNTcr1R7Fw=
-github.com/gravitational/trace v1.4.0 h1:TtTeMElVwMX21Udb1nmK2tpWYAAMJoyjevzKOaxIFZQ=
-github.com/gravitational/trace v1.4.0/go.mod h1:g79NZzwCjWS/VVubYowaFAQsTjVTohGi0hFbIWSyGoY=
+github.com/gravitational/trace v1.5.0 h1:JbeL2HDGyzgy7G72Z2hP2gExEyA6Y2p7fCiSjyZwCJw=
+github.com/gravitational/trace v1.5.0/go.mod h1:dxezSkKm880IIDx+czWG8fq+pLnXjETBewMgN3jOBlg=
 github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 h1:pdN6V1QBWetyv/0+wjACpqVH+eVULgEjkurDLq3goeM=
 github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1 h1:qnpSQwGEnkcRpTqNOIR6bJbR0gAorgP9CSALpRcKoAA=
@@ -3134,8 +3134,8 @@ google.golang.org/protobuf v1.28.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqw
 google.golang.org/protobuf v1.29.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.30.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
-google.golang.org/protobuf v1.36.2 h1:R8FeyR1/eLmkutZOM5CWghmo5itiG9z0ktFlTVLuTmU=
-google.golang.org/protobuf v1.36.2/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
+google.golang.org/protobuf v1.36.3 h1:82DV7MYdb8anAVi3qge1wSnMDrnKK7ebr+I0hHRN1BU=
+google.golang.org/protobuf v1.36.3/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
 gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc h1:2gGKlE2+asNV9m7xrywl36YYNnBG5ZQ0r/BOOxqPpmk=
 gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc/go.mod h1:m7x9LTH6d71AHyAX77c9yqWCCa3UKHcVEj9y7hAtKDk=

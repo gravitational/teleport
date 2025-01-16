@@ -144,12 +144,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// TODO(strideynet): REMOVE IN 18.0.0 - this method is now gRPC
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
-	// Namespaces
-	srv.POST("/:version/namespaces", srv.WithAuth(srv.upsertNamespace))
-	srv.GET("/:version/namespaces", srv.WithAuth(srv.getNamespaces))
-	srv.GET("/:version/namespaces/:namespace", srv.WithAuth(srv.getNamespace))
-	srv.DELETE("/:version/namespaces/:namespace", srv.WithAuth(srv.deleteNamespace))
-
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.WithAuth(srv.setClusterName))
@@ -667,55 +661,6 @@ func (s *APIServer) searchSessionEvents(auth *ServerWithRoles, w http.ResponseWr
 	}
 
 	return eventsList, nil
-}
-
-type upsertNamespaceReq struct {
-	Namespace types.Namespace `json:"namespace"`
-}
-
-func (s *APIServer) upsertNamespace(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertNamespaceReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpsertNamespace(req.Namespace); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getNamespaces(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	namespaces, err := auth.GetNamespaces()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return namespaces, nil
-}
-
-func (s *APIServer) getNamespace(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	name := p.ByName("namespace")
-	if !types.IsValidNamespace(name) {
-		return nil, trace.BadParameter("invalid namespace %q", name)
-	}
-
-	namespace, err := auth.GetNamespace(name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return namespace, nil
-}
-
-func (s *APIServer) deleteNamespace(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	name := p.ByName("namespace")
-	if !types.IsValidNamespace(name) {
-		return nil, trace.BadParameter("invalid namespace %q", name)
-	}
-
-	err := auth.DeleteNamespace(name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
 }
 
 func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

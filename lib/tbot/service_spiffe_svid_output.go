@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 const (
@@ -60,7 +60,7 @@ type SPIFFESVIDOutputService struct {
 	resolver       reversetunnelclient.Resolver
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache *spiffe.TrustBundleCache
+	trustBundleCache *workloadidentity.TrustBundleCache
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
@@ -72,7 +72,7 @@ func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
 	}
-	bundleSet, err := spiffe.FetchInitialBundleSet(
+	bundleSet, err := workloadidentity.FetchInitialBundleSet(
 		ctx,
 		s.log,
 		s.botAuthClient.SPIFFEFederationServiceClient(),
@@ -223,7 +223,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 
 func (s *SPIFFESVIDOutputService) render(
 	ctx context.Context,
-	bundleSet *spiffe.BundleSet,
+	bundleSet *workloadidentity.BundleSet,
 	res *machineidv1pb.SignX509SVIDsResponse,
 	privateKey crypto.Signer,
 	jwtSVIDs map[string]string,

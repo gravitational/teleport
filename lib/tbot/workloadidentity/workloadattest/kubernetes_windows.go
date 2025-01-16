@@ -1,3 +1,5 @@
+//go:build windows
+
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -20,27 +22,22 @@ package workloadattest
 
 import (
 	"context"
-	"os"
-	"testing"
+	"log/slog"
 
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/trace"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
-func TestUnixAttestor_Attest(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
+// WindowsKubernetesAttestor is the windows stub for KubernetesAttestor.
+type WindowsKubernetesAttestor struct {
+}
 
-	pid := os.Getpid()
-	uid := os.Getuid()
-	gid := os.Getgid()
+func (a WindowsKubernetesAttestor) Attest(_ context.Context, _ int) (*workloadidentityv1pb.WorkloadAttrsKubernetes, error) {
+	return nil, trace.NotImplemented("kubernetes attestation is not supported on windows")
+}
 
-	attestor := NewUnixAttestor()
-	att, err := attestor.Attest(ctx, pid)
-	require.NoError(t, err)
-	require.Equal(t, UnixAttestation{
-		Attested: true,
-		PID:      pid,
-		UID:      uid,
-		GID:      gid,
-	}, att)
+// NewKubernetesAttestor creates a new KubernetesAttestor.
+func NewKubernetesAttestor(_ KubernetesAttestorConfig, _ *slog.Logger) *WindowsKubernetesAttestor {
+	return &WindowsKubernetesAttestor{}
 }

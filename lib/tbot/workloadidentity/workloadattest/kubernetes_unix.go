@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/mount"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // KubernetesAttestor attests a workload to a Kubernetes pod.
@@ -75,27 +77,27 @@ func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *Kube
 
 // Attest resolves the Kubernetes pod information from the
 // PID of the workload.
-func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (KubernetesAttestation, error) {
+func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsKubernetes, error) {
 	a.log.DebugContext(ctx, "Starting Kubernetes workload attestation", "pid", pid)
 
 	podID, containerID, err := a.getContainerAndPodID(pid)
 	if err != nil {
-		return KubernetesAttestation{}, trace.Wrap(err, "determining pod and container ID")
+		return nil, trace.Wrap(err, "determining pod and container ID")
 	}
 	a.log.DebugContext(ctx, "Found pod and container ID", "pod_id", podID, "container_id", containerID)
 
 	pod, err := a.getPodForID(ctx, podID)
 	if err != nil {
-		return KubernetesAttestation{}, trace.Wrap(err, "finding pod by ID")
+		return nil, trace.Wrap(err, "finding pod by ID")
 	}
 	a.log.DebugContext(ctx, "Found pod", "pod_name", pod.Name)
 
-	att := KubernetesAttestation{
+	att := &workloadidentityv1pb.WorkloadAttrsKubernetes{
 		Attested:       true,
 		Namespace:      pod.Namespace,
 		ServiceAccount: pod.Spec.ServiceAccountName,
 		PodName:        pod.Name,
-		PodUID:         string(pod.UID),
+		PodUid:         string(pod.UID),
 		Labels:         pod.Labels,
 	}
 	a.log.DebugContext(ctx, "Finished Kubernetes workload attestation", "attestation", att)
