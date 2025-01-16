@@ -147,13 +147,25 @@ const api = {
     } catch (err) {
       // Retry with MFA if we get an admin action MFA error.
       if (!mfaResponse && isAdminActionRequiresMfaError(err)) {
-        const challenge = await auth.getMfaChallenge({
-          scope: MfaChallengeScope.ADMIN_ACTION,
-        });
-        mfaResponse = await auth.getMfaChallengeResponse(challenge);
+        mfaResponse = await api.getAdminActionMfaResponse();
         return await api.fetch(url, customOptions, mfaResponse);
       }
     }
+  },
+
+  async getAdminActionMfaResponse(allowReuse?: boolean) {
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse,
+    });
+
+    if (!challenge) {
+      throw new Error(
+        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
+      );
+    }
+
+    return await auth.getMfaChallengeResponse(challenge);
   },
 
   /**
