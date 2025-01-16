@@ -26,7 +26,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,31 +44,45 @@ const fetcherConcurrency = 4
 
 // Config defines parameters required for fetching resources from Azure
 type Config struct {
-	CloudClients        cloud.Clients
-	SubscriptionID      string
-	Integration         string
+	// SubscriptionID is the Azure subscriptipn ID
+	SubscriptionID string
+	// Integration is the name of the associated Teleport integration
+	Integration string
+	// DiscoveryConfigName is the name of this Discovery configuration
 	DiscoveryConfigName string
 }
 
 // Resources represents the set of resources fetched from Azure
 type Resources struct {
-	Principals      []*accessgraphv1alpha.AzurePrincipal
+	// Principals are Azure users, groups, and service principals
+	Principals []*accessgraphv1alpha.AzurePrincipal
+	// RoleDefinitions are Azure role definitions
 	RoleDefinitions []*accessgraphv1alpha.AzureRoleDefinition
+	// RoleAssignments are Azure role assignments
 	RoleAssignments []*accessgraphv1alpha.AzureRoleAssignment
+	// VirtualMachines are Azure virtual machines
 	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
 }
 
 // Fetcher provides the functionality for fetching resources from Azure
 type Fetcher struct {
+	// Config is the configuration values for this fetcher
 	Config
-	lastError               error
+	// lastError is the last error returned from polling
+	lastError error
+	// lastDiscoveredResources is the number of resources last returned from polling
 	lastDiscoveredResources uint64
-	lastResult              *Resources
+	// lastResult is the last set of resources returned from polling
+	lastResult *Resources
 
-	graphClient      *msgraph.Client
+	// graphClient is the MS graph client for fetching principals
+	graphClient *msgraph.Client
+	// roleAssignClient is the Azure client for fetching role assignments
 	roleAssignClient RoleAssignmentsClient
-	roleDefClient    RoleDefinitionsClient
-	vmClient         VirtualMachinesClient
+	// roleDefClient is the Azure client for fetching role definitions
+	roleDefClient RoleDefinitionsClient
+	// vmClient is the Azure client for fetching virtual machines
+	vmClient VirtualMachinesClient
 }
 
 // NewFetcher returns a new fetcher based on configuration parameters
@@ -137,8 +150,8 @@ func BuildFeatures(values ...string) Features {
 }
 
 // Poll fetches and deduplicates Azure resources specified by the Access Graph
-func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {
-	res, err := a.fetch(ctx, feats)
+func (f *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {
+	res, err := f.fetch(ctx, feats)
 	if res == nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +163,7 @@ func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) 
 }
 
 // fetch returns the resources specified by the Access Graph
-func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error) {
+func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error) {
 	// Accumulate Azure resources
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(fetcherConcurrency)
@@ -158,12 +171,12 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	errsCh := make(chan error, fetcherConcurrency)
 	if feats.Principals {
 		eg.Go(func() error {
-			principals, err := fetchPrincipals(ctx, a.SubscriptionID, a.graphClient)
+			principals, err := fetchPrincipals(ctx, f.SubscriptionID, f.graphClient)
 			if err != nil {
 				errsCh <- err
 				return nil
 			}
-			principals, err = expandMemberships(ctx, a.graphClient, principals)
+			principals, err = expandMemberships(ctx, f.graphClient, principals)
 			if err != nil {
 				errsCh <- err
 				return nil
@@ -174,7 +187,7 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	}
 	if feats.RoleAssignments {
 		eg.Go(func() error {
-			roleAssigns, err := fetchRoleAssignments(ctx, a.SubscriptionID, a.roleAssignClient)
+			roleAssigns, err := fetchRoleAssignments(ctx, f.SubscriptionID, f.roleAssignClient)
 			if err != nil {
 				errsCh <- err
 				return nil
@@ -185,7 +198,7 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	}
 	if feats.RoleDefinitions {
 		eg.Go(func() error {
-			roleDefs, err := fetchRoleDefinitions(ctx, a.SubscriptionID, a.roleDefClient)
+			roleDefs, err := fetchRoleDefinitions(ctx, f.SubscriptionID, f.roleDefClient)
 			if err != nil {
 				errsCh <- err
 				return nil
@@ -196,7 +209,7 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	}
 	if feats.VirtualMachines {
 		eg.Go(func() error {
-			vms, err := fetchVirtualMachines(ctx, a.SubscriptionID, a.vmClient)
+			vms, err := fetchVirtualMachines(ctx, f.SubscriptionID, f.vmClient)
 			if err != nil {
 				errsCh <- err
 				return nil
@@ -217,21 +230,21 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 }
 
 // Status returns the number of resources last fetched and/or the last fetching/reconciling error
-func (a *Fetcher) Status() (uint64, error) {
-	return a.lastDiscoveredResources, a.lastError
+func (f *Fetcher) Status() (uint64, error) {
+	return f.lastDiscoveredResources, f.lastError
 }
 
 // DiscoveryConfigName returns the name of the configured discovery
-func (a *Fetcher) DiscoveryConfigName() string {
-	return a.Config.DiscoveryConfigName
+func (f *Fetcher) DiscoveryConfigName() string {
+	return f.Config.DiscoveryConfigName
 }
 
 // IsFromDiscoveryConfig returns whether the discovery is from configuration or dynamic
-func (a *Fetcher) IsFromDiscoveryConfig() bool {
-	return a.Config.DiscoveryConfigName != ""
+func (f *Fetcher) IsFromDiscoveryConfig() bool {
+	return f.Config.DiscoveryConfigName != ""
 }
 
 // GetSubscriptionID returns the ID of the Azure subscription
-func (a *Fetcher) GetSubscriptionID() string {
-	return a.Config.SubscriptionID
+func (f *Fetcher) GetSubscriptionID() string {
+	return f.Config.SubscriptionID
 }
