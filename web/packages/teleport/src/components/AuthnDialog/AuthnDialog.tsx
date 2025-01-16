@@ -29,6 +29,8 @@ import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
 export type Props = {
   mfaState: MfaState;
   replaceErrorText?: string;
+  // onClose is an optional function to perform additional operations
+  // upon closing the dialog. e.g. close a shell session
   onClose?: () => void;
 };
 
@@ -37,12 +39,10 @@ export default function AuthnDialog({
   replaceErrorText,
   onClose = () => {},
 }: Props) {
-  const showMfaDialog =
-    !!challenge ||
-    (attempt.status === 'error' &&
-      !(attempt.error instanceof MfaCanceledError));
+  const showError =
+    attempt.status === 'error' && !(attempt.error instanceof MfaCanceledError);
 
-  if (!showMfaDialog) return;
+  if (!challenge && !showError) return;
 
   // TODO(Joerger): TOTP should be pretty easy to support here with a small button -> form flow.
   const onlyTotpAvailable =
