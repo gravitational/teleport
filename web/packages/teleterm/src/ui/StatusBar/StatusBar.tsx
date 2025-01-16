@@ -55,6 +55,7 @@ export function StatusBar() {
       >
         {breadcrumbs && (
           <Flex
+            aria-label="breadcrumbs"
             gap={2}
             css={`
               flex-shrink: 0;
