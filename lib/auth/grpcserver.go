@@ -102,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -5281,13 +5282,24 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
 
-	stableUNIXUsersServiceServerInstance, err := newStableUNIXUsersServiceServer(cfg.Authorizer, cfg.AuthServer)
+	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Params{
+		Authorizer: cfg.Authorizer,
+
+		Backend:       cfg.AuthServer.bk,
+		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
+
+		StableUNIXUsers:      cfg.AuthServer.Services.StableUNIXUsersInternal,
+		ClusterConfiguration: cfg.AuthServer.Services.ClusterConfiguration,
+
+		CacheClock:   cfg.AuthServer.clock,
+		CacheContext: cfg.AuthServer.closeCtx,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating stable UNIX user service")
 	}
 	stableunixusersv1.RegisterStableUNIXUsersServiceServer(
 		server,
-		stableUNIXUsersServiceServerInstance,
+		stableUNIXUsersServiceServer,
 	)
 
 	authServer := &GRPCServer{
@@ -5520,7 +5532,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
 
 	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk})
+		Backend: cfg.AuthServer.bk,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

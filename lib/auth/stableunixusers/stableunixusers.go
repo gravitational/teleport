@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package auth
+package stableunixusers
 
 import (
 	"context"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/proto"
 
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
@@ -32,27 +33,46 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// newStableUNIXUsersServiceServer returns a [stableUNIXUsersServiceServer]
-// using the given authorizer and server.
-func newStableUNIXUsersServiceServer(authorizer authz.Authorizer, server *Server) (*stableUNIXUsersServiceServer, error) {
+const uidCacheTTL = 30 * time.Second
+
+// Params contains the parameters for [New].
+type Params struct {
+	Authorizer authz.Authorizer
+
+	Backend       backend.Backend
+	ReadOnlyCache *readonly.Cache
+
+	StableUNIXUsers      services.StableUNIXUsersInternal
+	ClusterConfiguration services.ClusterConfigurationInternal
+
+	// CacheClock, if set, is used by the internal time-based UID cache.
+	CacheClock clockwork.Clock
+	// CacheContext, if set, is used as the context for the operations spawned
+	// by the internal time-based UID cache.
+	CacheContext context.Context
+}
+
+// New returns the auth server implementation for the stable UNIX users service,
+// including the gRPC interface, authz enforcement, and business logic.
+func New(params Params) (stableunixusersv1.StableUNIXUsersServiceServer, error) {
 	uidCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         30 * time.Second,
-		Clock:       server.clock,
-		Context:     server.closeCtx,
+		TTL:         uidCacheTTL,
+		Clock:       params.CacheClock,
+		Context:     params.CacheContext,
 		ReloadOnErr: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &stableUNIXUsersServiceServer{
-		authorizer: authorizer,
+	return &server{
+		authorizer: params.Authorizer,
 
-		backend:       server.bk,
-		readOnlyCache: server.ReadOnlyCache,
+		backend:       params.Backend,
+		readOnlyCache: params.ReadOnlyCache,
 
-		stableUNIXUsers:      server.Services.StableUNIXUsersInternal,
-		clusterConfiguration: server.Services.ClusterConfiguration,
+		stableUNIXUsers:      params.StableUNIXUsers,
+		clusterConfiguration: params.ClusterConfiguration,
 
 		uidCache: uidCache,
 
@@ -60,10 +80,9 @@ func newStableUNIXUsersServiceServer(authorizer authz.Authorizer, server *Server
 	}, nil
 }
 
-// stableUNIXUsersServiceServer is the auth server implementation for the stable
-// UNIX users service, including the gRPC interface, authz enforcement, and
-// business logic.
-type stableUNIXUsersServiceServer struct {
+// server is the [stableunixusersv1.StableUNIXUsersServiceServer] returned by
+// [New].
+type server struct {
 	stableunixusersv1.UnsafeStableUNIXUsersServiceServer
 
 	authorizer authz.Authorizer
@@ -84,10 +103,8 @@ type stableUNIXUsersServiceServer struct {
 	writerSem chan struct{}
 }
 
-var _ stableunixusersv1.StableUNIXUsersServiceServer = (*stableUNIXUsersServiceServer)(nil)
-
 // ListStableUNIXUsers implements [stableunixusersv1.StableUNIXUsersServiceServer].
-func (s *stableUNIXUsersServiceServer) ListStableUNIXUsers(ctx context.Context, req *stableunixusersv1.ListStableUNIXUsersRequest) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {
+func (s *server) ListStableUNIXUsers(ctx context.Context, req *stableunixusersv1.ListStableUNIXUsersRequest) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,7 +117,7 @@ func (s *stableUNIXUsersServiceServer) ListStableUNIXUsers(ctx context.Context, 
 	return s.listStableUNIXUsers(ctx, req)
 }
 
-func (s *stableUNIXUsersServiceServer) listStableUNIXUsers(ctx context.Context, req *stableunixusersv1.ListStableUNIXUsersRequest) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {
+func (s *server) listStableUNIXUsers(ctx context.Context, req *stableunixusersv1.ListStableUNIXUsersRequest) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {
 	users, nextPageToken, err := s.stableUNIXUsers.ListStableUNIXUsers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -121,7 +138,7 @@ func (s *stableUNIXUsersServiceServer) listStableUNIXUsers(ctx context.Context, 
 }
 
 // ObtainUIDForUsername implements [stableunixusersv1.StableUNIXUsersServiceServer].
-func (s *stableUNIXUsersServiceServer) ObtainUIDForUsername(ctx context.Context, req *stableunixusersv1.ObtainUIDForUsernameRequest) (*stableunixusersv1.ObtainUIDForUsernameResponse, error) {
+func (s *server) ObtainUIDForUsername(ctx context.Context, req *stableunixusersv1.ObtainUIDForUsernameRequest) (*stableunixusersv1.ObtainUIDForUsernameResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,9 +158,12 @@ func (s *stableUNIXUsersServiceServer) ObtainUIDForUsername(ctx context.Context,
 	}.Build(), nil
 }
 
-// obtainUIDForUsernameCached calls [obtainUIDForUsernameUncached] through the UID FnCache.
-func (s *stableUNIXUsersServiceServer) obtainUIDForUsernameCached(ctx context.Context, username string) (int32, error) {
+// obtainUIDForUsernameCached calls [*server.obtainUIDForUsernameUncached]
+// through the UID FnCache.
+func (s *server) obtainUIDForUsernameCached(ctx context.Context, username string) (int32, error) {
 	uid, err := utils.FnCacheGet(ctx, s.uidCache, username, func(ctx context.Context) (int32, error) {
+		ctx, cancel := context.WithTimeout(ctx, uidCacheTTL)
+		defer cancel()
 		return s.obtainUIDForUsernameUncached(ctx, username)
 	})
 	if err != nil {
@@ -153,7 +173,7 @@ func (s *stableUNIXUsersServiceServer) obtainUIDForUsernameCached(ctx context.Co
 }
 
 // obtainUIDForUsernameUncached reads or creates the stable UID for the given username.
-func (s *stableUNIXUsersServiceServer) obtainUIDForUsernameUncached(ctx context.Context, username string) (int32, error) {
+func (s *server) obtainUIDForUsernameUncached(ctx context.Context, username string) (int32, error) {
 	if username == "" {
 		return 0, trace.BadParameter("username must not be empty")
 	}
@@ -224,7 +244,7 @@ func (s *stableUNIXUsersServiceServer) obtainUIDForUsernameUncached(ctx context.
 
 // createNewStableUNIXUser will search the configured UID range for a free UID
 // and it will store an entry for the given username with that UID.
-func (s *stableUNIXUsersServiceServer) createNewStableUNIXUser(ctx context.Context, username string, authPref readonly.AuthPreference) (int32, error) {
+func (s *server) createNewStableUNIXUser(ctx context.Context, username string, authPref readonly.AuthPreference) (int32, error) {
 	cfg := authPref.GetStableUNIXUserConfig()
 	if cfg == nil || !cfg.Enabled {
 		return 0, trace.LimitExceeded("stable UNIX users are not enabled")

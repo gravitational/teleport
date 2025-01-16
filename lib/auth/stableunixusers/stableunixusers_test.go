@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package auth
+package stableunixusers
 
 import (
 	"context"
@@ -51,7 +51,7 @@ func TestStableUNIXUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svc := &stableUNIXUsersServiceServer{
+	svc := &server{
 		authorizer: nil,
 
 		backend:       bk,
@@ -108,7 +108,7 @@ func TestStableUNIXUsers(t *testing.T) {
 	require.Equal(t, firstUID+3, uid4)
 
 	_, err = svc.obtainUIDForUsernameUncached(ctx, "user5")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
 
 	resp, err := svc.listStableUNIXUsers(ctx, stableunixusersv1.ListStableUNIXUsersRequest_builder{
 		PageSize: proto.Int32(2),
