@@ -242,7 +242,7 @@ func (s *WorkloadIdentityJWTService) render(
 
 	s.log.InfoContext(
 		ctx,
-		"Successfully wrote X509 workload identity credential to destination",
+		"Successfully wrote JWT workload identity credential to destination",
 		"workload_identity", workloadidentity.WorkloadIdentityLogValue(cred),
 		"destination", s.cfg.Destination.String(),
 	)
