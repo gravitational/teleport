@@ -77,6 +77,8 @@ func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Co
 }
 
 func TestExportAuthorities(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const localClusterName = "localcluster"
 
@@ -121,6 +123,17 @@ func TestExportAuthorities(t *testing.T) {
 
 	validateGitHubCAFunc := func(t *testing.T, s string) {
 		require.Contains(t, s, fixtures.SSHCAPublicKey)
+	}
+
+	mockedAuthClient := &mockAuthClient{
+		server: testAuth.AuthServer,
+		integrationsClient: mockIntegrationsClient{
+			caKeySet: &types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PublicKey: []byte(fixtures.SSHCAPublicKey),
+				}},
+			},
+		},
 	}
 
 	for _, tt := range []struct {
@@ -290,21 +303,26 @@ func TestExportAuthorities(t *testing.T) {
 	} {
 		runTest := func(
 			t *testing.T,
+			exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
+			assertFunc func(t *testing.T, output string),
+		) {
+			authorities, err := exportFunc(ctx, mockedAuthClient, tt.req)
+			tt.errorCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Len(t, authorities, 1, "exported authorities mismatch")
+			exported := string(authorities[0].Data)
+			assertFunc(t, exported)
+		}
+
+		runUnaryTest := func(
+			t *testing.T,
 			exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) (string, error),
 			assertFunc func(t *testing.T, output string),
 		) {
-			mockedClient := &mockAuthClient{
-				server: testAuth.AuthServer,
-				integrationsClient: mockIntegrationsClient{
-					caKeySet: &types.CAKeySet{
-						SSH: []*types.SSHKeyPair{{
-							PublicKey: []byte(fixtures.SSHCAPublicKey),
-						}},
-					},
-				},
-			}
-
-			exported, err := exportFunc(ctx, mockedClient, tt.req)
+			exported, err := exportFunc(ctx, mockedAuthClient, tt.req)
 			tt.errorCheck(t, err)
 			if err != nil {
 				return
@@ -313,14 +331,25 @@ func TestExportAuthorities(t *testing.T) {
 			assertFunc(t, exported)
 		}
 
-		t.Run(fmt.Sprintf("%s/ExportAuthorities", tt.name), func(t *testing.T) {
-			runTest(t, ExportAuthorities, tt.assertNoSecrets)
-		})
-		if tt.skipSecrets {
-			continue
-		}
-		t.Run(fmt.Sprintf("%s/ExportAuthoritiesSecrets", tt.name), func(t *testing.T) {
-			runTest(t, ExportAuthoritiesSecrets, tt.assertSecrets)
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			t.Run(fmt.Sprintf("%s/ExportAllAuthorities", tt.name), func(t *testing.T) {
+				runTest(t, ExportAllAuthorities, tt.assertNoSecrets)
+			})
+			t.Run(fmt.Sprintf("%s/ExportAuthorities", tt.name), func(t *testing.T) {
+				runUnaryTest(t, ExportAuthorities, tt.assertNoSecrets)
+			})
+			if tt.skipSecrets {
+				return
+			}
+
+			t.Run(fmt.Sprintf("%s/ExportAllAuthoritiesSecrets", tt.name), func(t *testing.T) {
+				runTest(t, ExportAllAuthoritiesSecrets, tt.assertSecrets)
+			})
+			t.Run(fmt.Sprintf("%s/ExportAuthoritiesSecrets", tt.name), func(t *testing.T) {
+				runUnaryTest(t, ExportAuthoritiesSecrets, tt.assertSecrets)
+			})
 		})
 	}
 }
