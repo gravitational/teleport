@@ -21,6 +21,7 @@ import {
   makeDatabase,
   makeKube,
   makeRootCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 
 import {
@@ -32,7 +33,7 @@ import {
   DocumentGatewayCliClient,
   DocumentGatewayKube,
   DocumentPtySession,
-  DocumentTshNode,
+  DocumentTshNodeWithServerId,
 } from './types';
 
 export function makeDocumentCluster(
@@ -106,13 +107,18 @@ export function makeDocumentPtySession(
 }
 
 export function makeDocumentTshNode(
-  props?: Partial<DocumentTshNode>
-): DocumentTshNode {
+  props?: Partial<DocumentTshNodeWithServerId>
+): DocumentTshNodeWithServerId {
   return {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/terminal_tsh_node',
     title: 'alice@node',
-    serverId: '89128321312dsf213r',
+    serverUri: makeServer().uri,
+    status: '',
+    rootClusterId: '',
+    leafClusterId: '',
+    origin: 'connection_list',
+    serverId: '1234abcd-1234-abcd-1234-abcd1234abcd',
     ...props,
   };
 }
@@ -124,14 +130,13 @@ export function makeDocumentGatewayCliClient(
     kind: 'doc.gateway_cli_client',
     uri: '/docs/gateway_cli_client',
     title: 'psql · aurora (sre)',
+    rootClusterId: 'teleport-local',
+    leafClusterId: '',
+    targetProtocol: 'postgres',
     targetUri: makeDatabase().uri,
-    gatewayUri: '/gateways/db-gateway',
-    port: '1232',
     targetName: 'aurora',
     targetUser: 'sre',
     status: '',
-    targetSubresourceName: '',
-    origin: 'connection_list',
     ...props,
   };
 }
@@ -143,6 +148,8 @@ export function makeDocumentGatewayKube(
     kind: 'doc.gateway_kube',
     uri: '/docs/gateway_kube',
     title: 'cookie',
+    rootClusterId: 'teleport-local',
+    leafClusterId: '',
     targetUri: makeKube().uri,
     status: '',
     origin: 'connection_list',
@@ -170,6 +177,8 @@ export function makeDocumentConnectMyComputer(
   return {
     kind: 'doc.connect_my_computer',
     uri: '/docs/connect-my-computer',
+    rootClusterUri: makeRootCluster().uri,
+    status: '',
     title: 'Connect My Computer',
     ...props,
   };
@@ -182,7 +191,13 @@ export function makeDocumentAuthorizeWebSession(
     kind: 'doc.authorize_web_session',
     uri: '/docs/authorize-web-session',
     title: 'Authorize Web Session',
-    webSessionRequest: { id: '123', username: 'alice', token: 'secret-token' },
+    rootClusterUri: makeRootCluster().uri,
+    webSessionRequest: {
+      id: '123',
+      username: 'alice',
+      token: 'secret-token',
+      redirectUri: '',
+    },
     ...props,
   };
 }
