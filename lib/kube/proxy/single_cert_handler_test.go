@@ -38,7 +38,7 @@ import (
 // cluster names.
 func pathRoutedKubeClient(t *testing.T, restConfig *rest.Config, teleportCluster, kubeCluster string) *kubernetes.Clientset {
 	t.Helper()
-
+	restConfig = rest.CopyConfig(restConfig)
 	encTeleportCluster := base64.RawURLEncoding.EncodeToString([]byte(teleportCluster))
 	encKubeCluster := base64.RawURLEncoding.EncodeToString([]byte(kubeCluster))
 	restConfig.Host += fmt.Sprintf("/v1/teleport/%s/%s", encTeleportCluster, encKubeCluster)
@@ -80,9 +80,10 @@ func TestSingleCertRouting(t *testing.T) {
 	tests := []struct {
 		name string
 
-		kubeClusterOverride string
-		roleSpec            RoleSpec
-		assert              func(t *testing.T, restConfig *rest.Config)
+		kubeClusterOverride    string
+		roleSpec               RoleSpec
+		assert                 func(t *testing.T, restConfig *rest.Config)
+		genKubeCertificateOpts []GenTestKubeClientTLSCertOptions
 	}{
 		{
 			name:     "successful path routing to multiple clusters",
@@ -97,6 +98,7 @@ func TestSingleCertRouting(t *testing.T) {
 				require.NoError(t, err)
 
 			},
+			genKubeCertificateOpts: []GenTestKubeClientTLSCertOptions{WithRawUserCertificate()},
 		},
 		{
 			name:     "cannot access nonexistent cluster",
@@ -159,6 +161,7 @@ func TestSingleCertRouting(t *testing.T) {
 				t,
 				username,
 				tt.kubeClusterOverride, // normally empty for path routing
+				tt.genKubeCertificateOpts...,
 			)
 
 			tt.assert(t, restConfig)
