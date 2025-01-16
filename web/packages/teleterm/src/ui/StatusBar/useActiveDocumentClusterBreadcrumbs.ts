@@ -16,14 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ComponentType } from 'react';
+
+import { IconProps } from 'design/Icon/Icon';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   getResourceUri,
+  getStaticNameAndIcon,
   useWorkspaceServiceState,
 } from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 
-export function useActiveDocumentClusterBreadcrumbs(): string {
+interface Breadcrumb {
+  name: string;
+  Icon?: ComponentType<IconProps>;
+}
+
+export function useActiveDocumentClusterBreadcrumbs(): Breadcrumb[] {
   const ctx = useAppContext();
   useWorkspaceServiceState();
   ctx.clustersService.useState();
@@ -37,7 +47,8 @@ export function useActiveDocumentClusterBreadcrumbs(): string {
   }
 
   const resourceUri = getResourceUri(activeDocument);
-  if (!resourceUri) {
+  const staticNameAndIcon = getStaticNameAndIcon(activeDocument);
+  if (!(resourceUri && staticNameAndIcon)) {
     return;
   }
 
@@ -50,8 +61,14 @@ export function useActiveDocumentClusterBreadcrumbs(): string {
       ? undefined
       : ctx.clustersService.findCluster(clusterUri);
 
-  return [rootCluster, leafCluster]
+  const breadcrumbs: Breadcrumb[] = [rootCluster, leafCluster]
     .filter(Boolean)
-    .map(c => c.name)
-    .join(' > ');
+    .map(c => ({ name: c.name }));
+
+  breadcrumbs.push({
+    name: staticNameAndIcon.name,
+    Icon: staticNameAndIcon.Icon,
+  });
+
+  return breadcrumbs;
 }
