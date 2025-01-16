@@ -39,6 +39,7 @@ import (
 func pathRoutedKubeClient(t *testing.T, restConfig *rest.Config, teleportCluster, kubeCluster string) *kubernetes.Clientset {
 	t.Helper()
 
+	restConfig = rest.CopyConfig(restConfig)
 	encTeleportCluster := base64.RawURLEncoding.EncodeToString([]byte(teleportCluster))
 	encKubeCluster := base64.RawURLEncoding.EncodeToString([]byte(kubeCluster))
 	restConfig.Host += fmt.Sprintf("/v1/teleport/%s/%s", encTeleportCluster, encKubeCluster)
