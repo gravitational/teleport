@@ -114,10 +114,17 @@ export enum IntegrationEnrollStatusCode {
  * IntegrationEnrollStepStatus defines fields for reporting
  * integration configuration step event.
  */
-export type IntegrationEnrollStepStatus = {
-  code: IntegrationEnrollStatusCode;
-  error?: string;
-};
+export type IntegrationEnrollStepStatus =
+  | {
+      code: Exclude<
+        IntegrationEnrollStatusCode,
+        IntegrationEnrollStatusCode.Error
+      >;
+    }
+  | {
+      code: IntegrationEnrollStatusCode.Error;
+      error: string;
+    };
 
 /**
  * IntegrationEnrollEventData defines integration
