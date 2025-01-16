@@ -165,6 +165,9 @@ type Config struct {
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker cloud.DiscoveryResourceChecker
+	// getEngineFn returns a [common.Engine]. It can be overridden in tests to
+	// customize the returned engine.
+	getEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -317,6 +320,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if c.getEngineFn == nil {
+		c.getEngineFn = common.GetEngine
 	}
 
 	if c.ShutdownPollPeriod == 0 {
@@ -1192,7 +1199,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // createEngine creates a new database engine based on the database protocol.
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
-	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
+	return s.cfg.getEngineFn(sessionCtx.Database, common.EngineConfig{
 		Auth:              common.NewAuthForSession(s.cfg.Auth, sessionCtx),
 		Audit:             audit,
 		AuthClient:        s.cfg.AuthClient,

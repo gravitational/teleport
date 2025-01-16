@@ -2460,6 +2460,8 @@ type agentParams struct {
 	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 	// Recorder is the recorder used on sessions.
 	Recorder libevents.SessionRecorder
+	// GetEngineFn can be used to override the engine created in tests.
+	GetEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2610,6 +2612,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ShutdownPollPeriod:        100 * time.Millisecond,
 		InventoryHandle:           inventoryHandle,
 		discoveryResourceChecker:  p.DiscoveryResourceChecker,
+		getEngineFn:               p.GetEngineFn,
 	})
 	require.NoError(t, err)
 

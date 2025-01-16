@@ -44,13 +44,6 @@ var (
 // EngineFn defines a database engine constructor function.
 type EngineFn func(EngineConfig) Engine
 
-// GetEngineFn returns the constructor function for the given protocol.
-func GetEngineFn(protocol string) EngineFn {
-	enginesMu.RLock()
-	defer enginesMu.RUnlock()
-	return engines[protocol]
-}
-
 // RegisterEngine registers a new engine constructor.
 func RegisterEngine(fn EngineFn, names ...string) {
 	enginesMu.Lock()

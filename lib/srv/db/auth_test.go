@@ -82,9 +82,6 @@ func TestAuthTokens(t *testing.T) {
 		Authentication: &ectypes.Authentication{Type: ectypes.AuthenticationTypeIam},
 	}
 	ecMock.AddMockUser(elastiCacheIAMUser, nil)
-	registerTestRedisEngine(t, fakeRedisAWSClients{
-		ecClient: ecMock,
-	})
 
 	memorydbMock := &mocks.MemoryDBMock{}
 	memorydbIAMUser := &memorydb.User{
@@ -95,6 +92,21 @@ func TestAuthTokens(t *testing.T) {
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: databases,
 		MemoryDB:  memorydbMock,
+		GetEngineFn: func(db types.Database, conf common.EngineConfig) (common.Engine, error) {
+			if db.GetProtocol() != defaults.ProtocolRedis {
+				return common.GetEngine(db, conf)
+			}
+			if err := conf.CheckAndSetDefaults(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			conf.AWSConfigProvider = &mocks.AWSConfigProvider{}
+			return &redis.Engine{
+				EngineConfig: conf,
+				AWSClients: fakeRedisAWSClients{
+					ecClient: ecMock,
+				},
+			}, nil
+		},
 	})
 	go testCtx.startHandlingConnections()
 
@@ -471,30 +483,6 @@ func TestMongoDBAtlas(t *testing.T) {
 				require.NoError(t, conn.Disconnect(ctx))
 			}
 		})
-	}
-}
-
-func registerTestRedisEngine(t *testing.T, awsClients redis.AWSClientProvider) {
-	t.Helper()
-	// To prevent tests running in parallel with this engine, call t.Setenv with
-	// a dummy value.
-	t.Setenv("WithTestRedisEngine", "1")
-	oldEngineFn := common.GetEngineFn(defaults.ProtocolRedis)
-	t.Cleanup(func() {
-		common.RegisterEngine(oldEngineFn, defaults.ProtocolRedis)
-	})
-	// Override Redis engine that is used normally with the test one that mocks
-	// AWS clients.
-	common.RegisterEngine(newTestRedisEngine(awsClients), defaults.ProtocolRedis)
-}
-
-func newTestRedisEngine(awsClients redis.AWSClientProvider) common.EngineFn {
-	return func(ec common.EngineConfig) common.Engine {
-		ec.AWSConfigProvider = &mocks.AWSConfigProvider{}
-		return &redis.Engine{
-			EngineConfig: ec,
-			AWSClients:   awsClients,
-		}
 	}
 }
 
