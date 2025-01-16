@@ -27,6 +27,7 @@ service AWSOIDCService {
   // It uses the following API:
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
   rpc ListEICE(ListEICERequest) returns (ListEICEResponse) {
+    // TODO(marco): DELETE IN v19.0.0
     option deprecated = true;
   }
 
@@ -34,6 +35,7 @@ service AWSOIDCService {
   // It uses the following API:
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
   rpc CreateEICE(CreateEICERequest) returns (CreateEICEResponse) {
+    // TODO(marco): DELETE IN v19.0.0
     option deprecated = true;
   }
 
@@ -74,6 +76,7 @@ service AWSOIDCService {
   // It uses the following API:
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
   rpc ListEC2(ListEC2Request) returns (ListEC2Response) {
+    // TODO(marco): DELETE IN v19.0.0
     option deprecated = true;
   }
 
