@@ -24,7 +24,6 @@ import (
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -181,21 +180,22 @@ func (c *urlChecker) checkRedshift(ctx context.Context, database types.Database)
 
 func (c *urlChecker) checkRedshiftServerless(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	client, err := c.clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRedshiftServerlessClient(awsCfg)
 
 	if meta.RedshiftServerless.EndpointName != "" {
-		return trace.Wrap(c.checkRedshiftServerlessVPCEndpoint(ctx, database, client, meta.RedshiftServerless.EndpointName))
+		return trace.Wrap(c.checkRedshiftServerlessVPCEndpoint(ctx, database, clt, meta.RedshiftServerless.EndpointName))
 	}
-	return trace.Wrap(c.checkRedshiftServerlessWorkgroup(ctx, database, client, meta.RedshiftServerless.WorkgroupName))
+	return trace.Wrap(c.checkRedshiftServerlessWorkgroup(ctx, database, clt, meta.RedshiftServerless.WorkgroupName))
 }
 
-func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, database types.Database, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) error {
+func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, database types.Database, client rssClient, endpointName string) error {
 	endpoint, err := describeRedshiftServerlessVCPEndpoint(ctx, client, endpointName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -203,7 +203,7 @@ func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, dat
 	return trace.Wrap(requireDatabaseAddressPort(database, endpoint.Address, endpoint.Port))
 }
 
-func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, database types.Database, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) error {
+func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, database types.Database, client rssClient, workgroupName string) error {
 	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, workgroupName)
 	if err != nil {
 		return trace.Wrap(err)

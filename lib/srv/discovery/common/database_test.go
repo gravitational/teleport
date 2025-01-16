@@ -32,7 +32,6 @@ import (
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -42,6 +41,7 @@ import (
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awstesthelpers"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1658,7 +1658,7 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 
 func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
-	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
+	tags := awstesthelpers.LabelsToRedshiftServerlessTags(map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup",
 		Description: "Redshift Serverless workgroup in eu-west-2",
@@ -1693,7 +1693,7 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
 	endpoint := mocks.RedshiftServerlessEndpointAccess(workgroup, "my-endpoint", "eu-west-2")
-	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
+	tags := awstesthelpers.LabelsToRedshiftServerlessTags(map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup-my-endpoint",
 		Description: "Redshift Serverless endpoint in eu-west-2",

@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -116,19 +117,19 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	t.Parallel()
 
 	// setup mock aws sessions.
-	stsMock := &mocks.STSClientV1{}
+	stsMock := &mocks.STSClient{}
 	clock := clockwork.NewFakeClock()
 	auth, err := NewAuth(AuthConfig{
-		Clock:       clock,
-		AuthClient:  new(authClientMock),
-		AccessPoint: new(accessPointMock),
-		Clients: &cloud.TestCloudClients{
-			STS: stsMock,
-			RedshiftServerless: &mocks.RedshiftServerlessMock{
+		Clock:             clock,
+		AuthClient:        new(authClientMock),
+		AccessPoint:       new(accessPointMock),
+		Clients:           &cloud.TestCloudClients{},
+		AWSConfigProvider: &mocks.AWSConfigProvider{STSClient: stsMock},
+		awsClients: fakeAWSClients{
+			rssClient: &mocks.RedshiftServerlessClient{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
 		},
-		AWSConfigProvider: &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
 
@@ -609,9 +610,6 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		AccessPoint: new(accessPointMock),
 		Clients: &cloud.TestCloudClients{
 			STS: &fakeSTS.STSClientV1,
-			RedshiftServerless: &mocks.RedshiftServerlessMock{
-				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
-			},
 		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
@@ -620,6 +618,9 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			redshiftClient: &mocks.RedshiftClient{
 				GetClusterCredentialsOutput:        mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
 				GetClusterCredentialsWithIAMOutput: mocks.RedshiftGetClusterCredentialsWithIAMOutput("IAM:some-role", "some-password-for-some-role", clock),
+			},
+			rssClient: &mocks.RedshiftServerlessClient{
+				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
 		},
 	})
@@ -1023,8 +1024,13 @@ func (m *imdsMock) GetType() types.InstanceMetadataType {
 
 type fakeAWSClients struct {
 	redshiftClient redshiftClient
+	rssClient      rssClient
 }
 
 func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)) redshiftClient {
 	return f.redshiftClient
+}
+
+func (f fakeAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient {
+	return f.rssClient
 }

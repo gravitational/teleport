@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -309,6 +310,7 @@ func newRegionalFakeRDSClientProvider(cs map[string]RDSClient) fakeRegionalRDSCl
 type fakeAWSClients struct {
 	rdsClient      RDSClient
 	redshiftClient RedshiftClient
+	rssClient      RSSClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
@@ -317,6 +319,10 @@ func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options
 
 func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
 	return f.redshiftClient
+}
+
+func (f fakeAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient {
+	return f.rssClient
 }
 
 type fakeRegionalRDSClients struct {

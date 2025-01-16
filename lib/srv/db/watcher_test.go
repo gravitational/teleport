@@ -28,7 +28,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -41,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 )
 
 // TestWatcher verifies that database server properly detects and applies
@@ -309,8 +314,7 @@ func setLabels(r types.ResourceWithLabels, newLabels map[string]string) {
 // TestWatcherCloudFetchers tests usage of discovery database fetchers by the
 // database service.
 func TestWatcherCloudFetchers(t *testing.T) {
-	// Test an AWS fetcher. Note that status AWS can be set by Metadata
-	// service.
+	// Test an AWS fetcher.
 	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
 	redshiftServerlessDatabase, err := discovery.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
@@ -328,6 +332,23 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
+	testCloudClients := &clients.TestCloudClients{
+		AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
+			AllServers: []*armsql.Server{azSQLServer},
+		}),
+		AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
+	}
+	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
+		CloudClients:      testCloudClients,
+		AWSClients: fakeAWSClients{
+			rdsClient: &mocks.RDSClient{Unauth: true}, // Access denied error should not affect other fetchers.
+			rssClient: &mocks.RedshiftServerlessClient{
+				Workgroups: []rsstypes.Workgroup{*redshiftServerlessWorkgroup},
+			},
+		},
+	})
+	require.NoError(t, err)
 	reconcileCh := make(chan types.Databases)
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		// Keep ResourceMatchers as nil to disable resource matchers.
@@ -353,14 +374,12 @@ func TestWatcherCloudFetchers(t *testing.T) {
 		}},
 		CloudClients: &clients.TestCloudClients{
 			STS: &mocks.STSClientV1{},
-			RedshiftServerless: &mocks.RedshiftServerlessMock{
-				Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
-			},
 			AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
 				AllServers: []*armsql.Server{azSQLServer},
 			}),
 			AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
 		},
+		AWSDatabaseFetcherFactory: dbFetcherFactory,
 		AzureMatchers: []types.AzureMatcher{{
 			Subscriptions: []string{"sub"},
 			Types:         []string{types.AzureMatcherSQLServer},
@@ -376,18 +395,21 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	wantDatabases := types.Databases{azSQLServerDatabase, redshiftServerlessDatabase}
 	sort.Sort(wantDatabases)
 
-	assertReconciledResource(t, reconcileCh, wantDatabases)
+	// cloud metadata updater is disabled, so don't check the AWS metadata status.
+	assertReconciledResource(t, reconcileCh, wantDatabases, cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "AWS"))
 }
 
-func assertReconciledResource(t *testing.T, ch chan types.Databases, databases types.Databases) {
+func assertReconciledResource(t *testing.T, ch chan types.Databases, databases types.Databases, opts ...cmp.Option) {
 	t.Helper()
 	select {
 	case d := <-ch:
 		sort.Sort(d)
 		require.Equal(t, len(databases), len(d))
 		require.Empty(t, cmp.Diff(databases, d,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
+			append(cmp.Options{
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
+			}, opts...),
 		))
 	case <-time.After(time.Second):
 		require.FailNow(t, "Didn't receive reconcile event after 1s.")
@@ -452,4 +474,22 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 	require.NoError(t, err)
 	discovery.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherSQLServer)
 	return server, database
+}
+
+type fakeAWSClients struct {
+	rdsClient      db.RDSClient
+	redshiftClient db.RedshiftClient
+	rssClient      db.RSSClient
+}
+
+func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {
+	return f.rdsClient
+}
+
+func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
+	return f.redshiftClient
+}
+
+func (f fakeAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) db.RSSClient {
+	return f.rssClient
 }

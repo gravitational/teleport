@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 
@@ -74,6 +75,8 @@ type AWSClientProvider interface {
 	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
 	// GetRedshiftClient provides an [RedshiftClient].
 	GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient
+	// GetRedshiftServerlessClient provides an [RSSClient].
+	GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient
 }
 
 type defaultAWSClients struct{}
@@ -84,6 +87,10 @@ func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Option
 
 func (defaultAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
 	return redshift.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient {
+	return rss.NewFromConfig(cfg, optFns...)
 }
 
 // AWSFetcherFactoryConfig is the configuration for an [AWSFetcherFactory].
@@ -210,12 +217,4 @@ func filterDatabasesByLabels(ctx context.Context, databases types.Databases, lab
 		}
 	}
 	return matchedDatabases
-}
-
-// flatten flattens a nested slice [][]T to []T.
-func flatten[T any](s [][]T) (result []T) {
-	for i := range s {
-		result = append(result, s[i]...)
-	}
-	return
 }

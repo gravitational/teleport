@@ -26,12 +26,12 @@ import (
 	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"golang.org/x/exp/maps"
 
@@ -48,7 +48,7 @@ type ResourceTag interface {
 		*ec2.Tag |
 		*elasticache.Tag |
 		*memorydb.Tag |
-		*redshiftserverless.Tag |
+		rsstypes.Tag |
 		*opensearchservice.Tag |
 		*secretsmanager.Tag
 }
@@ -80,7 +80,7 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *memorydb.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *redshiftserverless.Tag:
+	case rsstypes.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case rdstypes.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
