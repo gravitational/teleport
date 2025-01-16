@@ -155,7 +155,7 @@ export class DocumentsService {
       origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
-    const title = targetUser ? `${targetUser}@${targetName}` : targetName;
+    const title = targetUser ? `${targetName} (${targetUser})` : targetName;
 
     return {
       uri,
