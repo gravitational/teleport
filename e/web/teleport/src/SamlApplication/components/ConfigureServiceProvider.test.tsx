@@ -141,6 +141,7 @@ test('addMetadataGenric: disabled app name on isUpdateFlow props', async () => {
         setSPConfig={jest.fn()}
         disableInputs={false}
         isUpdateFlow={true}
+        setLabelsValidator={() => null}
       />
     </Validation>
   );
@@ -164,6 +165,7 @@ test('addMetadataGenric: disabled inputs on disableInputs props', async () => {
         setSPConfig={jest.fn()}
         disableInputs={true}
         isUpdateFlow={false}
+        setLabelsValidator={() => null}
       />
     </Validation>
   );
@@ -175,6 +177,7 @@ test('addMetadataGenric: disabled inputs on disableInputs props', async () => {
   expect(
     screen.getByPlaceholderText('https://example.com/saml/acs')
   ).toBeDisabled();
+  expect(screen.getByRole('button', { name: /add a label/i })).toBeDisabled();
 });
 
 test('addMetadataGenric: disabled inputs on guidedToggle props', async () => {
@@ -194,6 +197,8 @@ test('addMetadataGenric: disabled inputs on guidedToggle props', async () => {
   expect(
     screen.getByPlaceholderText('https://example.com/saml/acs')
   ).toBeDisabled();
+
+  expect(screen.getByRole('button', { name: /add a label/i })).toBeDisabled();
 });
 
 describe('addMetadataGeneric: onchange events', () => {
@@ -207,6 +212,7 @@ describe('addMetadataGeneric: onchange events', () => {
     entityID: string;
     acsURL: string;
     entityDescriptor: string;
+    label?: { key: string; value: string };
   }> = [
     {
       name: 'with entityID and ACS URL',
@@ -235,12 +241,13 @@ describe('addMetadataGeneric: onchange events', () => {
       entityID: 'https://example.com/saml/metadata',
       acsURL: 'https://example.com/saml/acs',
       entityDescriptor: testED,
+      label: { key: 'env', value: 'testing' },
     },
   ];
 
   test.each(tests)(
     '$name',
-    async ({ appName, entityID, acsURL, entityDescriptor }) => {
+    async ({ appName, entityID, acsURL, entityDescriptor, label }) => {
       const user = userEvent.setup();
       const onChange = jest.fn();
       render(
@@ -250,6 +257,7 @@ describe('addMetadataGeneric: onchange events', () => {
             setSPConfig={onChange}
             disableInputs={false}
             isUpdateFlow={false}
+            setLabelsValidator={() => null}
           />
         </Validation>
       );
@@ -275,7 +283,20 @@ describe('addMetadataGeneric: onchange events', () => {
         expect.objectContaining({ acsURL: acsURL })
       );
 
-      await user.click(screen.getByText('Add Entity Descriptor (optional)'));
+      if (label) {
+        await user.click(screen.getByRole('button', { name: /add a label/i }));
+        fireEvent.change(screen.getByPlaceholderText('label key'), {
+          target: { value: label.key },
+        });
+        fireEvent.change(screen.getByPlaceholderText('label value'), {
+          target: { value: label.value },
+        });
+        expect(onChange).toHaveBeenCalledWith(
+          expect.objectContaining({ labels: { [label.key]: label.value } })
+        );
+      }
+
+      await user.click(screen.getByText('Add Entity Descriptor (Optional)'));
       const entityDescriptorEl = screen.getByText(entityDescriptorLabelText);
       await user.paste(entityDescriptor);
       await user.click(entityDescriptorEl);
@@ -357,6 +378,7 @@ describe('addMetadataGeneric: onchange with errors', () => {
             setSPConfig={onChange}
             disableInputs={false}
             isUpdateFlow={false}
+            setLabelsValidator={() => null}
           />
           <Button />
         </Validation>
@@ -374,7 +396,7 @@ describe('addMetadataGeneric: onchange with errors', () => {
         { target: { value: acsURL } }
       );
 
-      await user.click(screen.getByText('Add Entity Descriptor (optional)'));
+      await user.click(screen.getByText('Add Entity Descriptor (Optional)'));
       const entityDescriptorEl = screen.getByText(entityDescriptorLabelText);
       await user.paste(entityDescriptor);
       await user.click(entityDescriptorEl);

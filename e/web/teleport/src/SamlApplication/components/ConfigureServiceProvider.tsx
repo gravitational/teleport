@@ -23,6 +23,7 @@ import {
   SamlServiceProviderPreset,
 } from 'teleport/services/samlidp/types';
 
+import { AddLabels } from './AddLabels';
 import { AttributeMapping } from './AttributeMapping';
 import { AddEntityDescriptor } from './EntityDescriptorEditor';
 
@@ -47,6 +48,13 @@ export function ConfigureServiceProvider({
     upsertAttempt,
     guidedToggle,
   } = useSamlApplication();
+
+  // A new validator that is scoped only for label inputs is defined
+  // in order to isolate label input validation from the main parent validator
+  // which is defined in `AddMetadataGeneric`. This prevents triggering
+  // validation in other input fields and vice versa.
+  // Note: ensure this validation is also called before create/update requests.
+  const [labelsValidator, setLabelsValidator] = useState<Validator>();
 
   useEffect(() => {
     if (!upsertRequest.name) {
@@ -75,11 +83,14 @@ export function ConfigureServiceProvider({
   };
 
   function validateAndSubmit(
-    validator: Validator,
+    inputValidator: Validator,
     spConfig: CreateSamlIdpServiceProviderRequest
   ) {
     const spConfigReq = structuredClone(spConfig);
-    if (!validator.validate()) {
+    if (
+      !inputValidator.validate() ||
+      (labelsValidator && !labelsValidator.validate())
+    ) {
       return;
     }
 
@@ -154,7 +165,7 @@ export function ConfigureServiceProvider({
       )}
       <Box maxWidth="800px">
         <Validation>
-          {({ validator }) => (
+          {({ validator: inputValidator }) => (
             <>
               <SpMetadataConfigComponent
                 spConfig={upsertRequest}
@@ -163,6 +174,7 @@ export function ConfigureServiceProvider({
                 disableInputs={
                   upsertAttempt.status === 'processing' || guidedToggle
                 }
+                setLabelsValidator={setLabelsValidator}
               />
               <AttributeMapping
                 spConfig={upsertRequest}
@@ -175,7 +187,9 @@ export function ConfigureServiceProvider({
                 isGuided={guidedToggle}
               />
               <ActionButtons
-                onProceed={() => validateAndSubmit(validator, upsertRequest)}
+                onProceed={() =>
+                  validateAndSubmit(inputValidator, upsertRequest)
+                }
                 disableProceed={upsertAttempt.status === 'processing'}
                 onPrev={prevStep}
                 lastStep
@@ -193,6 +207,7 @@ export function AddMetadataGeneric({
   spConfig,
   disableInputs = false,
   isUpdateFlow = false,
+  setLabelsValidator,
 }: SamlGenericMetadataConfig) {
   return (
     <StyledBox>
@@ -246,6 +261,14 @@ export function AddMetadataGeneric({
       {!disableInputs && (
         <AddEntityDescriptor spConfig={spConfig} setSPConfig={setSPConfig} />
       )}
+      <Box mt={4} mb={2}>
+        <AddLabels
+          spConfig={spConfig}
+          setSPConfig={setSPConfig}
+          setLabelsValidator={setLabelsValidator}
+          disabled={disableInputs}
+        />
+      </Box>
     </StyledBox>
   );
 }
@@ -270,6 +293,7 @@ export type SamlGenericMetadataConfig = {
   spConfig: CreateSamlIdpServiceProviderRequest;
   isUpdateFlow: boolean;
   disableInputs: boolean;
+  setLabelsValidator: (validator: Validator) => void;
 };
 
 export const UPDATE_NOTE =

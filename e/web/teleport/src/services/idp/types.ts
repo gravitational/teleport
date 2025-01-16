@@ -10,6 +10,7 @@ export type CreateSamlIdpServiceProviderRequest = {
   entityDescriptor: string;
   attributeMapping?: AttributeMapping[];
   preset?: SamlServiceProviderPreset;
+  labels?: Record<string, string>;
 };
 
 export type CreateSamlIdpServiceProviderResponse = {

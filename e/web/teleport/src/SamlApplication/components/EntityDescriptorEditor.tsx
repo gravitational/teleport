@@ -18,7 +18,7 @@ export function AddEntityDescriptor({
   return (
     <>
       <ButtonTextWithAddIcon
-        label="Add Entity Descriptor (optional)"
+        label="Add Entity Descriptor (Optional)"
         onClick={() => setShowEntityDescriptor(!showEntityDescriptor)}
         disabled={false}
       />

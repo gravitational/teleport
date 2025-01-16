@@ -51,4 +51,5 @@ const props = {
   spConfig: emptyUpsertRequest,
   setSPConfig: () => null,
   isUpdateFlow: false,
+  setLabelsValidator: () => null,
 };
