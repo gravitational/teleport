@@ -106,7 +106,7 @@ func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
 	return dev, name, nil
 }
 
-// osConfigurationLoop will keep running until ctx] is canceled or an unrecoverable error is encountered, in
+// osConfigurationLoop will keep running until ctx is canceled or an unrecoverable error is encountered, in
 // order to keep the host OS configuration up to date.
 func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, homePath string, clientCred daemon.ClientCred) error {
 	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath, clientCred)
