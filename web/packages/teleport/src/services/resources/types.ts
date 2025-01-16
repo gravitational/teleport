@@ -44,6 +44,7 @@ export type RoleResource = Resource<KindRole>;
  */
 export type Role = {
   kind: KindRole;
+  version: RoleVersion;
   metadata: {
     name: string;
     description?: string;
@@ -56,8 +57,9 @@ export type Role = {
     deny: RoleConditions;
     options: RoleOptions;
   };
-  version: string;
 };
+
+export type RoleVersion = 'v3' | 'v4' | 'v5' | 'v6' | 'v7';
 
 /**
  * A set of conditions that must be matched to allow or deny access. Fields

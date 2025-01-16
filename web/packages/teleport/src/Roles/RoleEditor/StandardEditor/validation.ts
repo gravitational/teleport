@@ -26,10 +26,14 @@ import {
 } from 'shared/components/Validation/rules';
 
 import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
-import { KubernetesResourceKind } from 'teleport/services/resources';
+import {
+  KubernetesResourceKind,
+  RoleVersion,
+} from 'teleport/services/resources';
 
 import {
   KubernetesResourceModel,
+  KubernetesVerbOption,
   MetadataModel,
   ResourceAccess,
   RoleEditorModel,
@@ -157,6 +161,7 @@ export type ResourceAccessValidationResult =
   | WindowsDesktopAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
+  const kind = validKubernetesKind(res.kind.value, res.roleVersion);
   const name = requiredField(
     'Resource name is required, use "*" for any resource'
   )(res.name)();
@@ -165,15 +170,60 @@ const validKubernetesResource = (res: KubernetesResourceModel) => () => {
     : requiredField('Namespace is required for resources of this kind')(
         res.namespace
       )();
+  const verbs = validKubernetesVerbs(res.verbs);
   return {
-    valid: name.valid && namespace.valid,
+    valid: kind.valid && name.valid && namespace.valid && verbs.valid,
+    kind,
     name,
     namespace,
+    verbs,
   };
 };
 export type KubernetesResourceValidationResult = {
+  kind: ValidationResult;
   name: ValidationResult;
   namespace: ValidationResult;
+  verbs: ValidationResult;
+};
+
+const validKubernetesKind = (
+  kind: KubernetesResourceKind,
+  ver: RoleVersion | undefined
+): ValidationResult => {
+  switch (ver) {
+    case 'v3':
+    case 'v4':
+    case 'v5':
+    case 'v6':
+      const valid = kind === 'pod';
+      return {
+        valid,
+        message: valid
+          ? undefined
+          : `Only pods are allowed for role version ${ver}`,
+      };
+
+    case 'v7':
+    case undefined: // not filled in yet
+      return { valid: true };
+
+    default:
+      ver satisfies never;
+      return { valid: true };
+  }
+};
+
+const validKubernetesVerbs = (
+  verbs: readonly KubernetesVerbOption[]
+): ValidationResult => {
+  // Don't allow mixing '*' and other resource types.
+  const valid = verbs.length < 2 || verbs.every(v => v.value !== '*');
+  return {
+    valid,
+    message: valid
+      ? undefined
+      : 'Mixing "All verbs" with other options is not allowed',
+  };
 };
 
 const kubernetesAccessValidationRules = {

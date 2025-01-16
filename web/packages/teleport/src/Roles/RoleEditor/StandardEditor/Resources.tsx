@@ -28,7 +28,8 @@ import { Mark } from 'design/Mark';
 import Text, { H4 } from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
-import FieldSelect, {
+import {
+  FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
@@ -321,7 +322,10 @@ export function KubernetesAccessSection({
             onClick={() =>
               onChange?.({
                 ...value,
-                resources: [...value.resources, newKubernetesResourceModel()],
+                resources: [
+                  ...value.resources,
+                  newKubernetesResourceModel(value.roleVersion),
+                ],
               })
             }
           >
@@ -351,6 +355,7 @@ function KubernetesResourceView({
 }) {
   const { kind, name, namespace, verbs } = value;
   const theme = useTheme();
+  console.log('ROLE VERSION', value.roleVersion);
   return (
     <Box
       border={1}
@@ -378,6 +383,7 @@ function KubernetesResourceView({
         isDisabled={isProcessing}
         options={kubernetesResourceKindOptions}
         value={kind}
+        rule={precomputed(validation.kind)}
         onChange={k => onChange?.({ ...value, kind: k })}
       />
       <FieldInput
@@ -412,6 +418,7 @@ function KubernetesResourceView({
         isDisabled={isProcessing}
         options={kubernetesVerbOptions}
         value={verbs}
+        rule={precomputed(validation.verbs)}
         onChange={v => onChange?.({ ...value, verbs: v })}
         mb={0}
       />

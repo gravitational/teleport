@@ -138,8 +138,10 @@ test('edits metadata', async () => {
   const onSave = (r: Role) => (role = r);
   render(<TestStandardEditor onSave={onSave} />);
   await user.type(screen.getByLabelText('Description'), 'foo');
+  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(role.metadata.description).toBe('foo');
+  expect(role.version).toBe('v6');
 });
 
 test('edits resource access', async () => {
@@ -157,6 +159,24 @@ test('edits resource access', async () => {
   });
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(role.spec.allow.logins).toEqual(['{{internal.logins}}', 'ec2-user']);
+});
+
+test('propagates version info to Kubernetes resource access', async () => {
+  const user = userEvent.setup();
+  const onSave = jest.fn();
+  render(<TestStandardEditor onSave={onSave} />);
+  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
+  await user.click(screen.getByRole('tab', { name: 'Resources' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add New Resource Access' })
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
+  await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+  await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+
+  // Validation should have failed on a Job resource and role v6.
+  expect(onSave).not.toHaveBeenCalled();
 });
 
 const getAllMenuItemNames = () =>
