@@ -370,13 +370,17 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := y.prompt.AskPIN(ctx, PINRequired)
-		return pass, trace.Wrap(err)
+		pin, err := y.getPIN(ctx, PINRequired)
+		return pin, trace.Wrap(err)
 	}
 
 	auth := piv.KeyAuth{
 		PINPrompt: promptPIN,
-		PINPolicy: y.attestation.PINPolicy,
+
+		// When pin caching is enabled, always prompt for PIN for more consistency.
+		PINPolicy: piv.PINPolicyAlways,
+		// TODO: default to "once" pin policy if caching is not enabled.
+		// PINPolicy: y.attestation.PINPolicy,
 	}
 
 	// YubiKeys with firmware version 5.3.1 have a bug where insVerify(0x20, 0x00, 0x80, nil)
@@ -533,6 +537,10 @@ type YubiKey struct {
 	// serialNumber is the yubiKey's 8 digit serial number.
 	serialNumber uint32
 	prompt       HardwareKeyPrompt
+
+	// TODO: cache safely, not plainly in memory.
+	cachedPIN       string
+	cachedPINExpiry time.Time
 }
 
 func newYubiKey(card string, prompt HardwareKeyPrompt) (*YubiKey, error) {
@@ -662,7 +670,7 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
-	pin, err := y.prompt.AskPIN(ctx, PINOptional)
+	pin, err := y.getPIN(ctx, PINOptional)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -677,7 +685,25 @@ func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
 		}
 	}
 
+	y.cachedPIN = pin
+	y.cachedPINExpiry = time.Now().Add(15 * time.Second)
 	return trace.Wrap(y.verifyPIN(pin))
+}
+
+func (y *YubiKey) getPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
+	if y.cachedPIN != "" && time.Now().Before(y.cachedPINExpiry) {
+		return y.cachedPIN, nil
+	}
+
+	pin, err := y.prompt.AskPIN(ctx, requirement)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	y.cachedPIN = pin
+	y.cachedPINExpiry = time.Now().Add(15 * time.Second)
+
+	return pin, nil
 }
 
 type sharedPIVConnection struct {
