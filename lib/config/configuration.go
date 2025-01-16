@@ -210,10 +210,6 @@ type CommandLineFlags struct {
 	// `teleport integration configure deployservice-iam` command
 	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
 
-	// IntegrationConfEICEIAMArguments contains the arguments of
-	// `teleport integration configure eice-iam` command
-	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
-
 	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
 	// `teleport integration configure aws-app-access-iam` command
 	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
@@ -323,19 +319,6 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
-	// AccountID is the AWS account ID.
-	AccountID string
-	// AutoConfirm skips user confirmation of the operation plan if true.
-	AutoConfirm bool
-}
-
-// IntegrationConfEICEIAM contains the arguments of
-// `teleport integration configure eice-iam` command
-type IntegrationConfEICEIAM struct {
-	// Region is the AWS Region used to set up the client.
-	Region string
-	// Role is the AWS Role associated with the Integration
-	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
