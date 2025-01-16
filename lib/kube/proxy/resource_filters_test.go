@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func Test_filterBuffer(t *testing.T) {
@@ -188,43 +189,43 @@ func Test_filterBuffer(t *testing.T) {
 				var resources []string
 				switch o := obj.(type) {
 				case *corev1.SecretList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.DeploymentList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.DaemonSetList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.StatefulSetList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *authv1.RoleBindingList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *batchv1.CronJobList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *batchv1.JobList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.PodList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.ConfigMapList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.ServiceAccountList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.ReplicaSetList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.ServiceList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.PersistentVolumeClaimList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *authv1.RoleList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *networkingv1.IngressList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.IngressList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.DaemonSetList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.ReplicaSetList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.DeploymentList:
-					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *metav1.Table:
 					for i := range o.Rows {
 						row := &(o.Rows[i])
