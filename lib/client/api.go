@@ -448,6 +448,9 @@ type Config struct {
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
 	PIVSlot keys.PIVSlot
 
+	// PIVPinCacheTimeout specifies how long to cache the user's PIV PIN.
+	PIVPinCacheTimeout time.Duration
+
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
 	LoadAllCAs bool
@@ -1284,14 +1287,23 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			tc.ClientStore = NewMemClientStore()
 		} else {
 			tc.ClientStore = NewFSClientStore(c.KeysDir)
-			if c.CustomHardwareKeyPrompt != nil {
-				tc.ClientStore.SetCustomHardwareKeyPrompt(tc.CustomHardwareKeyPrompt)
-			}
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
 				tc.ClientStore.KeyStore = NewMemKeyStore()
 			}
 		}
+	}
+
+	if c.PIVPinCacheTimeout != 0 {
+		innerPrompt := c.CustomHardwareKeyPrompt
+		if innerPrompt == nil {
+			innerPrompt = &keys.CLIPrompt{}
+		}
+		c.CustomHardwareKeyPrompt = keys.NewPinCachingPrompt(innerPrompt, c.PIVPinCacheTimeout)
+	}
+
+	if c.CustomHardwareKeyPrompt != nil {
+		tc.ClientStore.SetCustomHardwareKeyPrompt(tc.CustomHardwareKeyPrompt)
 	}
 
 	// Create a buffered channel to hold events that occurred during this session.

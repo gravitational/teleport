@@ -20,11 +20,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// NewPinCachingPrompt returns a new pin caching HardwareKeyPrompt.
+func NewPinCachingPrompt(innerPrompt HardwareKeyPrompt, cacheTimeout time.Duration) *PinCachingPrompt {
+	return &PinCachingPrompt{
+		HardwareKeyPrompt: innerPrompt,
+		PinCacheTimeout:   cacheTimeout,
+	}
+}
+
 // PinCachingPrompt is a HardwareKeyPrompt wrapped with PIN caching.
 type PinCachingPrompt struct {
 	HardwareKeyPrompt
+	PinCacheTimeout time.Duration
 
-	pinCacheTimeout time.Duration
 	// TODO: cache safely, not plainly in memory.
 	cachedPIN       string
 	cachedPINExpiry time.Time
@@ -41,7 +49,7 @@ func (p *PinCachingPrompt) AskPIN(ctx context.Context, requirement PINPromptRequ
 	}
 
 	p.cachedPIN = pin
-	p.cachedPINExpiry = time.Now().Add(p.pinCacheTimeout)
+	p.cachedPINExpiry = time.Now().Add(p.PinCacheTimeout)
 
 	return pin, nil
 }
@@ -53,7 +61,7 @@ func (p *PinCachingPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	}
 
 	p.cachedPIN = PINAndPUK.PIN
-	p.cachedPINExpiry = time.Now().Add(p.pinCacheTimeout)
+	p.cachedPINExpiry = time.Now().Add(p.PinCacheTimeout)
 
 	return PINAndPUK, nil
 }
