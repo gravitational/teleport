@@ -45,6 +45,7 @@ import generateResourcePath from './generateResourcePath';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
 
+export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
