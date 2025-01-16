@@ -282,7 +282,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 			return trace.Wrap(err, "failed to determine if deprecated teleport-upgrade systemd timer is present")
 		}
 		if present {
-			ns.log.WarnContext(ctx, "Detected that the deprecated teleport-upgrade script is present on this server. Enabling to ensure continued updates.")
+			ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been re-enabled to ensure continued updates. To disable automatic updates entirely, please remove the teleport-ent-updater package.")
 			if err := oldTimer.Enable(ctx, true); err != nil {
 				return trace.Wrap(err, "failed to disable deprecated teleport-upgrade systemd timer")
 			}
