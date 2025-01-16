@@ -61,7 +61,7 @@ export const Cycle = ({
 
   return (
     <UsageGroup pb={3}>
-      <Flex alignItems="center" justifyContent="space-between" mr={5}>
+      <TitleContainer>
         <h2>
           Current Cycle: {cycleStartFormatted} - {cycleEndFormatted}
         </h2>
@@ -70,13 +70,13 @@ export const Cycle = ({
           usageUpdatedAt={usageUpdatedAt}
           usageUpdatedAtFormatted={usageUpdatedAtFormatted}
         />
-      </Flex>
+      </TitleContainer>
       <Text>Monthly usage will reset at the end of this cycle.</Text>
-      <Flex flexWrap="wrap" mb={4}>
+      <CyclesContainer>
         {usage.map(u => (
           <UsageBar key={u.name} usage={u} />
         ))}
-      </Flex>
+      </CyclesContainer>
       {calibrationPeriod && (
         <Text
           typography="body2"
@@ -92,8 +92,28 @@ export const Cycle = ({
   );
 };
 
+const TitleContainer = styled(Flex)`
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-direction: column;
+  margin-right: ${({ theme }) => theme.space[5]}px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    align-items: center;
+    flex-direction: row;
+  }
+`;
+
 const UsageGroup = styled(Box)`
   background-color: ${({ theme }) => theme.colors.levels.surface};
   border-radius: 8px;
   padding: 20px 0 40px 40px;
+`;
+
+const CyclesContainer = styled(Flex)`
+  flex-wrap: wrap;
+  margin-bottom: ${({ theme }) => theme.space[4]}px;
+  flex-direction: column;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    flex-direction: row;
+  }
 `;

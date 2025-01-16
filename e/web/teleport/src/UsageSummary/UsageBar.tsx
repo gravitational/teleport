@@ -42,7 +42,7 @@ export function UsageBar({
   };
 
   return (
-    <Box key={name} width="30%" flex="40% 0" data-testid={name}>
+    <BarContainer key={name} data-testid={name}>
       <Flex flexDirection="row" alignItems="center" gap={2}>
         <h3>{name}</h3>
         <IconTooltip children={<Text>{info}</Text>} />
@@ -60,9 +60,17 @@ export function UsageBar({
         color={getColor(total, hasFreeTier, percentageMax, hardMax)}
         calibrating={calibrating}
       />
-    </Box>
+    </BarContainer>
   );
 }
+
+const BarContainer = styled(Box)`
+  width: 100%;
+  flex: 40% 0;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    width: 30%;
+  }
+`;
 
 const StyledBar = styled.div<{
   percent: number;
