@@ -17,6 +17,9 @@
 package web
 
 import (
+	"archive/zip"
+	"bytes"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -32,27 +35,88 @@ import (
 // GET /webapi/sites/:site/auth/export?type=<auth type>
 // GET /webapi/auth/export?type=<auth type>
 func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	err := rateLimitRequest(r, h.limiter)
-	if err != nil {
+	if err := h.authExportPublicError(w, r, p); err != nil {
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
 		return
 	}
-	authorities, err := client.ExportAuthorities(
-		r.Context(),
+
+	// Success output handled by authExportPublicInternal.
+}
+
+// authExportPublicError implements authExportPublic, except it returns an error
+// in case of failure. Output is only written on success.
+func (h *Handler) authExportPublicError(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+	err := rateLimitRequest(r, h.limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	query := r.URL.Query()
+	caType := query.Get("type") // validated by ExportAllAuthorities
+	format := query.Get("format")
+
+	const formatZip = "zip"
+	if format != "" && format != formatZip {
+		return trace.BadParameter("unsupported format %q", format)
+	}
+
+	ctx := r.Context()
+	authorities, err := client.ExportAllAuthorities(
+		ctx,
 		h.GetProxyClient(),
 		client.ExportAuthoritiesRequest{
-			AuthType: r.URL.Query().Get("type"),
+			AuthType: caType,
 		},
 	)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to generate CA Certs", "error", err)
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-		return
+		h.logger.DebugContext(ctx, "Failed to generate CA Certs", "error", err)
+		return trace.Wrap(err)
 	}
 
-	reader := strings.NewReader(authorities)
+	if format == formatZip {
+		return h.authExportPublicZip(w, r, authorities)
+	}
+	if l := len(authorities); l > 1 {
+		return trace.BadParameter("found %d authorities to export, use format=%s to export all", l, formatZip)
+	}
 
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
+	reader := strings.NewReader(string(authorities[0].Data))
 	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
+	return nil
+}
+
+func (h *Handler) authExportPublicZip(
+	w http.ResponseWriter,
+	r *http.Request,
+	authorities []*client.ExportedAuthority,
+) error {
+	now := h.clock.Now().UTC()
+
+	// Write authorities to a zip buffer as files named "ca$i.cert".
+	out := &bytes.Buffer{}
+	zipWriter := zip.NewWriter(out)
+	for i, authority := range authorities {
+		fh := &zip.FileHeader{
+			Name:     fmt.Sprintf("ca%d.cer", i),
+			Method:   zip.Deflate,
+			Modified: now,
+		}
+		fh.SetMode(0644)
+
+		fileWriter, err := zipWriter.CreateHeader(fh)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fileWriter.Write(authority.Data)
+	}
+	if err := zipWriter.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	const zipName = "Teleport_CA.zip"
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment;filename="%s"`, zipName))
+	http.ServeContent(w, r, zipName, now, bytes.NewReader(out.Bytes()))
+	return nil
 }
