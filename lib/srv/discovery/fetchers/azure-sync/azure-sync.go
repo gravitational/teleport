@@ -39,9 +39,9 @@ const (
 	featNameVms             = "azure/virtualmachines"
 )
 
-// FetcherConcurrency is an arbitrary per-resource type concurrency to ensure significant throughput. As we increase
+// fetcherConcurrency is an arbitrary per-resource type concurrency to ensure significant throughput. As we increase
 // the number of resource types, we may increase this value or use some other approach to fetching concurrency.
-const FetcherConcurrency = 4
+const fetcherConcurrency = 4
 
 // Config defines parameters required for fetching resources from Azure
 type Config struct {
@@ -140,12 +140,12 @@ func BuildFeatures(values ...string) Features {
 func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {
 	res, err := a.fetch(ctx, feats)
 	if res == nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	res.Principals = utils.DeduplicateSlice(res.Principals, azurePrincipalsKey)
-	res.RoleAssignments = utils.DeduplicateSlice(res.RoleAssignments, azureRoleAssignKey)
-	res.RoleDefinitions = utils.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
-	res.VirtualMachines = utils.DeduplicateSlice(res.VirtualMachines, azureVmKey)
+	res.Principals = utils.DeduplicateKey(res.Principals, azurePrincipalsKey)
+	res.RoleAssignments = utils.DeduplicateKey(res.RoleAssignments, azureRoleAssignKey)
+	res.RoleDefinitions = utils.DeduplicateKey(res.RoleDefinitions, azureRoleDefKey)
+	res.VirtualMachines = utils.DeduplicateKey(res.VirtualMachines, azureVmKey)
 	return res, trace.Wrap(err)
 }
 
@@ -153,9 +153,9 @@ func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) 
 func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error) {
 	// Accumulate Azure resources
 	eg, ctx := errgroup.WithContext(ctx)
-	eg.SetLimit(FetcherConcurrency)
+	eg.SetLimit(fetcherConcurrency)
 	var result = &Resources{}
-	errsCh := make(chan error, FetcherConcurrency)
+	errsCh := make(chan error, fetcherConcurrency)
 	if feats.Principals {
 		eg.Go(func() error {
 			principals, err := fetchPrincipals(ctx, a.SubscriptionID, a.graphClient)

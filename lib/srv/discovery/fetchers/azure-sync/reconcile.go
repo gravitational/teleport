@@ -42,10 +42,10 @@ func MergeResources(results ...*Resources) *Resources {
 		result.RoleDefinitions = append(result.RoleDefinitions, r.RoleDefinitions...)
 		result.VirtualMachines = append(result.VirtualMachines, r.VirtualMachines...)
 	}
-	result.Principals = utils.DeduplicateSlice(result.Principals, azurePrincipalsKey)
-	result.RoleAssignments = utils.DeduplicateSlice(result.RoleAssignments, azureRoleAssignKey)
-	result.RoleDefinitions = utils.DeduplicateSlice(result.RoleDefinitions, azureRoleDefKey)
-	result.VirtualMachines = utils.DeduplicateSlice(result.VirtualMachines, azureVmKey)
+	result.Principals = utils.DeduplicateKey(result.Principals, azurePrincipalsKey)
+	result.RoleAssignments = utils.DeduplicateKey(result.RoleAssignments, azureRoleAssignKey)
+	result.RoleDefinitions = utils.DeduplicateKey(result.RoleDefinitions, azureRoleDefKey)
+	result.VirtualMachines = utils.DeduplicateKey(result.VirtualMachines, azureVmKey)
 	return result
 }
 
@@ -86,7 +86,7 @@ func reconcile[T proto.Message](
 	wrapFn func(T) *accessgraphv1alpha.AzureResource,
 ) *reconcilePair {
 	// Remove duplicates from the new items
-	newItems = utils.DeduplicateSlice(newItems, keyFn)
+	newItems = utils.DeduplicateKey(newItems, keyFn)
 	upsertRes := newResourceList()
 	deleteRes := newResourceList()
 
