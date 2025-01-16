@@ -1,54 +1,96 @@
-import styled from 'styled-components';
+import { useCallback, useEffect, useState } from 'react';
+import { useHistory } from 'react-router';
 
 import { Alert, Box, Flex, H3, Indicator, Text } from 'design';
 import { H2, P } from 'design/Text/Text';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import CTAConnectors from 'teleport/AuthConnectors/ConnectorList/CTAConnectors';
+import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
+import { CtaConnectors } from 'teleport/AuthConnectors/ConnectorList';
 import DeleteConnectorDialog from 'teleport/AuthConnectors/DeleteConnectorDialog';
 import {
   DesktopDescription,
   MobileDescription,
+  ResponsiveAddButton,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
-import ResourceEditor from 'teleport/components/ResourceEditor';
+import { Route, Switch } from 'teleport/components/Router';
 import useResources from 'teleport/components/useResources';
-import useTeleport from 'teleport/useTeleport';
+import { KindAuthConnectors, Resource } from 'teleport/services/resources';
 
-import AddMenu from './AddMenu';
-import AddNewConnectorsList from './AddNewConnectorList/AddNewConnectorList';
+import {
+  AddNewConnectorPage,
+  AddNewConnectorsList,
+} from './AddNewConnectorList/AddNewConnectorList';
+import { AuthConnectorEditor } from './AuthConnectorEditor';
 import ConnectorList from './ConnectorList';
 import templates from './templates';
-import useAuthConnectors, { State } from './useAuthConnectors';
 
-export default function Container() {
-  const state = useAuthConnectors();
-  return <AuthConnectors {...state} />;
+export const description =
+  'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
+
+export default function AuthConnectorsContainer() {
+  return (
+    <Switch>
+      <Route
+        key="auth-connector-edit"
+        path={cfg.oss.routes.ssoConnector.edit}
+        render={() => <AuthConnectorEditor />}
+      />
+      <Route
+        key="auth-connector-create"
+        path={cfg.oss.routes.ssoConnector.create}
+        exact
+        render={() => <AuthConnectorEditor isNew={true} />}
+      />
+      <Route
+        key="auth-connector-new"
+        exact
+        path={cfg.routes.ssoNewConnectorList}
+        render={() => <AddNewConnectorPage />}
+      />
+      <Route
+        exact
+        key="auth-connector-list"
+        path={cfg.oss.routes.sso}
+        render={() => <AuthConnectors />}
+      />
+    </Switch>
+  );
 }
 
-export function AuthConnectors(props: State) {
-  const { attempt, items, remove, save, showAuthConnectorsCTA } = props;
-  const ctx = useTeleport();
+export function AuthConnectors() {
+  const ctx = useTeleportE();
+  const [items, setItems] = useState<Resource<KindAuthConnectors>[]>([]);
+
+  const [fetchAttempt, fetchConnectors] = useAsync(
+    useCallback(async () => {
+      const response = await ctx.resourceService.fetchAuthConnectors();
+      setItems(response);
+    }, [ctx.resourceService])
+  );
+
+  function remove(connector: Resource<KindAuthConnectors>) {
+    const { kind, name } = connector;
+    return ctx.resourceService
+      .deleteConnector(kind, name)
+      .then(fetchConnectors);
+  }
+
+  useEffect(() => {
+    if (fetchAttempt.status !== 'success') {
+      fetchConnectors();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showAuthConnectorsCTA = ctx.lockedFeatures.authConnectors;
+
+  const history = useHistory();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
-
-  const title =
-    resources.status === 'creating'
-      ? 'Creating a new auth connector'
-      : 'Editing auth connector';
-  const description =
-    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
-
-  function handleOnRemove() {
-    return remove(resources.item);
-  }
-
-  function handleOnSave(content: string) {
-    const kind = resources.item.kind;
-    const name = resources.item.name;
-    const isNew = resources.status === 'creating';
-    return save(kind, name, content, isNew);
-  }
 
   return (
     <FeatureBox>
@@ -56,36 +98,36 @@ export function AuthConnectors(props: State) {
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
         <MobileDescription>{description}</MobileDescription>
         {(!showAuthConnectorsCTA || !isEmpty) && (
-          <ResponsiveAddMenu>
-            <AddMenu
-              onClick={resources.create}
-              isOidcLocked={ctx.lockedFeatures.authConnectors}
-              isSamlLocked={ctx.lockedFeatures.authConnectors}
-            />
-          </ResponsiveAddMenu>
+          <ResponsiveAddButton
+            fill="border"
+            onClick={() => history.push(cfg.routes.ssoNewConnectorList)}
+          >
+            Add Auth Connector
+          </ResponsiveAddButton>
         )}
       </ResponsiveFeatureHeader>
-      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-      {attempt.status === 'processing' && (
+      {fetchAttempt.status === 'error' && (
+        <Alert children={fetchAttempt.statusText} />
+      )}
+      {fetchAttempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && (
+      {fetchAttempt.status === 'success' && (
         <Flex alignItems="start">
           <Flex flexDirection="column" width="100%" gap={5}>
             <Box>
               <H2 mb={4}>Your Connectors</H2>
-              <ConnectorList
-                items={items}
-                onEdit={resources.edit}
-                onDelete={resources.remove}
-              />
+              <ConnectorList items={items} onDelete={resources.remove} />
             </Box>
             {isEmpty && !showAuthConnectorsCTA && (
-              <AddNewConnectorsList onCreate={resources.create} />
+              <Box>
+                <H2 mb={4}>Enroll a Single Sign-On Connector</H2>
+                <AddNewConnectorsList />
+              </Box>
             )}
-            {showAuthConnectorsCTA && <CTAConnectors />}
+            {showAuthConnectorsCTA && <CtaConnectors />}
           </Flex>
           <DesktopDescription>
             <H3 mb={3}>Auth Connectors</H3>
@@ -105,33 +147,14 @@ export function AuthConnectors(props: State) {
           </DesktopDescription>
         </Flex>
       )}
-      {(resources.status === 'creating' || resources.status === 'editing') && (
-        <ResourceEditor
-          title={title}
-          onSave={handleOnSave}
-          text={resources.item.content}
-          name={resources.item.name}
-          isNew={resources.status === 'creating'}
-          onClose={resources.disregard}
-        />
-      )}
       {resources.status === 'removing' && (
         <DeleteConnectorDialog
           name={resources.item.name}
+          kind={resources.item.kind}
           onClose={resources.disregard}
-          onDelete={handleOnRemove}
+          onDelete={() => remove(resources.item)}
         />
       )}
     </FeatureBox>
   );
 }
-
-const ResponsiveAddMenu = styled(Box)`
-  width: 240px;
-  margin-left: auto;
-  align-self: center;
-
-  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
-    width: 100%;
-  }
-`;

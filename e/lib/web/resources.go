@@ -61,6 +61,36 @@ func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resour
 	return conns, nil
 }
 
+// getSAMLConnectorHandle returns a SAML connector by name.
+func (p *Plugin) getSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connector, err := clt.GetSAMLConnector(r.Context(), params.ByName("name"), true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewResourceItem(connector)
+}
+
+// getOIDCConnectorHandle returns an OIDC connector by name.
+func (p *Plugin) getOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connector, err := clt.GetOIDCConnector(r.Context(), params.ByName("name"), true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewResourceItem(connector)
+}
+
 func (p *Plugin) deleteSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {

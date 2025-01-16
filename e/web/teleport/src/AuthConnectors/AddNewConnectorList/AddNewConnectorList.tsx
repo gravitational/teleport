@@ -1,25 +1,50 @@
 import { useHistory } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
-import { H2 } from 'design/Text';
+import Flex from 'design/Flex';
+import { ArrowBack } from 'design/Icon';
+import { H1 } from 'design/Text';
 
 import cfg from 'e-teleport/config';
 import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
-import { State as ResourceState } from 'teleport/components/useResources';
+import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
+import { KindAuthConnectors } from 'teleport/services/resources';
 
 import { AddNewConnectorTile } from './AddNewConnectorTile';
 
-export default function AddNewConnectorsList({
-  onCreate,
-}: {
-  onCreate: ResourceState['create'];
-}) {
+export function AddNewConnectorPage() {
+  return (
+    <FeatureBox>
+      <FeatureHeaderTitle py={3} mb={2}>
+        <Flex alignItems="center">
+          <ArrowBack
+            as={Link}
+            mr={2}
+            size="large"
+            color="text.main"
+            to={cfg.oss.routes.sso}
+          />
+          <Flex mr={4} alignItems="baseline">
+            <H1>Select an Auth Connector to set up</H1>
+          </Flex>
+        </Flex>
+      </FeatureHeaderTitle>
+      <AddNewConnectorsList />
+    </FeatureBox>
+  );
+}
+
+export function AddNewConnectorsList() {
   const history = useHistory();
+
+  const onCreate = (kind: KindAuthConnectors) => {
+    history.push(cfg.oss.getCreateAuthConnectorRoute(kind));
+  };
 
   return (
     <Box>
-      <H2 mb={4}>Enroll a Single Sign-On Connector</H2>
       <AddNewConnectorsGrid>
         <AddNewConnectorTile
           key="github"

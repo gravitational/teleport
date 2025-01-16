@@ -238,10 +238,12 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	h.GET("/enterprise/authconnectors", h.WithAuth(p.getAuthConnectorsHandle))
 	h.POST("/enterprise/saml", h.WithAuth(p.createSAMLConnectorHandle))
+	h.GET("/enterprise/saml/connector/:name", h.WithAuth(p.getSAMLConnectorHandle))
 	h.PUT("/enterprise/saml/:name", h.WithAuth(p.updateSAMLConnectorHandle))
 	h.DELETE("/enterprise/saml/:name", h.WithAuth(p.deleteSAMLConnectorHandle))
 
 	h.POST("/enterprise/oidc", h.WithAuth(p.createOIDCConnectorHandle))
+	h.GET("/enterprise/oidc/connector/:name", h.WithAuth(p.getOIDCConnectorHandle))
 	h.PUT("/enterprise/oidc/:name", h.WithAuth(p.updateOIDCConnectorHandle))
 	h.DELETE("/enterprise/oidc/:name", h.WithAuth(p.deleteOIDCConnectorHandle))
 

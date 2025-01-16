@@ -1,17 +1,19 @@
+import { useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
 
+import cfg from 'e-teleport/config';
 import {
   AuthConnectorTile,
   LocalConnectorTile,
 } from 'teleport/AuthConnectors/AuthConnectorTile';
 import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
 import { State as ResourceState } from 'teleport/components/useResources';
+import { KindAuthConnectors, Resource } from 'teleport/services/resources';
 
-import { State as AuthConnectorState } from '../useAuthConnectors';
-
-export default function ConnectorList({ items, onEdit, onDelete }: Props) {
+export default function ConnectorList({ items, onDelete }: Props) {
+  const history = useHistory();
   items = items || [];
   const $items = items.map(item => {
     const { id, name, kind } = item;
@@ -26,7 +28,9 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
         Icon={Icon}
         isDefault={false}
         isPlaceholder={false}
-        onEdit={onEdit}
+        onEdit={() =>
+          history.push(cfg.oss.getEditAuthConnectorRoute(kind, name))
+        }
         onDelete={onDelete}
         name={name}
       />
@@ -42,8 +46,7 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
 }
 
 type Props = {
-  items: AuthConnectorState['items'];
-  onEdit: ResourceState['edit'];
+  items: Resource<KindAuthConnectors>[];
   onDelete: ResourceState['remove'];
 };
 

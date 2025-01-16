@@ -14,10 +14,22 @@ class ResourceServiceE extends ResourceService {
       .then(res => makeResourceList<KindAuthConnectors>(res));
   }
 
+  fetchSamlConnector(name: string) {
+    return api
+      .get(cfg.getSamlConnectorSpecificUrl(name))
+      .then(res => makeResource<'saml'>(res));
+  }
+
   updateSamlConnector(name: string, content: string) {
     return api
       .put(cfg.getSamlConnectorsUrl(name), { content })
       .then(res => makeResource<'saml'>(res));
+  }
+
+  fetchOidcConnector(name: string) {
+    return api
+      .get(cfg.getOidcConnectorSpecificUrl(name))
+      .then(res => makeResource<'oidc'>(res));
   }
 
   updateOidcConnector(name: string, content: string) {
@@ -44,6 +56,17 @@ class ResourceServiceE extends ResourceService {
 
   deleteOidcConnector(name: string) {
     return api.delete(cfg.getOidcConnectorsUrl(name));
+  }
+
+  fetchConnector(kind: KindAuthConnectors, name: string) {
+    switch (kind) {
+      case 'oidc':
+        return this.fetchOidcConnector(name);
+      case 'saml':
+        return this.fetchSamlConnector(name);
+      default:
+        return super.fetchGithubConnector(name);
+    }
   }
 
   createConnector(

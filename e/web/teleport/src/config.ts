@@ -42,6 +42,11 @@ const cfg = {
     recoveryStepDevices: '/web/recovery/steps/:tokenId/devices',
     recoveryStepCodes: '/web/recovery/steps/:tokenId/codes',
 
+    /**
+     * ssoNewConnectorList is a page which lists possible auth connector types to add, similar to Discover.
+     */
+    ssoNewConnectorList: '/web/sso/new',
+
     // allow SAML IdP handlers
     samlIdPHandler: '/enterprise/saml-idp/*',
 
@@ -73,7 +78,9 @@ const cfg = {
 
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
+    samlConnectorSpecificPath: '/v1/enterprise/saml/connector/:name',
     oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
+    oidcConnectorSpecificPath: '/v1/enterprise/oidc/connector/:name',
 
     billingSummaryPath: '/v1/enterprise/cloud/billing-summary',
     nonBillableUsageSummaryPath: '/v1/enterprise/cloud/nonbillable-summary',
@@ -250,8 +257,16 @@ const cfg = {
     return generatePath(cfg.api.samlConnectorsPath, { name });
   },
 
+  getSamlConnectorSpecificUrl(name: string) {
+    return generatePath(cfg.api.samlConnectorSpecificPath, { name });
+  },
+
   getOidcConnectorsUrl(name?: string) {
     return generatePath(cfg.api.oidcConnectorsPath, { name });
+  },
+
+  getOidcConnectorSpecificUrl(name: string) {
+    return generatePath(cfg.api.oidcConnectorSpecificPath, { name });
   },
 
   getRecoveryTokenUrl(tokenId: string) {
