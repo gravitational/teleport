@@ -40,12 +40,12 @@ This poses several challenges:
 func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
     myMetric := prometheus.NewGauge(prometheus.GaugeOpts{
         Namespace: teleport.MetricNamespace,
-		Subsystem: metricsSubsystem,
+        Subsystem: metricsSubsystem,
         Name: "my_metric",
         Help: "Measures the number of foos doing bars.",
     }),
     if err := reg.Register(myMetric); err != nil {
-		return nil, trace.Wrap(err, "registering metric")
+        return nil, trace.Wrap(err, "registering metric")
     }
     // ...
 }
@@ -58,12 +58,12 @@ func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
   func NewService(log *slog.Logger) (Service, error) {
       myMetric := prometheus.NewGauge(prometheus.GaugeOpts{
           Namespace: teleport.MetricNamespace,
-  		Subsystem: metricsSubsystem,
+          Subsystem: metricsSubsystem,
           Name: "my_metric",
           Help: "Measures the number of foos doing bars.",
       }),
       if err := prometheus.Register(myMetric); err != nil {
-  		return nil, trace.Wrap(err, "registering metric")
+          return nil, trace.Wrap(err, "registering metric")
       }
       // ...
   }
@@ -75,12 +75,12 @@ func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
   func NewService(log *slog.Logger, reg *prometheus.Registry) (Service, error) {
       myMetric := prometheus.NewGauge(prometheus.GaugeOpts{
           Namespace: teleport.MetricNamespace,
-  		Subsystem: metricsSubsystem,
+          Subsystem: metricsSubsystem,
           Name: "my_metric",
           Help: "Measures the number of foos doing bars.",
       }),
       if err := reg.Register(myMetric); err != nil {
-  		return nil, trace.Wrap(err, "registering metric")
+          return nil, trace.Wrap(err, "registering metric")
       }
       // ...
   }
@@ -102,12 +102,12 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
     m := metrics{
         currentFoo: prometheus.NewGauge(prometheus.GaugeOpts{
             Namespace: teleport.MetricNamespace,
-	    	Subsystem: metricsSubsystem,
+            Subsystem: metricsSubsystem,
             Name: "foo_current",
             Help: "Measures the number of foos.",
         }),
         barCounter: // ...
-    } 
+    }
     
     errs := trace.NewAggregate(
         reg.Register(m.currentFoo),
@@ -131,7 +131,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 var (
     currentFoo = prometheus.NewGauge(prometheus.GaugeOpts{
             Namespace: teleport.MetricNamespace,
-	    	Subsystem: metricsSubsystem,
+            Subsystem: metricsSubsystem,
             Name: "foo_current",
             Help: "Measures the number of foos.",
         })
@@ -160,17 +160,17 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
     m := metrics{
         currentFoo: prometheus.NewGauge(prometheus.GaugeOpts{
             Namespace: teleport.MetricNamespace,
-	    	Subsystem: metricsSubsystem,
+            Subsystem: metricsSubsystem,
             Name: "foo_timestamp_seconds",
             Help: "Represents the foo time, in seconds.",
         }),
         barCounter: prometheus.NewCounter(prometheus.GaugeOpts{
             Namespace: teleport.MetricNamespace,
-	    	Subsystem: metricsSubsystem,
+            Subsystem: metricsSubsystem,
             Name: "bar_total",
             Help: "Number of times bar happened.",
         }),
-    } 
+    }
     // ...
 }
 ```
@@ -196,7 +196,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
             Name: "bar_total",
             Help: "Number of times bar happened.",
         }),
-    } 
+    }
     // ...
 }
 ```
