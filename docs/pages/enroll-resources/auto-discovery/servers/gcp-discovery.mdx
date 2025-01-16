@@ -138,8 +138,10 @@ discover instances.
   --role="projects/<Var name="project_id" />/roles/teleport_discovery"
   ```
 
-  If the Discovery Service will run in a GCP compute instance, run the following command to
-  add the service account to the instance:
+  If the Discovery Service will run in a GCP compute instance, run the following
+  command to add the service account to the instance, replacing <Var
+  name="discovery_service_vm_name" /> with the name of the Discovery Service VM:
+
   ```code
   $ gcloud compute instances set-service-account <Var name="discovery_service_vm_name" description="Name of the instance running the Discovery Service" /> \
   --service-account=teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com \
