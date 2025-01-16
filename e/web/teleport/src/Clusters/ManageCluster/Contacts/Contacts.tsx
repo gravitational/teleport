@@ -192,11 +192,10 @@ export function Contacts() {
       <ContactBox
         title="Business Contacts"
         text={`
-            Used for notices of important security patches and
-            vulnerabilities. Your Teleport account can have up-to
-            ${MAX_CONTACTS} security contacts.
+            Used for account and billing notices. Your Teleport account can have up to
+            ${MAX_CONTACTS} business contacts.
           `}
-        icon={<Icons.Lock />}
+        icon={<Icons.Checks />}
         listAttempt={listAttempt}
         contacts={businessContacts}
         onChange={(verifyToken, val) =>
@@ -216,11 +215,11 @@ export function Contacts() {
 
       <ContactBox
         title="Security Contacts"
-        icon={<Icons.ShieldCheck />}
+        icon={<Icons.Lock />}
         listAttempt={listAttempt}
         text={`
           Used for notices of important security patches and
-          vulnerabilities. Your Teleport account can have up-to
+          vulnerabilities. Your Teleport account can have up to
           ${MAX_CONTACTS} security contacts.
           `}
         contacts={securityContacts}
