@@ -35,10 +35,15 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -51,6 +56,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	dttestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -59,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	loginruleresource "github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )
@@ -82,6 +89,9 @@ func TestAdminActionMFA(t *testing.T) {
 	t.Run("NetworkRestriction", s.testNetworkRestriction)
 	t.Run("NetworkingConfig", s.testNetworkingConfig)
 	t.Run("SessionRecordingConfig", s.testSessionRecordingConfig)
+	t.Run("DeviceTrust", s.testDeviceTrust)
+	t.Run("LoginRules", s.testLoginRules)
+	t.Run("AccessLists", s.testAccessLists)
 }
 
 func (s *adminActionTestSuite) testUsers(t *testing.T) {
@@ -848,6 +858,233 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 			resourceGet:     getSessionRecordingConfig,
 			resourceCleanup: resetSessionRecordingConfig,
 		})
+	})
+}
+
+func (s *adminActionTestSuite) testDeviceTrust(t *testing.T) {
+	ctx := context.Background()
+
+	macOSDev1, err := dttestenv.NewFakeMacOSDevice()
+	require.NoError(t, err, "NewFakeMacOSDevice failed")
+
+	device := &devicetrustv1.Device{
+		ApiVersion:   types.V1,
+		Id:           macOSDev1.ID,
+		OsType:       macOSDev1.GetDeviceOSType(),
+		AssetTag:     macOSDev1.SerialNumber,
+		EnrollStatus: devicetrustv1.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+	}
+
+	upsertDevice := func() error {
+		_, err := s.localAdminClient.DevicesClient().UpsertDevice(ctx, &devicetrustv1.UpsertDeviceRequest{
+			Device: device,
+		})
+		return trace.Wrap(err)
+	}
+
+	// For tests where we depend on the actual resource ID, rather than just the asset tag.
+	upsertDeviceWithID := func() error {
+		_, err := s.localAdminClient.DevicesClient().UpsertDevice(ctx, &devicetrustv1.UpsertDeviceRequest{
+			Device:           device,
+			CreateAsResource: true,
+		})
+		return trace.Wrap(err)
+	}
+
+	getDevice := func() (types.Resource, error) {
+		resp, err := s.localAdminClient.DevicesClient().FindDevices(ctx, &devicetrustv1.FindDevicesRequest{
+			IdOrTag: macOSDev1.SerialNumber,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if len(resp.Devices) == 0 {
+			return nil, trace.NotFound("no devices found")
+		} else if len(resp.Devices) != 1 {
+			return nil, trace.BadParameter("expected 1 device but found %v", len(resp.Devices))
+		}
+		return types.DeviceToResource(resp.Devices[0]), nil
+	}
+
+	deleteDevice := func() error {
+		resp, err := s.localAdminClient.DevicesClient().FindDevices(ctx, &devicetrustv1.FindDevicesRequest{
+			IdOrTag: macOSDev1.SerialNumber,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		} else if len(resp.Devices) == 0 {
+			return trace.NotFound("no devices found")
+		}
+		_, err = s.localAdminClient.DevicesClient().DeleteDevice(ctx, &devicetrustv1.DeleteDeviceRequest{
+			DeviceId: resp.Devices[0].Id,
+		})
+		return trace.Wrap(err)
+	}
+
+	for name, tc := range map[string]adminActionTestCase{
+		"tctl devices add": {
+			command:    fmt.Sprintf("devices add --os=macos --asset-tag=%v", macOSDev1.SerialNumber),
+			cliCommand: &tctl.DevicesCommand{},
+			cleanup:    deleteDevice,
+		},
+		"tctl devices add --enroll": {
+			command:    fmt.Sprintf("devices add --enroll --os=macos --asset-tag=%v", macOSDev1.SerialNumber),
+			cliCommand: &tctl.DevicesCommand{},
+			cleanup:    deleteDevice,
+		},
+		"tctl devices rm": {
+			command:    fmt.Sprintf("devices rm --asset-tag=%v", macOSDev1.SerialNumber),
+			cliCommand: &tctl.DevicesCommand{},
+			setup:      upsertDevice,
+			cleanup:    deleteDevice,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s.testCommand(t, ctx, tc)
+		})
+	}
+
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:        types.DeviceToResource(device),
+		resourceCreate:  upsertDeviceWithID,
+		resourceCleanup: deleteDevice,
+	})
+
+	s.testEditCommand(t, ctx, editCommandTestCase{
+		resourceRef:     getResourceRef(types.DeviceToResource(device)),
+		resourceCreate:  upsertDeviceWithID,
+		resourceGet:     getDevice,
+		resourceCleanup: deleteDevice,
+	})
+}
+
+func (s *adminActionTestSuite) testLoginRules(t *testing.T) {
+	ctx := context.Background()
+
+	loginRulePB := &loginrulepb.LoginRule{
+		Metadata: &types.Metadata{
+			Name:      "loginrule",
+			Namespace: "default",
+		},
+		Version:  "v1",
+		Priority: 0,
+		TraitsMap: map[string]*wrappers.StringValues{
+			"logins": {
+				Values: []string{"external.login"},
+			},
+		},
+	}
+	loginRule := loginruleresource.ProtoToResource(loginRulePB)
+
+	createLoginRule := func() error {
+		_, err := s.localAdminClient.LoginRuleClient().CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+			LoginRule: loginRulePB,
+		})
+		return trace.Wrap(err)
+	}
+
+	getLoginRule := func() (types.Resource, error) {
+		resp, err := s.localAdminClient.LoginRuleClient().GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+			Name: loginRule.GetName(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return loginruleresource.ProtoToResource(resp), nil
+	}
+
+	deleteLoginRule := func() error {
+		_, err := s.localAdminClient.LoginRuleClient().DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+			Name: loginRule.GetName(),
+		})
+		return trace.Wrap(err)
+	}
+
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:        loginRule,
+		resourceCreate:  createLoginRule,
+		resourceCleanup: deleteLoginRule,
+	})
+
+	s.testEditCommand(t, ctx, editCommandTestCase{
+		resourceRef:     getResourceRef(loginRule),
+		resourceCreate:  createLoginRule,
+		resourceGet:     getLoginRule,
+		resourceCleanup: deleteLoginRule,
+	})
+}
+
+func (s *adminActionTestSuite) testAccessLists(t *testing.T) {
+	ctx := context.Background()
+
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "accesslist",
+		},
+		accesslist.Spec{
+			Title: "simple",
+			Grants: accesslist.Grants{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Now().AddDate(1, 0, 0),
+			},
+			Owners: []accesslist.Owner{
+				{
+					Name: "admin",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	accessListMember, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: "admin",
+	}, accesslist.AccessListMemberSpec{
+		AccessList: accessList.GetName(),
+		Name:       "admin",
+		Joined:     time.Now(),
+		AddedBy:    "admin",
+	})
+	require.NoError(t, err)
+
+	createAccessList := func() error {
+		_, err := s.authServer.UpsertAccessList(ctx, accessList)
+		return trace.Wrap(err)
+	}
+
+	deleteAccessList := func() error {
+		return s.authServer.DeleteAccessList(ctx, accessList.GetName())
+	}
+
+	for name, tc := range map[string]adminActionTestCase{
+		"tctl acl users add": {
+			command:    fmt.Sprintf("acl users add %v %v", accessList.GetName(), "admin"),
+			cliCommand: &tctl.ACLCommand{},
+			setup:      createAccessList,
+			cleanup:    deleteAccessList,
+		},
+		"tctl acl users rm": {
+			command:    fmt.Sprintf("acl users rm %v %v", accessList.GetName(), "admin"),
+			cliCommand: &tctl.ACLCommand{},
+			setup: func() error {
+				if err := createAccessList(); err != nil {
+					return trace.Wrap(err)
+				}
+				_, err := s.authServer.UpsertAccessListMember(ctx, accessListMember)
+				return trace.Wrap(err)
+			},
+			cleanup: deleteAccessList,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s.testCommand(t, ctx, tc)
+		})
+	}
+
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:        accessList,
+		resourceCreate:  createAccessList,
+		resourceCleanup: deleteAccessList,
 	})
 }
 
