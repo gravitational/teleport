@@ -36,7 +36,7 @@ func main() {
 
 	modules.SetInsecureTestMode(true)
 	modules.SetModules(&updater.TestModules{})
-	prompt.SetStdin(prompt.NewFakeReader().AddString(updater.TestPassword))
+	prompt.SetStdin(prompt.NewFakeReader().AddString(os.Getenv(updater.TestPassword)))
 
 	err := tsh.Run(ctx, os.Args[1:])
 	if err != nil {
