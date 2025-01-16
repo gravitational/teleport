@@ -204,9 +204,10 @@ Token                            Type Labels Expiry Time (UTC)
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
 to the value of the join token you retrieved above, <Var
 name="example.teleport.sh:443" /> to the host **and port** of your Teleport
-Proxy Service, `enterprise` to false if you are using the community/OSS version,
-and <Var name="endpoint:port" /> to the host **and port** of your RDS
-database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
+Proxy Service, and <Var name="endpoint:port" /> to the host **and port** of your
+RDS database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`). Assign <Var
+name="aws-account" /> to your AWS account ID. Set `enterprise` to false if you
+are using Teleport Community Edition:
 
 ```yaml
 authToken: <Var name="token" />

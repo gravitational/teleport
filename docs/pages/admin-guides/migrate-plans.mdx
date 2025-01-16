@@ -93,7 +93,8 @@ Validate connectivity to both the new Teleport Enterprise cluster and your
 original Teleport Enterprise cluster. You should be able to connect to both
 Teleport clusters and execute `tctl` commands using your current credentials.
 
-1. Log in to the original Teleport cluster:
+1. Log in to the original Teleport cluster, replacing 
+   <Var name="enterprise.example.com" /> with the cluster domain name:
 
    ```code
    # Use the --auth flag instead of --user to log in with Single Sign-On.
@@ -101,7 +102,8 @@ Teleport clusters and execute `tctl` commands using your current credentials.
    $ tctl status
    ```
 
-1. Log in to the new Teleport Enterprise cluster:
+1. Log in to the new Teleport Enterprise cluster, replacing <Var
+   name="example.teleport.sh" /> with the domain name of your new cluster:
 
    ```code
    # Use the --auth flag instead of --user to log in with Single Sign-On.
