@@ -102,7 +102,7 @@ export function AuthConnectors(props: State) {
               <Link
                 color="text.main"
                 // This URL is the OSS documentation for auth connectors
-                href="https://goteleport.com/docs/setup/admin/github-sso/"
+                href="https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/"
                 target="_blank"
               >
                 view our documentation
