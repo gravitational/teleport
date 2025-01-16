@@ -40,7 +40,7 @@ import {
 } from 'design/Icon';
 
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
-import cfg from 'teleport/config';
+import cfg, { Cfg } from 'teleport/config';
 import {
   ManagementSection,
   NavigationCategory,
@@ -67,6 +67,13 @@ import { TrustedClusters } from './TrustedClusters';
 import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
 import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
+
+// to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
+// However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
+// are usually "always visible"
+export function shouldHideFromNavigation(cfg: Cfg) {
+  return cfg.isDashboard || cfg.hideInaccessibleFeatures;
+}
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -220,7 +227,7 @@ export class FeatureBots implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     // if feature hiding is enabled, only show
     // if the user has access
-    if (cfg.hideInaccessibleFeatures) {
+    if (shouldHideFromNavigation(cfg)) {
       return flags.listBots;
     }
     return true;
@@ -391,7 +398,7 @@ export class FeatureIntegrations implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     // if feature hiding is enabled, only show
     // if the user has access
-    if (cfg.hideInaccessibleFeatures) {
+    if (shouldHideFromNavigation(cfg)) {
       return flags.integrations;
     }
     return true;
@@ -430,7 +437,10 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.enrollIntegrations;
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.enrollIntegrations;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -563,7 +573,10 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.deviceTrust;
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.deviceTrust;
+    }
+    return true;
   }
 
   navigationItem = {
