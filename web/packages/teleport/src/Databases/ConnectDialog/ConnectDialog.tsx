@@ -124,7 +124,7 @@ export default function ConnectDialog({
           {`* Note: To connect with a GUI database client, see our `}
           <Link
             href={
-              'https://goteleport.com/docs/database-access/guides/gui-clients/'
+              'https://goteleport.com/docs/connect-your-client/gui-clients/'
             }
             target="_blank"
           >

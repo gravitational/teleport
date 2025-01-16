@@ -55,7 +55,8 @@ const props: Props = {
     title: 'Add your first Linux server to Teleport',
     byline:
       'Teleport Server Access consolidates SSH access across all environments.',
-    docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
+    docsURL:
+      'https://goteleport.com/docs/enroll-resources/server-access/getting-started/',
     resourceType: SearchResource.SERVER,
     readOnly: {
       title: 'No Servers Found',
