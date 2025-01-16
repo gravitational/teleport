@@ -332,6 +332,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginStaticCredentials == nil {
+		cfg.PluginStaticCredentials, err = local.NewPluginStaticCredentialsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.UserTasks == nil {
 		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
 		if err != nil {
@@ -396,6 +402,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
 		}
 		cfg.WorkloadIdentity = workloadIdentity
+	}
+	if cfg.GitServers == nil {
+		cfg.GitServers, err = local.NewGitServerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating GitServer service")
+		}
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -494,6 +506,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ProvisioningStates:        cfg.ProvisioningStates,
 		IdentityCenter:            cfg.IdentityCenter,
 		WorkloadIdentities:        cfg.WorkloadIdentity,
+		PluginStaticCredentials:   cfg.PluginStaticCredentials,
+		GitServers:                cfg.GitServers,
 	}
 
 	as := Server{
@@ -712,6 +726,8 @@ type Services struct {
 	services.ProvisioningStates
 	services.IdentityCenter
 	services.WorkloadIdentities
+	services.PluginStaticCredentials
+	services.GitServers
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1005,7 +1021,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
-	//the purpose of tests.
+	// the purpose of tests.
 	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
@@ -3206,6 +3222,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
+	var githubUserID, githubUsername string
+	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubUserID = githubIdentities[0].UserID
+		githubUsername = githubIdentities[0].Username
+	}
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3245,6 +3268,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				DeviceID:                req.deviceExtensions.DeviceID,
 				DeviceAssetTag:          req.deviceExtensions.AssetTag,
 				DeviceCredentialID:      req.deviceExtensions.CredentialID,
+				GitHubUserID:            githubUserID,
+				GitHubUsername:          githubUsername,
 			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)

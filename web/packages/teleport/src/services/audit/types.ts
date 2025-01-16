@@ -310,6 +310,8 @@ export const eventCodes = {
   PLUGIN_DELETE: 'PG003I',
   CONTACT_CREATE: 'TCTC001I',
   CONTACT_DELETE: 'TCTC002I',
+  GIT_COMMAND: 'TGIT001I',
+  GIT_COMMAND_FAILURE: 'TGIT001E',
 } as const;
 
 /**
@@ -1760,6 +1762,27 @@ export type RawEvents = {
     {
       email: string;
       contact_type: number;
+    }
+  >;
+  [eventCodes.GIT_COMMAND]: RawEvent<
+    typeof eventCodes.GIT_COMMAND,
+    {
+      service: string;
+      path: string;
+      actions?: {
+        action: string;
+        reference: string;
+        new?: string;
+        old?: string;
+      }[];
+    }
+  >;
+  [eventCodes.GIT_COMMAND_FAILURE]: RawEvent<
+    typeof eventCodes.GIT_COMMAND_FAILURE,
+    {
+      service: string;
+      path: string;
+      exitError: string;
     }
   >;
 };

@@ -46,42 +46,51 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
-func TestUnifiedResourceWatcher(t *testing.T) {
-	t.Parallel()
+type client struct {
+	services.Presence
+	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
+	services.GitServers
+	services.IdentityCenterAccounts
+	services.IdentityCenterAccountAssignments
+	types.Events
+}
 
-	ctx := context.Background()
+func newClient(t *testing.T) *client {
+	t.Helper()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	type client struct {
-		services.Presence
-		services.WindowsDesktops
-		services.SAMLIdPServiceProviders
-		services.IdentityCenterAccounts
-		services.IdentityCenterAccountAssignments
-		types.Events
-	}
-
 	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
 	require.NoError(t, err)
-
+	gitService, err := local.NewGitServerService(bk)
+	require.NoError(t, err)
 	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
 		Backend: bk,
 	})
 	require.NoError(t, err)
 
-	clt := &client{
+	return &client{
 		Presence:                         local.NewPresenceService(bk),
 		WindowsDesktops:                  local.NewWindowsDesktopService(bk),
 		SAMLIdPServiceProviders:          samlService,
 		Events:                           local.NewEventsService(bk),
+		GitServers:                       gitService,
 		IdentityCenterAccounts:           icService,
 		IdentityCenterAccountAssignments: icService,
 	}
+}
+
+func TestUnifiedResourceWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clt := newClient(t)
+
 	// Add node to the backend.
 	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
-	_, err = clt.UpsertNode(ctx, node)
+	_, err := clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
 	db, err := types.NewDatabaseV3(types.Metadata{
@@ -101,6 +110,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
+	gitServer := newGitServer(t, "my-org")
+	require.NoError(t, err)
+	_, err = clt.CreateGitServer(ctx, gitServer)
+	require.NoError(t, err)
 
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -110,10 +123,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		ResourceGetter: clt,
 	})
 	require.NoError(t, err)
-	// node and db expected initially
+	// node, db, and git_server expected initially
 	res, err := w.GetUnifiedResources(ctx)
 	require.NoError(t, err)
-	require.Len(t, res, 2)
+	require.Len(t, res, 3)
 
 	assert.Eventually(t, func() bool {
 		return w.IsInitialized()
@@ -154,11 +167,17 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	err = clt.UpsertWindowsDesktop(ctx, win)
 	require.NoError(t, err)
 
+	// add another git server
+	gitServer2 := newGitServer(t, "my-org-2")
+	_, err = clt.UpsertGitServer(ctx, gitServer2)
+	require.NoError(t, err)
+
 	icAcct := newICAccount(t, ctx, clt)
 	icAcctAssignment := newICAccountAssignment(t, ctx, clt)
 
 	// we expect each of the resources above to exist
 	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
+		gitServer, gitServer2,
 		types.Resource153ToUnifiedResource(icAcct),
 		types.Resource153ToUnifiedResource(icAcctAssignment),
 	}
@@ -200,6 +219,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 
 	// this should include the updated node, and shouldn't have any apps included
 	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
+		gitServer, gitServer2,
 		types.Resource153ToUnifiedResource(icAcct),
 		types.Resource153ToUnifiedResource(icAcctAssignment)}
 
@@ -243,35 +263,7 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	type client struct {
-		services.Presence
-		services.WindowsDesktops
-		services.SAMLIdPServiceProviders
-		services.IdentityCenterAccountGetter
-		services.IdentityCenterAccountAssignments
-		types.Events
-	}
-
-	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
-	require.NoError(t, err)
-
-	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: bk,
-	})
-	require.NoError(t, err)
-
-	clt := &client{
-		Presence:                         local.NewPresenceService(bk),
-		WindowsDesktops:                  local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders:          samlService,
-		Events:                           local.NewEventsService(bk),
-		IdentityCenterAccountGetter:      icService,
-		IdentityCenterAccountAssignments: icService,
-	}
+	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentUnifiedResource,
@@ -308,35 +300,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	type client struct {
-		services.Presence
-		services.WindowsDesktops
-		services.SAMLIdPServiceProviders
-		services.IdentityCenterAccounts
-		services.IdentityCenterAccountAssignments
-		types.Events
-	}
-
-	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
-	require.NoError(t, err)
-
-	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: bk,
-	})
-	require.NoError(t, err)
-
-	clt := &client{
-		Presence:                         local.NewPresenceService(bk),
-		WindowsDesktops:                  local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders:          samlService,
-		Events:                           local.NewEventsService(bk),
-		IdentityCenterAccounts:           icService,
-		IdentityCenterAccountAssignments: icService,
-	}
+	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentUnifiedResource,
@@ -433,9 +397,14 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 
 	icAcct := newICAccount(t, ctx, clt)
 
+	// add git server
+	gitServer := newGitServer(t, "my-org")
+	_, err = clt.CreateGitServer(ctx, gitServer)
+	require.NoError(t, err)
+
 	assert.Eventually(t, func() bool {
 		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 7
+		return len(res) == 8
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 	// delete everything
@@ -452,6 +421,8 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
 	require.NoError(t, err)
 	err = clt.DeleteIdentityCenterAccount(ctx, services.IdentityCenterAccountID(icAcct.GetMetadata().GetName()))
+	require.NoError(t, err)
+	err = clt.DeleteGitServer(ctx, gitServer.GetName())
 	require.NoError(t, err)
 
 	assert.Eventually(t, func() bool {
@@ -503,6 +474,16 @@ func Test_PaginatedResourcesSAMLIdPServiceProviderCompatibility(t *testing.T) {
 
 func newTestEntityDescriptor(entityID string) string {
 	return fmt.Sprintf(testEntityDescriptor, entityID)
+}
+
+func newGitServer(t *testing.T, githubOrg string) types.Server {
+	t.Helper()
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Organization: githubOrg,
+		Integration:  githubOrg,
+	})
+	require.NoError(t, err)
+	return gitServer
 }
 
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.

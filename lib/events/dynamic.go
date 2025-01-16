@@ -390,6 +390,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessGraphSettingsUpdate{}
 	case DatabaseSessionSpannerRPCEvent:
 		e = &events.SpannerRPC{}
+	case GitCommandEvent:
+		e = &events.GitCommand{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

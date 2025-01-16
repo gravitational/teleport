@@ -843,6 +843,9 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+  // GitHub contains info about GitHub proxies where each server represents a
+  // GitHub organization.
+  GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
 
   reserved 8;
   reserved 10;
@@ -874,6 +877,15 @@ message AWSInfo {
 message CloudMetadata {
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// GitHubServerMetadata contains info about GitHub proxies where each server
+// represents a GitHub organization.
+message GitHubServerMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+  // Integration is the integration that is associated with this Server.
+  string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -3408,6 +3420,12 @@ message RoleConditions {
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
 
+  // GitHubPermissions defines GitHub integration related permissions.
+  repeated GitHubPermission git_hub_permissions = 43 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "github_permissions,omitempty"
+  ];
+
   // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
   // resources can be invoked. Further authorization controls exist on the
   // WorkloadIdentity resource itself.
@@ -3426,6 +3444,11 @@ message RoleConditions {
 message IdentityCenterAccountAssignment {
   string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
   string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
+}
+
+// GitHubPermission defines GitHub integration related permissions.
+message GitHubPermission {
+  repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3850,6 +3873,10 @@ message ExternalIdentity {
 
   // SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
   string SAMLSingleLogoutURL = 3 [(gogoproto.jsontag) = "samlSingleLogoutUrl,omitempty"];
+
+  // UserID is the ID of the identity. Some connectors like GitHub have an
+  // unique ID apart from the username.
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // LoginStatus is a login status of the user
@@ -5227,7 +5254,7 @@ message GithubAuthRequest {
   string KubernetesCluster = 13 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
   // SSOTestFlow indicates if the request is part of the test flow.
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
-  // ConnectorSpec is embedded connector spec for use in test flow.
+  // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // AttestationStatement is an attestation statement for the given public key.
   //
@@ -5251,6 +5278,10 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // AuthenticatedUser is the username of an authenticated Teleport user. This
+  // OAuth flow is used to retrieve GitHub identity info which will be added to
+  // the existing user.
+  string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5421,6 +5452,12 @@ message GithubClaims {
 
   // Teams is the users team membership
   repeated string Teams = 3 [(gogoproto.jsontag) = "teams"];
+
+  // UserID is a global unique integer that is assigned to each GitHub user. The
+  // user ID is immutable (unlike the GitHub username) and can be found in APIs
+  // like get user.
+  // https://docs.github.com/en/rest/users/users
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // TeamMapping represents a single team membership mapping.
@@ -7153,6 +7190,7 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -7172,6 +7210,14 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
+// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
+// for the integration or plugin.
+message PluginStaticCredentialsSSHCertAuthorities {
+  // CertAuthorities contains the active SSH CAs used for the integration or
+  // plugin.
+  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -7521,7 +7567,12 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
+
+  // Credentials contains credentials for the integration.
+  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -7564,6 +7615,12 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

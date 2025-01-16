@@ -80,6 +80,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSPIFFEFederation, RO()),
 	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
 	types.NewRule(types.KindIdentityCenter, RO()),
+	types.NewRule(types.KindGitServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -3565,4 +3566,31 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
+}
+
+// AuthPreferenceGetter defines an interface for getting the authentication
+// preferences.
+type AuthPreferenceGetter interface {
+	// GetAuthPreference fetches the cluster authentication preferences.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+}
+
+// AccessStateFromSSHCertificate populates access state based on user's SSH
+// certificate and auth preference.
+func AccessStateFromSSHCertificate(ctx context.Context, cert *ssh.Certificate, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
+		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
+			state.MFAVerified = true
+		}
+	}
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
+	return state, nil
 }
