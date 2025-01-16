@@ -241,6 +241,7 @@ func (ns *Namespace) Setup(ctx context.Context) error {
 			if err := oldTimer.Disable(ctx, true); err != nil {
 				return trace.Wrap(err, "failed to disable deprecated teleport-upgrade systemd timer")
 			}
+			ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been disabled to prevent conflicts. Please remove the teleport-ent-updater package after verifying that teleport-update is working.")
 		}
 	}
 	return nil
@@ -282,10 +283,10 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 			return trace.Wrap(err, "failed to determine if deprecated teleport-upgrade systemd timer is present")
 		}
 		if present {
-			ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been re-enabled to ensure continued updates. To disable automatic updates entirely, please remove the teleport-ent-updater package.")
 			if err := oldTimer.Enable(ctx, true); err != nil {
 				return trace.Wrap(err, "failed to disable deprecated teleport-upgrade systemd timer")
 			}
+			ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been re-enabled to ensure continued updates. To disable automatic updates entirely, please remove the teleport-ent-updater package.")
 		}
 	}
 	return nil
