@@ -241,12 +241,13 @@ repositories.
    <TabItem label="apt">
 
    ```code
+   $ mkdir -p /etc/apt/keyrings
    # Download the Teleport PGP public key
    $ sudo curl https://apt.releases.teleport.dev/gpg \
-   -o /usr/share/keyrings/teleport-archive-keyring.asc
+   -o /etc/apt/keyrings/teleport-archive-keyring.asc
    # Add the Teleport APT repository. You'll need to update this file for each
    # major release of Teleport.
-   $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+   $ echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
    https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} \
    ${TELEPORT_CHANNEL?}" \
    | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
