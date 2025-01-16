@@ -47,7 +47,7 @@ spec:
 
 Teleport SSH servers will check the `enabled` field to know if the feature is enabled, and - if so - they will query the auth server for the UID to use through a new rpc whenever they need to provision a new host user in "keep" mode with no otherwise defined UID. In the initial implementation, provisioned host groups other than the primary group will be generated according to the default system behavior.
 
-The list of persisted usernames and UIDs will be made readable through `tctl stable_unix_users ls`. The list will be displayed in a table by default, or in json format if the appropriate option is passed.
+The list of persisted usernames and UIDs will be made readable through `tctl stable-unix-users ls`. The list will be displayed in a table by default, or in json format if the appropriate option is passed.
 
 ## Backwards and forwards compatibility
 
