@@ -578,13 +578,17 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	for _, ip := range ipAddrs {
 		addr := net.JoinHostPort(ip, req.SSHPort)
 		stdout, stderr, err := sshutils.RunSSH(ctx, addr, req.Script, config, sshutils.WithDialer(req.dialContext))
-		slog.DebugContext(ctx, "Command completed",
-			"stdoout", string(stdout),
-			"stderr", string(stderr),
-		)
 		if err == nil {
 			return nil
 		}
+		slog.ErrorContext(ctx, "Installing teleport in GCP VM completed with error",
+			"project_id", req.ProjectID,
+			"zone", req.Zone,
+			"vm_name", req.Name,
+			"error", err,
+			"stdoout", string(stdout),
+			"stderr", string(stderr),
+		)
 
 		// An exit error means the connection was successful, so don't try another address.
 		if errors.Is(err, &ssh.ExitError{}) {
