@@ -1,30 +1,28 @@
 import { fromUnixTime } from 'date-fns';
 import styled from 'styled-components';
 
-import { Info } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
 import Flex from 'design/Flex';
-import { H2 } from 'design/Text';
+import Text, { H2 } from 'design/Text';
 
 import { UsageHistoryItem } from 'e-teleport/services/cloud/v1/tenants_pb';
 
+import { isCalibrationPeriod } from './SummaryPage';
+
 export type UsageHistoryProps = {
   history: UsageHistoryItem[];
-  maxMau: number;
-  maxTpr: number;
+  hasCloudAnonymizationKey: boolean;
+  salesforceIdUpdatedAt: number;
 };
 
 export const UsageHistory = ({
   history,
-  maxMau,
-  maxTpr,
+  hasCloudAnonymizationKey,
+  salesforceIdUpdatedAt,
 }: UsageHistoryProps) => {
   return (
     <Flex flexDirection="column" gap="3">
       <H2>Usage History</H2>
-      <Info>
-        Your current contract limit is set for {maxMau} MAU and {maxTpr} TPR.
-      </Info>
       <Table<UsageHistoryItem>
         disableFilter={true}
         emptyText="No cycle information available"
@@ -33,7 +31,7 @@ export const UsageHistory = ({
         columns={[
           {
             headerText: 'Billing Cycle',
-            render: ({ cycleStartFormatted, cycleEndFormatted, cycleEnd }) => (
+            render: ({ cycleStartFormatted, cycleEnd, cycleEndFormatted }) => (
               <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
                 {cycleStartFormatted} - {cycleEndFormatted}
               </StyledCell>
@@ -45,21 +43,45 @@ export const UsageHistory = ({
             key: 'mau',
             isSortable: true,
             headerText: 'Monthly Active Users (MAU)',
-            render: ({ mau, cycleEnd }) => (
-              <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
-                {mau}
-              </StyledCell>
-            ),
+            render: ({ mau, cycleStart, cycleEnd }) => {
+              const isCalibration = isCalibrationPeriod(
+                cycleStart,
+                cycleEnd,
+                hasCloudAnonymizationKey,
+                salesforceIdUpdatedAt
+              );
+              return (
+                <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
+                  {isCalibration ? (
+                    <Text css="font-style: italic">Calibration Period</Text>
+                  ) : (
+                    mau
+                  )}
+                </StyledCell>
+              );
+            },
           },
           {
             key: 'tpr',
             isSortable: true,
             headerText: 'Teleport Protected Resources (TPR)',
-            render: ({ tpr, cycleEnd }) => (
-              <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
-                {tpr}
-              </StyledCell>
-            ),
+            render: ({ tpr, cycleStart, cycleEnd }) => {
+              const isCalibration = isCalibrationPeriod(
+                cycleStart,
+                cycleEnd,
+                hasCloudAnonymizationKey,
+                salesforceIdUpdatedAt
+              );
+              return (
+                <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
+                  {isCalibration ? (
+                    <Text css="font-style: italic">Calibration Period</Text>
+                  ) : (
+                    tpr
+                  )}
+                </StyledCell>
+              );
+            },
           },
         ]}
       />

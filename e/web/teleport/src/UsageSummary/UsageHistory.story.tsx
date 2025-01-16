@@ -10,30 +10,42 @@ export default {
   title: 'TeleportE/Billing/UsageHistory',
 };
 
-function render({ history, maxMau, maxTpr }: UsageHistoryProps) {
+function ExampleHistory({
+  history,
+  hasCloudAnonymizationKey,
+  salesforceIdUpdatedAt,
+}: UsageHistoryProps) {
   const ctx = createTeleportContextE();
 
   return (
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
       <ContextProvider ctx={ctx}>
-        <UsageHistory history={history} maxMau={maxMau} maxTpr={maxTpr} />
+        <UsageHistory
+          history={history}
+          hasCloudAnonymizationKey={hasCloudAnonymizationKey}
+          salesforceIdUpdatedAt={salesforceIdUpdatedAt}
+        />
       </ContextProvider>
     </MemoryRouter>
   );
 }
 
 export function EmptyHistory() {
-  return render({
-    history: [],
-    maxMau: 300,
-    maxTpr: 50,
-  });
+  return (
+    <ExampleHistory
+      history={[]}
+      hasCloudAnonymizationKey={false}
+      salesforceIdUpdatedAt={0}
+    />
+  );
 }
 
 export function NonEmptyHistory() {
-  return render({
-    history: usageHistory,
-    maxMau: 300,
-    maxTpr: 50,
-  });
+  return (
+    <ExampleHistory
+      history={usageHistory}
+      hasCloudAnonymizationKey={true}
+      salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
+    />
+  );
 }

@@ -7,16 +7,30 @@ import { UsageHistoryItem } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { usageHistory } from './fixtures';
 import { UsageHistory } from './UsageHistory';
 
-test('renders all elements', async () => {
-  render(<UsageHistory history={usageHistory} maxMau={300} maxTpr={50} />);
+test('shows empty state when there is no usage history', async () => {
+  render(
+    <UsageHistory
+      history={[]}
+      hasCloudAnonymizationKey={false}
+      salesforceIdUpdatedAt={0}
+    />
+  );
 
-  // title and info text
-  expect(await screen.findByText('Usage History')).toBeInTheDocument();
   expect(
-    screen.getByText(
-      /Your current contract limit is set for 300 MAU and 50 TPR./
-    )
+    await screen.findByText('No cycle information available')
   ).toBeInTheDocument();
+});
+
+test('renders all elements', async () => {
+  render(
+    <UsageHistory
+      history={usageHistory}
+      hasCloudAnonymizationKey={false}
+      salesforceIdUpdatedAt={0}
+    />
+  );
+
+  expect(await screen.findByText('Usage History')).toBeInTheDocument();
 
   // column headers
   expect(screen.getByText('Billing Cycle')).toBeInTheDocument();
@@ -39,14 +53,6 @@ test('renders all elements', async () => {
   expect(screen.getByText('1002')).toBeInTheDocument();
 });
 
-test('shows empty state when there is no usage history', async () => {
-  render(<UsageHistory history={[]} maxMau={200} maxTpr={10} />);
-
-  expect(
-    await screen.findByText('No cycle information available')
-  ).toBeInTheDocument();
-});
-
 test('highlights the current cycle', async () => {
   const now = new Date();
   const currentCycle: UsageHistoryItem = {
@@ -60,8 +66,8 @@ test('highlights the current cycle', async () => {
   render(
     <UsageHistory
       history={[currentCycle, ...usageHistory]}
-      maxMau={300}
-      maxTpr={50}
+      hasCloudAnonymizationKey={false}
+      salesforceIdUpdatedAt={0}
     />
   );
 
@@ -82,4 +88,18 @@ test('highlights the current cycle', async () => {
       );
     });
   });
+});
+
+test('shows calibration periods', async () => {
+  render(
+    <UsageHistory
+      history={usageHistory}
+      hasCloudAnonymizationKey={true}
+      salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
+    />
+  );
+
+  expect(screen.queryByText(usageHistory[1].mau)).not.toBeInTheDocument();
+  expect(screen.queryByText(usageHistory[1].tpr)).not.toBeInTheDocument();
+  expect(screen.getAllByText('Calibration Period')).toHaveLength(2);
 });

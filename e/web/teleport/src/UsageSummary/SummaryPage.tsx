@@ -19,8 +19,8 @@ export const SummaryPage = ({ summary }: SummaryProps) => (
         <Cycle summary={summary} />
         <UsageHistory
           history={summary.usageHistory}
-          maxMau={summary.mau.maximum}
-          maxTpr={summary.tpr.maximum}
+          hasCloudAnonymizationKey={summary.hasCloudAnonymizationKey}
+          salesforceIdUpdatedAt={summary.salesforceIdUpdatedAt}
         />
       </Flex>
     ) : (
@@ -37,3 +37,24 @@ const StyledBox = styled(Box)`
   margin: 20px 0 0;
   padding: 20px 0 20px 40px;
 `;
+
+/**
+ *
+ * @param cycleStart unix timestamp of the start of the cycle
+ * @param cycleEnd unix timestamp of the end of the cycle
+ * @param hasCloudAnonymizationKey whether the account has a Cloud Anonymization key or not
+ * @param salesforceIdUpdatedAt unix timestamp of when the SFID of the account was updated
+ * @returns true if the cycle is a calibration period
+ */
+export const isCalibrationPeriod = (
+  cycleStart: number,
+  cycleEnd: number,
+  hasCloudAnonymizationKey: boolean,
+  salesforceIdUpdatedAt: number
+): boolean => {
+  return (
+    hasCloudAnonymizationKey &&
+    salesforceIdUpdatedAt <= cycleEnd &&
+    salesforceIdUpdatedAt >= cycleStart
+  );
+};

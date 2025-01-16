@@ -5,6 +5,7 @@ import { Box, Flex, Text } from 'design';
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { CycleUsage } from 'e-teleport/UsageSummary/types';
 
+import { isCalibrationPeriod } from './SummaryPage';
 import { UpdatedAtDisplay } from './UpdatedAtDisplay';
 import { UsageBar } from './UsageBar';
 
@@ -27,10 +28,12 @@ export const Cycle = ({
   },
 }: CycleProps) => {
   const theme = useTheme();
-  const calibrationPeriod =
-    hasCloudAnonymizationKey &&
-    salesforceIdUpdatedAt <= cycleEnd &&
-    salesforceIdUpdatedAt >= cycleStart;
+  const calibrationPeriod = isCalibrationPeriod(
+    cycleStart,
+    cycleEnd,
+    hasCloudAnonymizationKey,
+    salesforceIdUpdatedAt
+  );
 
   const usage: CycleUsage[] = [
     {
