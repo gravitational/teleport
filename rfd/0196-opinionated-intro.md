@@ -114,10 +114,8 @@ The general flow here is “add users, make roles and assign them, add resources
 
 Key context to provide in each guide is some pros/cons and the why of each topic, especially for topics like Users/Auth. Why use local users vs SSO? This is a good place to incorporate info from SE like in the SSO one saying “you may not have permission to set up your SSO yet, in that case local users are a great place to get started.”
 
-The following fat marker sketches are meant as a jumping off point for design.
-* [side bar and intro page](./assets/0196-sketch1.jpeg)
-* [expanded intro page with topics/tags](./assets/0196-sketch2.jpeg)
-* [guide content sidebar](./assets/0196-sketch3.jpeg)
+Rought sketches and jumping off points for design are here:
+* [FigJam board](https://www.figma.com/board/GD04hsWTsxwQyx6LrAqGg3/Opinionated-Intro-to-the-Platform?node-id=0-1&t=0kCVuGbmrsFmv5FH-1)
 
 #### Last Resort
 
