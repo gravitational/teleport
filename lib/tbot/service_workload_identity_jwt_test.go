@@ -16,8 +16,137 @@
 
 package tbot
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
+)
 
 func TestBotWorkloadIdentityJWT(t *testing.T) {
-	t.Fatalf("not implemented")
+	experimentStatus := experiment.Enabled()
+	defer experiment.SetEnabled(experimentStatus)
+	experiment.SetEnabled(true)
+
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
+
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	role, err := types.NewRole("issue-foo", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			WorkloadIdentityLabels: map[string]apiutils.Strings{
+				"foo": []string{"bar"},
+			},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindWorkloadIdentity},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	role, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	workloadIdentity := &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "foo-bar-bizz",
+			Labels: map[string]string{
+				"foo": "bar",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/valid/{{ user.bot_name }}",
+			},
+		},
+	}
+	workloadIdentity, err = rootClient.WorkloadIdentityResourceServiceClient().
+		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+			WorkloadIdentity: workloadIdentity,
+		})
+	require.NoError(t, err)
+
+	t.Run("By Name", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
+		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
+			&config.WorkloadIdentityJWTService{
+				Selector: config.WorkloadIdentitySelector{
+					Name: workloadIdentity.GetMetadata().GetName(),
+				},
+				Destination: &config.DestinationDirectory{
+					Path: tmpDir,
+				},
+				Audiences: []string{"example", "foo"},
+			},
+		}, defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		})
+		botConfig.Oneshot = true
+		b := New(botConfig, log)
+		// Run Bot with 10 second timeout to catch hangs.
+		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+		require.NoError(t, b.Run(ctx))
+
+		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, config.JWTSVIDPath))
+		require.NoError(t, err)
+		jwt, err := jwtsvid.ParseInsecure(string(jwtBytes), []string{"example"})
+		require.NoError(t, err)
+		require.Equal(t, "spiffe://root/valid/by-name", jwt.ID.String())
+		require.Equal(t, []string{"example", "foo"}, jwt.Audience)
+	})
+	t.Run("By Labels", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		onboarding, _ := makeBot(t, rootClient, "by-labels", role.GetName())
+		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
+			&config.WorkloadIdentityJWTService{
+				Selector: config.WorkloadIdentitySelector{
+					Labels: map[string][]string{
+						"foo": {"bar"},
+					},
+				},
+				Destination: &config.DestinationDirectory{
+					Path: tmpDir,
+				},
+				Audiences: []string{"example"},
+			},
+		}, defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		})
+		botConfig.Oneshot = true
+		b := New(botConfig, log)
+		// Run Bot with 10 second timeout to catch hangs.
+		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+		require.NoError(t, b.Run(ctx))
+
+		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, config.JWTSVIDPath))
+		require.NoError(t, err)
+		jwt, err := jwtsvid.ParseInsecure(string(jwtBytes), []string{"example"})
+		require.NoError(t, err)
+		require.Equal(t, "spiffe://root/valid/by-labels", jwt.ID.String())
+		require.Equal(t, []string{"example"}, jwt.Audience)
+	})
 }
