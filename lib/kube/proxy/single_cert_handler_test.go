@@ -88,13 +88,14 @@ func TestSingleCertRouting(t *testing.T) {
 			name:     "successful path routing to multiple clusters",
 			roleSpec: defaultRoleSpec,
 			assert: func(t *testing.T, restConfig *rest.Config) {
+				clientB := pathRoutedKubeClient(t, restConfig, clusterName, "b")
+				_, err = clientB.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+				require.NoError(t, err)
+
 				clientA := pathRoutedKubeClient(t, restConfig, clusterName, "a")
 				_, err := clientA.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
 				require.NoError(t, err)
 
-				clientB := pathRoutedKubeClient(t, restConfig, clusterName, "b")
-				_, err = clientB.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
-				require.NoError(t, err)
 			},
 		},
 		{
@@ -123,13 +124,13 @@ func TestSingleCertRouting(t *testing.T) {
 			},
 		},
 		{
-			name:                "path route overrides identity",
+			name:                "path route cannot override identity",
 			roleSpec:            defaultRoleSpec,
 			kubeClusterOverride: "a",
 			assert: func(t *testing.T, restConfig *rest.Config) {
 				client := pathRoutedKubeClient(t, restConfig, clusterName, "b")
 				_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(context.Background(), "foo", metav1.GetOptions{})
-				require.ErrorContains(t, err, "cluster b error")
+				require.ErrorContains(t, err, "existing route in identity may not be overwritten")
 			},
 		},
 	}

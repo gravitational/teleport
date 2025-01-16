@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -75,6 +76,32 @@ func parseRouteFromPath(p httprouter.Params) (string, string, error) {
 	return string(decodedTeleportCluster), string(decodedKubernetesCluster), nil
 }
 
+// ensureRouteNotOverwritten checks that the path routing parameters do not
+// overwrite any existing RouteToCluster or KubernetesCluster fields in the
+// identity, if those fields are set. Additionally, it is valid for the path
+// route to be equal to the existing value.
+//
+// This requirement ensures temporary certs issued for session MFA remain bound
+// to the cluster for which they were initially issued and path routing cannot
+// be used to access a different target cluster. If MFA is required, path routed
+// requests will receive an `ErrSessionMFARequired` as usual and will need to
+// request certificates with identity-based routing information. Once the
+// temporary identity is issued, the request can proceed as usual through this
+// path-based route so long as the path and identity route fields are equal.
+func ensureRouteNotOverwritten(ident *tlsca.Identity, routeToCluster, kubernetesCluster string) error {
+	const overwriteDeniedMsg = "existing route in identity may not be overwritten"
+
+	if ident.RouteToCluster != "" && ident.RouteToCluster != routeToCluster {
+		return trace.AccessDenied(overwriteDeniedMsg)
+	}
+
+	if ident.KubernetesCluster != "" && ident.KubernetesCluster != kubernetesCluster {
+		return trace.AccessDenied(overwriteDeniedMsg)
+	}
+
+	return nil
+}
+
 // singleCertHandler extracts routing information from base64-encoded URL
 // parameters into the current auth user context and forwards the request back
 // to the main router with the path prefix (and its embedded routing parameters)
@@ -115,10 +142,18 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 		var userType authz.IdentityGetter
 		switch o := userTypeI.(type) {
 		case authz.LocalUser:
+			if err := ensureRouteNotOverwritten(&o.Identity, teleportCluster, kubeCluster); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			o.Identity.RouteToCluster = teleportCluster
 			o.Identity.KubernetesCluster = kubeCluster
 			userType = o
 		case authz.RemoteUser:
+			if err := ensureRouteNotOverwritten(&o.Identity, teleportCluster, kubeCluster); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			o.Identity.RouteToCluster = teleportCluster
 			o.Identity.KubernetesCluster = kubeCluster
 			userType = o
