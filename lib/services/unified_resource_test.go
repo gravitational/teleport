@@ -72,12 +72,12 @@ func newClient(t *testing.T) *client {
 	require.NoError(t, err)
 
 	return &client{
-		Presence:                local.NewPresenceService(bk),
-		WindowsDesktops:         local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders: samlService,
-		Events:                  local.NewEventsService(bk),
-		GitServers:              gitService,
-		IdentityCenterAccounts:  icService,
+		Presence:                         local.NewPresenceService(bk),
+		WindowsDesktops:                  local.NewWindowsDesktopService(bk),
+		SAMLIdPServiceProviders:          samlService,
+		Events:                           local.NewEventsService(bk),
+		GitServers:                       gitService,
+		IdentityCenterAccounts:           icService,
 		IdentityCenterAccountAssignments: icService,
 	}
 }
