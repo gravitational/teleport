@@ -153,7 +153,7 @@ func (c *credentialsChecker) warn(err error, database types.Database, msg string
 	if c.isWildcardMatcher() {
 		logLevel = logrus.WarnLevel
 	}
-	log.Logf(logLevel, "%s You can update \"db_service.resources\" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/database-access/reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.", msg)
+	log.Logf(logLevel, "%s You can update \"db_service.resources\" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/reference/agent-services/database-access-reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.", msg)
 }
 
 func (c *credentialsChecker) isWildcardMatcher() bool {

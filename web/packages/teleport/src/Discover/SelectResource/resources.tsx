@@ -132,7 +132,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     icon: 'windows',
     event: DiscoverEventResource.WindowsDesktop,
     unguidedLink:
-      'https://goteleport.com/docs/desktop-access/active-directory/',
+      'https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/',
   },
   {
     name: 'Local Users',
@@ -140,7 +140,8 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop non-ad local',
     icon: 'windows',
     event: DiscoverEventResource.WindowsDesktopNonAD,
-    unguidedLink: 'https://goteleport.com/docs/desktop-access/getting-started/',
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/desktop-access/getting-started/',
   },
 ];
 

@@ -155,5 +155,5 @@ Use "dig +short HOST" to help debug this issue.`, true
 const (
 	// SelfSignedCertsMsg is a helper message to point users towards helpful documentation.
 	SelfSignedCertsMsg = "Your proxy certificate is not trusted or expired. " +
-		"Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/management/admin/self-signed-certs/"
+		"Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/admin-guides/management/admin/self-signed-certs/"
 )
