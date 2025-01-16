@@ -26,7 +26,7 @@ This poses several challenges:
 - The same Teleport component cannot be started multiple times without causing metric conflicts, or inaccurate metrics.
   For example, integration tests starting several Teleport instances will merge their metrics together.
 
-## Details
+## Guidelines
 
 ### Metrics Registry
 
@@ -224,3 +224,14 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 
 - Put user input directly in the labels
 - Create large (1k+) metric combinations
+
+## Enforcing the guidelines
+
+Some guidelines can be enforced by setting up linters:
+- [promlinter](https://golangci-lint.run/usage/linters/#promlinter) to ensure that metric naming and labeling follows 
+  the Prometheus guidelines.
+- [forbidigo](https://golangci-lint.run/usage/linters/#forbidigo) to reject usages of `prometheus.DefaultRegisterer`,
+  `prometheus.(Must)Register`. `reg.MustRegister` conflicts with `backend.MustRegister`, we might not be able to detect
+  it (`fobidigo.analyze-types` might not be sufficient)
+
+Existing non-compliant metrics and edge case usages will be allowed via `//nolint` comments.
