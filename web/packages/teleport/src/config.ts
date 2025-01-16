@@ -125,6 +125,8 @@ const cfg = {
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
+    /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
+    defaultConnectorName: '',
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
@@ -429,7 +431,7 @@ const cfg = {
     msTeamsAppZipPath:
       '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
 
-    defaultConnectorPath: '/v1/webapi/defaultconnector',
+    defaultConnectorPath: '/v1/webapi/authconnector/default',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
@@ -501,6 +503,10 @@ const cfg = {
 
   getAuth2faType() {
     return cfg.auth ? cfg.auth.second_factor : null;
+  },
+
+  getDefaultConnectorName() {
+    return cfg.auth ? cfg.auth.defaultConnectorName : '';
   },
 
   getPreferredMfaType() {

@@ -91,16 +91,19 @@ export function AuthConnectors() {
   );
 
   const [setDefaultAttempt, updateDefaultConnector] = useAsync(
-    async (connector: DefaultAuthConnector) => {
-      const originalDefault = defaultConnector;
-      setDefaultConnector(connector);
-      ctx.resourceService.setDefaultAuthConnector(connector).catch(err => {
-        // Revert back to the original default if the operation failed.
-        setDefaultConnector(originalDefault);
-        throw err;
-      });
-    }
+    async (connector: DefaultAuthConnector) =>
+      await ctx.resourceService.setDefaultAuthConnector(connector)
   );
+
+  function onUpdateDefaultConnector(connector: DefaultAuthConnector) {
+    const originalDefault = defaultConnector;
+    setDefaultConnector(connector);
+    updateDefaultConnector(connector).catch(err => {
+      // Revert back to the original default if the operation failed.
+      setDefaultConnector(originalDefault);
+      throw err;
+    });
+  }
 
   function remove(name: string) {
     return ctx.resourceService
@@ -179,7 +182,7 @@ export function AuthConnectors() {
                   items={items}
                   onDelete={resources.remove}
                   defaultConnector={defaultConnector}
-                  setAsDefault={updateDefaultConnector}
+                  setAsDefault={onUpdateDefaultConnector}
                 />
               )}
             </Box>

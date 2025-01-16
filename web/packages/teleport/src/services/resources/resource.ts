@@ -20,6 +20,7 @@ import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { ResourcesResponse, UnifiedResource } from '../agents';
+import auth, { MfaChallengeScope } from '../auth/auth';
 import {
   DefaultAuthConnector,
   makeResource,
@@ -67,8 +68,19 @@ class ResourceService {
     }));
   }
 
-  setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {
-    return api.put(cfg.api.defaultConnectorPath, req);
+  async setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {
+    // This is an admin action that needs an mfa challenge with reuse allowed.
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const challengeResponse = await auth.getMfaChallengeResponse(challenge);
+
+    return api.put(cfg.api.defaultConnectorPath, req, challengeResponse);
   }
 
   async fetchRoles(params?: UrlListRolesParams): Promise<{

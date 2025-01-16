@@ -976,7 +976,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
 	// Sets the default connector in the auth preference.
-	h.PUT("/webapi/defaultconnector", h.WithAuth(h.setDefaultConnectorHandle))
+	h.PUT("/webapi/authconnector/default", h.WithAuth(h.setDefaultConnectorHandle))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
@@ -1795,34 +1795,25 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	} else {
 		authType := cap.GetType()
 		var localConnectorName string
+		var defaultConnectorName string
 
 		if authType == constants.Local {
 			localConnectorName = cap.GetConnectorName()
 		} else {
-			// Move the default connector to the top of the list so that it shows up first in the UI
-			defaultConnectorName := cap.GetConnectorName()
-			for i, provider := range authProviders {
-				if provider.Name == defaultConnectorName && provider.Type == authType {
-					// Remove it from its current position
-					defaultProvider := authProviders[i]
-					authProviders = append(authProviders[:i], authProviders[i+1:]...)
-					// Insert it at the beginning
-					authProviders = append([]webclient.WebConfigAuthProvider{defaultProvider}, authProviders...)
-					break
-				}
-			}
+			defaultConnectorName = cap.GetConnectorName()
 		}
 
 		authSettings = webclient.WebConfigAuthSettings{
-			Providers:          authProviders,
-			SecondFactor:       types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
-			AllowPasswordless:  cap.GetAllowPasswordless(),
-			AuthType:           authType,
-			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
-			LocalConnectorName: localConnectorName,
-			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
-			MOTD:               cap.GetMessageOfTheDay(),
+			Providers:            authProviders,
+			SecondFactor:         types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+			LocalAuthEnabled:     cap.GetAllowLocalAuth(),
+			AllowPasswordless:    cap.GetAllowPasswordless(),
+			AuthType:             authType,
+			DefaultConnectorName: defaultConnectorName,
+			PreferredLocalMFA:    cap.GetPreferredLocalMFA(),
+			LocalConnectorName:   localConnectorName,
+			PrivateKeyPolicy:     cap.GetPrivateKeyPolicy(),
+			MOTD:                 cap.GetMessageOfTheDay(),
 		}
 	}
 
