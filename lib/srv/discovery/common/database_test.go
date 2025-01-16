@@ -1786,6 +1786,7 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 func TestExtraElastiCacheLabels(t *testing.T) {
 	cluster := &ectypes.ReplicationGroup{
 		ReplicationGroupId: aws.String("my-redis"),
+		Engine:             aws.String("redis"),
 	}
 	tags := []ectypes.Tag{
 		{Key: aws.String("key1"), Value: aws.String("value1")},
@@ -1831,6 +1832,7 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 			expectLabels: map[string]string{
 				"key1":           "value1",
 				"key2":           "value2",
+				"engine":         "redis",
 				"engine-version": "6.6.6",
 				"vpc-id":         "my-vpc",
 			},
@@ -1841,6 +1843,7 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 			inputNodes:        nodes,
 			inputSubnetGroups: subnetGroups,
 			expectLabels: map[string]string{
+				"engine":         "redis",
 				"engine-version": "6.6.6",
 				"vpc-id":         "my-vpc",
 			},
@@ -1853,8 +1856,9 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 
 			// Without subnet group name from nodes, VPC ID cannot be found.
 			expectLabels: map[string]string{
-				"key1": "value1",
-				"key2": "value2",
+				"key1":   "value1",
+				"key2":   "value2",
+				"engine": "redis",
 			},
 		},
 		{
@@ -1865,6 +1869,7 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 			expectLabels: map[string]string{
 				"key1":           "value1",
 				"key2":           "value2",
+				"engine":         "redis",
 				"engine-version": "6.6.6",
 			},
 		},

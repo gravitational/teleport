@@ -1283,6 +1283,7 @@ func ExtraElastiCacheLabels(cluster *ectypes.ReplicationGroup, tags []ectypes.Ta
 		}
 	}
 
+	labels[types.DiscoveryLabelEngine] = aws.ToString(cluster.Engine)
 	// Add AWS resource tags.
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }

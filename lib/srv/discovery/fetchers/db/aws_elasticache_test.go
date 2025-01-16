@@ -34,7 +34,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 	t.Parallel()
 
 	elasticacheProd, elasticacheDatabasesProd, elasticacheProdTags := makeElastiCacheCluster(t, "ec1", "us-east-1", "prod", mocks.WithElastiCacheReaderEndpoint)
-	elasticacheQA, elasticacheDatabasesQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", mocks.WithElastiCacheConfigurationEndpoint)
+	elasticacheQA, elasticacheDatabasesQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", mocks.WithElastiCacheConfigurationEndpoint, withElastiCacheEngine("valkey"))
 	elasticacheUnavailable, _, elasticacheUnavailableTags := makeElastiCacheCluster(t, "ec4", "us-east-1", "prod", func(cluster *ectypes.ReplicationGroup) {
 		cluster.Status = aws.String("deleting")
 	})
@@ -126,4 +126,10 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherElastiCache)
 	}
 	return cluster, databases, tags
+}
+
+func withElastiCacheEngine(engine string) func(*ectypes.ReplicationGroup) {
+	return func(rg *ectypes.ReplicationGroup) {
+		rg.Engine = &engine
+	}
 }

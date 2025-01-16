@@ -140,6 +140,7 @@ func (m *ElastiCacheClient) ModifyUser(_ context.Context, input *elasticache.Mod
 func ElastiCacheCluster(name, region string, opts ...func(*ectypes.ReplicationGroup)) *ectypes.ReplicationGroup {
 	cluster := &ectypes.ReplicationGroup{
 		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789012:replicationgroup:%s", region, name)),
+		Engine:                   aws.String("redis"),
 		ReplicationGroupId:       aws.String(name),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
