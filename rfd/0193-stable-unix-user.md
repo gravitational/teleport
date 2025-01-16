@@ -110,7 +110,7 @@ The `ObtainUIDForUsername` rpc will require `create`+`read` permissions on the `
 
 Assuming that the UID range chosen by the cluster admin doesn't implicitly grant extra permissions to the provisioned users somehow, there should be no difference in behavior on the machines running the Teleport SSH server, other than picking a UID rather than letting the system tooling pick an available one from the local user database.
 
-As a side effect of `ObtainUIDForUsername` we will emit one of two new audit log events, `stable_unix_user.create` or `stable_host_user.read`, depending on whether the username already had an associated stable UID or not; the events will be identical other than the event name and code, containing the username, the associated UID and the host ID of the SSH server that issued the request.
+As a side effect of `ObtainUIDForUsername`, after creating a new username/UID association, we will emit an audit log event (`stable_unix_user.create`) containing the username, the associated UID and the host ID of the SSH server that issued the request.
 
 ## Observability
 
