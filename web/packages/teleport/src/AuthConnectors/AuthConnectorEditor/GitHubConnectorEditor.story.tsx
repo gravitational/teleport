@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,24 +17,30 @@
  */
 
 import { delay, http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { AuthConnectors } from './AuthConnectors';
-import { connectors } from './fixtures';
+import { connectors } from '../fixtures';
+import { GitHubConnectorEditor } from './GitHubConnectorEditor';
 
 export default {
-  title: 'Teleport/AuthConnectors',
+  title: 'Teleport/AuthConnectors/GitHubConnectorEditor',
 };
 
 export function Processing() {
   return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
+    <MemoryRouter
+      initialEntries={[
+        cfg.getEditAuthConnectorRoute('github', 'github_connector'),
+      ]}
+    >
       <ContextWrapper>
-        <AuthConnectors />
+        <Route path={cfg.routes.ssoConnector.edit}>
+          <GitHubConnectorEditor />
+        </Route>
       </ContextWrapper>
     </MemoryRouter>
   );
@@ -43,7 +49,7 @@ Processing.parameters = {
   msw: {
     handlers: [
       http.get(
-        cfg.getGithubConnectorsUrl(),
+        cfg.getGithubConnectorUrl('github_connector'),
         async () => await delay('infinite')
       ),
     ],
@@ -52,9 +58,15 @@ Processing.parameters = {
 
 export function Loaded() {
   return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
+    <MemoryRouter
+      initialEntries={[
+        cfg.getEditAuthConnectorRoute('github', 'github_connector'),
+      ]}
+    >
       <ContextWrapper>
-        <AuthConnectors />
+        <Route path={cfg.routes.ssoConnector.edit}>
+          <GitHubConnectorEditor />
+        </Route>
       </ContextWrapper>
     </MemoryRouter>
   );
@@ -62,35 +74,24 @@ export function Loaded() {
 Loaded.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () =>
-        HttpResponse.json([connectors[0], connectors[1]])
+      http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
+        HttpResponse.json(connectors[0])
       ),
-    ],
-  },
-};
-
-export function Empty() {
-  return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
-  );
-}
-Empty.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () => HttpResponse.json([])),
     ],
   },
 };
 
 export function Failed() {
   return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
+    <MemoryRouter
+      initialEntries={[
+        cfg.getEditAuthConnectorRoute('github', 'github_connector'),
+      ]}
+    >
       <ContextWrapper>
-        <AuthConnectors />
+        <Route path={cfg.routes.ssoConnector.edit}>
+          <GitHubConnectorEditor />
+        </Route>
       </ContextWrapper>
     </MemoryRouter>
   );
@@ -98,7 +99,7 @@ export function Failed() {
 Failed.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () =>
+      http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
         HttpResponse.json(
           { message: 'something went wrong' },
           {

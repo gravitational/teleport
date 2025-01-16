@@ -16,8 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useCallback, useEffect, useState } from 'react';
+import { useHistory } from 'react-router';
+
 import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
 import { H2, P } from 'design/Text/Text';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import {
   DesktopDescription,
@@ -26,38 +30,77 @@ import {
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
-import ResourceEditor from 'teleport/components/ResourceEditor';
+import { Route, Switch } from 'teleport/components/Router';
 import useResources from 'teleport/components/useResources';
+import cfg from 'teleport/config';
+import { Resource } from 'teleport/services/resources';
+import useTeleport from 'teleport/useTeleport';
 
+import { GitHubConnectorEditor } from './AuthConnectorEditor';
 import ConnectorList from './ConnectorList';
-import CTAConnectors from './ConnectorList/CTAConnectors';
+import { CtaConnectors } from './ConnectorList/CTAConnectors';
 import DeleteConnectorDialog from './DeleteConnectorDialog';
 import EmptyList from './EmptyList';
 import templates from './templates';
-import useAuthConnectors, { State } from './useAuthConnectors';
 
+export const description =
+  'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
+
+/**
+ * AuthConnectorsContainer is the container for the Auth Connectors feature and handles routing to the relevant page based on the URL.
+ */
 export function AuthConnectorsContainer() {
-  const state = useAuthConnectors();
-  return <AuthConnectors {...state} />;
+  return (
+    <Switch>
+      <Route
+        key="auth-connector-edit"
+        path={cfg.routes.ssoConnector.edit}
+        render={() => <GitHubConnectorEditor />}
+      />
+      <Route
+        key="auth-connector-new"
+        path={cfg.routes.ssoConnector.create}
+        render={() => <GitHubConnectorEditor isNew={true} />}
+      />
+      <Route
+        key="auth-connector-list"
+        path={cfg.routes.sso}
+        exact
+        render={() => <AuthConnectors />}
+      />
+    </Switch>
+  );
 }
 
-export function AuthConnectors(props: State) {
-  const { attempt, items, remove, save } = props;
+/**
+ * AuthConnectors is the auth connectors list page.
+ */
+export function AuthConnectors() {
+  const ctx = useTeleport();
+  const [items, setItems] = useState<Resource<'github'>[]>([]);
+
+  const [fetchAttempt, fetchConnectors] = useAsync(
+    useCallback(async () => {
+      return await ctx.resourceService.fetchGithubConnectors().then(setItems);
+    }, [ctx.resourceService])
+  );
+
+  function remove(name: string) {
+    return ctx.resourceService
+      .deleteGithubConnector(name)
+      .then(fetchConnectors);
+  }
+
+  useEffect(() => {
+    if (fetchAttempt.status !== 'success') {
+      fetchConnectors();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const history = useHistory();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
-
-  const title =
-    resources.status === 'creating'
-      ? 'Creating a new github connector'
-      : 'Editing github connector';
-  const description =
-    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
-
-  function handleOnSave(content: string) {
-    const name = resources.item.name;
-    const isNew = resources.status === 'creating';
-    return save(name, content, isNew);
-  }
 
   return (
     <FeatureBox>
@@ -66,33 +109,37 @@ export function AuthConnectors(props: State) {
         <MobileDescription>{description}</MobileDescription>
         <ResponsiveAddButton
           fill="border"
-          onClick={() => resources.create('github')}
+          onClick={() =>
+            history.push(cfg.getCreateAuthConnectorRoute('github'))
+          }
         >
           New GitHub Connector
         </ResponsiveAddButton>
       </ResponsiveFeatureHeader>
-      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-      {attempt.status === 'processing' && (
+      {fetchAttempt.status === 'error' && (
+        <Alert children={fetchAttempt.statusText} />
+      )}
+      {fetchAttempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && (
+      {fetchAttempt.status === 'success' && (
         <Flex alignItems="start">
           <Flex flexDirection="column" width="100%" gap={5}>
             <Box>
               <H2 mb={4}>Your Connectors</H2>
               {isEmpty ? (
-                <EmptyList onCreate={() => resources.create('github')} />
-              ) : (
-                <ConnectorList
-                  items={items}
-                  onEdit={resources.edit}
-                  onDelete={resources.remove}
+                <EmptyList
+                  onCreate={() =>
+                    history.push(cfg.getCreateAuthConnectorRoute('github'))
+                  }
                 />
+              ) : (
+                <ConnectorList items={items} onDelete={resources.remove} />
               )}
             </Box>
-            <CTAConnectors />
+            <CtaConnectors />
           </Flex>
           <DesktopDescription>
             <H3 mb={3}>Auth Connectors</H3>
@@ -112,19 +159,10 @@ export function AuthConnectors(props: State) {
           </DesktopDescription>
         </Flex>
       )}
-      {(resources.status === 'creating' || resources.status === 'editing') && (
-        <ResourceEditor
-          title={title}
-          onSave={handleOnSave}
-          text={resources.item.content}
-          name={resources.item.name}
-          isNew={resources.status === 'creating'}
-          onClose={resources.disregard}
-        />
-      )}
       {resources.status === 'removing' && (
         <DeleteConnectorDialog
           name={resources.item.name}
+          kind={resources.item.kind}
           onClose={resources.disregard}
           onDelete={() => remove(resources.item.name)}
         />
