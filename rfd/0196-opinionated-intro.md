@@ -3,7 +3,7 @@ authors: Dave Sudia (david.sudia@goteleport.com)
 state: draft
 ---
 
-# RFD 0196 - Opinionated Intro to the Product
+# RFD 0196 - Opinionated Intro to the Platform
 
 ## Overview
 
