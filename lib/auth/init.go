@@ -345,6 +345,9 @@ type InitConfig struct {
 
 	// GitServers manages git servers.
 	GitServers services.GitServers
+
+	// StableUNIXUsers handles the storage for stable UNIX users.
+	StableUNIXUsers services.StableUNIXUsersInternal
 }
 
 // Init instantiates and configures an instance of AuthServer

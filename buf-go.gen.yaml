@@ -28,6 +28,7 @@ plugins:
       # managed mode for the go package name there
       - Mprehog/v1alpha/connect.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
       # buf (1.49.0 and earlier) panics on lint when encountering the option in the file itself (https://github.com/bufbuild/buf/issues/3580)
+      - apilevelMteleport/stableunixusers/v1/stableunixusers.proto=API_OPAQUE
       - apilevelMteleport/storage/local/stableunixusers/v1/stableunixusers.proto=API_OPAQUE
     strategy: all
   - local:

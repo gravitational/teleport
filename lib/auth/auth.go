@@ -410,6 +410,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.StableUNIXUsers == nil {
+		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
+			Backend: cfg.Backend,
+		}
+	}
+
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -509,6 +515,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		PluginStaticCredentials:   cfg.PluginStaticCredentials,
 		GitServers:                cfg.GitServers,
 		WorkloadIdentities:        cfg.WorkloadIdentity,
+		StableUNIXUsersInternal:   cfg.StableUNIXUsers,
 	}
 
 	as := Server{
@@ -736,6 +743,7 @@ type Services struct {
 	services.PluginStaticCredentials
 	services.GitServers
 	services.WorkloadIdentities
+	services.StableUNIXUsersInternal
 }
 
 // GetWebSession returns existing web session described by req.
