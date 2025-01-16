@@ -36,7 +36,7 @@ const (
 
 	// UpgraderKindTeleportUpdate is a short name used to identify the teleport-update
 	// external upgrader variant.
-	UpgraderKindTeleportUpdate = "updater"
+	UpgraderKindTeleportUpdate = "binary"
 )
 
 var validWeekdays = [7]time.Weekday{
