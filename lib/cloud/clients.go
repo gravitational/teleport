@@ -39,12 +39,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -105,10 +101,6 @@ type AWSClients interface {
 	GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
-	// GetAWSKMSClient returns AWS KMS client for the specified region.
-	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error)
-	// GetAWSS3Client returns AWS S3 client.
-	GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -502,15 +494,6 @@ func (c *cloudClients) GetAWSSecretsManagerClient(ctx context.Context, region st
 	return secretsmanager.New(session), nil
 }
 
-// GetAWSS3Client returns AWS S3 client.
-func (c *cloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return s3.New(session), nil
-}
-
 // GetAWSSTSClient returns AWS STS client for the specified region.
 func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
 	session, err := c.GetAWSSession(ctx, region, opts...)
@@ -518,15 +501,6 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 		return nil, trace.Wrap(err)
 	}
 	return sts.New(session), nil
-}
-
-// GetAWSKMSClient returns AWS KMS client for the specified region.
-func (c *cloudClients) GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return kms.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -962,8 +936,6 @@ type TestCloudClients struct {
 	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
 	InstanceMetadata        imds.Client
-	KMS                     kmsiface.KMSAPI
-	S3                      s3iface.S3API
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -1038,15 +1010,6 @@ func (c *TestCloudClients) GetAWSSecretsManagerClient(ctx context.Context, regio
 	return c.SecretsManager, nil
 }
 
-// GetAWSS3Client returns AWS S3 client.
-func (c *TestCloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.S3, nil
-}
-
 // GetAWSSTSClient returns AWS STS client for the specified region.
 func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
 	_, err := c.GetAWSSession(ctx, region, opts...)
@@ -1054,15 +1017,6 @@ func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.STS, nil
-}
-
-// GetAWSKMSClient returns AWS KMS client for the specified region.
-func (c *TestCloudClients) GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.KMS, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.

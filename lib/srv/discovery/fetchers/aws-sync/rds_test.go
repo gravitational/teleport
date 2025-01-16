@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -219,6 +220,7 @@ func dbClusters() []rdstypes.DBCluster {
 type fakeAWSClients struct {
 	iamClient iamClient
 	rdsClient rdsClient
+	s3Client  s3Client
 }
 
 func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
@@ -227,4 +229,8 @@ func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options
 
 func (f fakeAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
 	return f.rdsClient
+}
+
+func (f fakeAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
+	return f.s3Client
 }
