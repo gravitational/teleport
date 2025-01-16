@@ -21,7 +21,11 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -39,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClusterClient facilitates communicating with both the
@@ -739,4 +744,47 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	keyRing.ClusterName = certsReq.RouteToCluster
 
 	return keyRing, newCerts, nil
+}
+
+func (c *ClusterClient) StartTeleportKeyAgent(ctx context.Context) error {
+	clt := c.tc
+
+	profile, err := clt.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyAgentPath := profile.KeyAgentPath()
+
+	l, err := net.Listen("unix", keyAgentPath)
+	if err != nil {
+		if !errors.Is(err, syscall.EADDRINUSE) {
+			return trace.Wrap(err)
+		}
+
+		if err := os.Remove(keyAgentPath); err != nil {
+			return trace.Wrap(err)
+		}
+
+		l, err = net.Listen("unix", keyAgentPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	context.AfterFunc(ctx, func() { l.Close() })
+
+	fmt.Fprintf(clt.Stderr, "Teleport key agent listening at %v\n", keyAgentPath)
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+
+		if err := agent.ServeAgent(clt.LocalAgent().ExtendedAgent, conn); err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
+	}
 }

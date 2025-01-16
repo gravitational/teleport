@@ -289,6 +289,7 @@ func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *clien
 	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
+	cfg.EnableAgentExtensions = true
 	return cfg
 }
 

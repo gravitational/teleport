@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -54,6 +55,11 @@ func (c *agentCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	err = StartTeleportKeyAgent(ctx, clt)
+	return trace.Wrap(err)
+}
+
+func StartTeleportKeyAgent(ctx context.Context, clt *client.TeleportClient) error {
 	profile, err := clt.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)

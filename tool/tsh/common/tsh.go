@@ -4572,13 +4572,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
-
-	if cf.EnableAgentExtensions {
-		c.AgentExtensions = []client.AgentExtension{
-			client.WithKeyExtension(c.ClientStore),
-			client.WithSignExtension(),
-		}
-	}
+	c.EnableAgentExtensions = cf.EnableAgentExtensions
 
 	return c, nil
 }

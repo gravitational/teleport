@@ -126,6 +126,10 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 		}
 		authClient := proxyClient.CurrentCluster()
 
+		if err := proxyClient.StartTeleportKeyAgent(watchCtx); err != nil {
+			return trace.Wrap(err)
+		}
+
 		pendingWatcher, closePendingWatcher, err := rootCluster.WatchPendingHeadlessAuthentications(watchCtx, authClient)
 		if err != nil {
 			return trace.Wrap(err)
