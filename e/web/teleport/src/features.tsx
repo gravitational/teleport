@@ -344,7 +344,7 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    if (cfg.oss.hideInaccessibleFeatures) {
+    if (OSS.shouldHideFromNavigation(cfg.oss)) {
       return flags.deviceTrust;
     }
     return true;
@@ -375,7 +375,7 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
   hasAccess(flags: FeatureFlags) {
     // if feature hiding is enabled, only show
     // if the user has access
-    if (cfg.oss.hideInaccessibleFeatures) {
+    if (OSS.shouldHideFromNavigation(cfg.oss)) {
       return flags.plugins || flags.integrations || flags.externalAuditStorage;
     }
     return true;
@@ -391,7 +391,7 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
   };
 
   hasAccess(flags: FeatureFlags) {
-    if (cfg.oss.hideInaccessibleFeatures) {
+    if (OSS.shouldHideFromNavigation(cfg.oss)) {
       return flags.enrollIntegrationsOrPlugins;
     }
     return true;
