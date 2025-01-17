@@ -1005,6 +1005,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 	if execRequest, err := ctx.GetExecRequest(); err == nil {
 		initialCommand = []string{execRequest.GetCommand()}
 	}
+
 	sessionStartEvent := &apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
@@ -1021,6 +1022,13 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 		},
 		SessionRecording: s.sessionRecordingMode(),
 		InitialCommand:   initialCommand,
+		Reason:           s.scx.env[teleport.EnvSSHSessionReason],
+	}
+
+	if invitedUsers := s.scx.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &sessionStartEvent.Invited); err != nil {
+			s.logger.WarnContext(ctx.srv.Context(), "Failed to parse invited users", "error", err)
+		}
 	}
 
 	if s.term != nil {
