@@ -145,7 +145,7 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
 	toolsVersion, err := CheckToolVersion(u.toolsDir)
-	if trace.IsNotFound(err) {
+	if trace.IsNotFound(err) || toolsVersion == u.localVersion {
 		return u.localVersion, false, nil
 	}
 	if err != nil {
@@ -155,11 +155,31 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	return toolsVersion, true, nil
 }
 
-// CheckRemote checks against the Proxy Service to determine if client tools need updating by requesting
+// CheckRemote first checks the version set by the environment variable. If not set or disabled,
+// it checks against the Proxy Service to determine if client tools need updating by requesting
 // the `webapi/find` handler, which stores information about the required client tools version to
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
 func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (version string, reExec bool, err error) {
+	// Check if the user has requested a specific version of client tools.
+	requestedVersion := os.Getenv(teleportToolsVersionEnv)
+	switch requestedVersion {
+	// The user has turned off any form of automatic updates.
+	case "off":
+		return "", false, nil
+	// Requested version already the same as client version.
+	case u.localVersion:
+		return u.localVersion, false, nil
+	// No requested version, we continue.
+	case "":
+	// Requested version that is not the local one.
+	default:
+		if _, err := semver.NewVersion(requestedVersion); err != nil {
+			return "", false, trace.Wrap(err, "checking that request version is semantic")
+		}
+		return requestedVersion, true, nil
+	}
+
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return "", false, trace.Wrap(err)
@@ -317,7 +337,15 @@ func (u *Updater) Exec(args []string) (int, error) {
 	if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
 		return 0, trace.Wrap(err)
 	}
-	env := append(os.Environ(), teleportToolsVersionEnv+"=off")
+
+	env := os.Environ()
+	executablePath, err := os.Executable()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if path == executablePath {
+		env = append(env, teleportToolsVersionEnv+"=off")
+	}
 
 	if runtime.GOOS == constants.WindowsOS {
 		cmd := exec.Command(path, args...)

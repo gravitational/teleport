@@ -45,7 +45,13 @@ import (
 // and after auto update this not leads to recursive alias re-execution.
 func TestAliasLoginWithUpdater(t *testing.T) {
 	ctx := context.Background()
-	t.Setenv(types.HomeEnvVar, toolsDir)
+
+	homeDir := filepath.Join(t.TempDir(), "home")
+	require.NoError(t, os.MkdirAll(homeDir, 0700))
+	installDir := filepath.Join(t.TempDir(), "local")
+	require.NoError(t, os.MkdirAll(installDir, 0700))
+
+	t.Setenv(types.HomeEnvVar, homeDir)
 
 	alice, err := types.NewUser("alice")
 	require.NoError(t, err)
@@ -94,9 +100,9 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	// Assign alias to the login command for test cluster.
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
-	configPath := filepath.Join(toolsDir, client.TSHConfigPath)
+	configPath := filepath.Join(homeDir, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0700))
-	executable := filepath.Join(toolsDir, "tsh")
+	executable := filepath.Join(installDir, "tsh")
 	out, err := yaml.Marshal(client.TSHConfig{
 		Aliases: map[string]string{
 			"loginalice": fmt.Sprintf(
@@ -109,7 +115,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, out, 0600))
 
 	// Fetch compiled test binary and install to tools dir [v1.2.3].
-	err = tools.NewUpdater(toolsDir, testVersions[0], tools.WithBaseURL(baseURL)).Update(ctx, testVersions[0])
+	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
 	// Execute alias command which must be transformed to the login command.
@@ -122,7 +128,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	require.NoError(t, cmd.Run())
 
 	// Verify tctl status after login.
-	cmd = exec.CommandContext(ctx, filepath.Join(toolsDir, "tctl"), "status", "--insecure")
+	cmd = exec.CommandContext(ctx, filepath.Join(installDir, "tctl"), "status", "--insecure")
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
