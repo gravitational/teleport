@@ -29,8 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
@@ -40,6 +41,7 @@ import (
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -66,6 +68,9 @@ type redisClientFactoryFn func(username, password string) (redis.UniversalClient
 type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
+	// AWSClients is an SDK client provider.
+	// This field is only exported so it can be overridden in integration tests.
+	AWSClients AWSClientProvider
 	// clientConn is a client connection.
 	clientConn net.Conn
 	// clientReader is a go-redis wrapper for Redis client connection.
@@ -82,11 +87,31 @@ type Engine struct {
 	clientMessageRead bool
 }
 
+// AWSClientProvider provides AWS service API clients.
+type AWSClientProvider interface {
+	// GetElastiCacheClient provides an [ElasticacheClient].
+	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
+}
+
+// ElastiCacheClient is a subset of the AWS ElastiCache API.
+type ElastiCacheClient interface {
+	elasticache.DescribeUsersAPIClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
 // InitializeConnection initializes the database connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.clientReader = redis.NewReader(clientConn)
 	e.sessionCtx = sessionCtx
+	if e.AWSClients == nil {
+		e.AWSClients = defaultAWSClients{}
+	}
 
 	// Use Redis default user named "default" if a user is not provided.
 	if e.sessionCtx.DatabaseUser == "" {
@@ -370,7 +395,7 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 		return false
 	}
 	dbUser := sessionCtx.DatabaseUser
-	ok, err := checkUserIAMAuthIsEnabled(ctx, sessionCtx, e.CloudClients, dbUser)
+	ok, err := e.checkUserIAMAuthIsEnabled(ctx, sessionCtx, dbUser)
 	if err != nil {
 		e.Log.DebugContext(e.Context, "Assuming IAM auth is not enabled for user.", "user", dbUser, "error", err)
 		return false
@@ -394,38 +419,39 @@ func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 
 // checkUserIAMAuthIsEnabled returns whether a given ElastiCache or MemoryDB
 // user has IAM auth enabled.
-func checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, clients cloud.Clients, username string) (bool, error) {
+func (e *Engine) checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, username string) (bool, error) {
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeElastiCache:
-		return checkElastiCacheUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+		return e.checkElastiCacheUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
 	case types.DatabaseTypeMemoryDB:
-		return checkMemoryDBUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+		return checkMemoryDBUserIAMAuthIsEnabled(ctx, e.CloudClients, sessionCtx.Database.GetAWS(), username)
 	default:
 		return false, nil
 	}
 }
 
-func checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
-	client, err := clients.GetAWSElastiCacheClient(ctx, awsMeta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
-		cloud.WithAmbientCredentials(),
+func (e *Engine) checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, awsMeta types.AWS, username string) (bool, error) {
+	awsCfg, err := e.AWSConfigProvider.GetConfig(ctx, awsMeta.Region,
+		awsconfig.WithAssumeRole(awsMeta.AssumeRoleARN, awsMeta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	client := e.AWSClients.GetElastiCacheClient(awsCfg)
 	// For IAM-enabled ElastiCache users, the username and user id properties
 	// must be identical.
 	// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
 	input := elasticache.DescribeUsersInput{UserId: aws.String(username)}
-	out, err := client.DescribeUsersWithContext(ctx, &input)
+	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
+		return false, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
 	}
-	authType := aws.StringValue(out.Users[0].Authentication.Type)
-	return elasticache.AuthenticationTypeIam == authType, nil
+	authType := out.Users[0].Authentication.Type
+	return ectypes.AuthenticationTypeIam == authType, nil
 }
 
 func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
@@ -444,7 +470,7 @@ func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Client
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
 	}
-	authType := aws.StringValue(out.Users[0].Authentication.Type)
+	authType := aws.ToString(out.Users[0].Authentication.Type)
 	return memorydb.AuthenticationTypeIam == authType, nil
 }
 

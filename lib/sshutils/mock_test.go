@@ -61,14 +61,6 @@ func (mc *mockChannel) Stderr() io.ReadWriter {
 	return fakeReaderWriter{}
 }
 
-type mockSSHConn struct {
-	mockChan *mockChannel
-}
-
-func (mc *mockSSHConn) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
-	return mc.mockChan, make(<-chan *ssh.Request), nil
-}
-
 type mockSSHNewChannel struct {
 	mock.Mock
 	ssh.NewChannel

@@ -28,7 +28,6 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 )
 
@@ -71,7 +70,7 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 	case http.StatusBadRequest:
 		// Some services like memorydb, redshiftserverless may return 400 with
 		// "AccessDeniedException" instead of 403.
-		if strings.Contains(requestErr.Error(), redshiftserverless.ErrCodeAccessDeniedException) {
+		if strings.Contains(requestErr.Error(), "AccessDeniedException") {
 			return trace.AccessDenied(requestErr.Error())
 		}
 

@@ -1170,8 +1170,9 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
-	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
-	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	// kube-namespace exists for backwards compatibility.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
+	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
 	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
 		// Use the default context name template if --set-context-name is not set.

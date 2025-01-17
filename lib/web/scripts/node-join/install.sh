@@ -597,7 +597,7 @@ print_welcome_message() {
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
-        log_only "Find more details on how to use Teleport here: https://goteleport.com/docs/user-manual/"
+        log_only "Find more details on how to use Teleport here: https://goteleport.com/docs/"
     else
         log_important "The Teleport service was installed, but it does not appear to have started successfully."
         if is_using_systemd; then
@@ -945,9 +945,10 @@ install_from_repo() {
             curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
             echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
+            mkdir -p /etc/apt/keyrings
             curl -fsSL https://apt.releases.teleport.dev/gpg \
-                -o /usr/share/keyrings/teleport-archive-keyring.asc
-            echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+                -o /etc/apt/keyrings/teleport-archive-keyring.asc
+            echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update

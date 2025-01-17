@@ -47,8 +47,7 @@ func TestHelperFunctions(t *testing.T) {
 
 func TestNewSession(t *testing.T) {
 	nc := &NodeClient{
-		Namespace: "blue",
-		Tracer:    tracing.NoopProvider().Tracer("test"),
+		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
 
 	ctx := context.Background()
@@ -57,7 +56,6 @@ func TestNewSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ses)
 	require.Equal(t, nc, ses.NodeClient())
-	require.Equal(t, nc.Namespace, ses.namespace)
 	require.NotNil(t, ses.env)
 	require.Equal(t, os.Stderr, ses.terminal.Stderr())
 	require.Equal(t, os.Stdout, ses.terminal.Stdout())

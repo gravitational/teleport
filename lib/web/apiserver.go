@@ -969,6 +969,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
 	h.POST("/webapi/github", h.WithAuth(h.createGithubConnectorHandle))
+	// The extra "connector" in the path is to avoid a wildcard conflict with the github handlers used
+	// during the login flow ("github/login/web" and "github/callback").
+	h.GET("/webapi/github/connector/:name", h.WithAuth(h.getGithubConnectorHandle))
 	h.PUT("/webapi/github/:name", h.WithAuth(h.updateGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
@@ -1019,20 +1022,16 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deploydatabaseservices", h.WithClusterAuth(h.awsOIDCDeployDatabaseServices))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/listdeployeddatabaseservices", h.WithClusterAuth(h.awsOIDCListDeployedDatabaseService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
 	// TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters
 	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(enrollEksClusters)
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	// v2 endpoint introduces "extraLabels" field.
 	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databasevpcs", h.WithClusterAuth(h.awsOIDCListDatabaseVPCs))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/subnets", h.WithClusterAuth(h.awsOIDCListSubnets))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
-	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
@@ -2954,16 +2953,8 @@ type getSiteNamespacesResponse struct {
 //
 // {"namespaces": [{..namespace resource...}]}
 func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	clt, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespaces, err := clt.GetNamespaces()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return getSiteNamespacesResponse{
-		Namespaces: namespaces,
+		Namespaces: []types.Namespace{types.DefaultNamespace()},
 	}, nil
 }
 

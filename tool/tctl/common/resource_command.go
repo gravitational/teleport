@@ -2360,18 +2360,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
 		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
-		if rc.ref.Name == "" {
-			namespaces, err := client.GetNamespaces()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &namespaceCollection{namespaces: namespaces}, nil
-		}
-		ns, err := client.GetNamespace(rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
+		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			trustedClusters, err := client.GetTrustedClusters(ctx)

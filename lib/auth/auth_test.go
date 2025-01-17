@@ -194,10 +194,6 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertNamespace(types.DefaultNamespace()); err != nil {
-		return p, trace.Wrap(err)
-	}
-
 	return p, nil
 }
 

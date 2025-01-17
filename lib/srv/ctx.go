@@ -840,7 +840,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// Never emit session data events for the proxy or from a Teleport node if
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
-	if c.GetServer().Component() == teleport.ComponentProxy {
+	// Do not emit session data for git commands as they have their own events.
+	if c.GetServer().Component() == teleport.ComponentProxy ||
+		c.GetServer().Component() == teleport.ComponentForwardingGit {
 		return
 	}
 	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&
@@ -1267,19 +1269,19 @@ func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 	}
 }
 
-func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
+func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents.PortForward {
 	sconn := c.ConnectionContext.ServerConn
 	return apievents.PortForward{
 		Metadata: apievents.Metadata{
-			Type: events.PortForwardEvent,
-			Code: events.PortForwardCode,
+			Type: evType,
+			Code: code,
 		},
 		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  sconn.LocalAddr().String(),
 			RemoteAddr: sconn.RemoteAddr().String(),
 		},
-		Addr: c.DstAddr,
+		Addr: addr,
 		Status: apievents.Status{
 			Success: true,
 		},

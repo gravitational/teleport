@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -46,8 +45,6 @@ type fileTransferRequest struct {
 	serverID string
 	// Login is Linux username to connect as.
 	login string
-	// Namespace is node namespace.
-	namespace string
 	// Cluster is the name of the remote cluster to connect to.
 	cluster string
 	// remoteLocation is file remote location
@@ -71,7 +68,6 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		serverID:              p.ByName("server"),
 		remoteLocation:        query.Get("location"),
 		filename:              query.Get("filename"),
-		namespace:             defaults.Namespace,
 		mfaResponse:           query.Get("mfaResponse"),
 		fileTransferRequestID: query.Get("fileTransferRequestId"),
 		moderatedSessionID:    query.Get("moderatedSessionId"),
@@ -186,15 +182,11 @@ type fileTransfer struct {
 }
 
 func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request, proxySigner multiplexer.PROXYHeaderSigner) (*client.TeleportClient, error) {
-	if !types.IsValidNamespace(req.namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
-	}
-
 	if req.login == "" {
 		return nil, trace.BadParameter("missing login")
 	}
 
-	servers, err := f.authClient.GetNodes(httpReq.Context(), req.namespace)
+	servers, err := f.authClient.GetNodes(httpReq.Context(), defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,7 +203,6 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 
 	cfg.HostLogin = req.login
 	cfg.SiteName = req.cluster
-	cfg.Namespace = req.namespace
 	if err := cfg.ParseProxyHost(f.proxyHostPort); err != nil {
 		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
 	}
