@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/event-handler
 
-go 1.22.10
+go 1.22.11
 
 require (
 	github.com/alecthomas/kong v0.9.0
