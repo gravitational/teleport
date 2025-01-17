@@ -85,20 +85,20 @@ func (c *WorkloadIdentityAPICommand) ApplyConfig(cfg *config.BotConfig, l *slog.
 
 	switch {
 	case c.NameSelector != "" && c.LabelSelector != "":
-		return trace.BadParameter("workload-identity-name and workload-identity-labels flags are mutually exclusive")
+		return trace.BadParameter("name-selector and label-selector flags are mutually exclusive")
 	case c.NameSelector != "":
 		svc.Selector.Name = c.NameSelector
 	case c.LabelSelector != "":
 		labels, err := client.ParseLabelSpec(c.LabelSelector)
 		if err != nil {
-			return trace.Wrap(err, "parsing --workload-identity-labels")
+			return trace.Wrap(err, "parsing label-selector")
 		}
 		svc.Selector.Labels = map[string][]string{}
 		for k, v := range labels {
 			svc.Selector.Labels[k] = []string{v}
 		}
 	default:
-		return trace.BadParameter("workload-identity-name or workload-identity-labels must be specified")
+		return trace.BadParameter("name-selector and label-selector must be specified")
 	}
 
 	cfg.Services = append(cfg.Services, svc)
