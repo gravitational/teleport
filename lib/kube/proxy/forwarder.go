@@ -785,7 +785,7 @@ func (f *Forwarder) setupContext(
 		return nil, trace.Wrap(err)
 	}
 	state := authCtx.GetAccessState(authPref)
-	if state.MFARequired == services.MFARequiredAlways && (teleportClusterName == "" || kubeCluster == "") {
+	if state.MFARequired != services.MFARequiredNever && (teleportClusterName == "" || kubeCluster == "") {
 		return nil, trace.AccessDenied("access denied: session MFA requires identity routing parameters")
 	}
 

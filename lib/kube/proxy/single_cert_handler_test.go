@@ -81,9 +81,9 @@ func TestSingleCertRouting(t *testing.T) {
 	tests := []struct {
 		name string
 
-		kubeClusterOverride string
-		roleSpec            RoleSpec
-		assert              func(t *testing.T, restConfig *rest.Config)
+		roleSpec               RoleSpec
+		assert                 func(t *testing.T, restConfig *rest.Config)
+		genKubeCertificateOpts []GenTestKubeClientTLSCertOptions
 	}{
 		{
 			name:     "successful path routing to multiple clusters",
@@ -125,13 +125,79 @@ func TestSingleCertRouting(t *testing.T) {
 			},
 		},
 		{
-			name:                "path route cannot override identity",
-			roleSpec:            defaultRoleSpec,
-			kubeClusterOverride: "a",
+			name:     "path route cannot override identity",
+			roleSpec: defaultRoleSpec,
+			genKubeCertificateOpts: []GenTestKubeClientTLSCertOptions{
+				WithIdentityRoute(clusterName, "a"),
+			},
 			assert: func(t *testing.T, restConfig *rest.Config) {
 				client := pathRoutedKubeClient(t, restConfig, clusterName, "b")
 				_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(context.Background(), "foo", metav1.GetOptions{})
 				require.ErrorContains(t, err, "existing route in identity may not be overwritten")
+			},
+		},
+		{
+			name: "access is denied with per-session MFA enabled and no verification flag",
+			roleSpec: RoleSpec{
+				Name:       roleName,
+				KubeUsers:  roleKubeUsers,
+				KubeGroups: roleKubeGroups,
+				SetupRoleFunc: func(r types.Role) {
+					r.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
+					r.SetOptions(types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+					})
+				},
+			},
+			genKubeCertificateOpts: []GenTestKubeClientTLSCertOptions{
+				WithIdentityRoute("", ""),
+			},
+			assert: func(t *testing.T, restConfig *rest.Config) {
+				client := pathRoutedKubeClient(t, restConfig, clusterName, "a")
+				_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(context.Background(), "foo", metav1.GetOptions{})
+				require.ErrorContains(t, err, "kubernetes cluster \"a\" not found")
+			},
+		},
+		{
+			name: "requires non-empty identity routing parameters for session MFA",
+			roleSpec: RoleSpec{
+				Name:       roleName,
+				KubeUsers:  roleKubeUsers,
+				KubeGroups: roleKubeGroups,
+				SetupRoleFunc: func(r types.Role) {
+					r.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
+					r.SetOptions(types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+					})
+				},
+			},
+			genKubeCertificateOpts: []GenTestKubeClientTLSCertOptions{
+				WithIdentityRoute("", ""),
+				WithMFAVerified(),
+			},
+			assert: func(t *testing.T, restConfig *rest.Config) {
+				// Unrealistic test case, but we'll use a regular
+				// identity-routed client to force this edge case: if per-
+				// session MFA is enabled, the forwarder must require nonempty
+				// routing parameters.
+				// Ordinarily we'd still test with a path-routed client, but
+				// the singleCertHandler explicitly (only) allows overriding
+				// route parameters when they're empty, and it runs before
+				// setupContext().
+				// In practice, clients will request an MFA cert which must
+				// have valid routing parameters. The client will be responsible
+				// for converting a path-routed request to identity routing as
+				// part of its MFA check.
+
+				client, err := kubernetes.NewForConfig(restConfig)
+				require.NoError(t, err)
+
+				_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(context.Background(), "foo", metav1.GetOptions{})
+				require.ErrorContains(t, err, "access denied")
+
+				// Note: if this fails, this will instead return some variant of
+				// 'Kubernetes cluster "" not found' indicating it tried to
+				// route to a cluster named "" which should not be possible.
 			},
 		},
 	}
@@ -159,7 +225,8 @@ func TestSingleCertRouting(t *testing.T) {
 			_, restConfig := testCtx.GenTestKubeClientTLSCert(
 				t,
 				username,
-				tt.kubeClusterOverride, // normally empty for path routing
+				"",
+				tt.genKubeCertificateOpts...,
 			)
 
 			tt.assert(t, restConfig)
