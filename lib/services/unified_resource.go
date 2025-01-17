@@ -50,6 +50,7 @@ var UnifiedResourceKinds []string = []string{
 	types.KindSAMLIdPServiceProvider,
 	types.KindIdentityCenterAccount,
 	types.KindIdentityCenterAccountAssignment,
+	types.KindGitServer,
 }
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -355,6 +356,7 @@ type ResourceGetter interface {
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
+	GitServerGetter
 	IdentityCenterAccountAssignmentGetter
 }
 
@@ -387,8 +389,11 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	// the container type.
 	switch r := resource.(type) {
 	case types.Server:
-		name = r.GetHostname() + "/" + r.GetName()
-		kind = types.KindNode
+		switch r.GetKind() {
+		case types.KindNode, types.KindGitServer:
+			name = r.GetHostname() + "/" + r.GetName()
+			kind = r.GetKind()
+		}
 	case types.AppServer:
 		app := r.GetApp()
 		if app != nil {
@@ -464,6 +469,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newGitServers, err := c.getGitServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -485,6 +495,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
 	putResources[resource](c, newICAccounts)
+	putResources[types.Server](c, newGitServers)
 	putResources[resource](c, newICAccountAssignments)
 	c.stale = false
 	c.defineCollectorAsInitialized()
@@ -633,6 +644,23 @@ func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.C
 		pageRequest.Update(nextPage)
 	}
 	return accounts, nil
+}
+
+func (c *UnifiedResourceCache) getGitServers(ctx context.Context) (all []types.Server, err error) {
+	var page []types.Server
+	nextToken := ""
+	for {
+		page, nextToken, err = c.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting Git servers for unified resource watcher")
+		}
+
+		all = append(all, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return all, nil
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
@@ -952,6 +980,19 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		protoResource, err = makePaginatedIdentityCenterAccount(resourceKind, resource, requiresRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+	case types.KindGitServer:
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_GitServer{
+				GitServer: server,
+			},
+			RequiresRequest: requiresRequest,
 		}
 
 	case types.KindIdentityCenterAccountAssignment:

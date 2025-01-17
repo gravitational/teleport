@@ -49,7 +49,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -333,6 +332,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginStaticCredentials == nil {
+		cfg.PluginStaticCredentials, err = local.NewPluginStaticCredentialsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.UserTasks == nil {
 		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
 		if err != nil {
@@ -397,6 +402,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
 		}
 		cfg.WorkloadIdentity = workloadIdentity
+	}
+	if cfg.GitServers == nil {
+		cfg.GitServers, err = local.NewGitServerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating GitServer service")
+		}
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -495,6 +506,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ProvisioningStates:        cfg.ProvisioningStates,
 		IdentityCenter:            cfg.IdentityCenter,
 		WorkloadIdentities:        cfg.WorkloadIdentity,
+		PluginStaticCredentials:   cfg.PluginStaticCredentials,
+		GitServers:                cfg.GitServers,
 	}
 
 	as := Server{
@@ -504,7 +517,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Authority:               cfg.Authority,
 		AuthServiceName:         cfg.AuthServiceName,
 		ServerID:                cfg.HostUUID,
-		githubClients:           make(map[string]*githubClient),
 		cancelFunc:              cancelFunc,
 		closeCtx:                closeCtx,
 		emitter:                 cfg.Emitter,
@@ -714,6 +726,8 @@ type Services struct {
 	services.ProvisioningStates
 	services.IdentityCenter
 	services.WorkloadIdentities
+	services.PluginStaticCredentials
+	services.GitServers
 }
 
 // GetWebSession returns existing web session described by req.
@@ -902,10 +916,9 @@ type ReadOnlyCache = readonly.Cache
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock          sync.RWMutex
-	githubClients map[string]*githubClient
-	clock         clockwork.Clock
-	bk            backend.Backend
+	lock  sync.RWMutex
+	clock clockwork.Clock
+	bk    backend.Backend
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
@@ -1008,7 +1021,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
-	//the purpose of tests.
+	// the purpose of tests.
 	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
@@ -3209,6 +3222,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
+	var githubUserID, githubUsername string
+	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubUserID = githubIdentities[0].UserID
+		githubUsername = githubIdentities[0].Username
+	}
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3248,6 +3268,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				DeviceID:                req.deviceExtensions.DeviceID,
 				DeviceAssetTag:          req.deviceExtensions.AssetTag,
 				DeviceCredentialID:      req.deviceExtensions.CredentialID,
+				GitHubUserID:            githubUserID,
+				GitHubUsername:          githubUsername,
 			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
@@ -7534,43 +7556,6 @@ func (k *authKeepAliver) Done() <-chan struct{} {
 func (k *authKeepAliver) Close() error {
 	k.cancel()
 	return nil
-}
-
-// githubClient is internal structure that stores Github OAuth 2client and its config
-type githubClient struct {
-	client *oauth2.Client
-	config oauth2.Config
-}
-
-// oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal
-func oauth2ConfigsEqual(a, b oauth2.Config) bool {
-	if a.Credentials.ID != b.Credentials.ID {
-		return false
-	}
-	if a.Credentials.Secret != b.Credentials.Secret {
-		return false
-	}
-	if a.RedirectURL != b.RedirectURL {
-		return false
-	}
-	if len(a.Scope) != len(b.Scope) {
-		return false
-	}
-	for i := range a.Scope {
-		if a.Scope[i] != b.Scope[i] {
-			return false
-		}
-	}
-	if a.AuthURL != b.AuthURL {
-		return false
-	}
-	if a.TokenURL != b.TokenURL {
-		return false
-	}
-	if a.AuthMethod != b.AuthMethod {
-		return false
-	}
-	return true
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

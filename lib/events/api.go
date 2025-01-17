@@ -855,6 +855,9 @@ const (
 	ContactCreateEvent = "contact.create"
 	// ContactDeleteEvent is emitted when a Contact resource is deleted.
 	ContactDeleteEvent = "contact.delete"
+
+	// GitCommandEvent is emitted when a Git command is executed.
+	GitCommandEvent = "git.command"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

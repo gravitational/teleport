@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
@@ -104,6 +105,10 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	teleport.ComponentKey: teleport.ComponentTSH,
 })
+
+var (
+	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTSH)
+)
 
 const (
 	// mfaModeAuto automatically chooses the best MFA device(s), without any
@@ -572,6 +577,12 @@ type CLIConf struct {
 	// allows users with potentially stale credentials preventing access to gain the required access
 	// without having to manually run tsh login and the failed command again.
 	Relogin bool
+
+	// profileStatusOverride overrides return of ProfileStatus(). used in tests.
+	profileStatusOverride *client.ProfileStatus
+
+	// lookPathOverride overrides return of LookPath(). used in tests.
+	lookPathOverride string
 }
 
 // Stdout returns the stdout writer.
@@ -609,6 +620,14 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(c.cmdRunner(cmd))
 	}
 	return trace.Wrap(cmd.Run())
+}
+
+// LookPath searches for an executable named file.
+func (c *CLIConf) LookPath(file string) (string, error) {
+	if c.lookPathOverride != "" {
+		return c.lookPathOverride, nil
+	}
+	return exec.LookPath(file)
 }
 
 func Main() {
@@ -1248,6 +1267,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
 	vnetDaemonCmd := newVnetDaemonCommand(app)
 
+	gitCmd := newGitCommands(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1625,6 +1646,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetAdminSetupCmd.run(&cf)
 	case vnetDaemonCmd.FullCommand():
 		err = vnetDaemonCmd.run(&cf)
+	case gitCmd.list.FullCommand():
+		err = gitCmd.list.run(&cf)
+	case gitCmd.login.FullCommand():
+		err = gitCmd.login.run(&cf)
+	case gitCmd.ssh.FullCommand():
+		err = gitCmd.ssh.run(&cf)
+	case gitCmd.config.FullCommand():
+		err = gitCmd.config.run(&cf)
+	case gitCmd.clone.FullCommand():
+		err = gitCmd.clone.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -3941,7 +3972,12 @@ func onSSH(cf *CLIConf) error {
 		accessRequestForSSH,
 		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
 	)
+
 	// Exit with the same exit status as the failed command.
+	return trace.Wrap(convertSSHExitCode(tc, err))
+}
+
+func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if tc.ExitStatus != 0 {
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
@@ -4533,6 +4569,10 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 }
 
 func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
+	if c.profileStatusOverride != nil {
+		return c.profileStatusOverride, nil
+	}
+
 	clientStore, err := initClientStore(c, c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4842,6 +4882,9 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
+	if p.GitHubIdentity != nil {
+		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
+	}
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
@@ -5005,22 +5048,23 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL           string             `json:"profile_url"`
-	Username           string             `json:"username"`
-	ActiveRequests     []string           `json:"active_requests,omitempty"`
-	Cluster            string             `json:"cluster"`
-	Roles              []string           `json:"roles,omitempty"`
-	Traits             wrappers.Traits    `json:"traits,omitempty"`
-	Logins             []string           `json:"logins,omitempty"`
-	KubernetesEnabled  bool               `json:"kubernetes_enabled"`
-	KubernetesCluster  string             `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers    []string           `json:"kubernetes_users,omitempty"`
-	KubernetesGroups   []string           `json:"kubernetes_groups,omitempty"`
-	Databases          []string           `json:"databases,omitempty"`
-	ValidUntil         time.Time          `json:"valid_until"`
-	Extensions         []string           `json:"extensions,omitempty"`
-	CriticalOptions    map[string]string  `json:"critical_options,omitempty"`
-	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
+	ProxyURL           string                 `json:"profile_url"`
+	Username           string                 `json:"username"`
+	ActiveRequests     []string               `json:"active_requests,omitempty"`
+	Cluster            string                 `json:"cluster"`
+	Roles              []string               `json:"roles,omitempty"`
+	Traits             wrappers.Traits        `json:"traits,omitempty"`
+	Logins             []string               `json:"logins,omitempty"`
+	KubernetesEnabled  bool                   `json:"kubernetes_enabled"`
+	KubernetesCluster  string                 `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers    []string               `json:"kubernetes_users,omitempty"`
+	KubernetesGroups   []string               `json:"kubernetes_groups,omitempty"`
+	Databases          []string               `json:"databases,omitempty"`
+	ValidUntil         time.Time              `json:"valid_until"`
+	Extensions         []string               `json:"extensions,omitempty"`
+	CriticalOptions    map[string]string      `json:"critical_options,omitempty"`
+	AllowedResourceIDs []types.ResourceID     `json:"allowed_resources,omitempty"`
+	GitHubIdentity     *client.GitHubIdentity `json:"github_identity,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5070,6 +5114,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Extensions:         p.Extensions,
 		CriticalOptions:    p.CriticalOptions,
 		AllowedResourceIDs: p.AllowedResourceIDs,
+		GitHubIdentity:     p.GitHubIdentity,
 	}
 
 	// update active profile info from env

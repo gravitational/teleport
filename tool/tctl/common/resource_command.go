@@ -179,6 +179,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindUserTask:                 rc.createUserTask,
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
+		types.KindGitServer:                rc.createGitServer,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -199,6 +200,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
+		types.KindGitServer:               rc.updateGitServer,
 	}
 	rc.config = config
 
@@ -1470,6 +1472,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 		switch integration.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
+		case types.IntegrationSubKindGitHub:
+			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
@@ -2023,6 +2027,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
+	case types.KindGitServer:
+		if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
 	case types.KindAutoUpdateConfig:
 		if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
 			return trace.Wrap(err)
@@ -3300,6 +3309,31 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			nextToken = token
 		}
 		return &accessMonitoringRuleCollection{items: rules}, nil
+	case types.KindGitServer:
+		var page, servers []types.Server
+
+		// TODO(greedy52) use unified resource request once available.
+		if rc.ref.Name != "" {
+			server, err := client.GitServerClient().GetGitServer(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &serverCollection{servers: append(servers, server)}, nil
+		}
+		var err error
+		var token string
+		for {
+			page, token, err = client.GitServerClient().ListGitServers(ctx, 0, token)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			servers = append(servers, page...)
+			if token == "" {
+				break
+			}
+		}
+		// TODO(greedy52) consider making dedicated git server collection.
+		return &serverCollection{servers: servers}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3710,5 +3744,34 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	server, err := services.UnmarshalGitServer(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err = client.GitServerClient().UpsertGitServer(ctx, server)
+	} else {
+		_, err = client.GitServerClient().CreateGitServer(ctx, server)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git server %q has been created\n", server.GetName())
+	return nil
+}
+func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	server, err := services.UnmarshalGitServer(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.GitServerClient().UpdateGitServer(ctx, server)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git server %q has been updated\n", server.GetName())
 	return nil
 }

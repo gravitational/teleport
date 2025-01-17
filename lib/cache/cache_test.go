@@ -142,17 +142,20 @@ type testPack struct {
 	provisioningStates      services.ProvisioningStates
 	identityCenter          services.IdentityCenter
 	workloadIdentity        *local.WorkloadIdentityService
+	pluginStaticCredentials *local.PluginStaticCredentialsService
+	gitServers              services.GitServers
 }
 
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T types.Resource] struct {
-	newResource func(string) (T, error)
-	create      func(context.Context, T) error
-	list        func(context.Context) ([]T, error)
-	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context) ([]T, error)
-	update      func(context.Context, T) error
-	deleteAll   func(context.Context) error
+	newResource    func(string) (T, error)
+	create         func(context.Context, T) error
+	list           func(context.Context) ([]T, error)
+	cacheGet       func(context.Context, string) (T, error)
+	cacheList      func(context.Context) ([]T, error)
+	update         func(context.Context, T) error
+	deleteAll      func(context.Context) error
+	changeResource func(T)
 }
 
 // testFuncs153 are functions to support testing an RFD153-style resource in a cache.
@@ -409,6 +412,16 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.pluginStaticCredentials, err = local.NewPluginStaticCredentialsService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.gitServers, err = local.NewGitServerService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -463,6 +476,8 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
 		WorkloadIdentity:        p.workloadIdentity,
+		PluginStaticCredentials: p.pluginStaticCredentials,
+		GitServers:              p.gitServers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -877,7 +892,9 @@ func TestCompletenessInit(t *testing.T) {
 			WorkloadIdentity:        p.workloadIdentity,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			IdentityCenter:          p.identityCenter,
+			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
+			GitServers:              p.gitServers,
 		}))
 		require.NoError(t, err)
 
@@ -961,8 +978,10 @@ func TestCompletenessReset(t *testing.T) {
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
 		WorkloadIdentity:        p.workloadIdentity,
+		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1172,9 +1191,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
 		WorkloadIdentity:        p.workloadIdentity,
+		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1268,8 +1289,10 @@ func initStrategy(t *testing.T) {
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
 		WorkloadIdentity:        p.workloadIdentity,
+		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -2938,10 +2961,20 @@ func TestStaticHostUsers(t *testing.T) {
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
+	if funcs.changeResource == nil {
+		funcs.changeResource = func(t T) {
+			if t.Expiry().IsZero() {
+				t.SetExpiry(time.Now().Add(30 * time.Minute))
+			} else {
+				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
+			}
+		}
+	}
+
 	// Create a resource.
 	r, err := funcs.newResource("test-sp")
 	require.NoError(t, err)
-	r.SetExpiry(time.Now().Add(30 * time.Minute))
+	funcs.changeResource(r)
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
@@ -2975,7 +3008,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
 		// Update the resource and upsert it into the backend again.
-		r.SetExpiry(r.Expiry().Add(30 * time.Minute))
+		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
 		require.NoError(t, err)
 	}
@@ -3534,6 +3567,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
+		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
+		types.KindGitServer:                         &types.ServerV2{},
 	}
 
 	for name, cfg := range cases {

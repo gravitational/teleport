@@ -96,6 +96,7 @@ type AuthCommand struct {
 	caType                     string
 	streamTarfile              bool
 	identityWriter             identityfile.ConfigWriter
+	integration                string
 
 	authRotate authRotateCommand
 
@@ -121,6 +122,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	a.authExport.Flag("type",
 		fmt.Sprintf("export certificate type (%v)", strings.Join(allowedCertificateTypes, ", "))).
 		EnumVar(&a.authType, allowedCertificateTypes...)
+	a.authExport.Flag("integration", "Name of the integration. Only applies to \"github\" CAs.").StringVar(&a.integration)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair.").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -215,6 +217,7 @@ var allowedCertificateTypes = []string{
 	"db-client-der",
 	"openssh",
 	"saml-idp",
+	"github",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
@@ -242,6 +245,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClie
 			AuthType:                   a.authType,
 			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
 			UseCompatVersion:           a.compatVersion == "1.0",
+			Integration:                a.integration,
 		},
 	)
 	if err != nil {

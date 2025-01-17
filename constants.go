@@ -283,6 +283,9 @@ const (
 	// ComponentUpdater represents the agent updater.
 	ComponentUpdater = "updater"
 
+	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
+	ComponentForwardingGit = "git:forward"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -509,6 +512,12 @@ const (
 	// from which this certificate is accepted for authentication.
 	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 	CertCriticalOptionSourceAddress = "source-address"
+	// CertExtensionGitHubUserID indicates the GitHub user ID identified by the
+	// GitHub connector.
+	CertExtensionGitHubUserID = "github-id@goteleport.com"
+	// CertExtensionGitHubUsername indicates the GitHub username identified by
+	// the GitHub connector.
+	CertExtensionGitHubUsername = "github-login@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

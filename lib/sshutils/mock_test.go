@@ -22,6 +22,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -66,4 +67,56 @@ type mockSSHConn struct {
 
 func (mc *mockSSHConn) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
 	return mc.mockChan, make(<-chan *ssh.Request), nil
+}
+
+type mockSSHNewChannel struct {
+	mock.Mock
+	ssh.NewChannel
+}
+
+func newMockSSHNewChannel(channelType string) *mockSSHNewChannel {
+	m := new(mockSSHNewChannel)
+	m.On("ChannelType").Return(channelType)
+	m.On("Reject", mock.Anything, mock.Anything).Return(nil)
+	return m
+}
+
+func (m *mockSSHNewChannel) ChannelType() string {
+	return m.Called().String(0)
+}
+
+func (m *mockSSHNewChannel) Reject(reason ssh.RejectionReason, message string) error {
+	args := m.Called(reason, message)
+	return args.Error(0)
+}
+
+type mockSSHChannel struct {
+	mock.Mock
+	ssh.Channel
+}
+
+func newMockSSHChannel() *mockSSHChannel {
+	m := new(mockSSHChannel)
+	m.On("SendRequest", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+	return m
+}
+
+func (m *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
+	args := m.Called(name, wantReply, payload)
+	return args.Bool(0), args.Error(1)
+}
+
+type mockSSHRequest struct {
+	mock.Mock
+}
+
+func newMockSSHRequest() *mockSSHRequest {
+	m := new(mockSSHRequest)
+	m.On("Reply", mock.Anything, mock.Anything).Return(nil)
+	return m
+}
+
+func (m *mockSSHRequest) Reply(ok bool, payload []byte) error {
+	args := m.Called(ok, payload)
+	return args.Error(0)
 }
