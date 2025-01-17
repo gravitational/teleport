@@ -21,7 +21,6 @@ package cli
 import (
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -63,25 +62,6 @@ func NewKubernetesV2Command(parentCmd *kingpin.CmdClause, action MutatorAction, 
 	// Note: excluding roles; the bot will fetch all available in CLI mode.
 
 	return c
-}
-
-// parseLabelSelectorString parses a string containing key/value pairs in
-// "k1=v1,k2=v2" form into a Kubernetes selector.
-func parseLabelSelectorString(selectors string) (*config.KubernetesSelector, error) {
-	labels := map[string]string{}
-
-	for _, selector := range strings.Split(selectors, ",") {
-		k, v, found := strings.Cut(selector, "=")
-		if !found {
-			return nil, trace.BadParameter("invalid selector: %s", selector)
-		}
-
-		labels[k] = v
-	}
-
-	return &config.KubernetesSelector{
-		Labels: labels,
-	}, nil
 }
 
 func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
