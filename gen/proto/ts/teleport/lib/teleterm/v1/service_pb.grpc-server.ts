@@ -21,6 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { GetAppResponse } from "./service_pb";
+import { GetAppRequest } from "./service_pb";
 import { AuthenticateWebDeviceResponse } from "./service_pb";
 import { AuthenticateWebDeviceRequest } from "./service_pb";
 import { UpdateUserPreferencesResponse } from "./service_pb";
@@ -387,6 +389,13 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
      */
     authenticateWebDevice: grpc.handleUnaryCall<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>;
+    /**
+     * GetApp returns details of an app resource. It does not include information about AWS roles and
+     * FQDN.
+     *
+     * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
+     */
+    getApp: grpc.handleUnaryCall<GetAppRequest, GetAppResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -799,5 +808,15 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => AuthenticateWebDeviceRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(AuthenticateWebDeviceResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(AuthenticateWebDeviceRequest.toBinary(value))
+    },
+    getApp: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/GetApp",
+        originalName: "GetApp",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetAppResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetAppRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetAppResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetAppRequest.toBinary(value))
     }
 };

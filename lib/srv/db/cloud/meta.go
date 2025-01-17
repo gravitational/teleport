@@ -24,16 +24,16 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -44,6 +44,11 @@ import (
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+// elasticacheClient defines a subset of the AWS ElastiCache client API.
+type elasticacheClient interface {
+	elasticache.DescribeReplicationGroupsAPIClient
+}
 
 // rdsClient defines a subset of the AWS RDS client API.
 type rdsClient interface {
@@ -60,13 +65,25 @@ type redshiftClient interface {
 	redshift.DescribeClustersAPIClient
 }
 
+// rssClient defines a subset of the AWS Redshift Serverless client API.
+type rssClient interface {
+	GetEndpointAccess(ctx context.Context, params *rss.GetEndpointAccessInput, optFns ...func(*rss.Options)) (*rss.GetEndpointAccessOutput, error)
+	GetWorkgroup(ctx context.Context, params *rss.GetWorkgroupInput, optFns ...func(*rss.Options)) (*rss.GetWorkgroupOutput, error)
+}
+
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
+	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
+	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
 }
 
 type defaultAWSClients struct{}
+
+func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
 
 func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
 	return rds.NewFromConfig(cfg, optFns...)
@@ -74,6 +91,10 @@ func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Option
 
 func (defaultAWSClients) getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient {
 	return redshift.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient {
+	return rss.NewFromConfig(cfg, optFns...)
 }
 
 // MetadataConfig is the cloud metadata service config.
@@ -242,31 +263,33 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 // Serverless database.
 func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	client, err := m.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clt := m.cfg.awsClients.getRedshiftServerlessClient(awsCfg)
 
 	if meta.RedshiftServerless.EndpointName != "" {
-		return fetchRedshiftServerlessVPCEndpointMetadata(ctx, client, meta.RedshiftServerless.EndpointName)
+		return fetchRedshiftServerlessVPCEndpointMetadata(ctx, clt, meta.RedshiftServerless.EndpointName)
 	}
-	return fetchRedshiftServerlessWorkgroupMetadata(ctx, client, meta.RedshiftServerless.WorkgroupName)
+	return fetchRedshiftServerlessWorkgroupMetadata(ctx, clt, meta.RedshiftServerless.WorkgroupName)
 }
 
 // fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
 func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, meta.ElastiCache.ReplicationGroupID)
+	clt := m.cfg.awsClients.getElastiCacheClient(awsCfg)
+	cluster, err := describeElastiCacheCluster(ctx, clt, meta.ElastiCache.ReplicationGroupID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -358,8 +381,8 @@ func describeRedshiftCluster(ctx context.Context, clt redshiftClient, clusterID 
 
 // describeElastiCacheCluster returns AWS ElastiCache Redis cluster for the
 // specified ID.
-func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticacheiface.ElastiCacheAPI, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
-	out, err := elastiCacheClient.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
+func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticacheClient, replicationGroupID string) (*ectypes.ReplicationGroup, error) {
+	out, err := elastiCacheClient.DescribeReplicationGroups(ctx, &elasticache.DescribeReplicationGroupsInput{
 		ReplicationGroupId: aws.String(replicationGroupID),
 	})
 	if err != nil {
@@ -368,7 +391,7 @@ func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticac
 	if len(out.ReplicationGroups) != 1 {
 		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %+v", replicationGroupID, out.ReplicationGroups)
 	}
-	return out.ReplicationGroups[0], nil
+	return &out.ReplicationGroups[0], nil
 }
 
 // describeMemoryDBCluster returns AWS MemoryDB cluster for the specified ID.
@@ -449,14 +472,14 @@ func describeRDSProxyCustomEndpointAndFindURI(ctx context.Context, clt rdsClient
 	return nil, trace.BadParameter("could not find RDS Proxy custom endpoint %v with URI %v, got %s", proxyEndpointName, uri, endpoints)
 }
 
-func fetchRedshiftServerlessWorkgroupMetadata(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) (*types.AWS, error) {
+func fetchRedshiftServerlessWorkgroupMetadata(ctx context.Context, client rssClient, workgroupName string) (*types.AWS, error) {
 	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, workgroupName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return discoverycommon.MetadataFromRedshiftServerlessWorkgroup(workgroup)
 }
-func fetchRedshiftServerlessVPCEndpointMetadata(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) (*types.AWS, error) {
+func fetchRedshiftServerlessVPCEndpointMetadata(ctx context.Context, client rssClient, endpointName string) (*types.AWS, error) {
 	endpoint, err := describeRedshiftServerlessVCPEndpoint(ctx, client, endpointName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -467,17 +490,20 @@ func fetchRedshiftServerlessVPCEndpointMetadata(ctx context.Context, client reds
 	}
 	return discoverycommon.MetadataFromRedshiftServerlessVPCEndpoint(endpoint, workgroup)
 }
-func describeRedshiftServerlessWorkgroup(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) (*redshiftserverless.Workgroup, error) {
-	input := new(redshiftserverless.GetWorkgroupInput).SetWorkgroupName(workgroupName)
-	output, err := client.GetWorkgroupWithContext(ctx, input)
+func describeRedshiftServerlessWorkgroup(ctx context.Context, client rssClient, workgroupName string) (*rsstypes.Workgroup, error) {
+	output, err := client.GetWorkgroup(ctx, &rss.GetWorkgroupInput{
+		WorkgroupName: aws.String(workgroupName),
+	})
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
 	return output.Workgroup, nil
 }
-func describeRedshiftServerlessVCPEndpoint(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) (*redshiftserverless.EndpointAccess, error) {
-	input := new(redshiftserverless.GetEndpointAccessInput).SetEndpointName(endpointName)
-	output, err := client.GetEndpointAccessWithContext(ctx, input)
+
+func describeRedshiftServerlessVCPEndpoint(ctx context.Context, client rssClient, endpointName string) (*rsstypes.EndpointAccess, error) {
+	output, err := client.GetEndpointAccess(ctx, &rss.GetEndpointAccessInput{
+		EndpointName: aws.String(endpointName),
+	})
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}

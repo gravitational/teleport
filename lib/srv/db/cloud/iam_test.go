@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/google/uuid"
@@ -109,7 +109,7 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	elasticache, err := types.NewDatabaseV3(types.Metadata{
+	elasticacheDB, err := types.NewDatabaseV3(types.Metadata{
 		Name: "aws-elasticache",
 	}, types.DatabaseSpecV3{
 		Protocol: "redis",
@@ -185,7 +185,7 @@ func TestAWSIAM(t *testing.T) {
 			wantPolicyContains: rdsDatabase.GetAWS().RDS.ResourceID,
 			getIAMAuthEnabled: func() bool {
 				rdsInstance := &clt.DBInstances[0]
-				out := aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled)
+				out := aws.ToBool(rdsInstance.IAMDatabaseAuthenticationEnabled)
 				// reset it
 				rdsInstance.IAMDatabaseAuthenticationEnabled = aws.Bool(false)
 				return out
@@ -196,7 +196,7 @@ func TestAWSIAM(t *testing.T) {
 			wantPolicyContains: auroraDatabase.GetAWS().RDS.ResourceID,
 			getIAMAuthEnabled: func() bool {
 				auroraCluster := &clt.DBClusters[0]
-				out := aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled)
+				out := aws.ToBool(auroraCluster.IAMDatabaseAuthenticationEnabled)
 				// reset it
 				auroraCluster.IAMDatabaseAuthenticationEnabled = aws.Bool(false)
 				return out
@@ -217,8 +217,8 @@ func TestAWSIAM(t *testing.T) {
 			},
 		},
 		"ElastiCache": {
-			database:           elasticache,
-			wantPolicyContains: elasticache.GetAWS().ElastiCache.ReplicationGroupID,
+			database:           elasticacheDB,
+			wantPolicyContains: elasticacheDB.GetAWS().ElastiCache.ReplicationGroupID,
 			getIAMAuthEnabled: func() bool {
 				return true // it always is for ElastiCache.
 			},
@@ -258,7 +258,7 @@ func TestAWSIAM(t *testing.T) {
 				output, err := iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
 				require.NoError(t, err)
 				require.True(t, tt.getIAMAuthEnabled())
-				require.Contains(t, aws.StringValue(output.PolicyDocument), tt.wantPolicyContains)
+				require.Contains(t, aws.ToString(output.PolicyDocument), tt.wantPolicyContains)
 
 				err = configurator.UpdateIAMStatus(ctx, database)
 				require.NoError(t, err)
@@ -295,24 +295,6 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	stsClient := &mocks.STSClientV1{
 		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
-	// Make configurator.
-	configurator, err := NewIAM(ctx, IAMConfig{
-		AccessPoint: &mockAccessPoint{},
-		Clients:     &clients.TestCloudClients{}, // placeholder,
-		HostID:      "host-id",
-		AWSConfigProvider: &mocks.AWSConfigProvider{
-			STSClient: &mocks.STSClient{
-				STSClientV1: mocks.STSClientV1{
-					ARN: "arn:aws:iam::123456789012:role/test-role",
-				},
-			},
-		},
-		awsClients: fakeAWSClients{
-			rdsClient: &mocks.RDSClient{Unauth: true},
-		},
-	})
-	require.NoError(t, err)
-
 	tests := []struct {
 		name    string
 		meta    types.AWS
@@ -362,9 +344,6 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			name: "ElastiCache",
 			meta: types.AWS{Region: "localhost", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
 			clients: &clients.TestCloudClients{
-				// As of writing this API won't be called by the configurator anyway,
-				// but might as well provide it in case that changes.
-				ElastiCache: &mocks.ElastiCacheMock{Unauth: true},
 				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
@@ -385,8 +364,23 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Update cloud clients.
-			configurator.cfg.Clients = test.clients
+			// Make configurator.
+			configurator, err := NewIAM(ctx, IAMConfig{
+				AccessPoint: &mockAccessPoint{},
+				Clients:     test.clients,
+				HostID:      "host-id",
+				AWSConfigProvider: &mocks.AWSConfigProvider{
+					STSClient: &mocks.STSClient{
+						STSClientV1: mocks.STSClientV1{
+							ARN: "arn:aws:iam::123456789012:role/test-role",
+						},
+					},
+				},
+				awsClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{Unauth: true},
+				},
+			})
+			require.NoError(t, err)
 
 			database, err := types.NewDatabaseV3(types.Metadata{
 				Name: "test",
