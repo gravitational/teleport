@@ -14,27 +14,32 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build windows
-// +build windows
-
 package vnet
 
 import (
 	"context"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/vnet/daemon"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
-var (
-	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on windows"}
-)
-
-// execAdminProcess is called from the normal user process to execute the admin
-// subcommand as root.
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	// TODO(nklaassen): implement execAdminProcess on windows.
-	return trace.Wrap(ErrVnetNotImplemented)
+// runWindowsAdminProcess must run as administrator. It creates and sets up a TUN
+// device, runs the VNet networking stack, and handles OS configuration. It will
+// continue to run until [ctx] is canceled or encountering an unrecoverable
+// error.
+func runWindowsAdminProcess(ctx context.Context) error {
+	device, err := tun.CreateTUN("TeleportVNet", mtu)
+	if err != nil {
+		return trace.Wrap(err, "creating TUN device")
+	}
+	defer device.Close()
+	tunName, err := device.Name()
+	if err != nil {
+		return trace.Wrap(err, "getting TUN device name")
+	}
+	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
+	// TODO(nklaassen): actually run VNet. For now, just stay alive until the
+	// context is canceled.
+	<-ctx.Done()
+	return trace.Wrap(ctx.Err())
 }
