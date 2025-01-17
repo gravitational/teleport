@@ -18,14 +18,12 @@ package tbot
 
 import (
 	"context"
-	"path"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -38,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
-func TestBotWorkloadIdentityX509(t *testing.T) {
+func TestBotWorkloadIdentityJWT(t *testing.T) {
 	experimentStatus := experiment.Enabled()
 	defer experiment.SetEnabled(experimentStatus)
 	experiment.SetEnabled(true)
@@ -91,13 +89,14 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		tmpDir := t.TempDir()
 		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
 		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&config.WorkloadIdentityX509Service{
+			&config.WorkloadIdentityJWTService{
 				Selector: config.WorkloadIdentitySelector{
 					Name: workloadIdentity.GetMetadata().GetName(),
 				},
 				Destination: &config.DestinationDirectory{
 					Path: tmpDir,
 				},
+				Audiences: []string{"example", "foo"},
 			},
 		}, defaultBotConfigOpts{
 			useAuthServer: true,
@@ -110,28 +109,18 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		defer cancel()
 		require.NoError(t, b.Run(ctx))
 
-		svid, err := x509svid.Load(
-			path.Join(tmpDir, config.SVIDPEMPath),
-			path.Join(tmpDir, config.SVIDKeyPEMPath),
-		)
+		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, config.JWTSVIDPath))
 		require.NoError(t, err)
-		require.Equal(t, "spiffe://root/valid/by-name", svid.ID.String())
-
-		// Validate the trust bundle was written to disk, and, that our SVID
-		// appears valid according to the trust bundle.
-		td := spiffeid.RequireTrustDomainFromString("root")
-		bundle, err := x509bundle.Load(
-			td, filepath.Join(tmpDir, config.SVIDTrustBundlePEMPath),
-		)
+		jwt, err := jwtsvid.ParseInsecure(string(jwtBytes), []string{"example"})
 		require.NoError(t, err)
-		_, _, err = x509svid.Verify(svid.Certificates, bundle)
-		require.NoError(t, err)
+		require.Equal(t, "spiffe://root/valid/by-name", jwt.ID.String())
+		require.Equal(t, []string{"example", "foo"}, jwt.Audience)
 	})
 	t.Run("By Labels", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		onboarding, _ := makeBot(t, rootClient, "by-labels", role.GetName())
 		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&config.WorkloadIdentityX509Service{
+			&config.WorkloadIdentityJWTService{
 				Selector: config.WorkloadIdentitySelector{
 					Labels: map[string][]string{
 						"foo": {"bar"},
@@ -140,6 +129,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 				Destination: &config.DestinationDirectory{
 					Path: tmpDir,
 				},
+				Audiences: []string{"example"},
 			},
 		}, defaultBotConfigOpts{
 			useAuthServer: true,
@@ -152,21 +142,11 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		defer cancel()
 		require.NoError(t, b.Run(ctx))
 
-		svid, err := x509svid.Load(
-			path.Join(tmpDir, config.SVIDPEMPath),
-			path.Join(tmpDir, config.SVIDKeyPEMPath),
-		)
+		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, config.JWTSVIDPath))
 		require.NoError(t, err)
-		require.Equal(t, "spiffe://root/valid/by-labels", svid.ID.String())
-
-		// Validate the trust bundle was written to disk, and, that our SVID
-		// appears valid according to the trust bundle.
-		td := spiffeid.RequireTrustDomainFromString("root")
-		bundle, err := x509bundle.Load(
-			td, filepath.Join(tmpDir, config.SVIDTrustBundlePEMPath),
-		)
+		jwt, err := jwtsvid.ParseInsecure(string(jwtBytes), []string{"example"})
 		require.NoError(t, err)
-		_, _, err = x509svid.Verify(svid.Certificates, bundle)
-		require.NoError(t, err)
+		require.Equal(t, "spiffe://root/valid/by-labels", jwt.ID.String())
+		require.Equal(t, []string{"example"}, jwt.Audience)
 	})
 }
