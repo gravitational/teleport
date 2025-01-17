@@ -6760,12 +6760,27 @@ message PluginDatadogAccessSettings {
   string fallback_recipient = 2;
 }
 
+// AWSICCredentialsSource indicates where the AWS Identity Center plugin will
+// draw its AWS credentials from
+enum AWSICCredentialsSource {
+  // AWSIC_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not
+  // specified. For backwards compatability, UNKNOWN is handled as OIDC.
+  AWSIC_CREDENTIALS_SOURCE_UNKNOWN = 0;
+  // AWSIC_CREDENTIALS_SOURCE_OIDC indicates that the Identity Center plugin will
+  // draw its credentials from a configured Teleport OIDC integration and
+  // authenticate  woth OIDC
+  AWSIC_CREDENTIALS_SOURCE_OIDC = 1;
+  // AWSIC_CREDENTIALS_SOURCE_SYSTEM indicates that the Identity Center plugin
+  // will rely on system-provided credentials
+  AWSIC_CREDENTIALS_SOURCE_SYSTEM = 2;
+}
+
 // PluginAWSICSettings holds the settings for an AWS Identity Center integration.
 message PluginAWSICSettings {
   option (gogoproto.equal) = true;
 
   // IntegrationName is the Teleport OIDC integration used to gain access to the
-  // AWS account
+  // AWS account. May be empty if [CredentialsSource] is `SYSTEM`.
   string integration_name = 1;
 
   // Region is the AWS region the target Identity Center instance is configured in
@@ -6774,7 +6789,7 @@ message PluginAWSICSettings {
   // InstanceARN is the arn of the Identity Center instance to manage
   string arn = 3;
 
-  // Provisioning holds settings for provisioing users and groups into AWS
+  // Provisioning holds settings for provisioning users and groups into AWS
   AWSICProvisioningSpec provisioning_spec = 4;
 
   // AccessListDefaultOwners is a list of default owners for Access List created for
@@ -6784,6 +6799,10 @@ message PluginAWSICSettings {
   // SAMLIdPServiceProviderName is the name of a SAML service provider created
   // for the Identity Center.
   string saml_idp_service_provider_name = 6;
+
+  // CredentialsSource indicates how the Identity Center plugin should source
+  // its AWS login credentials
+  AWSICCredentialsSource credentials_source = 7;
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
