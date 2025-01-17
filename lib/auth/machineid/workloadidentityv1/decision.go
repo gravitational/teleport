@@ -83,6 +83,31 @@ func decide(
 		d.templatedWorkloadIdentity.Spec.Spiffe.X509.DnsSans[i] = templated
 	}
 
+	if cn := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate().CommonName; cn != nil {
+		templated, err = templateString(*cn, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.subject_template.common_name")
+			return d
+		}
+		d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate.CommonName = &templated
+	}
+	if o := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate().Organization; o != nil {
+		templated, err = templateString(*o, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.subject_template.organization")
+			return d
+		}
+		d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate.Organization = &templated
+	}
+	if ou := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate().OrganizationalUnit; ou != nil {
+		templated, err = templateString(*ou, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.subject_template.organizational_unit")
+			return d
+		}
+		d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate.OrganizationalUnit = &templated
+	}
+
 	// Yay - made it to the end!
 	d.shouldIssue = true
 	return d
