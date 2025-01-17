@@ -173,12 +173,15 @@ There are no new privacy considerations on Windows.
 
 ### Proto Specification
 
-```proto3
+```protobuf
 // VnetUserProcessService is a service the VNet user process provides to the
 // VNet admin process.
 service VnetUserProcessService {
   // AuthenticateProcess mutually authenticates the server and client VNet processes.
   rpc AuthenticateProcess(AuthenticateProcessRequest) returns (AuthenticateProcessResponse);
+  // Ping is used by the admin process to regularly poll that the user process
+  // is still running.
+  rpc Ping(PingRequest) returns (PingResponse);
   // ResolveAppInfo returns info for the given app fqdn, or an error if the app
   // is not present in any logged-in cluster.
   rpc ResolveAppInfo(ResolveAppInfoRequest) returns (ResolveAppInfoResponse);
@@ -187,10 +190,13 @@ service VnetUserProcessService {
   // SignForApp issues a signature with the private key associated with an x509
   // certificate previously issued for a requested app.
   rpc SignForApp(SignForAppRequest) returns (SignForAppResponse);
-  // Ping is used by the admin process to regularly poll that the user process
-  // is still running, and to share the Teleport version between the two
-  // processes to make sure they are compatible.
-  rpc Ping(PingRequest) returns (PingResponse);
+  // OnNewConnection gets called whenever a new connection is about to be
+  // established through VNet for observability.
+  rpc OnNewConnection(OnNewConnectionRequest) returns (OnNewConnectionResponse);
+  // OnInvalidLocalPort gets called before VNet refuses to handle a connection
+  // to a multi-port TCP app because the provided port does not match any of the
+  // TCP ports in the app spec.
+  rpc OnInvalidLocalPort(OnOnvalidLocalPortRequest) returns (OnInvalidLocalPortResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -206,6 +212,12 @@ message AuthenticateProcessResponse {
   // version is the user process version.
   string version = 1;
 }
+
+// PingRequest is a request for the Ping rpc.
+message PingRequest {}
+
+// PingResponse is a response for the Ping rpc.
+message PingResponse {}
 
 // ResolveAppInfoRequest is a request for ResolveAppInfo.
 message ResolveAppInfoRequest {
@@ -309,11 +321,28 @@ message SignForAppResponse {
   bytes signature = 1;
 }
 
-// PingRequest is a request for the Ping rpc.
-message PingRequest {}
+// OnNewConnectionRequest is a request for OnNewConnection.
+message OnNewConnectionRequest {
+  // app_key identifies the app the connection is being made for.
+  AppKey app_key = 1;
+}
 
-// PingResponse is a response for the Ping rpc.
-message PingResponse {}
+// OnNewConnectionRequest is a response for OnNewConnection.
+message OnNewConnectionResponse{}
+
+// OnInvalidLocalPortRequest is a request for OnInvalidLocalPort.
+message OnInvalidLocalPortRequest {
+  // app_info identifies the app the request was made for. AppInfo is used
+  // instaed of AppKey so that the application spec is included, which includes
+  // the TCP port ranges allowed for the app, which are ultimately included in
+  // the user error message.
+  AppInfo app_info = 1;
+  // target_port is the invalid port the request was made for.
+  uint32 target_port = 2;
+}
+
+// OnInvalidLocalPortResponse is a response for OnInvalidLocalPort.
+message OnInvalidLocalPortResponse {}
 ```
 
 ### Backward Compatibility
