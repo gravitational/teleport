@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/protobuf/proto"
 
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -125,16 +124,16 @@ func (s *server) listStableUNIXUsers(ctx context.Context, req *stableunixusersv1
 
 	userspb := make([]*stableunixusersv1.StableUNIXUser, 0, len(users))
 	for _, user := range users {
-		userspb = append(userspb, stableunixusersv1.StableUNIXUser_builder{
-			Username: proto.String(user.Username),
-			Uid:      proto.Int32(user.UID),
-		}.Build())
+		userspb = append(userspb, &stableunixusersv1.StableUNIXUser{
+			Username: user.Username,
+			Uid:      user.UID,
+		})
 	}
 
-	return stableunixusersv1.ListStableUNIXUsersResponse_builder{
+	return &stableunixusersv1.ListStableUNIXUsersResponse{
 		StableUnixUsers: userspb,
-		NextPageToken:   proto.String(nextPageToken),
-	}.Build(), nil
+		NextPageToken:   nextPageToken,
+	}, nil
 }
 
 // ObtainUIDForUsername implements [stableunixusersv1.StableUNIXUsersServiceServer].
@@ -153,9 +152,9 @@ func (s *server) ObtainUIDForUsername(ctx context.Context, req *stableunixusersv
 		return nil, trace.Wrap(err)
 	}
 
-	return stableunixusersv1.ObtainUIDForUsernameResponse_builder{
-		Uid: proto.Int32(uid),
-	}.Build(), nil
+	return &stableunixusersv1.ObtainUIDForUsernameResponse{
+		Uid: uid,
+	}, nil
 }
 
 // obtainUIDForUsernameCached calls [*server.obtainUIDForUsernameUncached]

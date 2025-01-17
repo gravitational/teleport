@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
 
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -110,9 +109,9 @@ func TestStableUNIXUsers(t *testing.T) {
 	_, err = svc.obtainUIDForUsernameUncached(ctx, "user5")
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
 
-	resp, err := svc.listStableUNIXUsers(ctx, stableunixusersv1.ListStableUNIXUsersRequest_builder{
-		PageSize: proto.Int32(2),
-	}.Build())
+	resp, err := svc.listStableUNIXUsers(ctx, &stableunixusersv1.ListStableUNIXUsersRequest{
+		PageSize: 2,
+	})
 	require.NoError(t, err)
 	require.Equal(t, "user3", resp.GetNextPageToken())
 	require.Len(t, resp.GetStableUnixUsers(), 2)
@@ -122,10 +121,10 @@ func TestStableUNIXUsers(t *testing.T) {
 	require.Equal(t, "user2", resp.GetStableUnixUsers()[1].GetUsername())
 	require.Equal(t, firstUID+1, resp.GetStableUnixUsers()[1].GetUid())
 
-	resp, err = svc.listStableUNIXUsers(ctx, stableunixusersv1.ListStableUNIXUsersRequest_builder{
-		PageSize:  proto.Int32(2),
-		PageToken: proto.String("user3"),
-	}.Build())
+	resp, err = svc.listStableUNIXUsers(ctx, &stableunixusersv1.ListStableUNIXUsersRequest{
+		PageSize:  2,
+		PageToken: "user3",
+	})
 	require.NoError(t, err)
 	require.Empty(t, resp.GetNextPageToken())
 	require.Len(t, resp.GetStableUnixUsers(), 2)
