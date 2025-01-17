@@ -2022,6 +2022,13 @@ export const formatters: Formatters = {
       return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
+  [eventCodes.STABLE_UNIX_USER_CREATE]: {
+    type: 'stable_unix_user.create',
+    desc: 'Stable UNIX user created',
+    format: ({ stable_unix_user: { username } }) => {
+      return `Stable UNIX user for username [${username}] was created`;
+    },
+  },
 };
 
 const unknownFormatter = {
