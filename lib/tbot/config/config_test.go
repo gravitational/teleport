@@ -317,6 +317,12 @@ func TestBotConfig_YAML(t *testing.T) {
 							Name: "my-workload-identity",
 						},
 					},
+					&WorkloadIdentityAPIService{
+						Listen: "tcp://127.0.0.1:123",
+						Selector: WorkloadIdentitySelector{
+							Name: "my-workload-identity",
+						},
+					},
 				},
 			},
 		},
