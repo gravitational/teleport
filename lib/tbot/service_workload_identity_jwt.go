@@ -71,7 +71,7 @@ func (s *WorkloadIdentityJWTService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
-	jitter := retryutils.DefaultJitter
+	jitter := retryutils.NewJitter()
 	var cred *workloadidentityv1pb.Credential
 	var failures int
 	firstRun := make(chan struct{}, 1)
