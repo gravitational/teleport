@@ -69,8 +69,9 @@ export function useGateway(doc: DocumentGateway) {
           documentsService.update(doc.uri, { status: 'error' });
           throw error;
         }
-        documentsService.update(doc.uri, {
-          gatewayUri: gw.uri,
+        documentsService.update(doc.uri, draft => {
+          const draftDoc = draft as DocumentGateway;
+          draftDoc.gatewayUri = gw.uri;
           // Set the port on doc to match the one returned from the daemon. By default,
           // createGateway is called with an empty localPort, so the daemon creates a listener on a
           // random port.
@@ -80,11 +81,13 @@ export function useGateway(doc: DocumentGateway) {
           //
           // Alternatively, if createGateway was called from OfflineGateway, this will persist in
           // the doc the local port chosen by the user.
-          port: gw.localPort,
+          draftDoc.port = gw.localPort;
           // targetSubresourceName needs to be updated here in case the createGateway function was
           // called from OfflineGateway.
-          targetSubresourceName: gw.targetSubresourceName,
-          status: 'connected',
+          draftDoc.targetSubresourceName = gw.targetSubresourceName;
+          draftDoc.status = 'connected';
+          // The title might need to be changed if OfflineGateway changed gateway params.
+          draftDoc.title = getDocumentGatewayTitle(draftDoc);
         });
         if (isDatabaseUri(doc.targetUri)) {
           usageService.captureProtocolUse({
