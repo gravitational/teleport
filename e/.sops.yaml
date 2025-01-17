@@ -10,7 +10,7 @@
 # "Age key for release secrets". In the event of emergency, contact
 # Roman, RJ, or Sasha for access to the key.
 #
-# Key: age1hez7wukmpanyeul9zynvt8ee00j07t2u3lqt40qvwne2vzctudmsgskhcp
+# Key: age1draaeuw9qtg9rt69v4kn8mnu3kzl42snm6h85wfjsqxrtg6v4vls5zas3x
 #
 # *******************************************************************
 
@@ -25,33 +25,33 @@ creation_rules:
     input_type: yaml
     output_type: yaml
     # Keys
-    age: age1hez7wukmpanyeul9zynvt8ee00j07t2u3lqt40qvwne2vzctudmsgskhcp
-    kms: arn:aws:kms:us-west-2:603330915152:key/af767820-d0b9-4821-88d4-fdca2e977e23
+    age: age1draaeuw9qtg9rt69v4kn8mnu3kzl42snm6h85wfjsqxrtg6v4vls5zas3x
+    kms: arn:aws:kms:us-west-2:603330915152:key/3ce72a8c-b9bb-40e5-9fee-a11ad82a0d2d
   - <<: *env_value_rules
     path_regex: \.environments/stage/build/mac-signing\.sops\.yaml
-    kms: arn:aws:kms:us-west-2:603330915152:key/f6702129-767c-48cf-8f0b-f987f72784f3
+    kms: arn:aws:kms:us-west-2:603330915152:key/a2273d3b-33c3-4ef9-809e-49810e651fca
   ## Publish
   - <<: *env_value_rules
     path_regex: \.environments/stage/publish/gpg-signing\.sops\.yaml
-    kms: arn:aws:kms:us-west-2:603330915152:key/ee2f874d-9b7e-46a0-9c71-c85fd5f52e64
+    kms: arn:aws:kms:us-west-2:603330915152:key/89286df3-d1c1-429b-8680-02e78e43d224
   - <<: *env_value_rules
     path_regex: \.environments/stage/publish/terraform\.sops\.yaml
-    kms: arn:aws:kms:us-west-2:603330915152:key/ad523fc3-5f2a-4558-8fdf-78c0fbfe8d87
+    kms: arn:aws:kms:us-west-2:603330915152:key/d2f3b71b-61b1-4036-a4ca-b4c0ea05213e
   # Production
   ## Build
   - <<: *env_value_rules
     path_regex: \.environments/prod/build/gpg-signing\.sops\.yaml
-    kms: arn:aws:kms:us-west-2:146628656107:key/d5a61a0a-1f0c-4102-8514-f4bbc35be857
+    kms: arn:aws:kms:us-west-2:146628656107:key/56753980-93d4-4590-9292-6cfec20c33f3
   - <<: *env_value_rules
     path_regex: \.environments/prod/build/mac-signing\.sops\.yaml
-    kms: arn:aws:kms:us-west-2:146628656107:key/2b14731d-78c8-4198-ac94-dedfd33b3681
+    kms: arn:aws:kms:us-west-2:146628656107:key/cef95a41-80c3-49ad-844a-bbf6cbd48721
   ## Publish
   - <<: *env_value_rules
     path_regex: \.environments/prod/publish/gpg-signing\.sops\.yaml
-    kms: arn:aws:kms:us-west-2:146628656107:key/b856eff3-b5d3-4f08-bee1-875ecdca0333
+    kms: arn:aws:kms:us-west-2:146628656107:key/31cac1e2-f6dd-471f-a7ae-6ae8aa531928
   - <<: *env_value_rules
     path_regex: \.environments/prod/publish/terraform\.sops\.yaml
-    kms: arn:aws:kms:us-west-2:146628656107:key/5123a8cf-fe6f-4ecb-87d3-06f1236f1e82
+    kms: arn:aws:kms:us-west-2:146628656107:key/7ebede23-1857-47ed-9367-1137896ff354
 stores:
   yamls:
     indent: 2
