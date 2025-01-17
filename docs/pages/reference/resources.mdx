@@ -322,7 +322,7 @@ Find out more on the
 
 ## Auto-update config
 
-Configuration options for client tools managed updates.
+Configuration options for managed updates for Teleport client tools.
 
 ```yaml
 kind: autoupdate_config
@@ -330,8 +330,8 @@ metadata:
   name: autoupdate-config
 spec:
   tools:
-    # tools mode allows to enable client tools updates or disable at the
-    # cluster level. Disable client tools automatic updates only if self-managed
+    # tools mode allows users to enable or disable client tool updates at the
+    # cluster level. Disable client tool automatic updates only if self-managed
     # updates are in place.
     mode: enabled|disabled
 ```
