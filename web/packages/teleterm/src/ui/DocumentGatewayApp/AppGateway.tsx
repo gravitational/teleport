@@ -20,6 +20,7 @@ import {
   ChangeEvent,
   ChangeEventHandler,
   PropsWithChildren,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -29,27 +30,31 @@ import styled from 'styled-components';
 
 import {
   Alert,
-  Box,
   ButtonSecondary,
   disappear,
   Flex,
   H1,
-  Indicator,
   Link,
   rotate360,
   Text,
 } from 'design';
 import { Check, Spinner } from 'design/Icon';
-import { PortRange } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
-import { Attempt } from 'shared/hooks/useAsync';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
-import { formatPortRange } from 'teleterm/services/tshd/app';
-
-import { PortFieldInput } from '../components/FieldInputs';
+import {
+  formatPortRange,
+  portRangeSeparator,
+} from 'teleterm/services/tshd/app';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { PortFieldInput } from 'teleterm/ui/components/FieldInputs';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { setUpAppGateway } from 'teleterm/ui/services/workspacesService';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function AppGateway(props: {
   gateway: Gateway;
@@ -59,10 +64,12 @@ export function AppGateway(props: {
   changeTargetPort(port: string): void;
   changeTargetPortAttempt: Attempt<void>;
   disconnect(): void;
-  getTcpPorts(): void;
-  tcpPortsAttempt: Attempt<PortRange[]>;
 }) {
   const { gateway } = props;
+  const ctx = useAppContext();
+  const { tshd } = ctx;
+  const { targetUri } = gateway;
+  const logger = useLogger('AppGateway');
 
   const {
     changeLocalPort,
@@ -94,6 +101,53 @@ export function AppGateway(props: {
     gateway.protocol === 'TCP' && gateway.targetSubresourceName;
   const targetPortRef = useRef<HTMLInputElement>(null);
 
+  const [tcpPortsAttempt, getTcpPorts] = useAsync(
+    useCallback(
+      () =>
+        retryWithRelogin(ctx, targetUri, () =>
+          tshd
+            .getApp({ appUri: targetUri })
+            .then(({ response }) => response.app.tcpPorts)
+        ),
+      [ctx, targetUri, tshd]
+    )
+  );
+  const currentTargetPort = parseInt(gateway.targetSubresourceName);
+  const getTcpPortsForMenuLogin: () => Promise<LoginItem[]> =
+    useCallback(async () => {
+      const [tcpPorts, error] = await getTcpPorts();
+
+      if (error) {
+        throw error;
+      }
+
+      return tcpPorts
+        .filter(
+          portRange =>
+            // Filter out single-port port ranges that are equal to the current port.
+            portRange.endPort !== 0 || portRange.port != currentTargetPort
+        )
+        .map(portRange => ({
+          login: formatPortRange(portRange),
+          url: '',
+        }));
+    }, [getTcpPorts, currentTargetPort]);
+
+  const onPortRangeSelect = (_, formattedPortRange: string) => {
+    const firstPort = formattedPortRange.split(portRangeSeparator)[0];
+    const targetPort = parseInt(firstPort);
+
+    if (Number.isNaN(targetPort)) {
+      logger.error('Not a number', firstPort);
+      return;
+    }
+
+    setUpAppGateway(ctx, targetUri, {
+      telemetry: { origin: 'resource_table' },
+      targetPort,
+    });
+  };
+
   return (
     <Flex
       flexDirection="column"
@@ -107,9 +161,21 @@ export function AppGateway(props: {
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
           <H1>App Connection</H1>
-          <ButtonSecondary size="small" onClick={props.disconnect}>
-            Close Connection
-          </ButtonSecondary>
+          <Flex gap={2}>
+            {isMultiPort && (
+              <MenuLogin
+                getLoginItems={getTcpPortsForMenuLogin}
+                onSelect={onPortRangeSelect}
+                textTransform="none"
+                placeholder="Pick target port"
+                ButtonComponent={ButtonSecondary}
+                buttonText="Open New Connection"
+              />
+            )}
+            <ButtonSecondary size="small" onClick={props.disconnect}>
+              Close Connection
+            </ButtonSecondary>
+          </Flex>
         </Flex>
 
         {disconnectAttempt.status === 'error' && (
@@ -148,32 +214,6 @@ export function AppGateway(props: {
             )}
           </Validation>
         </Flex>
-
-        {props.tcpPortsAttempt.status === 'success' && (
-          <Flex gap={1} flexWrap="wrap">
-            Available target ports:{' '}
-            {props.tcpPortsAttempt.data.map((portRange, index) => (
-              <ButtonSecondary
-                // This list can't be dynamically reordered, so index as key is fine. Port ranges are
-                // not guaranteed to be unique, the user might add the same range twice.
-                key={index}
-                size="small"
-                onClick={() => {
-                  const port = portRange.port.toString();
-                  targetPortRef.current.value = port;
-                  changeTargetPort(port);
-                }}
-              >
-                {formatPortRange(portRange)}
-              </ButtonSecondary>
-            ))}
-          </Flex>
-        )}
-        {props.tcpPortsAttempt.status === 'processing' && (
-          <Box>
-            <Indicator size="small" />
-          </Box>
-        )}
       </Flex>
 
       <Flex flexDirection="column" gap={2}>
@@ -194,13 +234,8 @@ export function AppGateway(props: {
           </Alert>
         )}
 
-        {props.tcpPortsAttempt.status === 'error' && (
-          <Alert
-            kind="warning"
-            details={props.tcpPortsAttempt.statusText}
-            m={0}
-            primaryAction={{ content: 'Retry', onClick: props.getTcpPorts }}
-          >
+        {tcpPortsAttempt.status === 'error' && (
+          <Alert kind="warning" details={tcpPortsAttempt.statusText} m={0}>
             Could not fetch available target ports
           </Alert>
         )}
