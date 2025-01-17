@@ -21,7 +21,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -391,21 +390,15 @@ func x509Template(
 		DNSNames: dnsSANs,
 	}
 	if subjectTemplate != nil {
-		subject := pkix.Name{}
-		if subjectTemplate.CommonName != nil {
-			subject.CommonName = *subjectTemplate.CommonName
-		}
-		if subjectTemplate.Organization != nil {
-			subject.Organization = []string{
-				*subjectTemplate.Organization,
+		c.Subject.CommonName = subjectTemplate.CommonName
+		if subjectTemplate.Organization != "" {
+			c.Subject.Organization = []string{
+				subjectTemplate.Organization,
 			}
 		}
-		if subjectTemplate.OrganizationalUnit != nil {
-			subject.OrganizationalUnit = []string{
-				*subjectTemplate.OrganizationalUnit,
-			}
+		if subjectTemplate.OrganizationalUnit != "" {
+			c.Subject.OrganizationalUnit = []string{subjectTemplate.OrganizationalUnit}
 		}
-		c.Subject = subject
 	}
 
 	return c

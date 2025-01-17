@@ -450,9 +450,9 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				Id: "/foo",
 				X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
 					SubjectTemplate: &workloadidentityv1pb.X509DistinguishedNameTemplate{
-						CommonName:         proto.String("{{user.name}}"),
-						Organization:       proto.String("{{user.name}} Inc"),
-						OrganizationalUnit: proto.String("Team {{user.name}}"),
+						CommonName:         "{{user.name}}",
+						Organization:       "{{user.name}} Inc",
+						OrganizationalUnit: "Team {{user.name}}",
 					},
 				},
 			},

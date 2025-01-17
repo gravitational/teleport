@@ -86,39 +86,36 @@ func decide(
 	st := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate()
 	if st != nil {
 		dst := d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate
-		if cn := st.CommonName; cn != nil {
-			templated, err := templateString(*cn, attrs)
-			if err != nil {
-				d.reason = trace.Wrap(
-					err,
-					"templating spec.spiffe.x509.subject_template.common_name",
-				)
-				return d
-			}
-			dst.CommonName = &templated
+
+		templated, err = templateString(st.CommonName, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(
+				err,
+				"templating spec.spiffe.x509.subject_template.common_name",
+			)
+			return d
 		}
-		if o := st.Organization; o != nil {
-			templated, err := templateString(*o, attrs)
-			if err != nil {
-				d.reason = trace.Wrap(
-					err,
-					"templating spec.spiffe.x509.subject_template.organization",
-				)
-				return d
-			}
-			dst.Organization = &templated
+		dst.CommonName = templated
+
+		templated, err = templateString(st.Organization, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(
+				err,
+				"templating spec.spiffe.x509.subject_template.organization",
+			)
+			return d
 		}
-		if ou := st.OrganizationalUnit; ou != nil {
-			templated, err := templateString(*ou, attrs)
-			if err != nil {
-				d.reason = trace.Wrap(
-					err,
-					"templating spec.spiffe.x509.subject_template.organizational_unit",
-				)
-				return d
-			}
-			dst.OrganizationalUnit = &templated
+		dst.Organization = templated
+
+		templated, err = templateString(st.OrganizationalUnit, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(
+				err,
+				"templating spec.spiffe.x509.subject_template.organizational_unit",
+			)
+			return d
 		}
+		dst.OrganizationalUnit = templated
 	}
 
 	// Yay - made it to the end!
@@ -179,6 +176,10 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 // TODO(noah): In a coming PR, this will be replaced by evaluating the values
 // within the handlebars as expressions.
 func templateString(in string, attrs *workloadidentityv1pb.Attrs) (string, error) {
+	if len(in) == 0 {
+		return in, nil
+	}
+
 	re := regexp.MustCompile(`\{\{([^{}]+?)\}\}`)
 	matches := re.FindAllStringSubmatch(in, -1)
 

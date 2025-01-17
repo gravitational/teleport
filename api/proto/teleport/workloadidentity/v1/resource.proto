@@ -98,14 +98,14 @@ message WorkloadIdentityRules {
 // Each field is optional, and, if provided, supports templating using attributes.
 message X509DistinguishedNameTemplate {
   // Common Name (CN) - 2.5.4.3
-  // If unset, the RDN will be omitted from the DN.
-  optional string common_name = 1;
+  // If empty, the RDN will be omitted from the DN.
+  string common_name = 1;
   // Organization (O) - 2.5.4.10
-  // If unset, the RDN will be omitted from the DN.
-  optional string organization = 2;
+  // If empty, the RDN will be omitted from the DN.
+  string organization = 2;
   // Organizational Unit (OU) - 2.5.4.11
-  // If unset, the RDN will be omitted from the DN.
-  optional string organizational_unit = 3;
+  // If empty, the RDN will be omitted from the DN.
+  string organizational_unit = 3;
 }
 
 // Configuration specific to the issuance of X509-SVIDs.
