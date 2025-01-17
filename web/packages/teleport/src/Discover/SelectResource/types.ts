@@ -27,6 +27,7 @@ import type {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -69,6 +70,10 @@ export enum KubeLocation {
 }
 
 export interface ResourceSpec {
+  /**
+   * true if user pinned this guide
+   */
+  pinned?: boolean;
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
   appMeta?: { awsConsole?: boolean };
   nodeMeta?: {
@@ -127,6 +132,7 @@ export interface ResourceSpec {
    * An empty array or undefined means that the resource supports all auth types.
    */
   supportedAuthTypes?: AuthType[];
+  id: DiscoverGuideId;
 }
 
 export enum SearchResource {
