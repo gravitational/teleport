@@ -601,7 +601,8 @@ func (s *Reporter) trackRequest(opType types.OpType, key Key, endKey Key) {
 		s.topRequestsCache.Get(cacheKey)
 	}
 
-	counter, err := requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
+	counter, err := s.requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
+
 	if err != nil {
 		log.Warningf("Failed to get counter: %v", err)
 		return
