@@ -114,6 +114,7 @@ export type KubernetesAccess = ResourceAccessBase<'kube_cluster'> & {
   groups: readonly Option[];
   labels: UILabel[];
   resources: KubernetesResourceModel[];
+  users: readonly Option[];
 
   /**
    * Version of the role that owns this section. Required to propagate it to
@@ -265,6 +266,7 @@ export type DatabaseAccess = ResourceAccessBase<'db'> & {
   names: readonly Option[];
   users: readonly Option[];
   roles: readonly Option[];
+  dbServiceLabels: UILabel[];
 };
 
 export type WindowsDesktopAccess = ResourceAccessBase<'windows_desktop'> & {
@@ -283,6 +285,7 @@ export type RuleModel = {
    */
   resources: readonly ResourceKindOption[];
   verbs: readonly VerbOption[];
+  where: string;
 };
 
 export type OptionsModel = {
@@ -453,6 +456,7 @@ export function newResourceAccess(
         groups: [stringToOption('{{internal.kubernetes_groups}}')],
         labels: [],
         resources: [],
+        users: [],
         roleVersion,
       };
     case 'app':
@@ -470,6 +474,7 @@ export function newResourceAccess(
         names: [stringToOption('{{internal.db_names}}')],
         users: [stringToOption('{{internal.db_users}}')],
         roles: [stringToOption('{{internal.db_roles}}')],
+        dbServiceLabels: [],
       };
     case 'windows_desktop':
       return {
@@ -500,6 +505,7 @@ export function newRuleModel(): RuleModel {
     id: crypto.randomUUID(),
     resources: [],
     verbs: [],
+    where: '',
   };
 }
 
@@ -579,9 +585,11 @@ function roleConditionsToModel(
     db_names,
     db_users,
     db_roles,
+    db_service_labels,
 
     windows_desktop_labels,
     windows_desktop_logins,
+    kubernetes_users,
 
     rules,
 
@@ -606,12 +614,21 @@ function roleConditionsToModel(
     model: kubeResourcesModel,
     requiresReset: kubernetesResourcesRequireReset,
   } = kubernetesResourcesToModel(kubernetes_resources, roleVersion);
-  if (someNonEmpty(kubeGroupsModel, kubeLabelsModel, kubeResourcesModel)) {
+  const kubeUsersModel = stringsToOptions(kubernetes_users ?? []);
+  if (
+    someNonEmpty(
+      kubeGroupsModel,
+      kubeLabelsModel,
+      kubeResourcesModel,
+      kubeUsersModel
+    )
+  ) {
     resources.push({
       kind: 'kube_cluster',
       groups: kubeGroupsModel,
       labels: kubeLabelsModel,
       resources: kubeResourcesModel,
+      users: kubeUsersModel,
       roleVersion,
     });
   }
@@ -641,13 +658,23 @@ function roleConditionsToModel(
   const dbNamesModel = db_names ?? [];
   const dbUsersModel = db_users ?? [];
   const dbRolesModel = db_roles ?? [];
-  if (someNonEmpty(dbLabelsModel, dbNamesModel, dbUsersModel, dbRolesModel)) {
+  const dbServiceLabelsModel = labelsToModel(db_service_labels);
+  if (
+    someNonEmpty(
+      dbLabelsModel,
+      dbNamesModel,
+      dbUsersModel,
+      dbRolesModel,
+      dbServiceLabelsModel
+    )
+  ) {
     resources.push({
       kind: 'db',
       labels: dbLabelsModel,
       names: stringsToOptions(dbNamesModel),
       users: stringsToOptions(dbUsersModel),
       roles: stringsToOptions(dbRolesModel),
+      dbServiceLabels: dbServiceLabelsModel,
     });
   }
 
@@ -761,7 +788,7 @@ function rulesToModel(rules: Rule[]): {
 }
 
 function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
-  const { resources = [], verbs = [], ...unsupported } = rule;
+  const { resources = [], verbs = [], where = '', ...unsupported } = rule;
   const resourcesModel = resources.map(
     k => resourceKindOptionsMap.get(k) ?? { label: k, value: k }
   );
@@ -774,6 +801,7 @@ function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
       id: crypto.randomUUID(),
       resources: resourcesModel,
       verbs: knownVerbsModel,
+      where,
     },
     requiresReset,
   };
@@ -970,6 +998,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
             verbs: optionsToStrings(verbs),
           })
         );
+        role.spec.allow.kubernetes_users = optionsToStrings(res.users);
         break;
 
       case 'app':
@@ -984,6 +1013,9 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.db_names = optionsToStrings(res.names);
         role.spec.allow.db_users = optionsToStrings(res.users);
         role.spec.allow.db_roles = optionsToStrings(res.roles);
+        role.spec.allow.db_service_labels = labelsModelToLabels(
+          res.dbServiceLabels
+        );
         break;
 
       case 'windows_desktop':
@@ -1002,6 +1034,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     role.spec.allow.rules = roleModel.rules.map(role => ({
       resources: role.resources.map(r => r.value),
       verbs: role.verbs.map(v => v.value),
+      where: role.where || undefined,
     }));
   }
 

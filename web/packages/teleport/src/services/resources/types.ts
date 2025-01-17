@@ -80,6 +80,7 @@ export type RoleConditions = {
   kubernetes_groups?: string[];
   kubernetes_labels?: Labels;
   kubernetes_resources?: KubernetesResource[];
+  kubernetes_users?: string[];
 
   app_labels?: Labels;
   aws_role_arns?: string[];
@@ -90,6 +91,7 @@ export type RoleConditions = {
   db_names?: string[];
   db_users?: string[];
   db_roles?: string[];
+  db_service_labels?: Labels;
 
   windows_desktop_labels?: Labels;
   windows_desktop_logins?: string[];
@@ -163,6 +165,7 @@ export type KubernetesVerb =
 export type Rule = {
   resources?: ResourceKind[];
   verbs?: Verb[];
+  where?: string;
 };
 
 export enum ResourceKind {

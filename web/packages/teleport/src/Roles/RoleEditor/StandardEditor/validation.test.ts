@@ -66,6 +66,7 @@ describe('validateRoleEditorModel', () => {
         kind: 'kube_cluster',
         labels: [{ name: 'foo', value: 'bar' }],
         groups: [],
+        users: [],
         resources: [
           {
             id: 'dummy-id',
@@ -96,6 +97,7 @@ describe('validateRoleEditorModel', () => {
         roles: [{ label: 'some-role', value: 'some-role' }],
         names: [],
         users: [],
+        dbServiceLabels: [{ name: 'asdf', value: 'qwer' }],
       },
       {
         kind: 'windows_desktop',
@@ -108,6 +110,7 @@ describe('validateRoleEditorModel', () => {
         id: 'dummy-id',
         resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
         verbs: [{ label: '*', value: '*' }],
+        where: '',
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -146,6 +149,7 @@ describe('validateRoleEditorModel', () => {
         kind: 'kube_cluster',
         groups: [],
         labels: [],
+        users: [],
         resources: [
           {
             ...newKubernetesResourceModel(defaultRoleVersion),
@@ -178,6 +182,7 @@ describe('validateRoleEditorModel', () => {
           kind: 'kube_cluster',
           groups: [],
           labels: [],
+          users: [],
           roleVersion,
           resources: [
             {
@@ -214,6 +219,7 @@ describe('validateRoleEditorModel', () => {
         id: 'dummy-id',
         resources: [],
         verbs: [{ label: '*', value: '*' }],
+        where: '',
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -243,7 +249,12 @@ describe('validateResourceAccess', () => {
 
 describe('validateAccessRule', () => {
   it('reuses previously computed results', () => {
-    const rule: RuleModel = { id: 'some-id', resources: [], verbs: [] };
+    const rule: RuleModel = {
+      id: 'some-id',
+      resources: [],
+      verbs: [],
+      where: '',
+    };
     const result1 = validateAccessRule(rule, undefined, undefined);
     const result2 = validateAccessRule(rule, rule, result1);
     expect(result2).toBe(result1);

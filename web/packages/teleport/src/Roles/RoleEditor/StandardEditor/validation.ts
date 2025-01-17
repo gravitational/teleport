@@ -287,6 +287,7 @@ export type AppAccessValidationResult = RuleSetValidationResult<
 const databaseAccessValidationRules = {
   labels: nonEmptyLabels,
   roles: noWildcardOptions('Wildcard is not allowed in database roles'),
+  dbServiceLabels: nonEmptyLabels,
 };
 export type DatabaseAccessValidationResult = RuleSetValidationResult<
   typeof databaseAccessValidationRules
