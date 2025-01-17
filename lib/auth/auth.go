@@ -749,6 +749,11 @@ func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string)
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
+// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+func (r *Services) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAzureOIDCToken(ctx, integration)
+}
+
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -1580,7 +1585,7 @@ func (a *Server) runPeriodicOperations() {
 }
 
 func (a *Server) tallyRoles(ctx context.Context) {
-	var count = 0
+	count := 0
 	a.logger.DebugContext(ctx, "tallying roles")
 	defer func() {
 		a.logger.DebugContext(ctx, "tallying roles completed", "role_count", count)
