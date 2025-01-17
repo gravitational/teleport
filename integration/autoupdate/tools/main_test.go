@@ -164,7 +164,6 @@ func buildBinary(output string, toolsDir string, version string, baseURL string,
 		"go", "build", "-o", output,
 		"-ldflags", strings.Join([]string{
 			fmt.Sprintf("-X 'github.com/gravitational/teleport/integration/autoupdate/tools/updater.version=%s'", version),
-			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.toolsDir=%s'", toolsDir),
 			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.version=%s'", version),
 			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.baseURL=%s'", baseURL),
 		}, " "),

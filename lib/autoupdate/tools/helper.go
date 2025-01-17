@@ -36,8 +36,6 @@ var (
 	version = teleport.Version
 	// baseURL is CDN URL for downloading official Teleport packages.
 	baseURL = defaultBaseURL
-	// toolsDir is client tools directory for package download and installation.
-	toolsDir = ""
 )
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
@@ -48,12 +46,10 @@ var (
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
 func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
-	var err error
-	if toolsDir == "" {
-		if toolsDir, err = Dir(); err != nil {
-			slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
-			return nil
-		}
+	toolsDir, err := Dir()
+	if err != nil {
+		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		return nil
 	}
 
 	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
@@ -79,12 +75,10 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
 func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reExecArgs []string) error {
-	var err error
-	if toolsDir == "" {
-		if toolsDir, err = Dir(); err != nil {
-			slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
-			return nil
-		}
+	toolsDir, err := Dir()
+	if err != nil {
+		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		return nil
 	}
 	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
 	// The user has typed a command like `tsh ssh ...` without being logged in,
