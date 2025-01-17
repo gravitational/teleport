@@ -39,8 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
@@ -93,8 +91,6 @@ type GCPClients interface {
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region and any role(s).
 	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
-	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-	GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
 }
@@ -470,15 +466,6 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 		return options.baseSession, nil
 	}
 	return c.getAWSSessionForRole(ctx, region, options)
-}
-
-// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-func (c *cloudClients) GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return secretsmanager.New(session), nil
 }
 
 // GetAWSSTSClient returns AWS STS client for the specified region.
@@ -915,7 +902,6 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	SecretsManager          secretsmanageriface.SecretsManagerAPI
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
@@ -976,15 +962,6 @@ func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Se
 		Region:          aws.String(region),
 		UseFIPSEndpoint: useFIPSEndpoint,
 	})
-}
-
-// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-func (c *TestCloudClients) GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.SecretsManager, nil
 }
 
 // GetAWSSTSClient returns AWS STS client for the specified region.

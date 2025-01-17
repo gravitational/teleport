@@ -30,7 +30,7 @@ import (
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -46,7 +46,7 @@ type ResourceTag interface {
 		memorydbtypes.Tag |
 		rsstypes.Tag |
 		opensearchtypes.Tag |
-		*secretsmanager.Tag
+		smtypes.Tag
 }
 
 // TagsToLabels converts a list of AWS resource tags to a label map.
@@ -84,7 +84,7 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 		return aws.ToString(v.Key), aws.ToString(v.Value)
 	case opensearchtypes.Tag:
 		return aws.ToString(v.Key), aws.ToString(v.Value)
-	case *secretsmanager.Tag:
+	case smtypes.Tag:
 		return aws.ToString(v.Key), aws.ToString(v.Value)
 	default:
 		return "", ""

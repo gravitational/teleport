@@ -19,15 +19,13 @@
 package users
 
 import (
-	"context"
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -166,21 +164,10 @@ func genRandomPassword(length int) (string, error) {
 }
 
 // newSecretStore create a new secrets store helper for provided database.
-func newSecretStore(ctx context.Context, database types.Database, clients cloud.Clients, clusterName string) (secrets.Secrets, error) {
-	secretStoreConfig := database.GetSecretStore()
-
-	meta := database.GetAWS()
-	client, err := clients.GetAWSSecretsManagerClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func newSecretStore(ss types.SecretStore, client secrets.SecretsManagerClient, clusterName string) (secrets.Secrets, error) {
 	return secrets.NewAWSSecretsManager(secrets.AWSSecretsManagerConfig{
-		KeyPrefix:   secretStoreConfig.KeyPrefix,
-		KMSKeyID:    secretStoreConfig.KMSKeyID,
+		KeyPrefix:   ss.KeyPrefix,
+		KMSKeyID:    ss.KMSKeyID,
 		Client:      client,
 		ClusterName: clusterName,
 	})
