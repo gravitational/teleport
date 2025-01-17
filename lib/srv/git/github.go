@@ -20,8 +20,10 @@ package git
 
 import (
 	"context"
-	"net"
-	"slices"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,33 +32,122 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
-// knownGithubDotComFingerprints contains a list of known GitHub fingerprints.
-//
-// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
-//
-// TODO(greedy52) these fingerprints can change (e.g. GitHub changed its RSA
-// key in 2023 because of an incident). Instead of hard-coding the values, we
-// should try to periodically (e.g. once per day) poll them from the API.
-var knownGithubDotComFingerprints = []string{
-	"SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s",
-	"SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM",
-	"SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
+// githubKeyDownloader downloads SSH keys from the GitHub meta API. The keys
+// are used to verify GitHub server when forwarding Git commands to it.
+type githubKeyDownloader struct {
+	keys atomic.Value
+	etag string
+
+	logger      *slog.Logger
+	apiEndpoint string
+	clock       clockwork.Clock
 }
 
-// VerifyGitHubHostKey is an ssh.HostKeyCallback that verifies the host key
-// belongs to "github.com".
-func VerifyGitHubHostKey(_ string, _ net.Addr, key ssh.PublicKey) error {
-	actualFingerprint := ssh.FingerprintSHA256(key)
-	if slices.Contains(knownGithubDotComFingerprints, actualFingerprint) {
+// newGitHubKeyDownloader creates a new githubKeyDownloader.
+func newGitHubKeyDownloader() *githubKeyDownloader {
+	return &githubKeyDownloader{
+		apiEndpoint: "https://api.github.com/meta",
+		logger:      slog.With(teleport.ComponentKey, teleport.ComponentGit),
+		clock:       clockwork.NewRealClock(),
+	}
+}
+
+// Start starts a task that periodically downloads SSH keys from the GitHub meta
+// API. The task is stopped when provided context is closed.
+func (d *githubKeyDownloader) Start(ctx context.Context) {
+	d.logger.InfoContext(ctx, "Starting GitHub key downloader")
+	defer d.logger.InfoContext(ctx, "GitHub key downloader stopped")
+
+	// Fire a refresh immediately.
+	timer := d.clock.NewTimer(0)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.Chan():
+			// Schedule a refresh in 24 hours upon success and in 5 minutes upon
+			// failure.
+			if err := d.refresh(ctx); err != nil {
+				d.logger.WarnContext(ctx, "Failed to download GitHub server keys", "error", err)
+				timer.Reset(time.Minute * 5)
+			} else {
+				timer.Reset(time.Hour * 24)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// GetKnownKeys returns known server keys.
+func (d *githubKeyDownloader) GetKnownKeys() ([]ssh.PublicKey, error) {
+	keys := d.keys.Load()
+	if keys == nil {
+		return nil, trace.NotFound("server keys not found for github.com")
+	}
+	return keys.([]ssh.PublicKey), nil
+}
+
+func (d *githubKeyDownloader) refresh(ctx context.Context) error {
+	d.logger.DebugContext(ctx, "Calling GitHub meta API", "endpoint", d.apiEndpoint)
+	// Meta API reference:
+	// https://docs.github.com/en/rest/meta/meta#get-github-meta-information
+	req, err := http.NewRequest("GET", d.apiEndpoint, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Add ETag check.
+	if d.etag != "" {
+		req.Header.Set("If-None-Match", d.etag)
+	}
+
+	client := &http.Client{
+		Timeout: defaults.HTTPRequestTimeout,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	// Nothing changed. Just update the last check time.
+	if resp.StatusCode == http.StatusNotModified {
+		d.logger.DebugContext(ctx, "GitHub metadata is up-to-date")
 		return nil
 	}
-	return trace.BadParameter("cannot verify github.com: unknown fingerprint %v algo %v", actualFingerprint, key.Type())
+
+	meta := struct {
+		SSHKeys []string `json:"ssh_keys"`
+	}{}
+	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+		return trace.Wrap(err, "decoding meta API response")
+	}
+
+	if len(meta.SSHKeys) == 0 {
+		return trace.NotFound("no SSH keys found")
+	}
+
+	var keys []ssh.PublicKey
+	for _, key := range meta.SSHKeys {
+		publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(key))
+		if err != nil {
+			return trace.Wrap(err, "parsing SSH public key")
+		}
+		keys = append(keys, publicKey)
+	}
+
+	d.etag = resp.Header.Get("ETag")
+	d.keys.Store(keys)
+	d.logger.DebugContext(ctx, "Fetched GitHub metadata", "ssh_keys", meta.SSHKeys, "etag", d.etag)
+	return nil
 }
 
 // AuthPreferenceGetter is an interface for retrieving the current configured
@@ -152,7 +243,6 @@ func MakeGitHubSigner(ctx context.Context, config GitHubSignerConfig) (ssh.Signe
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(greedy52) cache it for TTL.
 	signer, err := sshutils.NewSigner(sshKey.PrivateKeyPEM(), resp.AuthorizedKey)
 	return signer, trace.Wrap(err)
 }

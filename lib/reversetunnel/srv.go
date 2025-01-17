@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -223,6 +224,9 @@ type Config struct {
 
 	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
 	PROXYSigner multiplexer.PROXYHeaderSigner
+
+	// GitKeyManager manages keys for git proxies.
+	GitKeyManager *git.KeyManager
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -281,6 +285,17 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+	if cfg.GitKeyManager == nil {
+		var err error
+		cfg.GitKeyManager, err = git.NewKeyManager(&git.KeyManagerConfig{
+			ParentContext: cfg.Context,
+			AuthClient:    cfg.LocalAuthClient,
+			AccessPoint:   cfg.LocalAccessPoint,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
