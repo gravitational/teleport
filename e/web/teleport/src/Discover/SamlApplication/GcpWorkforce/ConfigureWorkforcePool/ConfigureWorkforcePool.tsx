@@ -162,8 +162,8 @@ export function ConfigurePool({ prevStep, nextStep }: ConfigurePoolProps) {
       <HeaderSubtitle>
         You can choose between a guided or a manual flow. With the guided flow,
         Teleport generates a GCP Workforce <br /> Identity Federation
-        configuration script and pre-pulates SAML service provider spec based on
-        GCP configuration <br /> values you enter below.
+        configuration script and pre-populates SAML service provider spec based
+        on GCP configuration <br /> values you enter below.
       </HeaderSubtitle>
       <GCPPrerequisites />
       <Box mt={6} mb={1} data-testid="testid-box">
