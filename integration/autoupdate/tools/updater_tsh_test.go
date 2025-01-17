@@ -115,7 +115,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, out, 0600))
 
 	// Fetch compiled test binary and install to tools dir [v1.2.3].
-	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).Update(ctx, testVersions[0])
+	err = tools.NewUpdater(installDir, testVersions[0], tools.WithURITemplate(uriTemplate)).Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
 	// Execute alias command which must be transformed to the login command.

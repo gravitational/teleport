@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -125,40 +126,50 @@ type packageURL struct {
 	Optional bool
 }
 
-// teleportPackageURLs returns the URL for the Teleport archive to download. The format is:
-// https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
-func teleportPackageURLs(baseURL, toolsVersion string) ([]packageURL, error) {
+// makeURLs returns package URLs for the Teleport archive to download.
+func makeURLs(uriTmpl string, version string) ([]packageURL, error) {
+	tmpl, err := template.New("uri").Parse(uriTmpl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	m := modules.GetModules()
+	params := struct {
+		OS, Version, Arch, Package string
+		FIPS, Enterprise           bool
+	}{
+		OS:         runtime.GOOS,
+		Version:    version,
+		Arch:       runtime.GOARCH,
+		FIPS:       m.IsBoringBinary(),
+		Enterprise: m.IsEnterpriseBuild() || m.IsBoringBinary(),
+		Package:    "teleport",
+	}
+
 	switch runtime.GOOS {
-	case "darwin":
-		tsh := baseURL + "/tsh-" + toolsVersion + ".pkg"
-		teleport := baseURL + "/teleport-" + toolsVersion + ".pkg"
-		return []packageURL{
-			{Archive: teleport, Hash: teleport + ".sha256"},
-			{Archive: tsh, Hash: tsh + ".sha256", Optional: true},
-		}, nil
-	case "windows":
-		archive := baseURL + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
-		return []packageURL{
-			{Archive: archive, Hash: archive + ".sha256"},
-		}, nil
-	case "linux":
-		m := modules.GetModules()
-		var b strings.Builder
-		b.WriteString(baseURL + "/teleport-")
-		if m.IsEnterpriseBuild() || m.IsBoringBinary() {
-			b.WriteString("ent-")
+	case constants.DarwinOS:
+		var teleportUriBuf bytes.Buffer
+		if err = tmpl.Execute(&teleportUriBuf, params); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
-		if m.IsBoringBinary() {
-			b.WriteString("fips-")
+		params.Package = "tsh"
+		var tshUriBuf bytes.Buffer
+		if err = tmpl.Execute(&tshUriBuf, params); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		b.WriteString("bin.tar.gz")
-		archive := b.String()
+
 		return []packageURL{
-			{Archive: archive, Hash: archive + ".sha256"},
+			{Archive: teleportUriBuf.String(), Hash: teleportUriBuf.String() + ".sha256"},
+			{Archive: tshUriBuf.String(), Hash: tshUriBuf.String() + ".sha256", Optional: true},
 		}, nil
 	default:
-		return nil, trace.BadParameter("unsupported runtime: %v", runtime.GOOS)
+		var teleportUriBuf bytes.Buffer
+		if err = tmpl.Execute(&teleportUriBuf, params); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []packageURL{
+			{Archive: teleportUriBuf.String(), Hash: teleportUriBuf.String() + ".sha256"},
+		}, nil
 	}
 }
 
