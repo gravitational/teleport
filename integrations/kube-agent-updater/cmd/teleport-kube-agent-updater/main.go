@@ -174,7 +174,7 @@ func main() {
 	// If the proxy server is specified, we enabled RFD-184 updates
 	// See https://github.com/gravitational/teleport/blob/master/rfd/0184-agent-auto-updates.md#updater-apis
 	if proxyAddress != "" {
-		ctrl.Log.Info("fetching versions from the proxy /find endpoint", "proxy_server_url", proxyAddress)
+		ctrl.Log.Info("fetching versions from the proxy /find endpoint", "proxy_server_url", proxyAddress, "update_group", updateGroup)
 
 		proxyClt, err := webclient.NewReusableClient(&webclient.Config{
 			Context:     ctx,
