@@ -30,6 +30,7 @@ type YamlEditorProps = {
   isProcessing: boolean;
   onChange?(y: YamlEditorModel): void;
   onSave?(content: string): void;
+  onPreview?(content: string): void;
   onCancel?(): void;
 };
 
@@ -39,11 +40,13 @@ export const YamlEditor = ({
   yamlEditorModel,
   onChange,
   onSave,
+  onPreview,
   onCancel,
 }: YamlEditorProps) => {
   const isEditing = !!originalRole;
 
   const handleSave = () => onSave?.(yamlEditorModel.content);
+  const handlePreview = () => onPreview?.(yamlEditorModel.content);
 
   function handleSetYaml(newContent: string) {
     onChange?.({
@@ -63,6 +66,7 @@ export const YamlEditor = ({
       </Flex>
       <EditorSaveCancelButton
         onSave={handleSave}
+        onPreview={handlePreview}
         onCancel={onCancel}
         disabled={isProcessing || !yamlEditorModel.isDirty}
         isEditing={isEditing}

@@ -26,11 +26,13 @@ import useTeleport from 'teleport/useTeleport';
 export const EditorSaveCancelButton = ({
   onSave,
   onCancel,
+  onPreview,
   disabled,
   isEditing,
 }: {
   onSave?(): void;
   onCancel?(): void;
+  onPreview?(): void;
   disabled: boolean;
   isEditing?: boolean;
 }) => {
@@ -45,6 +47,37 @@ export const EditorSaveCancelButton = ({
     hoverTooltipContent = 'You do not have access to create roles';
   }
 
+  const saveButton = (
+    <Box width="50%">
+      <HoverTooltip tipContent={hoverTooltipContent}>
+        <ButtonPrimary
+          width="100%"
+          size="large"
+          onClick={onSave}
+          disabled={
+            disabled ||
+            (isEditing && !roleAccess.edit) ||
+            (!isEditing && !roleAccess.create)
+          }
+        >
+          {isEditing ? 'Save Changes' : 'Create Role'}
+        </ButtonPrimary>
+      </HoverTooltip>
+    </Box>
+  );
+
+  const cancelButton = (
+    <ButtonSecondary width="50%" onClick={onCancel}>
+      Cancel
+    </ButtonSecondary>
+  );
+
+  const previewButton = (
+    <ButtonPrimary width="50%" onClick={onPreview}>
+      Preview
+    </ButtonPrimary>
+  );
+
   return (
     <Flex
       gap={2}
@@ -52,25 +85,8 @@ export const EditorSaveCancelButton = ({
       borderTop={1}
       borderColor={theme.colors.interactive.tonal.neutral[0]}
     >
-      <Box width="50%">
-        <HoverTooltip tipContent={hoverTooltipContent}>
-          <ButtonPrimary
-            width="100%"
-            size="large"
-            onClick={onSave}
-            disabled={
-              disabled ||
-              (isEditing && !roleAccess.edit) ||
-              (!isEditing && !roleAccess.create)
-            }
-          >
-            {isEditing ? 'Save Changes' : 'Create Role'}
-          </ButtonPrimary>
-        </HoverTooltip>
-      </Box>
-      <ButtonSecondary width="50%" onClick={onCancel}>
-        Cancel
-      </ButtonSecondary>
+      {saveButton}
+      {onPreview ? previewButton : cancelButton}
     </Flex>
   );
 };

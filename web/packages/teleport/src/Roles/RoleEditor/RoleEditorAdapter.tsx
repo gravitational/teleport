@@ -31,6 +31,11 @@ import { H1 } from 'design/Text';
 import { H3, P, P3 } from 'design/Text/Text';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { AccessGraphDiff } from 'e-teleport/AccessGraph/Diff';
+import {
+  accessGraphService,
+  AccessPathDiff,
+} from 'e-teleport/services/accessgraph';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { State as ResourcesState } from 'teleport/components/useResources';
 import cfg from 'teleport/config';
@@ -40,6 +45,15 @@ import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { RoleEditor } from './RoleEditor';
 import tagpromo from './tagpromo.png';
+
+const emptyDiff: AccessPathDiff = {
+  base: {
+    nodes: [],
+    edges: [],
+  },
+  diff: [],
+  change_id: '',
+};
 
 /**
  * This component is responsible for converting from the `Resource`
@@ -69,6 +83,20 @@ export function RoleEditorAdapter({
       };
     }
   );
+
+  const [roleDiffAttempt, getRoleDiff] = useAsync((role: Role) => {
+    return accessGraphService.getRoleDiff(role);
+  });
+
+  useEffect(() => {
+    if (convertAttempt.data) {
+      getRoleDiff(convertAttempt.data.object);
+    }
+  }, [convertAttempt.data]);
+
+  const onSave2 = async (roleContent: string) => {
+    await convertToRole(roleContent);
+  };
 
   const originalContent = resources.item?.content ?? '';
   useEffect(() => {
@@ -102,59 +130,66 @@ export function RoleEditorAdapter({
             originalRole={convertAttempt.data}
             onCancel={onCancel}
             onSave={onSave}
+            onPreview={onSave2}
           />
         )}
       </Flex>
       <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
-        {/* Same width as promo image + border */}
-        <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
-          <H1 mb={2}>Coming soon: Teleport Policy saves you from mistakes</H1>
-          <Flex mb={4} gap={4} flexWrap="wrap" justifyContent="space-between">
-            <Box flex="1" minWidth="30ch">
-              <P>
-                Teleport Policy will visualize resource access paths as you
-                create and edit roles so you can always see what you are
-                granting before you push a role into production.
-              </P>
-            </Box>
-            <Flex flex="0 0 auto" alignItems="start">
-              {!cfg.isPolicyEnabled && (
-                <>
-                  <ButtonLockedFeature noIcon py={0} width={undefined}>
-                    Contact Sales
-                  </ButtonLockedFeature>
-                  <ButtonSecondary
-                    as="a"
-                    href="https://goteleport.com/platform/policy/"
-                    target="_blank"
-                    ml={2}
-                  >
-                    Learn More
-                  </ButtonSecondary>
-                </>
-              )}
+        {cfg.isEnterprise && cfg.entitlements.Policy.enabled ? (
+          <AccessGraphDiff
+            diff={roleDiffAttempt.data || emptyDiff}
+            loading={roleDiffAttempt.status === 'processing'}
+          />
+        ) : (
+          <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
+            <H1 mb={2}>Coming soon: Teleport Policy saves you from mistakes</H1>
+            <Flex mb={4} gap={4} flexWrap="wrap" justifyContent="space-between">
+              <Box flex="1" minWidth="30ch">
+                <P>
+                  Teleport Policy will visualize resource access paths as you
+                  create and edit roles so you can always see what you are
+                  granting before you push a role into production.
+                </P>
+              </Box>
+              <Flex flex="0 0 auto" alignItems="start">
+                {!cfg.isPolicyEnabled && (
+                  <>
+                    <ButtonLockedFeature noIcon py={0} width={undefined}>
+                      Contact Sales
+                    </ButtonLockedFeature>
+                    <ButtonSecondary
+                      as="a"
+                      href="https://goteleport.com/platform/policy/"
+                      target="_blank"
+                      ml={2}
+                    >
+                      Learn More
+                    </ButtonSecondary>
+                  </>
+                )}
+              </Flex>
             </Flex>
-          </Flex>
-          <Flex
-            flexDirection="column"
-            bg={theme.colors.levels.surface}
-            borderRadius={3}
-          >
-            <Box
-              border={2}
+            <Flex
+              flexDirection="column"
+              bg={theme.colors.levels.surface}
               borderRadius={3}
-              borderColor={theme.colors.interactive.tonal.neutral[0]}
             >
-              <Image src={tagpromo} width="100%" />
-            </Box>
-            <StepSlider
-              flows={promoFlows}
-              currFlow={
-                resources.status === 'creating' ? 'creating' : 'updating'
-              }
-            />
-          </Flex>
-        </Box>
+              <Box
+                border={2}
+                borderRadius={3}
+                borderColor={theme.colors.interactive.tonal.neutral[0]}
+              >
+                <Image src={tagpromo} width="100%" />
+              </Box>
+              <StepSlider
+                flows={promoFlows}
+                currFlow={
+                  resources.status === 'creating' ? 'creating' : 'updating'
+                }
+              />
+            </Flex>
+          </Box>
+        )}
       </Flex>
     </Flex>
   );

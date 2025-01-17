@@ -46,6 +46,7 @@ export type RoleEditorProps = {
   originalRole?: RoleWithYaml;
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
+  onPreview?(yaml: string): Promise<void>;
 };
 
 /**
@@ -57,6 +58,7 @@ export const RoleEditor = ({
   originalRole,
   onCancel,
   onSave,
+  onPreview,
 }: RoleEditorProps) => {
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
@@ -213,6 +215,7 @@ export const RoleEditor = ({
                 yamlEditorModel={yamlModel}
                 onChange={setYamlModel}
                 onSave={async yaml => void (await handleSave({ yaml }))}
+                onPreview={onPreview}
                 isProcessing={isProcessing}
                 onCancel={handleCancel}
                 originalRole={originalRole}
