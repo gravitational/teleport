@@ -200,9 +200,16 @@ func (a *authAWSSigV4Auth) getSigV4Authenticator(ctx context.Context) (gocql.Aut
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// ExternalID should only be used in one of the assumed roles. If the
+	// configuration doesn't specify the AssumeRoleARN, it should be used for
+	// the database role.
+	var dbRoleExternalID string
+	if meta.AssumeRoleARN == "" {
+		dbRoleExternalID = meta.ExternalID
+	}
 	awsCfg, err := a.awsConfig.GetConfig(ctx, meta.Region,
 		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
-		awsconfig.WithAssumeRole(roleARN, meta.ExternalID),
+		awsconfig.WithAssumeRole(roleARN, dbRoleExternalID),
 		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
