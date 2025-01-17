@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	kubeversionupdater "github.com/gravitational/teleport/integrations/kube-agent-updater"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
@@ -72,6 +73,8 @@ func main() {
 	var insecureNoResolve bool
 	var disableLeaderElection bool
 	var credSource string
+	var proxyAddress string
+	var updateGroup string
 
 	flag.StringVar(&agentName, "agent-name", "", "The name of the agent that should be updated. This is mandatory.")
 	flag.StringVar(&agentNamespace, "agent-namespace", "", "The namespace of the agent that should be updated. This is mandatory.")
@@ -81,6 +84,8 @@ func main() {
 	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification. The image tag is still resolved and image must exist.")
 	flag.BoolVar(&insecureNoResolve, "insecure-no-resolve-image", false, "Disable image signature verification AND resolution. The updater can update to non-existing images.")
 	flag.BoolVar(&disableLeaderElection, "disable-leader-election", false, "Disable leader election, used when running the kube-agent-updater outside of Kubernetes.")
+	flag.StringVar(&proxyAddress, "proxy-address", "", "The proxy address of the teleport cluster. When set, the updater will try to get update via the /find proxy endpoint.")
+	flag.StringVar(&updateGroup, "update-group", "", "The agent update group, as defined in the `autoupdate_config` resource. When unset or set to an unknown value, agent will update with the default group.")
 	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "stable/cloud", "Version channel to get updates from.")
 	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
@@ -98,6 +103,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	// Validate configuration.
 	if agentName == "" {
 		ctrl.Log.Error(trace.BadParameter("--agent-name empty"), "agent-name must be provided")
 		os.Exit(1)
@@ -106,7 +112,16 @@ func main() {
 		ctrl.Log.Error(trace.BadParameter("--agent-namespace empty"), "agent-namespace must be provided")
 		os.Exit(1)
 	}
+	if versionServer == "" && proxyAddress == "" {
+		ctrl.Log.Error(
+			trace.BadParameter("at least one of --proxy-address or --version-server must be provided"),
+			"the updater has no upstream configured, it cannot retrieve the version and check when to update",
+		)
+		os.Exit(1)
+	}
 
+	// Build a new controller manager. We need to do this early as some trigger
+	// need a Kubernetes client and the manager is the one providing it.
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -130,16 +145,76 @@ func main() {
 		os.Exit(1)
 	}
 
-	versionServerURL, err := url.Parse(strings.TrimRight(versionServer, "/") + "/" + versionChannel)
-	if err != nil {
-		ctrl.Log.Error(err, "failed to parse version server URL, exiting")
-		os.Exit(1)
+	// Craft the version getter and update triggers based on the configuration (use RFD-109 APIs, RFD-184, or both).
+	var criticalUpdateTriggers []maintenance.Trigger
+	var plannedMaintenanceTriggers []maintenance.Trigger
+	var versionGetters []version.Getter
+
+	// If the proxy server is specified, we enabled RFD-184 updates
+	// See https://github.com/gravitational/teleport/blob/master/rfd/0184-agent-auto-updates.md#updater-apis
+	if proxyAddress != "" {
+		ctrl.Log.Info("fetching versions from the proxy /find endpoint", "proxy_server_url", proxyAddress, "update_group", updateGroup)
+
+		proxyClt, err := webclient.NewReusableClient(&webclient.Config{
+			Context:     ctx,
+			ProxyAddr:   proxyAddress,
+			UpdateGroup: updateGroup,
+		})
+		if err != nil {
+			ctrl.Log.Error(err, "failed to create proxy client, exiting")
+			os.Exit(1)
+		}
+
+		// We do a preflight check before starting to know if the proxy is correctly configured and reachable.
+		ctrl.Log.Info("preflight check: ping the proxy server", "proxy_server_url", proxyAddress)
+		pong, err := proxyClt.Ping()
+		if err != nil {
+			ctrl.Log.Error(err, "failed to ping proxy, either the proxy address is wrong, or the network blocks connections to the proxy",
+				"proxy_address", proxyAddress,
+			)
+			os.Exit(1)
+		}
+		ctrl.Log.Info("proxy server successfully pinged",
+			"proxy_server_url", proxyAddress,
+			"proxy_cluster_name", pong.ClusterName,
+			"proxy_version", pong.ServerVersion,
+		)
+
+		versionGetters = append(versionGetters, version.NewProxyVersionGetter("proxy update protocol", proxyClt))
+
+		// In RFD 184, the server is driving the update, so both regular maintenances and
+		// critical ones are fetched from the proxy. Using the same trigger ensures we hit the cache if both triggers
+		// are evaluated and don't actually make 2 calls.
+		proxyTrigger := maintenance.NewProxyMaintenanceTrigger("proxy update protocol", proxyClt)
+		criticalUpdateTriggers = append(criticalUpdateTriggers, proxyTrigger)
+		plannedMaintenanceTriggers = append(plannedMaintenanceTriggers, proxyTrigger)
 	}
-	versionGetter := version.NewBasicHTTPVersionGetter(versionServerURL)
+
+	// If the version server is specified, we enable RFD-109 updates
+	// See https://github.com/gravitational/teleport/blob/master/rfd/0109-cloud-agent-upgrades.md#kubernetes-model
+	if versionServer != "" {
+		rawUrl := strings.TrimRight(versionServer, "/") + "/" + versionChannel
+		versionServerURL, err := url.Parse(rawUrl)
+		if err != nil {
+			ctrl.Log.Error(err, "failed to parse version server URL, exiting", "url", rawUrl)
+			os.Exit(1)
+		}
+		ctrl.Log.Info("fetching versions from the version server", "version_server_url", versionServerURL.String())
+
+		versionGetters = append(versionGetters, version.NewBasicHTTPVersionGetter(versionServerURL))
+		// critical updates are advertised by the version channel
+		criticalUpdateTriggers = append(criticalUpdateTriggers, maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerURL))
+		// planned maintenance windows are exported by the pods
+		plannedMaintenanceTriggers = append(plannedMaintenanceTriggers, podmaintenance.NewWindowTrigger("maintenance window", mgr.GetClient()))
+	}
+
 	maintenanceTriggers := maintenance.Triggers{
-		maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerURL),
+		// We check if the update is critical.
+		maintenance.FailoverTrigger(criticalUpdateTriggers),
+		// We check if the agent in unhealthy.
 		podmaintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
-		podmaintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
+		// We check if we're in a maintenance window.
+		maintenance.FailoverTrigger(plannedMaintenanceTriggers),
 	}
 
 	var imageValidators img.Validators
@@ -169,7 +244,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	versionUpdater := controller.NewVersionUpdater(versionGetter, imageValidators, maintenanceTriggers, baseImage)
+	versionUpdater := controller.NewVersionUpdater(
+		version.FailoverGetter(versionGetters),
+		imageValidators,
+		maintenanceTriggers,
+		baseImage,
+	)
 
 	// Controller registration
 	deploymentController := controller.DeploymentVersionUpdater{
@@ -203,7 +283,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version, "url", versionServerURL.String())
+	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version)
 
 	if err := mgr.Start(ctx); err != nil {
 		ctrl.Log.Error(err, "failed to start manager, exiting")
