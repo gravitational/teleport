@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -137,19 +136,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 		return trace.Wrap(err)
 	}
-
-	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
 		Clock:             e.Clock,
-		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
-		CredentialsGetter: e.CredentialsGetter,
+		AWSConfigProvider: e.AWSConfigProvider,
 	})
 	if err != nil {
 		return trace.Wrap(err)

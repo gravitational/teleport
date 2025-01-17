@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -53,7 +54,11 @@ func newTestOpenSearchEngine(ec common.EngineConfig) common.Engine {
 
 func TestAccessOpenSearch(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withOpenSearch("OpenSearch"))
+	testCtx := setupTestContext(ctx, t)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:         []types.Database{withOpenSearch("OpenSearch")(t, ctx, testCtx)},
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
+	})
 	go testCtx.startHandlingConnections()
 
 	tests := []struct {
