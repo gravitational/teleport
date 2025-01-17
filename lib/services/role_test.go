@@ -2558,7 +2558,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 }
 
 func TestGuessIfAccessIsPossible(t *testing.T) {
-	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
+	// Examples from https://goteleport.com/docs/reference/access-controls/roles/#rbac-for-sessions.
 	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{

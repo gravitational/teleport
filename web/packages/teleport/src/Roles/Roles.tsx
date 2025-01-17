@@ -173,7 +173,7 @@ export function Roles(props: State) {
             <Link
               color="text.main"
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
+              href="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             >
               the cluster management (RBAC)
             </Link>{' '}
@@ -183,7 +183,7 @@ export function Roles(props: State) {
       </Flex>
       {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
-          docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+          docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
           title={title}
           text={resources.item.content}
           name={resources.item.name}

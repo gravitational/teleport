@@ -138,7 +138,7 @@ const Info = props => (
       Please{' '}
       <Link
         color="text.main"
-        href="https://goteleport.com/docs/setup/admin/trustedclusters/"
+        href="https://goteleport.com/docs/admin-guides/management/admin/trustedclusters/"
         target="_blank"
       >
         view our documentation
