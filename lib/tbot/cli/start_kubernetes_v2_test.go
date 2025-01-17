@@ -40,9 +40,9 @@ func TestKubernetesV2Command(t *testing.T) {
 				"--join-method=github",
 				"--proxy-server=example.com:443",
 				"--disable-exec-plugin",
-				"--kubernetes-cluster-name=a",
-				"--kubernetes-cluster-name=b",
-				"--kubernetes-cluster-labels=c=\"foo bar\",d=\"baz qux\"",
+				"--name-selector=a",
+				"--name-selector=b",
+				"--label-selector=c=\"foo bar\",d=\"baz qux\"",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				require.Len(t, cfg.Services, 1)
