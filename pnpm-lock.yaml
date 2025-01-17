@@ -268,6 +268,9 @@ importers:
       jsdom:
         specifier: ^26.0.0
         version: 26.0.0
+      jsdom-testing-mocks:
+        specifier: ^1.13.1
+        version: 1.13.1
       rollup-plugin-visualizer:
         specifier: ^5.13.1
         version: 5.13.1(rollup@4.29.1)
