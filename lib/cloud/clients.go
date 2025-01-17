@@ -39,8 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
@@ -109,8 +107,6 @@ type AWSClients interface {
 	GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error)
 	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
 	GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error)
-	// GetAWSIAMClient returns AWS IAM client for the specified region.
-	GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
 	// GetAWSKMSClient returns AWS KMS client for the specified region.
@@ -517,15 +513,6 @@ func (c *cloudClients) GetAWSSecretsManagerClient(ctx context.Context, region st
 		return nil, trace.Wrap(err)
 	}
 	return secretsmanager.New(session), nil
-}
-
-// GetAWSIAMClient returns AWS IAM client for the specified region.
-func (c *cloudClients) GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return iam.New(session), nil
 }
 
 // GetAWSS3Client returns AWS S3 client.
@@ -983,7 +970,6 @@ type TestCloudClients struct {
 	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
 	MemoryDB                memorydbiface.MemoryDBAPI
 	SecretsManager          secretsmanageriface.SecretsManagerAPI
-	IAM                     iamiface.IAMAPI
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
@@ -1073,15 +1059,6 @@ func (c *TestCloudClients) GetAWSSecretsManagerClient(ctx context.Context, regio
 		return nil, trace.Wrap(err)
 	}
 	return c.SecretsManager, nil
-}
-
-// GetAWSIAMClient returns AWS IAM client for the specified region.
-func (c *TestCloudClients) GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.IAM, nil
 }
 
 // GetAWSS3Client returns AWS S3 client.

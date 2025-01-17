@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -48,6 +49,16 @@ import (
 // elasticacheClient defines a subset of the AWS ElastiCache client API.
 type elasticacheClient interface {
 	elasticache.DescribeReplicationGroupsAPIClient
+}
+
+// iamClient defines a subset of the AWS IAM client API.
+type iamClient interface {
+	DeleteRolePolicy(context.Context, *iam.DeleteRolePolicyInput, ...func(*iam.Options)) (*iam.DeleteRolePolicyOutput, error)
+	DeleteUserPolicy(context.Context, *iam.DeleteUserPolicyInput, ...func(*iam.Options)) (*iam.DeleteUserPolicyOutput, error)
+	GetRolePolicy(context.Context, *iam.GetRolePolicyInput, ...func(*iam.Options)) (*iam.GetRolePolicyOutput, error)
+	GetUserPolicy(context.Context, *iam.GetUserPolicyInput, ...func(*iam.Options)) (*iam.GetUserPolicyOutput, error)
+	PutRolePolicy(context.Context, *iam.PutRolePolicyInput, ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
+	PutUserPolicy(context.Context, *iam.PutUserPolicyInput, ...func(*iam.Options)) (*iam.PutUserPolicyOutput, error)
 }
 
 // rdsClient defines a subset of the AWS RDS client API.
@@ -74,6 +85,7 @@ type rssClient interface {
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
 	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
+	getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
 	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
@@ -83,6 +95,10 @@ type defaultAWSClients struct{}
 
 func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
 	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
+	return iam.NewFromConfig(cfg, optFns...)
 }
 
 func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
