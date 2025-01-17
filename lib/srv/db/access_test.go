@@ -107,7 +107,6 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
-	registerTestOpenSearchEngine()
 	registerTestSQLServerEngine()
 	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
