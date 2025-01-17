@@ -105,7 +105,9 @@ func TestThumbprint(t *testing.T) {
 
 	thumbprint := strings.Trim(string(resp.Bytes()), "\"")
 
-	serverCertificateSHA1 := sha1.Sum(proxy.web.TLS.Certificates[0].Leaf.Raw)
+	require.NotEmpty(t, proxy.web.TLS.Certificates, "missing web tls certificates")
+	require.NotEmpty(t, proxy.web.TLS.Certificates[0].Certificate, "missing web tls certificates")
+	serverCertificateSHA1 := sha1.Sum(proxy.web.TLS.Certificates[0].Certificate[0])
 	expectedThumbprint := hex.EncodeToString(serverCertificateSHA1[:])
 
 	require.Equal(t, expectedThumbprint, thumbprint)
