@@ -1166,7 +1166,7 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		log.Warnf(`` +
 			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`)
 	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on

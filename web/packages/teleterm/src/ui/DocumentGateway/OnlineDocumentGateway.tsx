@@ -135,7 +135,7 @@ export function OnlineDocumentGateway(props: {
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
         <Link
-          href="https://goteleport.com/docs/database-access/guides/gui-clients/"
+          href="https://goteleport.com/docs/connect-your-client/gui-clients/"
           target="_blank"
         >
           the documentation
