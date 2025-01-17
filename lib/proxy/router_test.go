@@ -223,7 +223,7 @@ func TestRouteScoring(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			srv, err := getServerWithResolver(ctx, tt.host, tt.port, site, resolver)
 			if tt.ambiguous {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 				return
 			}
 			require.Equal(t, tt.expect, srv.GetHostname())
@@ -407,7 +407,7 @@ func TestGetServers(t *testing.T) {
 			site: testSite{cfg: &unambiguousCfg, nodes: servers},
 			host: "sheep",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
@@ -488,7 +488,7 @@ func TestGetServers(t *testing.T) {
 			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host: "platypus",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
@@ -724,7 +724,7 @@ func TestRouter_DialHost(t *testing.T) {
 				clusterName:    "test",
 				log:            logger,
 				tracer:         tracing.NoopTracer("test"),
-				serverResolver: serverResolver(nil, trace.NotFound(teleport.NodeIsAmbiguous)),
+				serverResolver: serverResolver(nil, teleport.ErrNodeIsAmbiguous),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
