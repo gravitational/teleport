@@ -83,29 +83,42 @@ func decide(
 		d.templatedWorkloadIdentity.Spec.Spiffe.X509.DnsSans[i] = templated
 	}
 
-	if cn := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate().CommonName; cn != nil {
-		templated, err = templateString(*cn, attrs)
-		if err != nil {
-			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.subject_template.common_name")
-			return d
+	st := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate()
+	if st != nil {
+		dst := d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate
+		if cn := st.CommonName; cn != nil {
+			templated, err := templateString(*cn, attrs)
+			if err != nil {
+				d.reason = trace.Wrap(
+					err,
+					"templating spec.spiffe.x509.subject_template.common_name",
+				)
+				return d
+			}
+			dst.CommonName = &templated
 		}
-		d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate.CommonName = &templated
-	}
-	if o := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate().Organization; o != nil {
-		templated, err = templateString(*o, attrs)
-		if err != nil {
-			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.subject_template.organization")
-			return d
+		if o := st.Organization; o != nil {
+			templated, err := templateString(*o, attrs)
+			if err != nil {
+				d.reason = trace.Wrap(
+					err,
+					"templating spec.spiffe.x509.subject_template.organization",
+				)
+				return d
+			}
+			dst.Organization = &templated
 		}
-		d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate.Organization = &templated
-	}
-	if ou := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate().OrganizationalUnit; ou != nil {
-		templated, err = templateString(*ou, attrs)
-		if err != nil {
-			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.subject_template.organizational_unit")
-			return d
+		if ou := st.OrganizationalUnit; ou != nil {
+			templated, err := templateString(*ou, attrs)
+			if err != nil {
+				d.reason = trace.Wrap(
+					err,
+					"templating spec.spiffe.x509.subject_template.organizational_unit",
+				)
+				return d
+			}
+			dst.OrganizationalUnit = &templated
 		}
-		d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate.OrganizationalUnit = &templated
 	}
 
 	// Yay - made it to the end!
