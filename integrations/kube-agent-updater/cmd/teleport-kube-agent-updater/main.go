@@ -135,7 +135,7 @@ func main() {
 	}
 	if versionServer == "" && proxyAddress == "" {
 		ctrl.Log.Error(
-			trace.BadParameter("at least one of --proxy-address and --version-server must be provided"),
+			trace.BadParameter("at least one of --proxy-address or --version-server must be provided"),
 			"the updater has no upstream configured, it cannot retrieve the version and check when to update",
 		)
 		os.Exit(1)
