@@ -27,38 +27,37 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
-// WorkloadIdentityX509Command implements `tbot start workload-identity-x509` and
-// `tbot configure spiffe-svid`.
-type WorkloadIdentityX509Command struct {
+// WorkloadIdentityAPICommand implements `tbot start workload-identity-api` and
+// `tbot configure workload-identity-api`.
+type WorkloadIdentityAPICommand struct {
 	*sharedStartArgs
-	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	IncludeFederatedTrustBundles bool
+	// Listen configures where the workload identity API should listen. This
+	// should be prefixed with a scheme e.g unix:// or tcp://.
+	Listen string
 	// NameSelector is the name of the workload identity to use.
-	// --workload-identity-name foo
+	// --name-selector foo
 	NameSelector string
 	// LabelSelector is the labels of the workload identity to use.
-	// --workload-identity-labels x=y,z=a
+	// --label-selector x=y,z=a
 	LabelSelector string
 }
 
-// NewWorkloadIdentityX509Command initializes the command and flags for the
-// `workload-identity-x509` output and returns a struct that will contain the parse
-// result.
-func NewWorkloadIdentityX509Command(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *WorkloadIdentityX509Command {
+// NewWorkloadIdentityAPICommand initializes the command and flags for the
+// `workload-identity-api` service and returns a struct that will contain the
+// parse result.
+func NewWorkloadIdentityAPICommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *WorkloadIdentityAPICommand {
 	// TODO(noah): Unhide this command when feature flag removed
-	cmd := parentCmd.Command("workload-identity-x509", fmt.Sprintf("%s tbot with a SPIFFE-compatible SVID output.", mode)).Hidden()
+	cmd := parentCmd.Command(
+		"workload-identity-api",
+		fmt.Sprintf("%s tbot with a workload identity API listener. Compatible with the SPIFFE Workload API and Envoy SDS.", mode),
+	).Hidden()
 
-	c := &WorkloadIdentityX509Command{}
+	c := &WorkloadIdentityAPICommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
-	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag(
-		"include-federated-trust-bundles",
-		"If set, include federated trust bundles in the output",
-	).BoolVar(&c.IncludeFederatedTrustBundles)
 	cmd.Flag(
 		"name-selector",
 		"The name of the workload identity to issue",
@@ -67,24 +66,21 @@ func NewWorkloadIdentityX509Command(parentCmd *kingpin.CmdClause, action Mutator
 		"label-selector",
 		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
 	).StringVar(&c.LabelSelector)
+	cmd.Flag(
+		"listen",
+		"The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.",
+	).Required().StringVar(&c.Listen)
 
 	return c
 }
 
-// ApplyConfig applies the parsed flags to the bot configuration.
-func (c *WorkloadIdentityX509Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+func (c *WorkloadIdentityAPICommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	if err := c.sharedStartArgs.ApplyConfig(cfg, l); err != nil {
 		return trace.Wrap(err)
 	}
 
-	dest, err := c.BuildDestination()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	svc := &config.WorkloadIdentityX509Service{
-		Destination:                  dest,
-		IncludeFederatedTrustBundles: c.IncludeFederatedTrustBundles,
+	svc := &config.WorkloadIdentityAPIService{
+		Listen: c.Listen,
 	}
 
 	switch {
@@ -95,14 +91,14 @@ func (c *WorkloadIdentityX509Command) ApplyConfig(cfg *config.BotConfig, l *slog
 	case c.LabelSelector != "":
 		labels, err := client.ParseLabelSpec(c.LabelSelector)
 		if err != nil {
-			return trace.Wrap(err, "parsing --label-selector")
+			return trace.Wrap(err, "parsing label-selector")
 		}
 		svc.Selector.Labels = map[string][]string{}
 		for k, v := range labels {
 			svc.Selector.Labels[k] = []string{v}
 		}
 	default:
-		return trace.BadParameter("name-selector or label-selector must be specified")
+		return trace.BadParameter("name-selector and label-selector must be specified")
 	}
 
 	cfg.Services = append(cfg.Services, svc)
