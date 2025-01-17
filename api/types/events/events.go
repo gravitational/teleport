@@ -295,6 +295,7 @@ func (m *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.InitialCommand = nil
+	out.Invited = nil
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
@@ -302,6 +303,10 @@ func (m *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.InitialCommand = trimStrSlice(m.InitialCommand, maxFieldSize)
+
+	customFieldsCount = nonEmptyStrsInSlice(m.Invited)
+	maxFieldSize = maxSizePerField(maxSize, customFieldsCount)
+	out.Invited = trimStrSlice(m.Invited, maxFieldSize)
 
 	return out
 }
