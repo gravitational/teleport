@@ -34,14 +34,15 @@ existing code.
 ### UX
 
 The goal is to keep the VNet UX identical on Windows and MacOS.
-Teleport Connect will have support VNet with the best UX for details like MFA
-prompts and error reporting.
-`tsh vnet` will be supported on Windows just as it is on MacOS, but building
-a first-class CLI UX will not be a goal, Connect will be the recommended client.
+Teleport Connect will have support for VNet with the best UX for details like
+ease of installation, MFA prompts, and error reporting.
+`tsh vnet` will be supported on Windows just as it is on MacOS, but it is
+inherently more difficult to build a first-class CLI UX that includes MFA
+prompts and this will not be a goal, Connect will be the recommended client.
 
 In keeping with the MacOS experience, this design avoids administrator (UAC)
-prompts each time VNet is started, only requiring a prompt the very first time
-VNet is started on a Windows client machine.
+prompts each time VNet is started, the goal is to only require admin rights
+during installation.
 Errors and any user prompts will be identical on each OS, with a goal of reusing
 as much code between operating systems as possible so that this happens by
 default.
@@ -58,14 +59,14 @@ TCP connections to Teleport apps and UDP connections to VNet's internal DNS serv
 Because Windows does not natively support TUN interfaces the same way that MacOS
 and Linux do, we will leverage an open-source driver wintun.dll to provide the
 TUN interface.
-The DLL is available for download from https://www.wintun.net/ as a signed DLL.
+Wintun is available for download from https://www.wintun.net/ as a signed DLL.
 It has a custom license that permits commercial use as long as we use their
 signed DLL via the provided API.
 Another open-source library that we already use on MacOS provides a common Go
 interface for the TUN, this is `golang.zx2c4.com/wireguard/tun`.
 
 The signed `wintun.dll` file will be distributed with Connect and installed in
-the same directory as `tshd`.
+the same directory as the `tsh` Windows service.
 
 ### Windows Service
 
@@ -75,19 +76,41 @@ requiring a UAC prompt each time VNet starts, we will install and run VNet as a
 Windows Service.
 This is a similar concept to the Launch Daemon that we use on MacOS.
 
-The actual exe that runs the service will be `tsh` (known as `tshd` when
-installed with Connect), it will be started with a specific argument to run the
-VNet Windows service.
+The actual exe that runs the service will be `tsh`, it will be started with a
+specific argument to run the VNet Windows service.
 Windows Services are installed and controlled by the Service Control Manager (SCM).
-The first time VNet is started on a specific Windows machine, `tsh` will
-re-execute itself with administrator rights via a UAC prompt, and then make a
-request to the SCM to install itself as a Service.
+In the Connect installer (built with electron-builder), we will include a
+script to install the service with `sc.exe` (this is the SCM binary).
 
-We will install the Service with a security descriptor that allows the
-installing user's SID (user ID) to launch the service without elevated privileges.
-On subsequent launches of VNet, it will start the already-installed service
-with a request to the SCM.
+We will install the Service with a security descriptor that allows all
+authenticated users to launch the service without elevated privileges.
+Each time VNet starts, it will start the service with a request to the SCM.
 The service will handle Stop, Shutdown, and Interrogate requests from the SCM.
+
+When installing a Windows service you configure a path to the .exe that
+implements the service. This *must not* be a path the non-admin users can write
+to.
+If a user has the ability to write a different .exe to this path, they would be
+allowed to launch that .exe as a service with elevated privileges, this could be
+used for a privilege escalation attack.
+Currently when Connect is installed on Windows by a specific user `tsh.exe` is
+installed to `C:\Users\<username>\AppData\Local\Programs\teleport connect\resources\bin\tsh.exe`
+Since this is user-writable, we must copy `tsh.exe` to a path that only admins
+can write to.
+From what I can tell, the usual place to install programs the must not be
+user-writable is under `C:\Program Files\`.
+
+When installing the Windows service per-user, the Connect installer will copy
+`tsh.exe` and `wintun.dll` to `C:\Program Files\TeleportVNet\<username>\`
+and the Windows service will be named `TeleportVNet-<username>`.
+When installing per-machine, we will use `C:\Program Files\TeleportVNet\`
+and the Windows service will be named `TeleportVNet`.
+When tsh is starting the service, it will first try to launch the user-specific
+service and fall back to starting the per-machine service.
+We use a per-user path so that each user can have a specific version of
+`tsh.exe` and `wintun.dll` installed there that matches the version of Connect
+that user has installed.
+The uninstaller will handle deleting these files.
 
 ### Inter-process Communication (IPC)
 
@@ -145,20 +168,20 @@ Each time the user process starts it will:
 
 When the user process starts the Windows service, it trusts that the service was
 installed by an administrative user, as all services must be.
+The service binary is installed to a path under `C:\Program Files\` that can
+only be written to by administrative users.
 It also trusts that incoming gRPC connections are coming from a process with
 administrative rights, because it was able to read the certificate and key from
 the filesystem where they were configured to only be readable by admin users.
 
-The Windows Service will be installed with a security descriptor that only
-allows the installing user's SID to launch the service.
-But this is not enough, we don't want any user process on the machine to be able
-to start the Windows Service and influence the host networking configuration.
-The first thing the Windows Service will do, before starting any networking or
-configuring the OS in any way, is call an `AuthenticateProcess` RPC which will
-be used to authenticate the user process to the Windows Service.
+We don't want any user process on the machine to be able to start the Windows
+Service and influence the host networking configuration, so the first thing the
+Windows Service will do before starting any networking or configuring the OS in
+any way, is call an `AuthenticateProcess` RPC which will be used to authenticate
+the user process to the Windows Service.
 
 When calling the `AuthenticateProcess` RPC, the Windows service will:
-1. Create a Windows named pipe and give the installing user SID permission to open the pipe.
+1. Create a Windows named pipe and give the user process permission to open the pipe.
 1. Pass the name of the pipe (via the RPC) to the user process.
 1. Wait for the user process to dial the named pipe.
 1. Use the Windows API `GetNamedPipeClientProcessId` to get the pipe client
@@ -348,8 +371,13 @@ message OnInvalidLocalPortResponse {}
 ### Backward Compatibility
 
 The Windows Service will be updated in lockstep with the client
-(Connect/tshd/tsh) because it is the exact same exe at the same path, so there
-are not really any backward compat concerns, even with the gRPC API.
+(Connect/tshd/tsh) by the Connect installer, so there are not really any
+backward compatibility concerns, even with the gRPC API.
+During the `AuthenticateProcess` rpc we will double-check that each binary is
+running the same version of Teleport, and fail to start VNet is a user-visible
+error if they are somehow on different versions.
+This should not occur, but if it does, we will recommend the user to re-install
+Connect.
 
 ### Audit Events
 
