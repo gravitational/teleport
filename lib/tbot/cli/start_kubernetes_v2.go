@@ -57,8 +57,8 @@ func NewKubernetesV2Command(parentCmd *kingpin.CmdClause, action MutatorAction, 
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
 	cmd.Flag("disable-exec-plugin", "If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.").BoolVar(&c.DisableExecPlugin)
-	cmd.Flag("kubernetes-cluster-name", "An explicit Kubernetes cluster name to include. Repeatable.").StringsVar(&c.KubernetesClusterNames)
-	cmd.Flag("kubernetes-cluster-labels", "A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.").StringsVar(&c.KubernetesClusterLabels)
+	cmd.Flag("name-selector", "An explicit Kubernetes cluster name to include. Repeatable.").StringsVar(&c.KubernetesClusterNames)
+	cmd.Flag("label-selector", "A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.").StringsVar(&c.KubernetesClusterLabels)
 
 	// Note: excluding roles; the bot will fetch all available in CLI mode.
 
@@ -100,6 +100,7 @@ func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger)
 			Name: name,
 		})
 	}
+
 	for _, s := range c.KubernetesClusterLabels {
 		labels, err := client.ParseLabelSpec(s)
 		if err != nil {
@@ -109,6 +110,10 @@ func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger)
 		selectors = append(selectors, &config.KubernetesSelector{
 			Labels: labels,
 		})
+	}
+
+	if len(selectors) == 0 {
+		return trace.BadParameter("at least one name-selector or label-selector must be provided")
 	}
 
 	cfg.Services = append(cfg.Services, &config.KubernetesV2Output{
