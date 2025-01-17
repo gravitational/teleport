@@ -139,7 +139,7 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 		case constants.DarwinOS:
 			output = filepath.Join(versionPath, app+".app", "Contents", "MacOS", app)
 		}
-		if err := buildBinary(output, toolsDir, version, baseURL); err != nil {
+		if err := buildBinary(output, toolsDir, version, baseURL, app); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -156,16 +156,16 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 	}
 }
 
-// buildBinary executes command to build binary with updater logic only for testing.
-func buildBinary(output string, toolsDir string, version string, baseURL string) error {
+// buildBinary executes command to build client tool binary with updater logic for testing.
+func buildBinary(output string, toolsDir string, version string, baseURL string, app string) error {
 	cmd := exec.Command(
 		"go", "build", "-o", output,
 		"-ldflags", strings.Join([]string{
-			fmt.Sprintf("-X 'main.toolsDir=%s'", toolsDir),
-			fmt.Sprintf("-X 'main.version=%s'", version),
-			fmt.Sprintf("-X 'main.baseURL=%s'", baseURL),
+			fmt.Sprintf("-X 'github.com/gravitational/teleport/integration/autoupdate/tools/updater.version=%s'", version),
+			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.version=%s'", version),
+			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.baseURL=%s'", baseURL),
 		}, " "),
-		"./updater",
+		fmt.Sprintf("./updater/%s", app),
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
