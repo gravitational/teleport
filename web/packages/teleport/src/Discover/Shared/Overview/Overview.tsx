@@ -16,47 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  ActionButtons,
-  Header,
-  HeaderSubtitle,
-} from 'teleport/Discover/Shared';
+import { Subtitle1 } from 'design';
+
+import { ActionButtons, Header } from 'teleport/Discover/Shared';
+import { Overview as IOverview } from 'teleport/Discover/Shared/Overview/types';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 
-export function Overview() {
-  const { prevStep, nextStep, isUpdateFlow } = useDiscover();
+import { content } from './content';
 
-  const pageItems = {
-    kubernetes: {
-      overview: [
-        `This guide uses Helm to install the Teleport agent into a cluster,
-        and by default turns on auto-discovery of all apps in the cluster.`,
-      ],
-      prerequisites: [
-        'Egress from your Kubernetes cluster to Teleport.',
-        'Helm installed on your local machine.',
-        'Kubernetes API access to install the Helm chart.',
-      ],
-    },
-  };
+export function Overview() {
+  const { prevStep, nextStep, resourceSpec, isUpdateFlow } = useDiscover();
+
+  if (!(resourceSpec.id in content)) {
+    //todo handle error
+  }
+
+  let overview: IOverview = content[resourceSpec.id];
 
   return (
     <>
       <Header>Overview</Header>
-      <ul>
-        {pageItems.kubernetes.overview.map((item, index) => (
-          <li key={index}>{item}</li>
-        ))}
-      </ul>
+      {overview.OverviewContent()}
       <Header>Prerequisites</Header>
-      <HeaderSubtitle>
-        Make sure you have these ready before continuing.
-      </HeaderSubtitle>
-      <ul>
-        {pageItems.kubernetes.prerequisites.map((item, index) => (
-          <li key={index}>{item}</li>
-        ))}
-      </ul>
+      <Subtitle1>Make sure you have these ready before continuing.</Subtitle1>
+      {overview.PrerequisiteContent()}
       <ActionButtons
         onProceed={nextStep}
         onPrev={isUpdateFlow ? null : prevStep}
