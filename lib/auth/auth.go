@@ -469,53 +469,53 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		TrustInternal:             cfg.Trust,
-		PresenceInternal:          cfg.Presence,
-		Provisioner:               cfg.Provisioner,
-		Identity:                  cfg.Identity,
-		Access:                    cfg.Access,
-		DynamicAccessExt:          cfg.DynamicAccessExt,
-		ClusterConfiguration:      cfg.ClusterConfiguration,
-		AutoUpdateService:         cfg.AutoUpdateService,
-		Restrictions:              cfg.Restrictions,
-		Apps:                      cfg.Apps,
-		Kubernetes:                cfg.Kubernetes,
-		Databases:                 cfg.Databases,
-		DatabaseServices:          cfg.DatabaseServices,
-		AuditLogSessionStreamer:   cfg.AuditLog,
-		Events:                    cfg.Events,
-		WindowsDesktops:           cfg.WindowsDesktops,
-		DynamicWindowsDesktops:    cfg.DynamicWindowsDesktops,
-		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
-		UserGroups:                cfg.UserGroups,
-		SessionTrackerService:     cfg.SessionTrackerService,
-		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
-		Integrations:              cfg.Integrations,
-		UserTasks:                 cfg.UserTasks,
-		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Okta:                      cfg.Okta,
-		AccessLists:               cfg.AccessLists,
-		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
-		DatabaseObjects:           cfg.DatabaseObjects,
-		SecReports:                cfg.SecReports,
-		UserLoginStates:           cfg.UserLoginState,
-		StatusInternal:            cfg.Status,
-		UsageReporter:             cfg.UsageReporter,
-		UserPreferences:           cfg.UserPreferences,
-		PluginData:                cfg.PluginData,
-		KubeWaitingContainer:      cfg.KubeWaitingContainers,
-		Notifications:             cfg.Notifications,
-		AccessMonitoringRules:     cfg.AccessMonitoringRules,
-		CrownJewels:               cfg.CrownJewels,
-		BotInstance:               cfg.BotInstance,
-		SPIFFEFederations:         cfg.SPIFFEFederations,
-		StaticHostUser:            cfg.StaticHostUsers,
-		ProvisioningStates:        cfg.ProvisioningStates,
-		IdentityCenter:            cfg.IdentityCenter,
-		PluginStaticCredentials:   cfg.PluginStaticCredentials,
-		GitServers:                cfg.GitServers,
-		WorkloadIdentities:        cfg.WorkloadIdentity,
-		StableUNIXUsersInternal:   cfg.StableUNIXUsers,
+		TrustInternal:                cfg.Trust,
+		PresenceInternal:             cfg.Presence,
+		Provisioner:                  cfg.Provisioner,
+		Identity:                     cfg.Identity,
+		Access:                       cfg.Access,
+		DynamicAccessExt:             cfg.DynamicAccessExt,
+		ClusterConfigurationInternal: cfg.ClusterConfiguration,
+		AutoUpdateService:            cfg.AutoUpdateService,
+		Restrictions:                 cfg.Restrictions,
+		Apps:                         cfg.Apps,
+		Kubernetes:                   cfg.Kubernetes,
+		Databases:                    cfg.Databases,
+		DatabaseServices:             cfg.DatabaseServices,
+		AuditLogSessionStreamer:      cfg.AuditLog,
+		Events:                       cfg.Events,
+		WindowsDesktops:              cfg.WindowsDesktops,
+		DynamicWindowsDesktops:       cfg.DynamicWindowsDesktops,
+		SAMLIdPServiceProviders:      cfg.SAMLIdPServiceProviders,
+		UserGroups:                   cfg.UserGroups,
+		SessionTrackerService:        cfg.SessionTrackerService,
+		ConnectionsDiagnostic:        cfg.ConnectionsDiagnostic,
+		Integrations:                 cfg.Integrations,
+		UserTasks:                    cfg.UserTasks,
+		DiscoveryConfigs:             cfg.DiscoveryConfigs,
+		Okta:                         cfg.Okta,
+		AccessLists:                  cfg.AccessLists,
+		DatabaseObjectImportRules:    cfg.DatabaseObjectImportRules,
+		DatabaseObjects:              cfg.DatabaseObjects,
+		SecReports:                   cfg.SecReports,
+		UserLoginStates:              cfg.UserLoginState,
+		StatusInternal:               cfg.Status,
+		UsageReporter:                cfg.UsageReporter,
+		UserPreferences:              cfg.UserPreferences,
+		PluginData:                   cfg.PluginData,
+		KubeWaitingContainer:         cfg.KubeWaitingContainers,
+		Notifications:                cfg.Notifications,
+		AccessMonitoringRules:        cfg.AccessMonitoringRules,
+		CrownJewels:                  cfg.CrownJewels,
+		BotInstance:                  cfg.BotInstance,
+		SPIFFEFederations:            cfg.SPIFFEFederations,
+		StaticHostUser:               cfg.StaticHostUsers,
+		ProvisioningStates:           cfg.ProvisioningStates,
+		IdentityCenter:               cfg.IdentityCenter,
+		PluginStaticCredentials:      cfg.PluginStaticCredentials,
+		GitServers:                   cfg.GitServers,
+		WorkloadIdentities:           cfg.WorkloadIdentity,
+		StableUNIXUsersInternal:      cfg.StableUNIXUsers,
 	}
 
 	as := Server{
@@ -681,12 +681,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	return &as, nil
 }
 
-// TODO(espadolini): a test in e refers to ClusterConfiguration as a result of
-// creating a cache in almost exactly the same way as it's done in
-// [NewTestAuthServer]; we should get rid of this alias by hoisting the creation
-// of that cache into a function in helpers.go and changing e to use that.
-type ClusterConfiguration = services.ClusterConfigurationInternal
-
 // Services is a collection of services that are used by the auth server.
 // Avoid using this type as a dependency and instead depend on the actual
 // methods/services you need. It should really only be necessary to directly
@@ -699,7 +693,7 @@ type Services struct {
 	services.Identity
 	services.Access
 	services.DynamicAccessExt
-	ClusterConfiguration
+	services.ClusterConfigurationInternal
 	services.Restrictions
 	services.Apps
 	services.Kubernetes
@@ -1594,7 +1588,7 @@ func (a *Server) runPeriodicOperations() {
 }
 
 func (a *Server) tallyRoles(ctx context.Context) {
-	var count = 0
+	count := 0
 	a.logger.DebugContext(ctx, "tallying roles")
 	defer func() {
 		a.logger.DebugContext(ctx, "tallying roles completed", "role_count", count)

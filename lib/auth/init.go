@@ -72,9 +72,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var (
-	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
-)
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
@@ -1440,9 +1438,9 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
-			_, err = service.ClusterConfiguration.UpsertClusterNetworkingConfig(ctx, r)
+			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
-			_, err = service.ClusterConfiguration.UpsertAuthPreference(ctx, r)
+			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:

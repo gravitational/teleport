@@ -5289,7 +5289,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
 
 		StableUNIXUsers:      cfg.AuthServer.Services.StableUNIXUsersInternal,
-		ClusterConfiguration: cfg.AuthServer.Services.ClusterConfiguration,
+		ClusterConfiguration: cfg.AuthServer.Services.ClusterConfigurationInternal,
 
 		CacheClock:   cfg.AuthServer.clock,
 		CacheContext: cfg.AuthServer.closeCtx,
