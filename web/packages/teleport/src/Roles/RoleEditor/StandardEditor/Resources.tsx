@@ -25,7 +25,7 @@ import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import { Add, Plus, Trash } from 'design/Icon';
 import { Mark } from 'design/Mark';
-import Text, { H4 } from 'design/Text';
+import { H4 } from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
 import {
@@ -232,10 +232,8 @@ export function ServerAccessSection({
 }: SectionProps<ServerAccess, ServerAccessValidationResult>) {
   return (
     <>
-      <Text typography="body3" mb={1}>
-        Labels
-      </Text>
       <LabelsInput
+        legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
         setLabels={labels => onChange?.({ ...value, labels })}
@@ -281,10 +279,21 @@ export function KubernetesAccessSection({
         onChange={groups => onChange?.({ ...value, groups })}
       />
 
-      <Text typography="body3" mb={1}>
-        Labels
-      </Text>
+      <FieldSelectCreatable
+        isMulti
+        label="Users"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `User: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.users}
+        onChange={users => onChange?.({ ...value, users })}
+      />
+
       <LabelsInput
+        legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
         rule={precomputed(validation.fields.labels)}
@@ -433,17 +442,13 @@ export function AppAccessSection({
 }: SectionProps<AppAccess, AppAccessValidationResult>) {
   return (
     <Flex flexDirection="column" gap={3}>
-      <Box>
-        <Text typography="body3" mb={1}>
-          Labels
-        </Text>
-        <LabelsInput
-          disableBtns={isProcessing}
-          labels={value.labels}
-          setLabels={labels => onChange?.({ ...value, labels })}
-          rule={precomputed(validation.fields.labels)}
-        />
-      </Box>
+      <LabelsInput
+        legend="Labels"
+        disableBtns={isProcessing}
+        labels={value.labels}
+        setLabels={labels => onChange?.({ ...value, labels })}
+        rule={precomputed(validation.fields.labels)}
+      />
       <FieldMultiInput
         label="AWS Role ARNs"
         disabled={isProcessing}
@@ -478,10 +483,8 @@ export function DatabaseAccessSection({
   return (
     <>
       <Box mb={3}>
-        <Text typography="body3" mb={1}>
-          Labels
-        </Text>
         <LabelsInput
+          legend="Labels"
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
@@ -537,7 +540,14 @@ export function DatabaseAccessSection({
         value={value.roles}
         onChange={roles => onChange?.({ ...value, roles })}
         rule={precomputed(validation.fields.roles)}
-        mb={0}
+      />
+      <LabelsInput
+        legend="Database Service Labels"
+        tooltipContent="The database service labels have no influence on which databases' access is controlled by this role. Instead, they control which database services are discoverable while enrolling a new database."
+        disableBtns={isProcessing}
+        labels={value.dbServiceLabels}
+        setLabels={dbServiceLabels => onChange?.({ ...value, dbServiceLabels })}
+        rule={precomputed(validation.fields.dbServiceLabels)}
       />
     </>
   );
@@ -552,10 +562,8 @@ export function WindowsDesktopAccessSection({
   return (
     <>
       <Box mb={3}>
-        <Text typography="body3" mb={1}>
-          Labels
-        </Text>
         <LabelsInput
+          legend="Labels"
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}

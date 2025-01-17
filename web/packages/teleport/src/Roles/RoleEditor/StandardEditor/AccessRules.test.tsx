@@ -58,6 +58,7 @@ describe('AccessRules', () => {
       'list',
       'read',
     ]);
+    await user.type(screen.getByLabelText('Condition'), 'some-condition');
     expect(modelRef).toHaveBeenLastCalledWith([
       {
         id: expect.any(String),
@@ -69,6 +70,7 @@ describe('AccessRules', () => {
           { label: 'list', value: 'list' },
           { label: 'read', value: 'read' },
         ],
+        where: 'some-condition',
       },
     ] as RuleModel[]);
   });

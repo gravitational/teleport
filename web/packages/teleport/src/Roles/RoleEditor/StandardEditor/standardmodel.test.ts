@@ -197,6 +197,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           db_names: ['stuff', 'knickknacks'],
           db_users: ['joe', 'mary'],
           db_roles: ['admin', 'auditor'],
+          db_service_labels: { foo: 'bar' },
         },
       },
     },
@@ -218,6 +219,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'admin', value: 'admin' },
             { label: 'auditor', value: 'auditor' },
           ],
+          dbServiceLabels: [{ name: 'foo', value: 'bar' }],
         },
       ],
     },
@@ -440,6 +442,7 @@ describe('roleToRoleEditorModel', () => {
     groups: [],
     labels: [],
     resources: [],
+    users: [],
     roleVersion: defaultRoleVersion,
   });
 
@@ -868,6 +871,7 @@ describe('roleToRoleEditorModel', () => {
                 name: 'some-node',
               },
             ],
+            kubernetes_users: ['alice', 'bob'],
           },
         },
       })
@@ -901,6 +905,10 @@ describe('roleToRoleEditorModel', () => {
               verbs: [],
               roleVersion: defaultRoleVersion,
             },
+          ],
+          users: [
+            { label: 'alice', value: 'alice' },
+            { label: 'bob', value: 'bob' },
           ],
           roleVersion: defaultRoleVersion,
         },
@@ -948,6 +956,11 @@ describe('roleToRoleEditorModel', () => {
                 verbs: ['read', 'list'],
               },
               { resources: [ResourceKind.Lock], verbs: ['create'] },
+              {
+                resources: [ResourceKind.Session],
+                verbs: ['read', 'list'],
+                where: 'contains(session.participants, user.metadata.name)',
+              },
             ],
           },
         },
@@ -962,11 +975,19 @@ describe('roleToRoleEditorModel', () => {
             resourceKindOptionsMap.get(ResourceKind.DatabaseService),
           ],
           verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: '',
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
           verbs: [verbOptionsMap.get('create')],
+          where: '',
+        },
+        {
+          id: expect.any(String),
+          resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: 'contains(session.participants, user.metadata.name)',
         },
       ],
     } as RoleEditorModel);
@@ -1042,6 +1063,10 @@ describe('roleEditorModelToRole', () => {
                 roleVersion: defaultRoleVersion,
               },
             ],
+            users: [
+              { label: 'alice', value: 'alice' },
+              { label: 'bob', value: 'bob' },
+            ],
             roleVersion: defaultRoleVersion,
           },
         ],
@@ -1067,6 +1092,7 @@ describe('roleEditorModelToRole', () => {
               verbs: [],
             },
           ],
+          kubernetes_users: ['alice', 'bob'],
         },
       },
     } as Role);
@@ -1084,11 +1110,19 @@ describe('roleEditorModelToRole', () => {
               resourceKindOptionsMap.get(ResourceKind.DatabaseService),
             ],
             verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: '',
           },
           {
             id: 'dummy-id-2',
             resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
             verbs: [verbOptionsMap.get('create')],
+            where: '',
+          },
+          {
+            id: expect.any(String),
+            resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: 'contains(session.participants, user.metadata.name)',
           },
         ],
       })
@@ -1100,6 +1134,11 @@ describe('roleEditorModelToRole', () => {
           rules: [
             { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
             { resources: ['lock'], verbs: ['create'] },
+            {
+              resources: ['session'],
+              verbs: ['read', 'list'],
+              where: 'contains(session.participants, user.metadata.name)',
+            },
           ],
         },
       },
