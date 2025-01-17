@@ -99,7 +99,7 @@ func onAppLogin(cf *CLIConf) error {
 		AccessRequests: appInfo.profile.ActiveRequests.AccessRequests,
 	}
 
-	key, err := appLogin(cf.Context, tc, clusterClient, rootClient, appCertParams)
+	key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -117,7 +117,6 @@ func onAppLogin(cf *CLIConf) error {
 
 func appLogin(
 	ctx context.Context,
-	tc *client.TeleportClient,
 	clusterClient *client.ClusterClient,
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
