@@ -40,7 +40,6 @@ import (
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -64,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
 // azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
@@ -635,9 +635,9 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
 // GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
 func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	meta := database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -651,9 +651,9 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
 		userID:      databaseUser,
 		targetID:    meta.ElastiCache.ReplicationGroupID,
-		serviceName: elasticache.ServiceName,
+		serviceName: "elasticache",
 		region:      meta.Region,
-		credentials: awsSession.Config.Credentials,
+		credentials: migration.NewCredentialsAdapter(awsCfg.Credentials),
 		clock:       a.cfg.Clock,
 	}
 	token, err := tokenReq.toSignedRequestURI()

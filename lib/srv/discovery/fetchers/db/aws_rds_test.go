@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -308,9 +309,14 @@ func newRegionalFakeRDSClientProvider(cs map[string]RDSClient) fakeRegionalRDSCl
 }
 
 type fakeAWSClients struct {
+	ecClient       ElastiCacheClient
 	rdsClient      RDSClient
 	redshiftClient RedshiftClient
 	rssClient      RSSClient
+}
+
+func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return f.ecClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {

@@ -39,8 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/kms"
@@ -105,8 +103,6 @@ type GCPClients interface {
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region and any role(s).
 	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
-	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
-	GetAWSElastiCacheClient(ctx context.Context, region string, opts ...AWSOptionsFn) (elasticacheiface.ElastiCacheAPI, error)
 	// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
 	GetAWSMemoryDBClient(ctx context.Context, region string, opts ...AWSOptionsFn) (memorydbiface.MemoryDBAPI, error)
 	// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
@@ -494,15 +490,6 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 		return options.baseSession, nil
 	}
 	return c.getAWSSessionForRole(ctx, region, options)
-}
-
-// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
-func (c *cloudClients) GetAWSElastiCacheClient(ctx context.Context, region string, opts ...AWSOptionsFn) (elasticacheiface.ElastiCacheAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return elasticache.New(session), nil
 }
 
 // GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
@@ -993,7 +980,6 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	ElastiCache             elasticacheiface.ElastiCacheAPI
 	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
 	MemoryDB                memorydbiface.MemoryDBAPI
 	SecretsManager          secretsmanageriface.SecretsManagerAPI
@@ -1060,15 +1046,6 @@ func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Se
 		Region:          aws.String(region),
 		UseFIPSEndpoint: useFIPSEndpoint,
 	})
-}
-
-// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
-func (c *TestCloudClients) GetAWSElastiCacheClient(ctx context.Context, region string, opts ...AWSOptionsFn) (elasticacheiface.ElastiCacheAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.ElastiCache, nil
 }
 
 // GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.

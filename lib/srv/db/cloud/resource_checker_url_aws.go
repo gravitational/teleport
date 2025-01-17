@@ -21,8 +21,8 @@ package cloud
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 
@@ -114,7 +114,7 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 	databases, err := common.NewDatabasesFromRDSCluster(rdsCluster, []rdstypes.DBInstance{})
 	if err != nil {
 		c.logger.WarnContext(ctx, "Could not convert RDS cluster to database resources",
-			"cluster", aws.StringValue(rdsCluster.DBClusterIdentifier),
+			"cluster", aws.ToString(rdsCluster.DBClusterIdentifier),
 			"error", err,
 		)
 
@@ -150,7 +150,7 @@ func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database 
 	}
 	// Port has to be fetched from a separate API. Instead of fetching that,
 	// just validate the host domain.
-	return requireDatabaseHost(database, aws.StringValue(rdsProxy.Endpoint))
+	return requireDatabaseHost(database, aws.ToString(rdsProxy.Endpoint))
 }
 
 func (c *urlChecker) checkRDSProxyCustomEndpoint(ctx context.Context, database types.Database, clt rdsClient, proxyEndpointName string) error {
@@ -173,7 +173,7 @@ func (c *urlChecker) checkRedshift(ctx context.Context, database types.Database)
 		return trace.Wrap(err)
 	}
 	if cluster.Endpoint == nil {
-		return trace.BadParameter("missing endpoint in Redshift cluster %v", aws.StringValue(cluster.ClusterIdentifier))
+		return trace.BadParameter("missing endpoint in Redshift cluster %v", aws.ToString(cluster.ClusterIdentifier))
 	}
 	return trace.Wrap(requireDatabaseAddressPort(database, cluster.Endpoint.Address, cluster.Endpoint.Port))
 }
@@ -216,14 +216,15 @@ func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, datab
 
 func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	elastiCacheClient, err := c.clients.GetAWSElastiCacheClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, meta.ElastiCache.ReplicationGroupID)
+	clt := c.awsClients.getElastiCacheClient(awsCfg)
+	cluster, err := describeElastiCacheCluster(ctx, clt, meta.ElastiCache.ReplicationGroupID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -307,7 +308,7 @@ func (c *urlChecker) checkDocumentDB(ctx context.Context, database types.Databas
 	databases, err := common.NewDatabasesFromDocumentDBCluster(cluster)
 	if err != nil {
 		c.logger.WarnContext(ctx, "Could not convert DocumentDB cluster to database resources",
-			"cluster", aws.StringValue(cluster.DBClusterIdentifier),
+			"cluster", aws.ToString(cluster.DBClusterIdentifier),
 			"error", err,
 		)
 

@@ -23,6 +23,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -30,11 +32,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // Config is the config for users service.
 type Config struct {
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// Clock is used to control time.
@@ -48,10 +53,37 @@ type Config struct {
 	UpdateMeta func(context.Context, types.Database) error
 	// ClusterName is the name of the Teleport cluster (for tagging purpose).
 	ClusterName string
+
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
+}
+
+// awsClientProvider is an AWS SDK client provider.
+type awsClientProvider interface {
+	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
+}
+
+type elasticacheClient interface {
+	elasticache.DescribeUsersAPIClient
+
+	ListTagsForResource(ctx context.Context, in *elasticache.ListTagsForResourceInput, optFns ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error)
+	ModifyUser(ctx context.Context, in *elasticache.ModifyUserInput, optFns ...func(*elasticache.Options)) (*elasticache.ModifyUserOutput, error)
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
 }
 
 // CheckAndSetDefaults validates the config and set defaults.
 func (c *Config) CheckAndSetDefaults() error {
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
 	if c.UpdateMeta == nil {
 		return trace.BadParameter("missing UpdateMeta")
 	}
@@ -80,8 +112,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = slog.With(teleport.ComponentKey, "clouduser")
 	}
-	if c.ClusterName == "" {
-		return trace.BadParameter("missing cluster name")
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
 	}
 	return nil
 }

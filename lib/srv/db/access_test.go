@@ -2439,8 +2439,6 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *mocks.GCPSQLAdminClientMock
-	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
-	ElastiCache *mocks.ElastiCacheMock
 	// MemoryDB defines the AWS MemoryDB mock to use for MemoryDB API calls.
 	MemoryDB *mocks.MemoryDBMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
@@ -2462,6 +2460,8 @@ type agentParams struct {
 	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 	// Recorder is the recorder used on sessions.
 	Recorder libevents.SessionRecorder
+	// GetEngineFn can be used to override the engine created in tests.
+	GetEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2479,9 +2479,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
-	if p.ElastiCache == nil {
-		p.ElastiCache = &mocks.ElastiCacheMock{}
-	}
 	if p.MemoryDB == nil {
 		p.MemoryDB = &mocks.MemoryDBMock{}
 	}
@@ -2494,7 +2491,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
 			STS:            &mocks.STSClientV1{},
-			ElastiCache:    p.ElastiCache,
 			MemoryDB:       p.MemoryDB,
 			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
 			IAM:            &mocks.IAMMock{},
@@ -2540,7 +2536,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		AccessPoint:       c.authClient,
 		Clients:           &clients.TestCloudClients{},
 		Clock:             c.clock,
-		AWSConfigProvider: &mocks.AWSConfigProvider{},
+		AWSConfigProvider: p.AWSConfigProvider,
 	})
 	require.NoError(t, err)
 
@@ -2616,6 +2612,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ShutdownPollPeriod:        100 * time.Millisecond,
 		InventoryHandle:           inventoryHandle,
 		discoveryResourceChecker:  p.DiscoveryResourceChecker,
+		getEngineFn:               p.GetEngineFn,
 	})
 	require.NoError(t, err)
 
