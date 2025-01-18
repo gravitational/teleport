@@ -197,13 +197,15 @@ There are no new privacy considerations on Windows.
 ### Proto Specification
 
 ```protobuf
-// VnetUserProcessService is a service the VNet user process provides to the
-// VNet admin process.
-service VnetUserProcessService {
-  // AuthenticateProcess mutually authenticates the server and client VNet processes.
+// ClientApplicationService is a service the VNet client applications provide to
+// the VNet admin process to facilate app queries, certificate issuance,
+// metrics, error reporting, and signatures.
+service ClientApplicationService {
+  // AuthenticateProcess mutually authenticates client applicates to the admin
+  // service.
   rpc AuthenticateProcess(AuthenticateProcessRequest) returns (AuthenticateProcessResponse);
-  // Ping is used by the admin process to regularly poll that the user process
-  // is still running.
+  // Ping is used by the admin process to regularly poll that the client
+  // application is still running.
   rpc Ping(PingRequest) returns (PingResponse);
   // ResolveAppInfo returns info for the given app fqdn, or an error if the app
   // is not present in any logged-in cluster.
@@ -219,7 +221,7 @@ service VnetUserProcessService {
   // OnInvalidLocalPort gets called before VNet refuses to handle a connection
   // to a multi-port TCP app because the provided port does not match any of the
   // TCP ports in the app spec.
-  rpc OnInvalidLocalPort(OnOnvalidLocalPortRequest) returns (OnInvalidLocalPortResponse);
+  rpc OnInvalidLocalPort(OnInvalidLocalPortRequest) returns (OnInvalidLocalPortResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -232,7 +234,7 @@ message AuthenticateProcessRequest {
 
 // AuthenticateProcessResponse is a response for AuthenticateProcess.
 message AuthenticateProcessResponse {
-  // version is the user process version.
+  // version is the client application version.
   string version = 1;
 }
 
@@ -351,7 +353,7 @@ message OnNewConnectionRequest {
 }
 
 // OnNewConnectionRequest is a response for OnNewConnection.
-message OnNewConnectionResponse{}
+message OnNewConnectionResponse {}
 
 // OnInvalidLocalPortRequest is a request for OnInvalidLocalPort.
 message OnInvalidLocalPortRequest {
