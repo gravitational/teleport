@@ -5,6 +5,7 @@ export function getMembersDeleted(
   editedMembers: AccessListMember[]
 ) {
   return originalMembers.filter(
-    wasExistedMember => !editedMembers.includes(wasExistedMember)
+    originalMember =>
+      !editedMembers.some(edited => edited.name === originalMember.name)
   );
 }

@@ -133,6 +133,31 @@ test('getEditedAccessListFields: one of each field edited: membership roles and 
   });
 });
 
+test('getEditedAccessListFields: members with differing references are not flagged as deleted', () => {
+  const req = getEditedAccessListFields({
+    accessList: {
+      ...mockAccessList,
+      // clone members with the same data but new object references
+      members: mockAccessList.members.map(m => ({
+        ...m,
+      })),
+    },
+    editedMembers: keepMembers,
+    editedMembershipRequires: mockAccessList.membershipRequires,
+    editedRecurrence: {
+      reviewDayOfMonth: getReviewDayOfMonthOption(
+        mockAccessList.audit.recurrence.dayOfMonth
+      ),
+      reviewFrequency: getReviewFrequencyOption(
+        mockAccessList.audit.recurrence.frequency
+      ),
+    },
+  });
+
+  // donkey and shrek should be flagged as deleted
+  expect(req.membersDeleted).toEqual(deleteMembers);
+});
+
 const deleteMembers = [
   {
     name: 'donkey',
