@@ -360,7 +360,7 @@ func registerThroughProxy(
 	var certs *proto.Certs
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM, types.JoinMethodOracle:
-		// IAM and Azure join methods require gRPC client
+		// These join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
 			proxyinsecureclient.ConnectionConfig{

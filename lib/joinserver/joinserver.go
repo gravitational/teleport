@@ -307,6 +307,8 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 	}))
 }
 
+// RegisterUsingOracleMethod registers the caller using the Oracle join method and
+// returns signed certs to join the cluster.
 func (s *JoinServiceGRPCServer) RegisterUsingOracleMethod(
 	srv proto.JoinService_RegisterUsingOracleMethodServer,
 ) error {

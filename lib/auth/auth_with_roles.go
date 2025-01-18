@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/oracle/oci-go-sdk/v65/common"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 
@@ -2392,6 +2393,30 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	return nil
 }
 
+func validateJoinToken(token types.ProvisionToken) error {
+	if token.GetJoinMethod() != types.JoinMethodOracle {
+		return nil
+	}
+
+	// Check that all Oracle regions are valid.
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
+	}
+	oracleSpec := tokenV2.Spec.Oracle
+	if oracleSpec == nil {
+		return trace.BadParameter("missing oracle spec")
+	}
+	for _, allow := range oracleSpec.Allow {
+		for _, region := range allow.Regions {
+			if common.StringToRegion(region) == "" {
+				return trace.BadParameter("invalid oracle region: %v", region)
+			}
+		}
+	}
+	return nil
+}
+
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
 func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
@@ -2429,6 +2454,10 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
+	if err := validateJoinToken(token); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2447,6 +2476,10 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	}
 
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateJoinToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 

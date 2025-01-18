@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func generateOracleChallenge() (string, error) {
@@ -84,36 +83,6 @@ func checkHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 	return nil
 }
 
-func fetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (oracle.Claims, error) {
-	// Block redirects.
-	client, err := defaults.HTTPClient()
-	if err != nil {
-		return oracle.Claims{}, trace.Wrap(err)
-	}
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	fmt.Printf("%+v\n", req)
-	authResp, err := client.Do(req.WithContext(ctx))
-	if err != nil {
-		return oracle.Claims{}, trace.Wrap(err)
-	}
-	defer authResp.Body.Close()
-	var resp oracle.AuthenticateClientResponse
-	unmarshalErr := common.UnmarshalResponse(authResp, &resp)
-	if authResp.StatusCode >= 300 || resp.ErrorMessage != "" {
-		msg := resp.ErrorMessage
-		if msg == "" {
-			msg = authResp.Status
-		}
-		return oracle.Claims{}, trace.AccessDenied("%v", msg)
-	}
-	if unmarshalErr != nil {
-		return oracle.Claims{}, trace.Wrap(unmarshalErr)
-	}
-	return resp.Principal.GetClaims(), nil
-}
-
 func checkOracleAllowRules(claims oracle.Claims, token string, allowRules []*types.ProvisionTokenSpecV2Oracle_Rule) error {
 	for _, rule := range allowRules {
 		if rule.Tenancy != claims.TenancyID {
@@ -140,34 +109,34 @@ func formatHeaderFromMap(m map[string]string) http.Header {
 	return header
 }
 
-func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest, endpoint string) error {
+func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest, endpoint string) (*oracle.Claims, error) {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if provisionToken.GetJoinMethod() != types.JoinMethodOracle {
-		return trace.AccessDenied("this token does not support the Oracle join method")
+		return nil, trace.AccessDenied("this token does not support the Oracle join method")
 	}
 
 	outerHeaders := formatHeaderFromMap(req.Headers)
 	innerHeaders := formatHeaderFromMap(req.InnerHeaders)
 	if err := checkHeaders(outerHeaders, challenge, a.GetClock()); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := checkHeaders(innerHeaders, challenge, a.GetClock()); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Check region.
 	host := outerHeaders.Get("host")
 	hostParts := strings.Split(host, ".")
 	if len(hostParts) != 4 {
-		return trace.BadParameter("unexpected host: %v", host)
+		return nil, trace.BadParameter("unexpected host: %v", host)
 	}
 	region := string(common.StringToRegion(hostParts[1]))
 	if region == "" {
-		return trace.BadParameter("invalid region: %v", region)
+		return nil, trace.BadParameter("invalid region: %v", region)
 	}
 	if endpoint == "" {
 		endpoint = fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
@@ -175,25 +144,27 @@ func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *
 
 	authReq, err := oracle.CreateRequestFromHeaders(endpoint, innerHeaders, outerHeaders)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	claims, err := fetchOraclePrincipalClaims(ctx, authReq)
+	claims, err := oracle.FetchOraclePrincipalClaims(ctx, authReq)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	token, ok := provisionToken.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("oracle join method only supports ProvisionTokenV2")
+		return nil, trace.BadParameter("oracle join method only supports ProvisionTokenV2")
 	}
 	if err := checkOracleAllowRules(claims, provisionToken.GetName(), token.Spec.Oracle.Allow); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return &claims, nil
 }
 
+// RegisterUsingOracleMethod registers the caller using the Oracle join method and
+// returns signed certs to join the cluster.
 func (a *Server) RegisterUsingOracleMethod(
 	ctx context.Context,
 	challengeResponse client.RegisterOracleChallengeResponseFunc,
@@ -235,7 +206,8 @@ func (a *Server) registerUsingOracleMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.checkOracleRequest(ctx, challenge, req, endpoint); err != nil {
+	claims, err := a.checkOracleRequest(ctx, challenge, req, endpoint)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -244,6 +216,7 @@ func (a *Server) registerUsingOracleMethod(
 			ctx,
 			provisionToken,
 			req.RegisterUsingTokenRequest,
+			claims,
 			nil,
 		)
 		return certs, trace.Wrap(err)
@@ -252,7 +225,7 @@ func (a *Server) registerUsingOracleMethod(
 		ctx,
 		provisionToken,
 		req.RegisterUsingTokenRequest,
-		nil,
+		claims,
 	)
 	return certs, trace.Wrap(err)
 }

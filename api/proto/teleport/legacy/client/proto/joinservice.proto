@@ -167,7 +167,9 @@ message RegisterUsingOracleMethodRequest {
   // Headers is the signed headers for a request to the Oracle authorizeClient
   // endpoint.
   map<string, string> headers = 2;
-  map<string, string> inner_headers = 3;
+  // PayloadHeaders is the signed headers that are the payload to the authorizeClient
+  // request signified by Headers.
+  map<string, string> payload_headers = 3;
 }
 
 // RegisterUsingOracleMethodResponse is a stream response and will contain either

@@ -234,6 +234,7 @@ func (c *JoinServiceClient) RegisterUsingOracleMethod(ctx context.Context, chall
 	if err := oracleJoinClient.Send(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	certsResp, err := oracleJoinClient.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)

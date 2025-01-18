@@ -17,7 +17,10 @@
 package oracle
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -80,5 +83,98 @@ func TestCreateSignedRequest(t *testing.T) {
 				assert.Equal(t, v, authValues[k])
 			}
 		}
+	}
+}
+
+func TestFetchOraclePrincipalClaims(t *testing.T) {
+	t.Parallel()
+
+	defaultTenancyID := "tenancy-id"
+	defaultCompartmentID := "compartment-id"
+	defaultInstanceID := "instance-id"
+
+	defaultHandle := func(code int, responseBody any) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(code)
+			body, err := json.Marshal(responseBody)
+			assert.NoError(t, err)
+			_, err = w.Write(body)
+			assert.NoError(t, err)
+		})
+	}
+
+	tests := []struct {
+		name           string
+		handler        http.Handler
+		assert         assert.ErrorAssertionFunc
+		expectedClaims Claims
+	}{
+		{
+			name: "ok",
+			handler: defaultHandle(http.StatusOK, AuthenticateClientResult{
+				Principal: Principal{
+					Claims: []Claim{
+						{
+							Key:   TenancyClaim,
+							Value: defaultTenancyID,
+						},
+						{
+							Key:   CompartmentClaim,
+							Value: defaultCompartmentID,
+						},
+						{
+							Key:   InstanceClaim,
+							Value: defaultInstanceID,
+						},
+					},
+				},
+			}),
+			assert: assert.NoError,
+			expectedClaims: Claims{
+				TenancyID:     defaultTenancyID,
+				CompartmentID: defaultCompartmentID,
+				InstanceID:    defaultInstanceID,
+			},
+		},
+		{
+			name: "block redirect",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.NotEqual(t, "/dontgohere", r.RequestURI, "redirect was incorrectly performed")
+				http.Redirect(w, r, "/dontgohere", http.StatusFound)
+			}),
+			assert: assert.Error,
+		},
+		{
+			name:    "http error",
+			handler: defaultHandle(http.StatusNotFound, AuthenticateClientResult{}),
+			assert:  assert.Error,
+		},
+		{
+			name: "api error",
+			handler: defaultHandle(http.StatusOK, AuthenticateClientResult{
+				ErrorMessage: "it didn't work",
+			}),
+			assert: assert.Error,
+		},
+		{
+			name: "invalid response type",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte("some junk"))
+			}),
+			assert: assert.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(tc.handler)
+			t.Cleanup(srv.Close)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			req, err := http.NewRequest("", srv.URL, nil)
+			require.NoError(t, err)
+			claims, err := FetchOraclePrincipalClaims(ctx, req)
+			tc.assert(t, err)
+			assert.Equal(t, tc.expectedClaims, claims)
+		})
 	}
 }
