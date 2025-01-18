@@ -14,29 +14,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-// +build !darwin,!windows
+//go:build !windows
+// +build !windows
 
-package dns
+package vnet
 
 import (
 	"context"
-	"runtime"
 
-	"github.com/gravitational/trace"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-var (
-	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-)
-
-type OSUpstreamNameserverSource struct{}
-
-func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
-}
-
-func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
+func platformAuthenticateProcess(ctx context.Context, req *vnetv1.AuthenticateProcessRequest) error {
+	// This is only called in tests, the real method is only used on Windows.
+	return nil
 }

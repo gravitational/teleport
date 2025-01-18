@@ -1,0 +1,111 @@
+package vnet
+
+import (
+	"context"
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
+	"io"
+
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/trace"
+)
+
+// remoteAppProvider implements appProvider when the client application is
+// available over gRPC.
+type remoteAppProvider struct {
+	clt *clientApplicationServiceClient
+}
+
+func newRemoteAppProvider(clt *clientApplicationServiceClient) *remoteAppProvider {
+	return &remoteAppProvider{
+		clt: clt,
+	}
+}
+
+func (p *remoteAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
+	return p.clt.ResolveAppInfo(ctx, fqdn)
+}
+
+func (p *remoteAppProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
+	cert, err := p.clt.ReissueAppCert(ctx, appInfo, targetPort)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "reissuing certificate for app %s", appInfo.GetAppKey().GetName())
+	}
+	signer, err := p.newAppCertSigner(cert, appInfo.GetAppKey(), targetPort)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	tlsCert := tls.Certificate{
+		Certificate: [][]byte{cert},
+		PrivateKey:  signer,
+	}
+	return tlsCert, nil
+}
+
+func (p *remoteAppProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcAppCertSigner, error) {
+	x509Cert, err := x509.ParseCertificate(cert)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing x509 certificate")
+	}
+	return &rpcAppCertSigner{
+		clt:        p.clt,
+		pub:        x509Cert.PublicKey,
+		appKey:     appKey,
+		targetPort: targetPort,
+	}, nil
+}
+
+// rpcAppCertSigner implements [crypto.Signer] for app TLS signatures that are
+// issued by the client application over gRPC.
+type rpcAppCertSigner struct {
+	clt        *clientApplicationServiceClient
+	pub        crypto.PublicKey
+	appKey     *vnetv1.AppKey
+	targetPort uint16
+}
+
+// Public implements [crypto.Signer.Public] and returns the public key
+// associated with the signer.
+func (s *rpcAppCertSigner) Public() crypto.PublicKey {
+	return s.pub
+}
+
+// Sign implements [crypto.Signer.Sign] and issues a signature over digest for
+// the associated app.
+func (s *rpcAppCertSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	protoHash := vnetv1.Hash_HASH_UNSPECIFIED
+	switch opts.HashFunc() {
+	case 0:
+		protoHash = vnetv1.Hash_HASH_NONE
+	case crypto.SHA256:
+		protoHash = vnetv1.Hash_HASH_SHA256
+	}
+	signature, err := s.clt.SignForApp(context.TODO(), &vnetv1.SignForAppRequest{
+		AppKey:     s.appKey,
+		TargetPort: uint32(s.targetPort),
+		Digest:     digest,
+		Hash:       protoHash,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signature, nil
+}
+
+func (p *remoteAppProvider) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+	if err := p.clt.OnNewConnection(ctx, appKey); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (p *remoteAppProvider) OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) {
+	if err := p.clt.OnInvalidLocalPort(ctx, appInfo, targetPort); err != nil {
+		log.ErrorContext(ctx, "Could not notify client application about invalid local port",
+			"error", err,
+			"app_name", appInfo.GetAppKey().GetName(),
+			"target_port", targetPort,
+		)
+	}
+}
