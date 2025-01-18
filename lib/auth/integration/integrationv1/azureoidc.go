@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
+	"github.com/gravitational/trace"
 )
 
 // GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
