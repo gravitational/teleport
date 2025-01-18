@@ -105,13 +105,9 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	var err error
-	roles := s.cfg.Roles
-	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-		if err != nil {
-			return trace.Wrap(err, "fetching default roles")
-		}
+	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	if err != nil {
+		return trace.Wrap(err, "fetching default roles")
 	}
 
 	id, err := generateIdentity(

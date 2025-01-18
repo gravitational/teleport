@@ -59,8 +59,6 @@ func NewKubernetesV2Command(parentCmd *kingpin.CmdClause, action MutatorAction, 
 	cmd.Flag("name-selector", "An explicit Kubernetes cluster name to include. Repeatable.").StringsVar(&c.KubernetesClusterNames)
 	cmd.Flag("label-selector", "A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.").StringsVar(&c.KubernetesClusterLabels)
 
-	// Note: excluding roles; the bot will fetch all available in CLI mode.
-
 	return c
 }
 

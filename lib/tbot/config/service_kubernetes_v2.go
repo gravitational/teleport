@@ -40,10 +40,6 @@ type KubernetesV2Output struct {
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
 
-	// Roles is the list of roles to request for the generated credentials.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
-
 	// DisableExecPlugin disables the default behavior of using `tbot` as a
 	// `kubectl` credentials exec plugin. This is useful in environments where
 	// `tbot` may not exist on the system that will consume the outputted

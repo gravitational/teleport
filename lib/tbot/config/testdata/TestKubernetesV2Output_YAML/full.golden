@@ -1,8 +1,6 @@
 type: kubernetes/v2
 destination:
   type: memory
-roles:
-  - access
 disable_exec_plugin: true
 selectors:
   - name: foo

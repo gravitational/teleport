@@ -27,7 +27,6 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 			name: "full",
 			in: KubernetesV2Output{
 				Destination:       dest,
-				Roles:             []string{"access"},
 				DisableExecPlugin: true,
 				Selectors: []*KubernetesSelector{
 					{
@@ -71,7 +70,6 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			in: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: memoryDestForTest(),
-					Roles:       []string{"access"},
 					Selectors: []*KubernetesSelector{
 						{Name: "foo", Labels: map[string]string{}},
 					},
@@ -83,7 +81,6 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			in: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: memoryDestForTest(),
-					Roles:       []string{"access"},
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{
 							"foo": "bar",
