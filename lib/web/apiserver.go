@@ -64,6 +64,7 @@ import (
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1460,13 +1461,13 @@ func (h *Handler) automaticUpdateSettings(ctx context.Context) webclient.AutoUpd
 	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateConfig", "error", err)
+		h.log.WithError(err).Warn("failed to receive AutoUpdateConfig")
 	}
 
 	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
+		h.log.WithError(err).Warn("failed to receive AutoUpdateVersion")
 	}
 
 	return webclient.AutoUpdateSettings{
