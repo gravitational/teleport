@@ -888,7 +888,13 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
-	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfComment)
+	sampleConfiguration := sampleConfComment
+	if modules.GetModules().IsEnterpriseBuild() && (flags.Roles == "" || strings.Contains(flags.Roles, defaults.RoleAuthService)) {
+
+		sampleConfiguration += thingsToDoConfComment
+	}
+
+	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfiguration)
 	if err != nil {
 		return trace.Wrap(err)
 	}
