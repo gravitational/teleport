@@ -2,8 +2,8 @@
 title: Using the Web UI
 description: Using the Teleport Web UI
 ---
-The Teleport Web UI is a web-based visual interface from which you can access resources, 
-view active sessions and recordings, create and review Access Requests, 
+The Teleport Web UI is a web-based visual interface from which you can access resources,
+view active sessions and recordings, create and review Access Requests,
 manage users and roles, and more.
 
 This page serves a reference on Web UI features and their usage.
@@ -12,24 +12,21 @@ This page serves a reference on Web UI features and their usage.
 
 The Teleport Web UI allows you to list and join active SSH sessions using a web-based terminal.
 
-You can view the active SSH sessions that you are allowed to list by clicking **Active Sessions** in the navigation sidebar. 
-You can only see active sessions if you are assigned a role with `list` access for the `ssh_session` resource. 
-For more information about role permissions and access to resources, see [Teleport Access Controls 
-Reference](../reference/access-controls/roles.mdx).
+You can view the active SSH sessions that you are allowed to list by clicking **Active Sessions** in the navigation sidebar.
 
-From the active sessions list, click **Join** and select a participant mode to join the session: 
+From the active sessions list, click **Join** and select a participant mode to join the session:
 
-- **As an Observer** with read-only access to the session. You can view output but cannot control the session in any way nor 
+- **As an Observer** with read-only access to the session. You can view output but cannot control the session in any way nor
   send any input.
-- **As a Moderator** with permission to watch, pause, or terminate the session. You can view output and forcefully terminate 
-  or pause the session at any time, but can't send input.
 - **As a Peer** to collaborate in the session. You can view output and send input.
+- **As a Moderator** with permission to watch, pause, or terminate the session. You can view output and forcefully terminate
+  or pause the session at any time, but can't send input. Moderated sessions are an enterprise-only feature.
 
 ![joining an active session from the Web UI](../../img/webui-active-session.png)
 
-You must have the `join_sessions` allow policy in a role you've been assigned to join sessions in any participant mode. 
-For information about how to configure the `join_sessions` allow policy and participant modes for a role, see 
-[Configure an allow policy](../admin-guides/access-controls/guides/moderated-sessions.mdx).
+You must have the `join_sessions` allow policy in a role you've been assigned to join sessions in any participant mode.
+For information about how to configure the `join_sessions` allow policy and participant modes for a role, see
+[Configure an allow policy](../admin-guides/access-controls/guides/joining-sessions.mdx).
 
 ## Idle timeout
 
@@ -68,7 +65,7 @@ cluster networking configuration has been updated
 ## Starting a database session
 
 Starting from version `17.1`, users can establish database sessions using the
-Teleport Web UI. Currently, it is supported in PostgreSQL databases. 
+Teleport Web UI. Currently, it is supported in PostgreSQL databases.
 
 To start a new session, locate your database in the resources list and click
 "Connect".
