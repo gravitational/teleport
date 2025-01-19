@@ -141,7 +141,7 @@ const (
 #`
 )
 const (
-	thingsToDoConfComment = `# Things to update:
+	licenseToDoConfComment = `# Things to update:
 #  1. license.pem: Retrieve a license from your Teleport account https://teleport.sh
 #     if you are a self-hosted Enterprise customer.
 #`
