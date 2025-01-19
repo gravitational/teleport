@@ -1832,7 +1832,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicTAGAWSFetchers[dc.GetName()] = awsSyncMatchers
 	s.muDynamicTAGAWSFetchers.Unlock()
 
-	azureSyncMatchers, err := s.accessGraphAzureFetchersFromMatchers(matchers, dc.GetName())
+	azureSyncMatchers, err := s.accessGraphAzureFetchersFromMatchers(ctx, matchers, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
