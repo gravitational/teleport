@@ -16,17 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box } from 'design';
 
 import { State as ResourceState } from 'teleport/components/useResources';
+import cfg from 'teleport/config';
+import { Resource } from 'teleport/services/resources';
 
 import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
 import getSsoIcon from '../ssoIcons/getSsoIcon';
-import { State as AuthConnectorState } from '../useAuthConnectors';
 
-export default function ConnectorList({ items, onEdit, onDelete }: Props) {
+export default function ConnectorList({ items, onDelete }: Props) {
+  const history = useHistory();
   items = items || [];
   const $items = items.map(item => {
     const { id, name, kind } = item;
@@ -41,7 +44,7 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
         Icon={Icon}
         isDefault={false}
         isPlaceholder={false}
-        onEdit={onEdit}
+        onEdit={() => history.push(cfg.getEditAuthConnectorRoute(kind, name))}
         onDelete={onDelete}
         name={name}
       />
@@ -57,8 +60,7 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
 }
 
 type Props = {
-  items: AuthConnectorState['items'];
-  onEdit: ResourceState['edit'];
+  items: Resource<'github'>[];
   onDelete: ResourceState['remove'];
 };
 
