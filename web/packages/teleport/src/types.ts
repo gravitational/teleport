@@ -20,12 +20,7 @@ import React, { ReactNode } from 'react';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
-import {
-  ManagementSection,
-  NavigationCategory,
-} from 'teleport/Navigation/categories';
-
-import { NavigationCategory as SideNavigationCategory } from './Navigation/SideNavigation/categories';
+import { NavigationCategory } from './Navigation/categories';
 
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
@@ -119,11 +114,8 @@ export interface TeleportFeatureRoute {
 export interface TeleportFeature {
   parent?: new () => TeleportFeature | null;
   category?: NavigationCategory;
-  // TODO(rudream): Delete category field above and rename sideNavCategory field to category once old nav is removed.
-  sideNavCategory?: SideNavigationCategory;
   /** standalone is whether this feature has no subsections */
   standalone?: boolean;
-  section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
   // The features that use this are supposed to be "full page" features where navigation
@@ -200,8 +192,6 @@ export interface FeatureFlags {
   newLocks: boolean;
   tokens: boolean;
   accessMonitoring: boolean;
-  // Whether or not the management section should be available.
-  managementSection: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
