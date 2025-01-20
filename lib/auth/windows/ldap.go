@@ -22,9 +22,11 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
+	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
@@ -103,8 +105,16 @@ type LDAPClient struct {
 	// Cfg is the LDAPConfig
 	Cfg LDAPConfig
 
-	mu     sync.Mutex
-	client ldap.Client
+	mu                sync.Mutex
+	client            ldap.Client
+	connectionCreator func(addr string) (*ldap.Conn, error)
+}
+
+// SetConnectionCreator sets the function used for creating connections during referrals traversal
+func (c *LDAPClient) SetConnectionCreator(creator func(addr string) (*ldap.Conn, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.connectionCreator = creator
 }
 
 // SetClient sets the underlying ldap.Client
@@ -124,6 +134,49 @@ func (c *LDAPClient) Close() {
 		c.client.Close()
 	}
 	c.mu.Unlock()
+}
+
+// extractReferrals gathers referrals from ldapErr
+// If LDAP server can't provide the information required but has the knowledge of proper it will return error like:
+// LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310084A
+// You then have to parse content of the ber-encoded error to extract the address for the referral
+func extractReferrals(ldapErr *ldap.Error) []string {
+	if ldapErr == nil {
+		return nil
+	}
+
+	if ldapErr.ResultCode != ldap.LDAPResultReferral {
+		return nil
+	}
+	searchResultIndex := slices.IndexFunc(ldapErr.Packet.Children, func(packet *ber.Packet) bool {
+		return packet.Description == "Search Result Done"
+	})
+	if searchResultIndex < 0 {
+		return nil
+	}
+	searchResult := ldapErr.Packet.Children[searchResultIndex]
+
+	referralsIndex := slices.IndexFunc(searchResult.Children, func(packet *ber.Packet) bool {
+		return packet.Description == "Referral"
+	})
+	if referralsIndex < 0 {
+		return nil
+	}
+	referrals := searchResult.Children[referralsIndex].Children
+
+	out := make([]string, 0, len(referrals))
+	for _, referral := range referrals {
+		referralValue := referral.Value.(string)
+		//value is in form of ldaps://my.domain.example.com/DC=my,DC=domain,DC=example,DC=com
+		// we have to remove everything after the last /
+		last := strings.LastIndex(referralValue, "/")
+		if last >= 0 {
+			referralValue = referralValue[:last]
+		}
+		out = append(out, referralValue)
+	}
+
+	return out
 }
 
 // convertLDAPError attempts to convert LDAP error codes to their
@@ -177,7 +230,27 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	defer c.mu.Unlock()
 
 	res, err := c.client.SearchWithPaging(req, searchPageSize)
-	if err != nil {
+
+	if err == nil {
+		return res.Entries, nil
+	}
+
+	var ldapErr *ldap.Error
+	if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
+		referrals := extractReferrals(ldapErr)
+		for i := 0; i < len(referrals); i++ {
+			if conn, err := c.connectionCreator(referrals[i]); err == nil {
+				res, err := conn.SearchWithPaging(req, searchPageSize)
+				if err == nil {
+					return res.Entries, nil
+				} else if len(referrals) < 10 && errors.As(err, &ldapErr) {
+					newReferrals := extractReferrals(ldapErr)
+					referrals = append(referrals, newReferrals...)
+				}
+			}
+		}
+		return nil, trace.BadParameter("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ","))
+	} else if err != nil {
 		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
 

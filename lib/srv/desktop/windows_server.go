@@ -571,11 +571,14 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL(
-		"ldaps://"+s.cfg.Addr,
-		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
-		ldap.DialWithTLSConfig(tc),
-	)
+	createLDAPConnection := func(addr string) (*ldap.Conn, error) {
+		return ldap.DialURL(
+			addr,
+			ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
+			ldap.DialWithTLSConfig(tc),
+		)
+	}
+	conn, err := createLDAPConnection("ldaps://" + s.cfg.Addr)
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
@@ -592,6 +595,7 @@ func (s *WindowsService) initializeLDAP() error {
 	}
 
 	conn.SetTimeout(ldapRequestTimeout)
+	s.lc.SetConnectionCreator(createLDAPConnection)
 	s.lc.SetClient(conn)
 
 	if err := s.ca.Update(s.closeCtx); err != nil {
@@ -1279,21 +1283,28 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
+		domain := windows.DomainDN(s.cfg.LDAPConfig.Domain)
+		username := username
+		if strings.Contains(username, "@") {
+			parts := strings.SplitN(username, "@", 2)
+			username = parts[0]
+			domain = windows.DomainDN(parts[1])
+		}
+
 		// Find the user's SID
 		filter := windows.CombineLDAPFilters([]string{
 			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
 			fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
-		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)
 
-		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(domain, filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(domain, filter, []string{windows.AttrObjectSid})
 		}
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

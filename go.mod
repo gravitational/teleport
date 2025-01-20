@@ -109,6 +109,7 @@ require (
 	github.com/fsouza/fake-gcs-server v1.52.2
 	github.com/fxamacker/cbor/v2 v2.8.0
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-asn1-ber/asn1-ber v1.5.7
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/go-ldap/ldap/v3 v3.4.10
@@ -348,7 +349,6 @@ require (
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
-	github.com/go-asn1-ber/asn1-ber v1.5.7 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-chi/chi/v5 v5.2.1 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
