@@ -43,7 +43,7 @@ type Config struct {
 	Addr string
 
 	LicenseStore LicenseStore
-	UUID         string
+	HostID       string
 
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn

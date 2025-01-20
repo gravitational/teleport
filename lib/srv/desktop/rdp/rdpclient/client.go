@@ -329,17 +329,17 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	} else if key_der == nil {
-		return trace.BadParameter("user key was nil ")
+		return trace.BadParameter("user key was nil")
 	}
 
-	hostID, err := uuidp.Parse(c.cfg.UUID)
+	hostID, err := uuidp.Parse(c.cfg.HostID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	chostID := [4]C.uint32_t{}
+	cHostID := [4]C.uint32_t{}
 	for i := 0; i < 4; i++ {
-		chostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(hostID[i : i+4]))
+		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(hostID[i : i+4]))
 	}
 
 	res := C.client_run(
@@ -362,7 +362,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
-			uuid:                    chostID,
+			uuid:                    cHostID,
 		},
 	)
 

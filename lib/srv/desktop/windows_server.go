@@ -959,7 +959,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		LicenseStore: s.cfg.LicenseStore,
-		UUID:         s.cfg.Heartbeat.HostUUID,
+		HostID:       s.cfg.Heartbeat.HostUUID,
 		Logger:       log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
