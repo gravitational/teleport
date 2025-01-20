@@ -16,7 +16,7 @@ jobs:
   doc-tests:
     name: Lint (Docs)
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     permissions:
       contents: read
