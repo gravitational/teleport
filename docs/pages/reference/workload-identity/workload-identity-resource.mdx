@@ -16,13 +16,43 @@ resource to be used in a generic way for multiple distinct workloads.
 kind: workload_identity
 version: v1
 metadata:
+  # The name of the WorkloadIdentity resource. This can be used to directly
+  # request the issuance of a credential for this identity.
   name: my-workload
+  # Key-value labels that can be used to group and filter WorkloadIdentity
+  # resources when requesting issuance.
   labels:
     example: foo
 spec:
+  # Configuration relevant to issuing SPIFFE-compatible workload identity
+  # credentials.
   spiffe:
+    # The path element of the SPIFFE ID that will be included in credentials
+    # issued for this identity.
+    #
+    # This must be prefixed with a forward-slash (`/`).
+    #
+    # Required. Supports templating.
     id: /foo/bar/{{ join.kubernetes.pod.name }}/{{ join.kubernetes.service_account.name }}
-    hint: /foo/bars
+    # The hint field allows a string to be passed to workloads along with a
+    # credential issued for this identity. This can be used to help workloads
+    # differentiate between multiple identities that they may have
+    # (e.g `internal` vs `external`).
+    #
+    # Optional. Supports templating.
+    hint: An example hint
+    # Grouped configuration for X.509 credentials.
+    x509:
+      # The DNS Subject Alternative Names (SANs) that should be included in any
+      # X509-SVID issued using this WorkloadIdentity.
+      #
+      # Each individual element of this list supports templating and after
+      # templating must be a valid DNS name.
+      #
+      # Optional, if not provided then no DNS SANs will be included in the X.509
+      # credential.
+      dns_sans:
+      - example.com
 ```
 
 ## Templating
