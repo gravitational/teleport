@@ -30,14 +30,6 @@ func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
 	return vnetCommandNotSupported{}
 }
 
-func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCLICommand {
-	return vnetCommandNotSupported{}
-}
-
-func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCLICommand {
-	return vnetCommandNotSupported{}
-}
-
 func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
 	return vnetCommandNotSupported{}
 }

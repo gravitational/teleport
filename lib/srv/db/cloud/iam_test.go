@@ -20,14 +20,13 @@ package cloud
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -159,13 +158,13 @@ func TestAWSIAM(t *testing.T) {
 		},
 		Clients: &clients.TestCloudClients{
 			STS: &stsClient.STSClientV1,
-			IAM: iamClient,
 		},
 		HostID: "host-id",
 		onProcessedTask: func(iamTask, error) {
 			taskChan <- struct{}{}
 		},
 		awsClients: fakeAWSClients{
+			iamClient: iamClient,
 			rdsClient: clt,
 		},
 	})
@@ -255,7 +254,7 @@ func TestAWSIAM(t *testing.T) {
 				err = configurator.Setup(ctx, database)
 				require.NoError(t, err)
 				waitForTaskProcessed(t)
-				output, err := iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+				output, err := iamClient.GetRolePolicy(ctx, getRolePolicyInput)
 				require.NoError(t, err)
 				require.True(t, tt.getIAMAuthEnabled())
 				require.Contains(t, aws.ToString(output.PolicyDocument), tt.wantPolicyContains)
@@ -268,7 +267,7 @@ func TestAWSIAM(t *testing.T) {
 				err = configurator.Teardown(ctx, database)
 				require.NoError(t, err)
 				waitForTaskProcessed(t)
-				_, err = iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+				_, err = iamClient.GetRolePolicy(ctx, getRolePolicyInput)
 				require.True(t, trace.IsNotFound(err))
 				meta := database.GetAWS()
 				if meta.AssumeRoleARN != "" {
@@ -296,68 +295,76 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 	tests := []struct {
-		name    string
-		meta    types.AWS
-		clients clients.Clients
+		name       string
+		meta       types.AWS
+		clients    clients.Clients
+		awsClients awsClientProvider
 	}{
 		{
 			name: "RDS database",
 			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 			clients: &clients.TestCloudClients{
-				IAM: &mocks.IAMErrorMock{
-					Error: trace.AccessDenied("unauthorized"),
-				},
 				STS: stsClient,
+			},
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{Unauth: true},
+				rdsClient: &mocks.RDSClient{Unauth: true},
 			},
 		},
 		{
 			name: "Aurora cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 			clients: &clients.TestCloudClients{
-				IAM: &mocks.IAMErrorMock{
-					Error: trace.AccessDenied("unauthorized"),
-				},
 				STS: stsClient,
+			},
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{Unauth: true},
+				rdsClient: &mocks.RDSClient{Unauth: true},
 			},
 		},
 		{
 			name: "RDS database missing metadata",
 			meta: types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
 			clients: &clients.TestCloudClients{
-				IAM: &mocks.IAMErrorMock{
-					Error: trace.AccessDenied("unauthorized"),
-				},
 				STS: stsClient,
+			},
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{Unauth: true},
+				rdsClient: &mocks.RDSClient{Unauth: true},
 			},
 		},
 		{
 			name: "Redshift cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				IAM: &mocks.IAMErrorMock{
-					Error: trace.AccessDenied("unauthorized"),
-				},
 				STS: stsClient,
+			},
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{Unauth: true},
 			},
 		},
 		{
 			name: "ElastiCache",
 			meta: types.AWS{Region: "localhost", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
 			clients: &clients.TestCloudClients{
-				IAM: &mocks.IAMErrorMock{
-					Error: trace.AccessDenied("unauthorized"),
-				},
 				STS: stsClient,
+			},
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{Unauth: true},
 			},
 		},
 		{
 			name: "IAM UnmodifiableEntityException",
 			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				IAM: &mocks.IAMErrorMock{
-					Error: awserr.New(iam.ErrCodeUnmodifiableEntityException, "unauthorized", fmt.Errorf("unauthorized")),
-				},
 				STS: stsClient,
+			},
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{
+					Error: &iamtypes.UnmodifiableEntityException{
+						Message: aws.String("Cannot perform the operation on the protected role"),
+					},
+				},
 			},
 		},
 	}
@@ -376,9 +383,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 						},
 					},
 				},
-				awsClients: fakeAWSClients{
-					rdsClient: &mocks.RDSClient{Unauth: true},
-				},
+				awsClients: test.awsClients,
 			})
 			require.NoError(t, err)
 

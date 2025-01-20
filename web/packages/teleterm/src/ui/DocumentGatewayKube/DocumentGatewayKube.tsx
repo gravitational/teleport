@@ -54,10 +54,9 @@ export const DocumentGatewayKube = (props: {
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const { params } = routing.parseKubeUri(doc.targetUri);
-  const gateway = ctx.clustersService.findGatewayByConnectionParams(
-    doc.targetUri,
-    ''
-  );
+  const gateway = ctx.clustersService.findGatewayByConnectionParams({
+    targetUri: doc.targetUri,
+  });
   const connected = !!gateway;
 
   const [connectAttempt, createGateway] = useAsync(async () => {

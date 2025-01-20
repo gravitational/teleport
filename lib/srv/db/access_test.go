@@ -2492,7 +2492,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 			STS:            &mocks.STSClientV1{},
 			MemoryDB:       p.MemoryDB,
 			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:            &mocks.IAMMock{},
 			GCPSQL:         p.GCPSQL,
 		}
 	}

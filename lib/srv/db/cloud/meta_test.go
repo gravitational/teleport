@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -504,6 +505,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 type fakeAWSClients struct {
 	ecClient       elasticacheClient
+	iamClient      iamClient
 	rdsClient      rdsClient
 	redshiftClient redshiftClient
 	rssClient      rssClient
@@ -511,6 +513,10 @@ type fakeAWSClients struct {
 
 func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
 	return f.ecClient
+}
+
+func (f fakeAWSClients) getIAMClient(aws.Config, ...func(*iam.Options)) iamClient {
+	return f.iamClient
 }
 
 func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClient {

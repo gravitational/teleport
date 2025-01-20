@@ -160,7 +160,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}
 
 	s.clusterConfigCache = vnet.NewClusterConfigCache(s.cfg.Clock)
-	processManager, err := vnet.Run(ctx, &vnet.RunConfig{
+	processManager, err := vnet.RunUserProcess(ctx, &vnet.UserProcessConfig{
 		AppProvider:        appProvider,
 		ClusterConfigCache: s.clusterConfigCache,
 	})

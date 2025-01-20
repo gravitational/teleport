@@ -14,6 +14,11 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// TODO(nklaassen): refactor OS configuration so this file isn't
+// platform-specific.
+//go:build darwin
+// +build darwin
+
 package vnet
 
 import (
