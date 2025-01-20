@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -510,6 +511,11 @@ func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 	}
 	list := &accessgraphv1.ResourceList{}
 	for _, user := range users {
+		// If the user's weakest device is not set, set it now.
+		if auth := user.GetLocalAuth(); auth != nil &&
+			user.GetWeakestDevice() == types.MFADeviceKind_MFA_DEVICE_KIND_UNSPECIFIED {
+			user.SetWeakestDevice(local.GetWeakestMFADeviceKind(auth.MFA))
+		}
 		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
 			Resource: &accessgraphv1.ResourceEntry_User{
 				// reset local auth to avoid sending secrets to the access graph service
