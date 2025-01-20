@@ -15,28 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { ComponentProps, useCallback, useEffect } from 'react';
+import { ComponentProps } from 'react';
 import { z } from 'zod';
 
-import { useAsync } from 'shared/hooks/useAsync';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 
 import { PortFieldInput } from '../components/FieldInputs';
 import { FormFields, OfflineGateway } from '../components/OfflineGateway';
 import { useGateway } from '../DocumentGateway/useGateway';
-import { retryWithRelogin } from '../utils';
 import { AppGateway } from './AppGateway';
 
 export function DocumentGatewayApp(props: {
   doc: DocumentGateway;
   visible: boolean;
 }) {
-  const { doc, visible } = props;
-  const appCtx = useAppContext();
-  const { tshd } = appCtx;
+  const { doc } = props;
   const {
     gateway,
     defaultPort,
@@ -64,29 +58,13 @@ export function DocumentGatewayApp(props: {
     formSchema = multiPortSchema;
   }
 
-  const [tcpPortsAttempt, getTcpPorts] = useAsync(
-    useCallback(
-      () =>
-        retryWithRelogin(appCtx, doc.targetUri, () =>
-          tshd
-            .getApp({ appUri: doc.targetUri })
-            .then(({ response }) => response.app.tcpPorts)
-        ),
-      [appCtx, doc.targetUri, tshd]
-    )
-  );
-
-  useEffect(() => {
-    // Fetch TCP ports, but only when the gateway points at a multi-port TCP app and when the tab is
-    // visible. This is so that if the user reopens a session with a lot of app gateways, we don't
-    // fetch all ports at once.
-    if (visible && isMultiPort && tcpPortsAttempt.status === '') {
-      void getTcpPorts();
-    }
-  }, [visible, isMultiPort, tcpPortsAttempt, getTcpPorts]);
-
   return (
-    <Document visible={props.visible}>
+    <Document
+      visible={props.visible}
+      // All documents are rendered in the DOM at the same time, but non-visible docs are hidden with
+      // `display: none`. This testid allows us to scope queries only to certain documents.
+      data-testid={doc.uri}
+    >
       {!connected ? (
         <OfflineGateway
           connectAttempt={connectAttempt}
@@ -125,8 +103,6 @@ export function DocumentGatewayApp(props: {
           changeLocalPortAttempt={changeLocalPortAttempt}
           changeTargetPort={changeTargetPort}
           changeTargetPortAttempt={changeTargetPortAttempt}
-          getTcpPorts={getTcpPorts}
-          tcpPortsAttempt={tcpPortsAttempt}
         />
       )}
     </Document>

@@ -19,6 +19,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net"
@@ -78,11 +79,13 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KubernetesCluster: params.TargetURI.GetKubeName(),
 	}
 
+	targetURI := params.TargetURI
+
 	config := gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetName:            cmp.Or(targetURI.GetDbName(), targetURI.GetKubeName(), targetURI.GetAppName()),
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		Insecure:              true,
@@ -240,6 +243,52 @@ func TestGatewayCRUD(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Equal(t, wantGateway, actualGateway)
+			},
+		},
+		{
+			name:                   "CreateGateway returns error if db gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:  createdGateway.TargetURI().String(),
+					TargetUser: createdGateway.TargetUser(),
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
+		{
+			name:                   "CreateGateway returns error if app gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendApp,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:             createdGateway.TargetURI().String(),
+					TargetSubresourceName: createdGateway.TargetSubresourceName(),
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
+		{
+			name:                   "SetTargetSubresourceName returns error if db gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:             createdGateway.TargetURI().String(),
+					TargetSubresourceName: "4242",
+				})
+				require.NoError(t, err)
+
+				_, err = daemon.SetGatewayTargetSubresourceName(context.Background(),
+					createdGateway.URI().String(), "4242")
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
 	}
