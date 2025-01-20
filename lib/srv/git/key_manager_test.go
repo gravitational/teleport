@@ -85,11 +85,13 @@ func TestKeyManager_verify_github(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("connect and verify", func(t *testing.T) {
+		hostKeyCallback, err := m.HostKeyCallback(githubServer)
+		require.NoError(t, err)
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			conn, err := ssh.Dial("tcp", targetAddress, &ssh.ClientConfig{
 				User:            "git",
 				Auth:            clientAuth,
-				HostKeyCallback: m.HostKeyCallback(githubServer),
+				HostKeyCallback: hostKeyCallback,
 			})
 			assert.NoError(collect, err)
 			if conn != nil {
@@ -99,8 +101,17 @@ func TestKeyManager_verify_github(t *testing.T) {
 	})
 
 	t.Run("unknown key", func(t *testing.T) {
+		hostKeyCallback, err := m.HostKeyCallback(githubServer)
+		require.NoError(t, err)
 		unknownHostKey, err := apisshutils.MakeRealHostCert(caSigner)
 		require.NoError(t, err)
-		require.Error(t, m.HostKeyCallback(githubServer)("github.com", utils.MustParseAddr(targetAddress), unknownHostKey.PublicKey()))
+		require.Error(t, hostKeyCallback("github.com", utils.MustParseAddr(targetAddress), unknownHostKey.PublicKey()))
+	})
+
+	t.Run("unknown Git server type", func(t *testing.T) {
+		unsupported := githubServer.DeepCopy()
+		unsupported.SetSubKind("unsupported")
+		_, err := m.HostKeyCallback(unsupported)
+		require.Error(t, err)
 	})
 }

@@ -21,6 +21,7 @@ package git
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"sync/atomic"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -43,8 +45,7 @@ import (
 // githubKeyDownloader downloads SSH keys from the GitHub meta API. The keys
 // are used to verify GitHub server when forwarding Git commands to it.
 type githubKeyDownloader struct {
-	keys atomic.Value
-	etag string
+	keys atomic.Pointer[[]ssh.PublicKey]
 
 	logger      *slog.Logger
 	apiEndpoint string
@@ -66,20 +67,14 @@ func (d *githubKeyDownloader) Start(ctx context.Context) {
 	d.logger.InfoContext(ctx, "Starting GitHub key downloader")
 	defer d.logger.InfoContext(ctx, "GitHub key downloader stopped")
 
-	// Fire a refresh immediately.
+	// Fire a refresh immediately then once a day afterward.
 	timer := d.clock.NewTimer(0)
 	defer timer.Stop()
 	for {
 		select {
 		case <-timer.Chan():
-			// Schedule a refresh in 24 hours upon success and in 5 minutes upon
-			// failure.
-			if err := d.refresh(ctx); err != nil {
-				d.logger.WarnContext(ctx, "Failed to download GitHub server keys", "error", err)
-				timer.Reset(time.Minute * 5)
-			} else {
-				timer.Reset(time.Hour * 24)
-			}
+			d.refreshWithRetries(ctx)
+			timer.Reset(time.Hour * 24)
 		case <-ctx.Done():
 			return
 		}
@@ -92,25 +87,49 @@ func (d *githubKeyDownloader) GetKnownKeys() ([]ssh.PublicKey, error) {
 	if keys == nil {
 		return nil, trace.NotFound("server keys not found for github.com")
 	}
-	return keys.([]ssh.PublicKey), nil
+	return *keys, nil
+}
+
+func (d *githubKeyDownloader) refreshWithRetries(ctx context.Context) {
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(time.Second),
+		Max:    time.Minute * 10,
+		Jitter: retryutils.HalfJitter,
+		Clock:  d.clock,
+	})
+	if err != nil {
+		d.logger.WarnContext(ctx, "Failed to create retry", "error", err)
+		return
+	}
+
+	for {
+		if err := d.refresh(ctx); err != nil {
+			d.logger.WarnContext(ctx, "Failed to download GitHub server keys", "error", err)
+		} else {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-retry.After():
+			retry.Inc()
+		}
+	}
 }
 
 func (d *githubKeyDownloader) refresh(ctx context.Context) error {
 	d.logger.DebugContext(ctx, "Calling GitHub meta API", "endpoint", d.apiEndpoint)
 	// Meta API reference:
 	// https://docs.github.com/en/rest/meta/meta#get-github-meta-information
-	req, err := http.NewRequest("GET", d.apiEndpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", d.apiEndpoint, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Add ETag check.
-	if d.etag != "" {
-		req.Header.Set("If-None-Match", d.etag)
-	}
-
-	client := &http.Client{
-		Timeout: defaults.HTTPRequestTimeout,
+	client, err := defaults.HTTPClient()
+	if err != nil {
+		return trace.Wrap(err, "creating HTTP client")
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -118,21 +137,16 @@ func (d *githubKeyDownloader) refresh(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 
-	// Nothing changed. Just update the last check time.
-	if resp.StatusCode == http.StatusNotModified {
-		d.logger.DebugContext(ctx, "GitHub metadata is up-to-date")
-		return nil
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return trace.Wrap(err, "reading GitHub meta API response body")
 	}
 
 	meta := struct {
 		SSHKeys []string `json:"ssh_keys"`
 	}{}
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
-		return trace.Wrap(err, "decoding meta API response")
-	}
-
-	if len(meta.SSHKeys) == 0 {
-		return trace.NotFound("no SSH keys found")
+	if err := json.Unmarshal(body, &meta); err != nil {
+		return trace.Wrap(err, "decoding GitHub meta API response")
 	}
 
 	var keys []ssh.PublicKey
@@ -144,9 +158,8 @@ func (d *githubKeyDownloader) refresh(ctx context.Context) error {
 		keys = append(keys, publicKey)
 	}
 
-	d.etag = resp.Header.Get("ETag")
-	d.keys.Store(keys)
-	d.logger.DebugContext(ctx, "Fetched GitHub metadata", "ssh_keys", meta.SSHKeys, "etag", d.etag)
+	d.keys.Store(&keys)
+	d.logger.DebugContext(ctx, "Fetched GitHub metadata", "ssh_keys", meta.SSHKeys)
 	return nil
 }
 

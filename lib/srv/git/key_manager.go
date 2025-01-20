@@ -133,28 +133,27 @@ func (m *KeyManager) startWatcher(ctx context.Context) error {
 }
 
 // HostKeyCallback creates an ssh.HostKeyCallback for verifying the target git-hosting service.
-func (m *KeyManager) HostKeyCallback(targetServer types.Server) ssh.HostKeyCallback {
-	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
-		switch targetServer.GetSubKind() {
-		case types.SubKindGitHub:
-			return trace.Wrap(m.verifyGitHub(key))
-		default:
-			return trace.BadParameter("unsupported subkind %q", targetServer.GetSubKind())
-		}
+func (m *KeyManager) HostKeyCallback(targetServer types.Server) (ssh.HostKeyCallback, error) {
+	switch targetServer.GetSubKind() {
+	case types.SubKindGitHub:
+		return m.verifyGitHub, nil
+	default:
+		return nil, trace.BadParameter("unsupported subkind %q", targetServer.GetSubKind())
 	}
 }
 
-func (m *KeyManager) verifyGitHub(key ssh.PublicKey) error {
+func (m *KeyManager) verifyGitHub(_ string, _ net.Addr, key ssh.PublicKey) error {
 	knownKeys, err := m.cfg.githubServerKeys.GetKnownKeys()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	marshaledKey := key.Marshal()
 	for _, knownKey := range knownKeys {
 		if knownKey.Type() == key.Type() {
-			if bytes.Equal(knownKey.Marshal(), key.Marshal()) {
+			if bytes.Equal(knownKey.Marshal(), marshaledKey) {
 				return nil
 			}
 		}
 	}
-	return trace.BadParameter("cannot verify github.com: unknown server key %q", string(key.Marshal()))
+	return trace.BadParameter("cannot verify github.com")
 }

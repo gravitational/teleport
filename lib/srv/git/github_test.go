@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -153,7 +152,6 @@ func TestMakeGitHubSigner(t *testing.T) {
 type mockGitHubMetaAPIServer struct {
 	*httptest.Server
 
-	etag         string
 	metaResponse []byte
 }
 
@@ -170,7 +168,6 @@ func newMockGitHubMetaAPIServer(t *testing.T, keys ...ssh.PublicKey) *mockGitHub
 	require.NoError(t, err)
 
 	m := &mockGitHubMetaAPIServer{
-		etag:         uuid.NewString(),
 		metaResponse: metaResponse,
 	}
 	m.Server = httptest.NewServer(m)
@@ -179,10 +176,6 @@ func newMockGitHubMetaAPIServer(t *testing.T, keys ...ssh.PublicKey) *mockGitHub
 }
 
 func (m *mockGitHubMetaAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("If-None-Match") == m.etag {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(m.metaResponse)
 }
@@ -215,8 +208,7 @@ func Test_githubKeyDownloader(t *testing.T) {
 			name: "success update",
 			setup: func(d *githubKeyDownloader) {
 				d.apiEndpoint = mockSuccessServer.URL
-				d.etag = "old-etag"
-				d.keys.Store([]ssh.PublicKey{publicKey, publicKey})
+				d.keys.Store(&[]ssh.PublicKey{publicKey, publicKey})
 			},
 			checkRefreshError: require.NoError,
 			expectGetCount:    1,
@@ -225,19 +217,9 @@ func Test_githubKeyDownloader(t *testing.T) {
 			name: "failure should not override existing keys",
 			setup: func(d *githubKeyDownloader) {
 				d.apiEndpoint = mockFailureServer.URL
-				d.keys.Store([]ssh.PublicKey{publicKey, publicKey})
+				d.keys.Store(&[]ssh.PublicKey{publicKey, publicKey})
 			},
 			checkRefreshError: require.Error,
-			expectGetCount:    2,
-		},
-		{
-			name: "ETag match",
-			setup: func(d *githubKeyDownloader) {
-				d.apiEndpoint = mockSuccessServer.URL
-				d.etag = mockSuccessServer.etag
-				d.keys.Store([]ssh.PublicKey{publicKey, publicKey})
-			},
-			checkRefreshError: require.NoError,
 			expectGetCount:    2,
 		},
 	}

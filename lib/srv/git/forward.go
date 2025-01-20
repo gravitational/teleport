@@ -176,10 +176,16 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	verifyRemoteHost, err := cfg.KeyManager.HostKeyCallback(cfg.TargetServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	logger := slog.With(teleport.ComponentKey, teleport.ComponentForwardingGit,
 		"src_addr", cfg.SrcAddr.String(),
 		"dst_addr", cfg.DstAddr.String(),
 	)
+
 	s := &ForwardServer{
 		StreamEmitter:    cfg.Emitter,
 		cfg:              cfg,
@@ -188,7 +194,7 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		logger:           logger,
 		reply:            sshutils.NewReply(logger),
 		id:               uuid.NewString(),
-		verifyRemoteHost: cfg.KeyManager.HostKeyCallback(cfg.TargetServer),
+		verifyRemoteHost: verifyRemoteHost,
 		makeRemoteSigner: makeRemoteSigner,
 	}
 	// TODO(greedy52) extract common parts from srv.NewAuthHandlers like

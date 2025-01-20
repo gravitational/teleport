@@ -125,6 +125,9 @@ type server struct {
 
 	// proxySigner is used to sign PROXY headers to securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// gitKeyManager manages keys for git proxies.
+	gitKeyManager *git.KeyManager
 }
 
 // Config is a reverse tunnel server configuration
@@ -224,9 +227,6 @@ type Config struct {
 
 	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
 	PROXYSigner multiplexer.PROXYHeaderSigner
-
-	// GitKeyManager manages keys for git proxies.
-	GitKeyManager *git.KeyManager
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -286,17 +286,6 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
 	}
-	if cfg.GitKeyManager == nil {
-		var err error
-		cfg.GitKeyManager, err = git.NewKeyManager(&git.KeyManagerConfig{
-			ParentContext: cfg.Context,
-			AuthClient:    cfg.LocalAuthClient,
-			AccessPoint:   cfg.LocalAccessPoint,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
@@ -334,6 +323,16 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	gitKeyManager, err := git.NewKeyManager(&git.KeyManagerConfig{
+		ParentContext: ctx,
+		AuthClient:    cfg.LocalAuthClient,
+		AccessPoint:   cfg.LocalAccessPoint,
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	srv := &server{
 		Config:           cfg,
 		localAuthClient:  cfg.LocalAuthClient,
@@ -346,6 +345,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		logger:           cfg.Logger,
 		offlineThreshold: offlineThreshold,
 		proxySigner:      cfg.PROXYSigner,
+		gitKeyManager:    gitKeyManager,
 	}
 
 	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
