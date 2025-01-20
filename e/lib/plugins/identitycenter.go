@@ -2,8 +2,11 @@ package plugins
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -12,6 +15,7 @@ import (
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
 
@@ -61,21 +65,14 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err)
 		}
 
-		awsConfig, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
-			Region:                settings.Region,
-			IntegrationName:       settings.IntegrationName,
-			IntegrationGetter:     authServer.Services,
-			AWSOIDCTokenGenerator: identitycenter.MakeTokenGenerator(authServer),
-			Logger:                logger,
-			Clock:                 authServer.GetClock(),
-		})
+		awsClientConfig, err := makeAWSConfig(ctx, settings, authServer, logger)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		identityCenterClient, err := icsdk.New(icsdk.Config{
 			InstanceARN: instanceARN.String(),
-			AWSConfig:   awsConfig,
+			AWSConfig:   awsClientConfig,
 			Logger:      logger,
 		})
 		if err != nil {
@@ -127,4 +124,46 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 	}
 
 	return svc, nil
+}
+
+// makeAWSConfig generates an AWS client configuration for the integration to
+// use.
+func makeAWSConfig(ctx context.Context, settings *types.PluginAWSICSettings, authServer *auth.Server, logger *slog.Logger) (*aws.Config, error) {
+
+	if err := cloudaws.ValidateAWSRegion(settings.Region); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch settings.CredentialsSource {
+	case types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN,
+		types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC:
+		logger.DebugContext(ctx, "Using AWS OIDC integration",
+			slog.String("integration", settings.IntegrationName))
+		cfg, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+			Region:                settings.Region,
+			IntegrationName:       settings.IntegrationName,
+			IntegrationGetter:     authServer.Services,
+			AWSOIDCTokenGenerator: identitycenter.MakeTokenGenerator(authServer),
+			Logger:                logger,
+			Clock:                 authServer.GetClock(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg, nil
+
+	case types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM:
+		logger.DebugContext(ctx, "Using ambient system AWS configuration")
+		cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(settings.Region))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &cfg, nil
+
+	default:
+		//nolint:sloglint // sloglint incorrectly treats the word "source" as a forbidden field key
+		logger.ErrorContext(ctx, "Invalid CredentialsSource value",
+			slog.Any("source", settings.CredentialsSource))
+		return nil, trace.BadParameter("invalid CredentialsSource value: %v", settings.CredentialsSource)
+	}
 }
