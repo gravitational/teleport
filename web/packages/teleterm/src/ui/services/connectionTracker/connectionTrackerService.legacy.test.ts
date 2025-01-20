@@ -43,6 +43,8 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+// TODO(ravicious): Rewrite those tests to use MockAppContext instead of manually mocking everything.
+
 it('removeItemsBelongingToRootCluster removes connections', () => {
   jest.mock('../workspacesService');
 
@@ -75,7 +77,6 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
       targetUser: 'alice',
       targetName: 'test',
       targetSubresourceName: 'pg',
-      gatewayUri: '/gateways/4f68927b-579c-47a8-b965-efa8159203c9',
     },
     {
       kind: 'connection.kube',
