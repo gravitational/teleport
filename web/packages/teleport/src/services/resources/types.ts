@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthType } from 'shared/services';
+
 export type Resource<T extends Kind> = {
   id: string;
   kind: T;
@@ -88,6 +90,11 @@ export type RoleConditions = {
 };
 
 export type Labels = Record<string, string | string[]>;
+
+export type DefaultAuthConnector = {
+  name?: string;
+  type: AuthType;
+};
 
 export type KubernetesResource = {
   kind?: KubernetesResourceKind;

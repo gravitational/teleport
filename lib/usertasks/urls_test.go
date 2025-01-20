@@ -149,3 +149,49 @@ func TestEC2URLs(t *testing.T) {
 		})
 	}
 }
+
+func TestRDSURLs(t *testing.T) {
+	databaseName := "my-database"
+	dummyDatabase := &usertasksv1.DiscoverRDSDatabase{Name: databaseName}
+	baseDatabaseData := &usertasksv1.DiscoverRDS{
+		Region: "us-east-1",
+		Databases: map[string]*usertasksv1.DiscoverRDSDatabase{
+			databaseName: dummyDatabase,
+		},
+	}
+
+	for _, tt := range []struct {
+		name                       string
+		issueType                  string
+		expectedRDSDatabaseWithURL *DiscoverRDSDatabaseWithURLs
+		expected                   *UserTaskDiscoverRDSWithURLs
+	}{
+		{
+			name:      "url for rds database without IAM Authentication",
+			issueType: usertasksapi.AutoDiscoverRDSIssueIAMAuthenticationDisabled,
+			expectedRDSDatabaseWithURL: &DiscoverRDSDatabaseWithURLs{
+				ResourceURL:      "https://console.aws.amazon.com/rds/home?region=us-east-1#database:id=my-database;is-cluster=false",
+				ConfigurationURL: "https://console.aws.amazon.com/rds/home?region=us-east-1#database:id=my-database;is-cluster=false;tab=configuration",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			databaseWithURL := tt.expectedRDSDatabaseWithURL
+			databaseWithURL.DiscoverRDSDatabase = dummyDatabase
+			expected := &UserTaskDiscoverRDSWithURLs{
+				DiscoverRDS: baseDatabaseData,
+				Databases: map[string]*DiscoverRDSDatabaseWithURLs{
+					databaseName: databaseWithURL,
+				},
+			}
+
+			got := RDSDatabasesWithURLs(&usertasksv1.UserTask{
+				Spec: &usertasksv1.UserTaskSpec{
+					IssueType:   tt.issueType,
+					DiscoverRds: baseDatabaseData,
+				},
+			})
+			require.Equal(t, expected, got)
+		})
+	}
+}
