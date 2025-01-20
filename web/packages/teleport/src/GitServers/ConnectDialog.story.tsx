@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import ConnectDialog from './ConnectDialog';
+import { ConnectDialog } from './ConnectDialog';
 
 export default {
   title: 'Teleport/GitServers/Connect',
