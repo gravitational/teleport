@@ -148,6 +148,7 @@ import (
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/expiry"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -2460,6 +2461,26 @@ func (process *TeleportProcess) initAuthService() error {
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(auth.ReconcileServerInfos(process.GracefulExitContext(), authServer))
 	})
+
+	expiry, err := expiry.New(&expiry.Config{
+		Log: logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
+		),
+		Emitter:     authServer,
+		AccessPoint: authServer.Services,
+		Clock:       process.Clock,
+		HostID:      cfg.HostUUID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.expiry", func() error {
+		if err := expiry.Run(process.GracefulExitContext()); err != nil {
+			logger.ErrorContext(process.GracefulExitContext(), "expiry starting", "error", err)
+		}
+		return trace.Wrap(err)
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2563,6 +2584,8 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
 	cfg.IdentityCenter = services.IdentityCenter
+	cfg.PluginStaticCredentials = services.PluginStaticCredentials
+	cfg.GitServers = services.GitServers
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2609,6 +2632,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.WindowsDesktops = client
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
+	cfg.GitServers = client.GitServerClient()
 
 	return accesspoint.NewCache(cfg)
 }
@@ -4313,6 +4337,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	gitServerWatcher, err := services.NewGitServerWatcher(process.ExitContext(), services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    teleport.ComponentProxy,
+			Logger:       process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:       accessPoint,
+			MaxStaleness: time.Minute,
+		},
+		GitServerGetter: accessPoint.GitServerReadOnlyClient(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -4427,6 +4464,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
 				NodeWatcher:           nodeWatcher,
+				GitServerWatcher:      gitServerWatcher,
 				CertAuthorityWatcher:  caWatcher,
 				CircuitBreakerConfig:  process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:    utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),

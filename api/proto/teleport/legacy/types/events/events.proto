@@ -1547,6 +1547,33 @@ message AccessRequestCreate {
   ];
 }
 
+// AccessRequestExpire is emitted when access request has expired.
+message AccessRequestExpire {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // RequestID is access request ID
+  string RequestID = 3 [(gogoproto.jsontag) = "id"];
+
+  // ResourceExpiry is the time at which the access request resource will expire.
+  google.protobuf.Timestamp ResourceExpiry = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "expiry,omitempty"
+  ];
+}
+
 // ResourceID is a unique identifier for a teleport resource. This is duplicated
 // from api/types/types.proto to decouple the api and events types and because
 // neither file currently imports the other.
@@ -4354,6 +4381,8 @@ message IntegrationMetadata {
   AWSOIDCIntegrationMetadata AWSOIDC = 2 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
   // AzureOIDC contains metadata for Azure OIDC integrations.
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+  // GitHub contains metadata for GitHub integrations.
+  GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4373,6 +4402,12 @@ message AzureOIDCIntegrationMetadata {
 
   // ClientID specifies the ID of Azure enterprise application (client).
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationMetadata contains metadata for GitHub integrations.
+message GitHubIntegrationMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // PluginCreate is emitted when a plugin resource is created.
@@ -4705,7 +4740,9 @@ message OneOf {
     events.WorkloadIdentityCreate WorkloadIdentityCreate = 194;
     events.WorkloadIdentityUpdate WorkloadIdentityUpdate = 195;
     events.WorkloadIdentityDelete WorkloadIdentityDelete = 196;
+    events.GitCommand GitCommand = 197;
     events.UserLoginAccessListInvalid UserLoginAccessListInvalid = 198;
+    events.AccessRequestExpire AccessRequestExpire = 199;
   }
 }
 
@@ -7840,4 +7877,70 @@ enum ContactType {
   CONTACT_TYPE_UNSPECIFIED = 0;
   CONTACT_TYPE_BUSINESS = 1;
   CONTACT_TYPE_SECURITY = 2;
+}
+
+// GitCommand is emitted when a user performs a Git fetch or push command.
+message GitCommand {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CommandMetadata is a common command metadata
+  CommandMetadata Command = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Service is the type of the git request like git-upload-pack or
+  // git-receive-pack.
+  string service = 8 [(gogoproto.jsontag) = "service"];
+  // Path is the Git repo path, usually <org>/<repo>.
+  string path = 9 [(gogoproto.jsontag) = "path"];
+
+  // Actions defines details for a Git push.
+  repeated GitCommandAction actions = 10 [(gogoproto.jsontag) = "actions,omitempty"];
+}
+
+// GitCommandAction defines details for a Git push.
+message GitCommandAction {
+  // Action type like create or update.
+  string Action = 1 [(gogoproto.jsontag) = "action,omitempty"];
+  // Reference name like ref/main/my_branch.
+  string Reference = 2 [(gogoproto.jsontag) = "reference,omitempty"];
+  // Old is the old hash.
+  string Old = 3 [(gogoproto.jsontag) = "old,omitempty"];
+  // New is the new hash.
+  string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
 }

@@ -205,6 +205,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestExpirEvent is emitted when an access request expires.
+	AccessRequestExpireEvent = "access_request.expire"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestResourceSearch is emitted when a user searches for
@@ -853,6 +855,9 @@ const (
 	ContactCreateEvent = "contact.create"
 	// ContactDeleteEvent is emitted when a Contact resource is deleted.
 	ContactDeleteEvent = "contact.delete"
+
+	// GitCommandEvent is emitted when a Git command is executed.
+	GitCommandEvent = "git.command"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

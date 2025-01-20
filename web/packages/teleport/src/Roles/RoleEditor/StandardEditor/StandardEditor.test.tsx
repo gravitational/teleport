@@ -17,27 +17,21 @@
  */
 
 import { within } from '@testing-library/react';
-import { useState } from 'react';
+import selectEvent from 'react-select-event';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Role } from 'teleport/services/resources';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { StandardEditor, StandardEditorProps } from './StandardEditor';
-import {
-  newRole,
-  roleToRoleEditorModel,
-  StandardEditorModel,
-} from './standardmodel';
+import { useStandardModel } from './useStandardModel';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();
-  const [model, setModel] = useState<StandardEditorModel>({
-    roleModel: roleToRoleEditorModel(newRole()),
-    isDirty: true,
-  });
+  const [model, dispatch] = useStandardModel();
   return (
     <TeleportContextProvider ctx={ctx}>
       <Validation>
@@ -45,7 +39,7 @@ const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
           originalRole={null}
           standardEditorModel={model}
           isProcessing={false}
-          onChange={setModel}
+          dispatch={dispatch}
           {...props}
         />
       </Validation>
@@ -136,6 +130,33 @@ test('invisible tabs still apply validation', async () => {
   await user.type(screen.getByLabelText('Role Name'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(onSave).toHaveBeenCalled();
+});
+
+test('edits metadata', async () => {
+  const user = userEvent.setup();
+  let role: Role | undefined;
+  const onSave = (r: Role) => (role = r);
+  render(<TestStandardEditor onSave={onSave} />);
+  await user.type(screen.getByLabelText('Description'), 'foo');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(role.metadata.description).toBe('foo');
+});
+
+test('edits resource access', async () => {
+  const user = userEvent.setup();
+  let role: Role | undefined;
+  const onSave = (r: Role) => (role = r);
+  render(<TestStandardEditor onSave={onSave} />);
+  await user.click(screen.getByRole('tab', { name: 'Resources' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add New Resource Access' })
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await selectEvent.create(screen.getByLabelText('Logins'), 'ec2-user', {
+    createOptionText: 'Login: ec2-user',
+  });
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(role.spec.allow.logins).toEqual(['{{internal.logins}}', 'ec2-user']);
 });
 
 const getAllMenuItemNames = () =>

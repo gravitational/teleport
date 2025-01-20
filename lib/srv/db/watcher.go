@@ -40,7 +40,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Database]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		GetNewResources:     s.monitoredDatabases.get,
+		GetNewResources:     s.monitoredDatabases.getLocked,
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
@@ -53,12 +53,15 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		for {
 			select {
 			case <-s.reconcileCh:
+				// don't let monitored dbs change during reconciliation
+				s.monitoredDatabases.mu.RLock()
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
 				}
 				if s.cfg.OnReconcile != nil {
 					s.cfg.OnReconcile(s.getProxiedDatabases())
 				}
+				s.monitoredDatabases.mu.RUnlock()
 			case <-ctx.Done():
 				s.log.DebugContext(ctx, "Reconciler done.")
 				return
@@ -169,11 +172,15 @@ func (s *Server) onCreate(ctx context.Context, database types.Database) error {
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
 	databaseCopy := database.Copy()
-	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// only apply resource matcher settings to dynamic resources.
+	if s.monitoredDatabases.isResource_Locked(database) {
+		s.applyAWSResourceMatcherSettings(databaseCopy)
+	}
 
 	// Run DiscoveryResourceChecker after resource matchers are applied to make
 	// sure the correct AssumeRoleARN is used.
-	if s.monitoredDatabases.isDiscoveryResource(database) {
+	if s.monitoredDatabases.isDiscoveryResource_Locked(database) {
 		if err := s.cfg.discoveryResourceChecker.Check(ctx, databaseCopy); err != nil {
 			return trace.Wrap(err)
 		}
@@ -187,7 +194,11 @@ func (s *Server) onUpdate(ctx context.Context, database, _ types.Database) error
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
 	databaseCopy := database.Copy()
-	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// only apply resource matcher settings to dynamic resources.
+	if s.monitoredDatabases.isResource_Locked(database) {
+		s.applyAWSResourceMatcherSettings(databaseCopy)
+	}
 	return s.updateDatabase(ctx, databaseCopy)
 }
 
@@ -200,7 +211,7 @@ func (s *Server) onDelete(ctx context.Context, database types.Database) error {
 func (s *Server) matcher(database types.Database) bool {
 	// In the case of databases discovered by this database server, matchers
 	// should be skipped.
-	if s.monitoredDatabases.isCloud(database) {
+	if s.monitoredDatabases.isCloud_Locked(database) {
 		return true // Cloud fetchers return only matching databases.
 	}
 
@@ -209,12 +220,18 @@ func (s *Server) matcher(database types.Database) bool {
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database.GetAllLabels())
 }
 
-func applyResourceMatchersToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {
-	for _, matcher := range resourceMatchers {
+func (s *Server) applyAWSResourceMatcherSettings(database types.Database) {
+	if !database.IsAWSHosted() {
+		// dynamic matchers only apply AWS settings (for now), so skip non-AWS
+		// databases.
+		return
+	}
+	dbLabels := database.GetAllLabels()
+	for _, matcher := range s.cfg.ResourceMatchers {
 		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
 			continue
 		}
-		if match, _, _ := services.MatchLabels(matcher.Labels, database.GetAllLabels()); !match {
+		if match, _, _ := services.MatchLabels(matcher.Labels, dbLabels); !match {
 			continue
 		}
 

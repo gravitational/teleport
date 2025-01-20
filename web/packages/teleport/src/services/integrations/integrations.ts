@@ -23,6 +23,7 @@ import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
 import makeNode from '../nodes/makeNode';
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
@@ -31,6 +32,7 @@ import {
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
+  CreateAwsAppAccessRequest,
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   Ec2InstanceConnectEndpoint,
@@ -291,6 +293,21 @@ export const integrationService = {
       .then(resp => resp.serviceDashboardUrl);
   },
 
+  async createAwsAppAccessV2(
+    integrationName,
+    req: CreateAwsAppAccessRequest
+  ): Promise<App> {
+    return (
+      api
+        .post(cfg.getAwsAppAccessUrlV2(integrationName), req)
+        .then(makeApp)
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0
+  // replaced by createAwsAppAccessV2 that accepts request body
   async createAwsAppAccess(integrationName): Promise<App> {
     return api
       .post(cfg.getAwsAppAccessUrl(integrationName), null)
@@ -313,9 +330,30 @@ export const integrationService = {
       .then(resp => resp.clusterDashboardUrl);
   },
 
-  async enrollEksClusters(
+  async enrollEksClustersV2(
     integrationName: string,
     req: EnrollEksClustersRequest
+  ): Promise<EnrollEksClustersResponse> {
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return (
+      api
+        .post(
+          cfg.getEnrollEksClusterUrlV2(integrationName),
+          req,
+          null,
+          mfaResponse
+        )
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+  // replaced by enrollEksClustersV2 that accepts labels.
+  async enrollEksClusters(
+    integrationName: string,
+    req: Omit<EnrollEksClustersRequest, 'extraLabels'>
   ): Promise<EnrollEksClustersResponse> {
     const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
@@ -436,7 +474,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc } = json;
+  const { name, subKind, awsoidc, github } = json;
   return {
     resourceType: 'integration',
     name,
@@ -447,6 +485,9 @@ function makeIntegration(json: any): Integration {
       issuerS3Prefix: awsoidc?.issuerS3Prefix,
       audience: awsoidc?.audience,
     },
+    details: github
+      ? `GitHub Organization "${github.organization}"`
+      : undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only

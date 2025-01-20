@@ -323,56 +323,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.bcryptCostOverride = &minCost
 
 	if cfg.CacheEnabled {
-		svces := srv.AuthServer.Services
-		srv.AuthServer.Cache, err = accesspoint.NewCache(accesspoint.Config{
-			Context:      srv.AuthServer.CloseContext(),
-			Setup:        cache.ForAuth,
-			CacheName:    []string{teleport.ComponentAuth},
-			EventsSystem: true,
-			Unstarted:    true,
-
-			Access:                  svces.Access,
-			AccessLists:             svces.AccessLists,
-			AccessMonitoringRules:   svces.AccessMonitoringRules,
-			AppSession:              svces.Identity,
-			Apps:                    svces.Apps,
-			ClusterConfig:           svces.ClusterConfiguration,
-			AutoUpdateService:       svces.AutoUpdateService,
-			CrownJewels:             svces.CrownJewels,
-			DatabaseObjects:         svces.DatabaseObjects,
-			DatabaseServices:        svces.DatabaseServices,
-			Databases:               svces.Databases,
-			DiscoveryConfigs:        svces.DiscoveryConfigs,
-			DynamicAccess:           svces.DynamicAccessExt,
-			Events:                  svces.Events,
-			IdentityCenter:          svces.IdentityCenter,
-			Integrations:            svces.Integrations,
-			KubeWaitingContainers:   svces.KubeWaitingContainer,
-			Kubernetes:              svces.Kubernetes,
-			Notifications:           svces.Notifications,
-			Okta:                    svces.Okta,
-			Presence:                svces.PresenceInternal,
-			Provisioner:             svces.Provisioner,
-			ProvisioningStates:      svces.ProvisioningStates,
-			Restrictions:            svces.Restrictions,
-			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
-			SAMLIdPSession:          svces.Identity,
-			SecReports:              svces.SecReports,
-			SnowflakeSession:        svces.Identity,
-			SPIFFEFederations:       svces.SPIFFEFederations,
-			WorkloadIdentity:        svces.WorkloadIdentities,
-			StaticHostUsers:         svces.StaticHostUser,
-			Trust:                   svces.TrustInternal,
-			UserGroups:              svces.UserGroups,
-			UserTasks:               svces.UserTasks,
-			UserLoginStates:         svces.UserLoginStates,
-			Users:                   svces.Identity,
-			WebSession:              svces.Identity.WebSessions(),
-			WebToken:                svces.WebTokens(),
-			WindowsDesktops:         svces.WindowsDesktops,
-			DynamicWindowsDesktops:  svces.DynamicWindowsDesktops,
-		})
-		if err != nil {
+		if err := InitTestAuthCache(TestAuthCacheParams{
+			AuthServer: srv.AuthServer,
+			Unstarted:  true,
+		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -542,6 +496,69 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		}
 	}
 	return srv, nil
+}
+
+type TestAuthCacheParams struct {
+	AuthServer *Server
+	Unstarted  bool
+}
+
+func InitTestAuthCache(p TestAuthCacheParams) error {
+	c, err := accesspoint.NewCache(accesspoint.Config{
+		Context:      p.AuthServer.CloseContext(),
+		Setup:        cache.ForAuth,
+		CacheName:    []string{teleport.ComponentAuth},
+		EventsSystem: true,
+		Unstarted:    p.Unstarted,
+
+		Access:                  p.AuthServer.Services.Access,
+		AccessLists:             p.AuthServer.Services.AccessLists,
+		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
+		AppSession:              p.AuthServer.Services.Identity,
+		Apps:                    p.AuthServer.Services.Apps,
+		ClusterConfig:           p.AuthServer.Services.ClusterConfiguration,
+		CrownJewels:             p.AuthServer.Services.CrownJewels,
+		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
+		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
+		Databases:               p.AuthServer.Services.Databases,
+		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigs,
+		DynamicAccess:           p.AuthServer.Services.DynamicAccessExt,
+		Events:                  p.AuthServer.Services.Events,
+		Integrations:            p.AuthServer.Services.Integrations,
+		KubeWaitingContainers:   p.AuthServer.Services.KubeWaitingContainer,
+		Kubernetes:              p.AuthServer.Services.Kubernetes,
+		Notifications:           p.AuthServer.Services.Notifications,
+		Okta:                    p.AuthServer.Services.Okta,
+		Presence:                p.AuthServer.Services.PresenceInternal,
+		Provisioner:             p.AuthServer.Services.Provisioner,
+		Restrictions:            p.AuthServer.Services.Restrictions,
+		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
+		SAMLIdPSession:          p.AuthServer.Services.Identity,
+		SecReports:              p.AuthServer.Services.SecReports,
+		SnowflakeSession:        p.AuthServer.Services.Identity,
+		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
+		StaticHostUsers:         p.AuthServer.Services.StaticHostUser,
+		Trust:                   p.AuthServer.Services.TrustInternal,
+		UserGroups:              p.AuthServer.Services.UserGroups,
+		UserTasks:               p.AuthServer.Services.UserTasks,
+		UserLoginStates:         p.AuthServer.Services.UserLoginStates,
+		Users:                   p.AuthServer.Services.Identity,
+		WebSession:              p.AuthServer.Services.Identity.WebSessions(),
+		WebToken:                p.AuthServer.Services.WebTokens(),
+		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
+		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
+		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
+		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
+		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
+		IdentityCenter:          p.AuthServer.Services.IdentityCenter,
+		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
+		GitServers:              p.AuthServer.Services.GitServers,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.AuthServer.Cache = c
+	return nil
 }
 
 func (a *TestAuthServer) Close() error {

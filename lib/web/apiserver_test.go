@@ -48,6 +48,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -399,6 +400,16 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	defer caWatcher.Close()
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+		GitServerGetter: s.proxyClient.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyGitServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -414,6 +425,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
@@ -465,7 +477,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := newDebugFileSystem()
+	fs, err := NewDebugFileSystem(false)
 	require.NoError(t, err)
 
 	features := *modules.GetModules().Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
@@ -2815,7 +2827,8 @@ func TestInstallerRepoChannel(t *testing.T) {
 
 		wc := s.client(t)
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here:
+			// https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
@@ -2889,7 +2902,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		wc := s.client(t)
 
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 	echo {{ .PublicProxyAddr }}
 	echo Teleport-{{ .MajorVersion }}
@@ -2946,7 +2959,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 		wc := s.client(t)
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
@@ -3449,6 +3462,115 @@ func TestTokenGeneration(t *testing.T) {
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 
 			require.Equal(t, tc.suggestedAgentMatcherLabels, generatedToken.GetSuggestedAgentMatcherLabels())
+		})
+	}
+}
+
+func TestEndpointNotFoundHandling(t *testing.T) {
+	t.Parallel()
+	const username = "test-user@example.com"
+	// Allow user to create tokens.
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindToken,
+					[]string{types.VerbCreate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+
+	tt := []struct {
+		name      string
+		endpoint  string
+		shouldErr bool
+	}{
+		{
+			name:     "valid endpoint without v1 prefix",
+			endpoint: "webapi/token",
+		},
+		{
+			name:     "valid endpoint with v1 prefix",
+			endpoint: "v1/webapi/token",
+		},
+		{
+			name:     "valid endpoint with v2 prefix",
+			endpoint: "v2/webapi/token",
+		},
+		{
+			name:      "invalid double version prefixes",
+			endpoint:  "v1/v2/webapi/token",
+			shouldErr: true,
+		},
+		{
+			name:      "route not matched version prefix",
+			endpoint:  "v9999999/webapi/token",
+			shouldErr: true,
+		},
+		{
+			name:      "non api route with prefix",
+			endpoint:  "v1/something/else",
+			shouldErr: true,
+		},
+		{
+			name:      "invalid triple version prefixes",
+			endpoint:  "v1/v1/v1/webapi/token",
+			shouldErr: true,
+		},
+		{
+			name:      "invalid just prefix",
+			endpoint:  "v1",
+			shouldErr: true,
+		},
+		{
+			name:      "invalid prefix",
+			endpoint:  "v1s/webapi/token",
+			shouldErr: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			re, err := pack.clt.PostJSON(context.Background(), fmt.Sprintf("%s/%s", proxy.web.URL, tc.endpoint), types.ProvisionTokenSpecV2{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodToken,
+			})
+
+			if tc.shouldErr {
+				require.True(t, trace.IsNotFound(err))
+
+				jsonResp := struct {
+					Error struct {
+						Message string
+					}
+					Fields struct {
+						ProxyVersion httplib.ProxyVersion
+					}
+				}{}
+
+				require.NoError(t, json.Unmarshal(re.Bytes(), &jsonResp))
+				require.Equal(t, "path not found", jsonResp.Error.Message)
+				require.Equal(t, teleport.Version, jsonResp.Fields.ProxyVersion.String)
+
+				ver, err := semver.NewVersion(teleport.Version)
+				require.NoError(t, err)
+				require.Equal(t, ver.Major, jsonResp.Fields.ProxyVersion.Major)
+				require.Equal(t, ver.Minor, jsonResp.Fields.ProxyVersion.Minor)
+				require.Equal(t, ver.Patch, jsonResp.Fields.ProxyVersion.Patch)
+				require.Equal(t, string(ver.PreRelease), jsonResp.Fields.ProxyVersion.PreRelease)
+
+			} else {
+				require.NoError(t, err)
+
+				var responseToken nodeJoinToken
+				err = json.Unmarshal(re.Bytes(), &responseToken)
+				require.NoError(t, err)
+				require.Equal(t, types.JoinMethodToken, responseToken.Method)
+			}
 		})
 	}
 }
@@ -5035,7 +5157,7 @@ func TestDeleteMFA(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
-	rclt, err := roundtrip.NewClient(proxy.webURL.String(), teleport.WebAPIVersion, opts...)
+	rclt, err := roundtrip.NewClient(proxy.webURL.String(), "", opts...)
 	require.NoError(t, err)
 	clt := client.WebClient{Client: rclt}
 	jar.SetCookies(&proxy.webURL, pack.cookies)
@@ -8195,6 +8317,16 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyNodeWatcher.Close)
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+		GitServerGetter: client.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyGitServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -8210,6 +8342,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
@@ -8356,7 +8489,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
-	fs, err := newDebugFileSystem()
+	fs, err := NewDebugFileSystem(false)
 	require.NoError(t, err)
 
 	authID := state.IdentityID{

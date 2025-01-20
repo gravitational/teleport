@@ -696,7 +696,7 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Return a nicer error message for device trust errors.
 			text = `Access to this app requires a trusted device.
 
-See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
 		} else {
 			text = http.StatusText(code)

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -320,6 +321,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
+
+	// GitServerReadOnlyClient returns the read-only client for Git servers.
+	GitServerReadOnlyClient() gitserver.ReadOnlyClient
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -817,6 +821,18 @@ type DiscoveryAccessPoint interface {
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 }
 
+// ExpiryAccessPoint is the API used by the expiry service.
+type ExpiryAccessPoint interface {
+	// Semaphores provides semaphore operations
+	types.Semaphores
+
+	// ListAccessRequests is an access request getter with pagination and sorting options.
+	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
+
+	// DeleteAccessRequest deletes an access request.
+	DeleteAccessRequest(ctx context.Context, reqID string) error
+}
+
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
@@ -1249,6 +1265,12 @@ type Cache interface {
 
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+
+	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
+	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
+
+	// GitServerGetter defines methods for fetching Git servers.
+	services.GitServerGetter
 }
 
 type NodeWrapper struct {

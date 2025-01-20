@@ -363,6 +363,8 @@ const (
 	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
 	AccessRequestResourceSearchCode = "T5004I"
+	// AccessRequestExpireCode is the access request expires code.
+	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -685,6 +687,11 @@ const (
 	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.
 	ContactDeleteCode = "TCTC002I"
+
+	// GitCommandCode is the git command event code
+	GitCommandCode = "TGIT001I"
+	// GitCommandFailureCode is the git command feature event code.
+	GitCommandFailureCode = "TGIT001E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -129,9 +129,10 @@ add_apt_key() {
     TMP_KEY="$TEMP_DIR/teleport-pubkey.gpg"
     download "https://apt.releases.teleport.dev/gpg" "$TMP_KEY"
     set -x
-    $SUDO cp "$TMP_KEY" /usr/share/keyrings/teleport-archive-keyring.asc
+    $SUDO mkdir -p /etc/apt/keyrings
+    $SUDO cp "$TMP_KEY" /etc/apt/keyrings/teleport-archive-keyring.asc
     set +x
-    TELEPORT_REPO="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${APT_REPO_ID?} ${APT_REPO_VERSION_CODENAME?} ${CHANNEL}"
+    TELEPORT_REPO="deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${APT_REPO_ID?} ${APT_REPO_VERSION_CODENAME?} ${CHANNEL}"
   fi
 
   set -x
@@ -299,6 +300,9 @@ install_teleport() {
     # shellcheck source=/dev/null
     . $OS_RELEASE
   fi
+  # Some $ID_LIKE values include multiple distro names in an arbitrary order, so
+  # evaluate the first one.
+  ID_LIKE="${ID_LIKE%% *}"
 
   # detect architecture
   ARCH=""
@@ -338,10 +342,8 @@ install_teleport() {
     ;;
   *)
     # before downloading manually, double check if we didn't miss any debian or
-    # rh/fedora derived distros using the ID_LIKE var. Some $ID_LIKE values
-    # include multiple distro names in an arbitrary order, so evaluate the first
-    # one.
-    case "$(echo "$ID_LIKE" | awk '{print $1}')" in
+    # rh/fedora derived distros using the ID_LIKE var.
+    case "${ID_LIKE}" in
     ubuntu | debian)
       install_via_apt_get
       ;;

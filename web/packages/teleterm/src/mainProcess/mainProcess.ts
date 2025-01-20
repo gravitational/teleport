@@ -637,7 +637,8 @@ export default class MainProcess {
 
 const TSHD_LOGGER_NAME = 'tshd';
 const SHARED_PROCESS_LOGGER_NAME = 'shared';
-const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
+const DOCS_URL =
+  'https://goteleport.com/docs/connect-your-client/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);

@@ -40,6 +40,8 @@ SOFTWARE.
 
 */
 
+import { forwardRef } from 'react';
+
 import { Icon, IconProps } from '../Icon';
 
 /*
@@ -48,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Ellipsis({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Ellipsis = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-ellipsis"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -72,5 +75,5 @@ export function Ellipsis({ size = 24, color, ...otherProps }: IconProps) {
         d="M19.5 9C17.8431 9 16.5 10.3431 16.5 12C16.5 13.6569 17.8431 15 19.5 15C21.1569 15 22.5 13.6569 22.5 12C22.5 10.3431 21.1569 9 19.5 9ZM18 12C18 11.1716 18.6716 10.5 19.5 10.5C20.3284 10.5 21 11.1716 21 12C21 12.8284 20.3284 13.5 19.5 13.5C18.6716 13.5 18 12.8284 18 12Z"
       />
     </Icon>
-  );
-}
+  )
+);

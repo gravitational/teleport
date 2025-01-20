@@ -118,6 +118,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetIdSecret() *PluginIdSecretCredential
 	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
@@ -733,7 +734,13 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	if c.IntegrationName == "" {
+	// Promote "unknown" credential source values to OIDC for backwards
+	// compatibility with old plugin records
+	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
+		c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+	}
+
+	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC && c.IntegrationName == "" {
 		return trace.BadParameter("AWS OIDC integration name must be set")
 	}
 

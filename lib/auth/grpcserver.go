@@ -58,6 +58,7 @@ import (
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
+	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -91,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
+	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
@@ -1995,9 +1997,7 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	return role, nil
 }
 
-var minSupportedSSHPortForwardingVersions = map[int64]semver.Version{
-	17: {Major: 17, Minor: 1, Patch: 0},
-}
+var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}
 
 func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
 	sshPortForwarding := role.GetOptions().SSHPortForwarding
@@ -2005,11 +2005,10 @@ func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semv
 		return role
 	}
 
-	minSupportedVersion, ok := minSupportedSSHPortForwardingVersions[clientVersion.Major]
-	if ok {
-		if supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedVersion.String()); supported || err != nil {
-			return role
-		}
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedSSHPortForwardingVersion.String()); supported || err != nil {
+		return role
 	}
 
 	role = apiutils.CloneProtoMsg(role)
@@ -2020,7 +2019,7 @@ func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semv
 	role.SetOptions(options)
 	reason := fmt.Sprintf(`Client version %q does not support granular SSH port forwarding. Role %q will be downgraded `+
 		`to simple port forwarding rules instead. In order to support granular SSH port forwarding, all clients must be `+
-		`updated to version %q or higher.`, clientVersion, role.GetName(), minSupportedVersion)
+		`updated to version %q or higher.`, clientVersion, role.GetName(), minSupportedSSHPortForwardingVersion)
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}
@@ -4198,6 +4197,21 @@ func (g *GRPCServer) GetSSHTargets(ctx context.Context, req *authpb.GetSSHTarget
 	return rsp, nil
 }
 
+// ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
+func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSSHTargetRequest) (*authpb.ResolveSSHTargetResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ResolveSSHTarget(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
 // CreateSessionTracker creates a tracker resource for an active session.
 func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *authpb.CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
 	auth, err := g.authenticate(ctx)
@@ -5464,6 +5478,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
+
+	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
+		Authorizer:               cfg.Authorizer,
+		Backend:                  cfg.AuthServer.Services,
+		ProxyPublicAddrGetter:    cfg.AuthServer.getProxyPublicAddr,
+		GitHubAuthRequestCreator: cfg.AuthServer.CreateGithubAuthRequest,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gitserverv1pb.RegisterGitServerServiceServer(server, gitServerService)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

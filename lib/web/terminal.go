@@ -922,7 +922,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
-		if errors.Is(err, trace.NotFound(teleport.NodeIsAmbiguous)) {
+		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
 			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
 			return nil, trace.NotFound(message)
 		}
