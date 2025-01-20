@@ -19,6 +19,7 @@
 package desktop
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -230,6 +231,8 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 		labels[types.DiscoveryLabelWindowsOU] = ou
 	}
 
+	labels[types.DiscoveryLabelWindowsDomain] = dnToDomain(dn)
+
 	// label domain controllers
 	switch entry.GetAttributeValue(attrPrimaryGroupID) {
 	case writableDomainControllerGroupID, readOnlyDomainControllerGroupID:
@@ -242,6 +245,11 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
 		}
 	}
+}
+
+func dnToDomain(dn string) string {
+	_, a, _ := strings.Cut(dn, "DC=")
+	return strings.ReplaceAll(a, ",DC=", ".")
 }
 
 const dnsQueryTimeout = 5 * time.Second
@@ -355,7 +363,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
-			Domain: s.cfg.Domain,
+			Domain: cmp.Or(labels[types.DiscoveryLabelWindowsDomain], s.cfg.Domain),
 			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
