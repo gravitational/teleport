@@ -108,6 +108,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
         {
           key: 'details',
           headerText: 'Details',
+          render: item => <DetailsCell item={item} />,
         },
         {
           key: 'statusCode',
@@ -384,6 +385,30 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         {icon}
         {formattedText}
       </Flex>
+    </Cell>
+  );
+};
+
+const DetailsCell = ({ item }: { item: IntegrationLike }) => {
+  let formattedText: string;
+
+  switch (item.resourceType) {
+    case 'integration':
+      switch (item.kind) {
+        case 'aws-oidc':
+          formattedText =
+            'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.';
+          break;
+      }
+  }
+
+  if (!formattedText) {
+    return;
+  }
+
+  return (
+    <Cell>
+      <Flex alignItems="center">{formattedText}</Flex>
     </Cell>
   );
 };
