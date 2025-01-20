@@ -16,29 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Text, Box, ButtonSecondary, Link } from 'design';
+import { Box, ButtonSecondary, Link, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
-import { AuthType } from 'teleport/services/user';
 import { generateTshLoginCommand } from 'teleport/lib/util';
+import { AuthType } from 'teleport/services/user';
 
-export default function ConnectDialog({
+export function ConnectDialog({
   username,
   clusterId,
   organization,
   onClose,
   authType,
   accessRequestId,
-}: Props) {
-  let repoURL = `https://github.com/orgs/${organization}/repositories`;
-  let title = `Use 'git' for GitHub Organization '${organization}'`;
+}: {
+  organization: string;
+  onClose: () => void;
+  username: string;
+  clusterId: string;
+  authType: AuthType;
+  accessRequestId?: string;
+}) {
+  const repoURL = `https://github.com/orgs/${organization}/repositories`;
+  const title = `Use 'git' for GitHub Organization '${organization}'`;
   return (
     <Dialog
       dialogCss={() => ({
@@ -52,14 +58,15 @@ export default function ConnectDialog({
       <DialogHeader mb={4}>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
-      <DialogContent minHeight="240px" flex="0 0 auto">
-        <Box mb={4}>
+      <DialogContent gap={4}>
+        <Box>
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Login to Teleport'}
+          {' - Log in to Teleport'}
           <TextSelectCopy
-            mt="2"
+            mt="1"
+            mb="2"
             text={generateTshLoginCommand({
               authType,
               clusterId,
@@ -68,23 +75,27 @@ export default function ConnectDialog({
             })}
           />
         </Box>
-        <Box mb={4}>
+        <Box>
           <Text bold as="span">
             Step 2
           </Text>
-          {' - Connect'}
+          {' - Clone or configure a repository'}
           <br />
           {'To clone a new repository, find the SSH url of the repository on '}
           <Link href={repoURL} target="_blank">
             github.com
           </Link>
-          {' then'}
-          <TextSelectCopy mt="2" text={`tsh git clone <git-clone-ssh-url>`} />
-          {'To configure an existing Git repository, go to the repository then'}
-          <TextSelectCopy mt="2" text={`tsh git config update`} />
+          {', and then'}
+          <TextSelectCopy
+            mt="1"
+            mb="2"
+            text="tsh git clone <git-clone-ssh-url>"
+          />
+          To configure an existing Git repository, go to the repository then
+          <TextSelectCopy mt="1" mb="2" text="tsh git config update" />
         </Box>
         <Box>
-          {`Once the repository is cloned or configured, use 'git' as normal.`}
+          Once the repository is cloned or configured, use 'git' as normal.
         </Box>
       </DialogContent>
       <DialogFooter>
@@ -93,12 +104,3 @@ export default function ConnectDialog({
     </Dialog>
   );
 }
-
-export type Props = {
-  organization: string;
-  onClose: () => void;
-  username: string;
-  clusterId: string;
-  authType: AuthType;
-  accessRequestId?: string;
-};

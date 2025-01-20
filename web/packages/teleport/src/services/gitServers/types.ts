@@ -25,7 +25,7 @@ export interface GitServer {
   hostname: string;
   labels: ResourceLabel[];
   subKind: 'github';
-  github?: GitHubMetadata;
+  github: GitHubMetadata;
   requiresRequest?: boolean;
 }
 

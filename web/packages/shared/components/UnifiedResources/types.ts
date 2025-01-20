@@ -93,7 +93,7 @@ export interface UnifiedResourceGitServer {
   hostname: string;
   labels: ResourceLabel[];
   subKind: 'github';
-  github?: {
+  github: {
     organization: string;
     integration: string;
   };

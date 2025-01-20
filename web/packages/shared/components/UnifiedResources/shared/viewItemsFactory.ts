@@ -20,9 +20,9 @@ import {
   Application as ApplicationIcon,
   Database as DatabaseIcon,
   Desktop as DesktopIcon,
+  GitHub as GitHubIcon,
   Kubernetes as KubernetesIcon,
   Server as ServerIcon,
-  GitHub as GitHubIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { NodeSubKind } from 'shared/services';
@@ -33,11 +33,11 @@ import {
   UnifiedResourceApp,
   UnifiedResourceDatabase,
   UnifiedResourceDesktop,
+  UnifiedResourceGitServer,
   UnifiedResourceKube,
   UnifiedResourceNode,
   UnifiedResourceUi,
   UnifiedResourceUserGroup,
-  UnifiedResourceGitServer,
   UnifiedResourceViewItem,
 } from '../types';
 import { guessAppIcon } from './guessAppIcon';

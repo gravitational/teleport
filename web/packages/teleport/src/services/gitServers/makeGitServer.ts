@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { GitServer, GitHubMetadata } from './types';
+import { GitHubMetadata, GitServer } from './types';
 
 export default function makeGitServer(json: any): GitServer {
   json = json ?? {};
