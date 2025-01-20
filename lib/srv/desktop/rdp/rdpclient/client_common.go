@@ -33,8 +33,8 @@ import (
 // LicenseStore implements client-side license storage for Microsoft
 // Remote Desktop Services (RDS) licenses.
 type LicenseStore interface {
-	WriteRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string, license []byte) error
-	ReadRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string) ([]byte, error)
+	WriteRDPLicense(ctx context.Context, version uint32, issuer, company, productID string, license []byte) error
+	ReadRDPLicense(ctx context.Context, version uint32, issuer, company, productID string) ([]byte, error)
 }
 
 // Config for creating a new Client.
@@ -43,6 +43,7 @@ type Config struct {
 	Addr string
 
 	LicenseStore LicenseStore
+	UUID         string
 
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn

@@ -151,7 +151,7 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let connector_config = create_config(&params, pin.clone());
+        let connector_config = create_config(&params, pin.clone(), cgo_handle);
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
@@ -1402,7 +1402,7 @@ impl FunctionReceiver {
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(params: &ConnectParams, pin: String) -> Config {
+fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
     Config {
         desktop_size: DesktopSize {
             width: params.screen_width,
@@ -1457,8 +1457,8 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
             PerformanceFlags::empty()
         },
         desktop_scale_factor: 0,
-        license_cache: Some(Arc::new(GoLicenseCache {})),
-        hardware_id: None,
+        license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
+        hardware_id: Some(params.uuid),
     }
 }
 

@@ -235,14 +235,14 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semv
 	return nil
 }
 
-func (p *ProcessStorage) rdpLicenseKey(majorVersion, minorVersion uint16, issuer, company, productID string) backend.Key {
-	return backend.NewKey("rdplicense", issuer, strconv.Itoa(int(majorVersion)), strconv.Itoa(int(minorVersion)), company, productID)
+func (p *ProcessStorage) rdpLicenseKey(version uint32, issuer, company, productID string) backend.Key {
+	return backend.NewKey("rdplicense", issuer, strconv.Itoa(int(version)), company, productID)
 }
 
 // WriteRDPLicense writes an RDP license to local storage.
-func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string, license []byte) error {
+func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, version uint32, issuer, company, productID string, license []byte) error {
 	item := backend.Item{
-		Key:     p.rdpLicenseKey(majorVersion, minorVersion, issuer, company, productID),
+		Key:     p.rdpLicenseKey(version, issuer, company, productID),
 		Value:   license,
 		Expires: p.BackendStorage.Clock().Now().Add(28 * 24 * time.Hour),
 	}
@@ -251,8 +251,8 @@ func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, majorVersion, mino
 }
 
 // ReadRDPLicense reads a previously obtained license from storage.
-func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string) ([]byte, error) {
-	item, err := p.stateStorage.Get(ctx, p.rdpLicenseKey(majorVersion, minorVersion, issuer, company, productID))
+func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, version uint32, issuer, company, productID string) ([]byte, error) {
+	item, err := p.stateStorage.Get(ctx, p.rdpLicenseKey(version, issuer, company, productID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

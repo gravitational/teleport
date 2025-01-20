@@ -72,7 +72,9 @@ import "C"
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	uuidp "github.com/google/uuid"
 	"log/slog"
 	"os"
 	"runtime/cgo"
@@ -327,7 +329,17 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	} else if key_der == nil {
-		return trace.BadParameter("user key was nil")
+		return trace.BadParameter("user key was nil ")
+	}
+
+	hostID, err := uuidp.Parse(c.cfg.UUID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	chostID := [4]C.uint32_t{}
+	for i := 0; i < 4; i++ {
+		chostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(hostID[i : i+4]))
 	}
 
 	res := C.client_run(
@@ -350,6 +362,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+			uuid:                    chostID,
 		},
 	)
 
@@ -766,7 +779,7 @@ func cgo_read_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data_out
 	productID := C.GoString(req.product_id)
 
 	license, err := client.readRDPLicense(
-		uint16(req.major_version), uint16(req.minor_version),
+		uint32(req.version),
 		issuer, company, productID)
 	if trace.IsNotFound(err) {
 		return C.ErrCodeNotFound
@@ -782,8 +795,8 @@ func cgo_read_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data_out
 }
 
 //export cgo_free_rdp_license
-func cgo_free_rdp_license(p unsafe.Pointer) {
-	C.free(p)
+func cgo_free_rdp_license(p *C.uint8_t) {
+	C.free(unsafe.Pointer(p))
 }
 
 //export cgo_write_rdp_license
@@ -799,9 +812,7 @@ func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C
 
 	licenseData := C.GoBytes(unsafe.Pointer(data), C.int(length))
 
-	err = client.writeRDPLicense(
-		uint16(req.major_version), uint16(req.minor_version),
-		issuer, company, productID, licenseData)
+	err = client.writeRDPLicense(uint32(req.version), issuer, company, productID, licenseData)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
@@ -809,15 +820,15 @@ func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C
 	return C.ErrCodeSuccess
 }
 
-func (c *Client) readRDPLicense(majorVersion, minorVersion uint16, issuer, company, productID string) ([]byte, error) {
+func (c *Client) readRDPLicense(version uint32, issuer, company, productID string) ([]byte, error) {
 	log := c.cfg.Logger.With(
 		"issuer", issuer,
 		"company", company,
-		"version", fmt.Sprintf("%d.%d", majorVersion, minorVersion),
+		"version", fmt.Sprintf("%d", version),
 		"product", productID,
 	)
 
-	license, err := c.cfg.LicenseStore.ReadRDPLicense(context.Background(), majorVersion, minorVersion, issuer, company, productID)
+	license, err := c.cfg.LicenseStore.ReadRDPLicense(context.Background(), version, issuer, company, productID)
 	switch {
 	case trace.IsNotFound(err):
 		log.InfoContext(context.Background(), "existing RDP license not found")
@@ -830,16 +841,16 @@ func (c *Client) readRDPLicense(majorVersion, minorVersion uint16, issuer, compa
 	return license, trace.Wrap(err)
 }
 
-func (c *Client) writeRDPLicense(majorVersion, minorVersion uint16, issuer, company, productID string, license []byte) error {
+func (c *Client) writeRDPLicense(version uint32, issuer, company, productID string, license []byte) error {
 	c.cfg.Logger.InfoContext(context.Background(), "writing RDP license to storage",
 		"issuer", issuer,
 		"company", company,
-		"version", fmt.Sprintf("%d.%d", majorVersion, minorVersion),
+		"version", fmt.Sprintf("%d", version),
 		"product", productID,
 	)
 	return trace.Wrap(c.cfg.LicenseStore.WriteRDPLicense(
 		context.Background(),
-		majorVersion, minorVersion,
+		version,
 		issuer,
 		company,
 		productID,
