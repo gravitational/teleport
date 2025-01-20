@@ -26,6 +26,7 @@ import React, {
   useState,
 } from 'react';
 import { matchPath, useHistory } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
@@ -44,7 +45,7 @@ import {
 } from './categories';
 import { getResourcesSection, ResourcesSection } from './ResourcesSection';
 import { SearchSection } from './Search';
-import { DefaultSection, rightPanelWidth } from './Section';
+import { DefaultSection, rightPanelWidth, StandaloneSection } from './Section';
 import { zIndexMap } from './zIndexMap';
 
 const SideNavContainer = styled(Flex).attrs({
@@ -75,10 +76,14 @@ const PanelBackground = styled.div`
 export type NavigationSection = {
   category?: SidenavCategory;
   subsections?: NavigationSubsection[];
+  route?: string;
   /* standalone is whether this is a clickable nav section with no subsections/drawer. */
   standalone?: boolean;
+  /* Icon is the custom icon to display for a standalone section. This should only for standalone sections, as icons for categories are derived automatically by CategoryIcon */
+  Icon?: (props) => ReactNode;
+  /* title is the custom title of a standalone section */
+  title?: string;
 };
-
 /**
  * NavigationSubsection is a subsection of a NavigationSection, these are the items listed in the drawer of a NavigationSection, or if isTopMenuItem is true, in the top menu (eg. Account Settings).
  */
@@ -114,6 +119,21 @@ function getNavigationSections(
     category,
     subsections: getSubsectionsForCategory(category, features),
   }));
+
+  return navigationSections;
+}
+
+function getDashboardNavigationSections(
+  features: TeleportFeature[]
+): NavigationSection[] {
+  const navigationSections = features
+    .filter(feature => feature.showInDashboard)
+    .map(feature => ({
+      standalone: true,
+      title: feature.navigationItem.title,
+      Icon: feature.navigationItem.icon,
+      route: feature.navigationItem.getLink(cfg.proxyCluster),
+    }));
 
   return navigationSections;
 }
@@ -282,13 +302,14 @@ export function Navigation() {
     });
   };
 
-  const navSections = useMemo(
-    () =>
-      getNavigationSections(features).filter(
-        section => section.subsections.length
-      ),
-    [features]
-  );
+  const navSections = useMemo(() => {
+    if (cfg.isDashboard) {
+      return getDashboardNavigationSections(features);
+    }
+    return getNavigationSections(features).filter(
+      section => section.subsections.length
+    );
+  }, [features]);
 
   const topMenuSection = useMemo(() => getTopMenuSection(features), [features]);
 
@@ -407,26 +428,42 @@ export function Navigation() {
     >
       <SideNavContainer>
         <PanelBackground />
-        <SearchSection
-          navigationSections={[...combinedSideNavSections, topMenuSection]}
-          expandedSection={debouncedSection}
-          previousExpandedSection={previousExpandedSection}
-          handleSetExpandedSection={handleSetExpandedSection}
-          currentView={currentView}
-          stickyMode={stickyMode}
-          toggleStickyMode={toggleStickyMode}
-          canToggleStickyMode={!!currentPageSection}
-        />
-        <ResourcesSection
-          expandedSection={debouncedSection}
-          previousExpandedSection={previousExpandedSection}
-          handleSetExpandedSection={handleSetExpandedSection}
-          currentView={currentView}
-          stickyMode={stickyMode}
-          toggleStickyMode={toggleStickyMode}
-          canToggleStickyMode={!!currentPageSection}
-        />
+        {!cfg.isDashboard && (
+          <>
+            <SearchSection
+              navigationSections={[...combinedSideNavSections, topMenuSection]}
+              expandedSection={debouncedSection}
+              previousExpandedSection={previousExpandedSection}
+              handleSetExpandedSection={handleSetExpandedSection}
+              currentView={currentView}
+              stickyMode={stickyMode}
+              toggleStickyMode={toggleStickyMode}
+              canToggleStickyMode={!!currentPageSection}
+            />
+            <ResourcesSection
+              expandedSection={debouncedSection}
+              previousExpandedSection={previousExpandedSection}
+              handleSetExpandedSection={handleSetExpandedSection}
+              currentView={currentView}
+              stickyMode={stickyMode}
+              toggleStickyMode={toggleStickyMode}
+              canToggleStickyMode={!!currentPageSection}
+            />
+          </>
+        )}
         {navSections.map(section => {
+          if (section.standalone) {
+            return (
+              <StandaloneSection
+                key={section.route}
+                title={section.title}
+                route={section.route}
+                Icon={section.Icon}
+                $active={section.route === currentView?.route}
+              />
+            );
+          }
+
           const isExpanded =
             !!debouncedSection &&
             !debouncedSection.standalone &&

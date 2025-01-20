@@ -78,12 +78,8 @@ export function Main(props: MainProps) {
 
   const { preferences } = useUser();
 
-  const isTopBarView = storageService.getIsTopBarView();
-  const TopBarComponent =
-    //TODO(rudream): Add sidenav dashboard view.
-    isTopBarView || cfg.isDashboard ? TopBar : TopBarSideNav;
-  const NavigationComponent =
-    isTopBarView || cfg.isDashboard ? Navigation : SideNavigation;
+  const TopBarComponent = TopBarSideNav;
+  const NavigationComponent = SideNavigation;
 
   useEffect(() => {
     if (ctx.storeUser.state) {

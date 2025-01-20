@@ -66,6 +66,7 @@ export enum NavTitle {
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
+  AuthConnectorsShortened = 'Auth Conn.',
   Integrations = 'Integrations',
   EnrollNewResource = 'Resource',
   EnrollNewIntegration = 'Integration',
@@ -149,6 +150,8 @@ export interface TeleportFeature {
   // if highlightKey is specified, navigating to ?highlight=<highlightKey>
   // will highlight the feature in the navigation, to draw a users attention to it
   highlightKey?: string;
+  /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
+  showInDashboard?: boolean;
 }
 
 export type StickyCluster = {

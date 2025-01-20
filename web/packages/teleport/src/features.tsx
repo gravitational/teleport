@@ -233,6 +233,8 @@ export class FeatureUsers implements TeleportFeature {
   getRoute() {
     return this.route;
   }
+
+  showInDashboard = true;
 }
 
 export class FeatureBots implements TeleportFeature {
@@ -327,6 +329,8 @@ export class FeatureRoles implements TeleportFeature {
     },
     searchableTags: ['roles', 'user roles'],
   };
+
+  showInDashboard = true;
 }
 
 export class FeatureAuthConnectors implements TeleportFeature {
@@ -346,7 +350,9 @@ export class FeatureAuthConnectors implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.AuthConnectors,
+    title: cfg.isDashboard
+      ? NavTitle.AuthConnectorsShortened
+      : NavTitle.AuthConnectors,
     icon: PlugsConnected,
     exact: false,
     getLink() {
@@ -354,6 +360,8 @@ export class FeatureAuthConnectors implements TeleportFeature {
     },
     searchableTags: ['auth connectors', 'saml', 'okta', 'oidc', 'github'],
   };
+
+  showInDashboard = true;
 }
 
 export class FeatureLocks implements TeleportFeature {
