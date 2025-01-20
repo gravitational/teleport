@@ -159,8 +159,9 @@ type WindowsServiceConfig struct {
 	// Logger is the logger for the service.
 	Logger *slog.Logger
 	// Clock provides current time.
-	Clock   clockwork.Clock
-	DataDir string
+	Clock        clockwork.Clock
+	DataDir      string
+	LicenseStore rdpclient.LicenseStore
 	// Authorizer is used to authorize requests.
 	Authorizer authz.Authorizer
 	// LockWatcher is used to monitor for new locks.

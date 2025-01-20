@@ -751,6 +751,102 @@ func toClient(handle C.uintptr_t) (value *Client, err error) {
 	return cgo.Handle(handle).Value().(*Client), nil
 }
 
+//export cgo_read_rdp_license
+func cgo_read_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data_out **C.uint8_t, len_out *C.size_t) C.CGOErrCode {
+	*data_out = nil
+	*len_out = 0
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	license, err := client.readRDPLicense(
+		uint16(req.major_version), uint16(req.minor_version),
+		issuer, company, productID)
+	if trace.IsNotFound(err) {
+		return C.ErrCodeNotFound
+	} else if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	// in this case, we expect the caller to use cgo_free_rdp_license
+	// when the data is no longer needed
+	*data_out = (*C.uint8_t)(C.CBytes(license))
+	*len_out = C.size_t(len(license))
+	return C.ErrCodeSuccess
+}
+
+//export cgo_free_rdp_license
+func cgo_free_rdp_license(p unsafe.Pointer) {
+	C.free(p)
+}
+
+//export cgo_write_rdp_license
+func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C.uint8_t, length C.size_t) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	licenseData := C.GoBytes(unsafe.Pointer(data), C.int(length))
+
+	err = client.writeRDPLicense(
+		uint16(req.major_version), uint16(req.minor_version),
+		issuer, company, productID, licenseData)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	return C.ErrCodeSuccess
+}
+
+func (c *Client) readRDPLicense(majorVersion, minorVersion uint16, issuer, company, productID string) ([]byte, error) {
+	log := c.cfg.Logger.With(
+		"issuer", issuer,
+		"company", company,
+		"version", fmt.Sprintf("%d.%d", majorVersion, minorVersion),
+		"product", productID,
+	)
+
+	license, err := c.cfg.LicenseStore.ReadRDPLicense(context.Background(), majorVersion, minorVersion, issuer, company, productID)
+	switch {
+	case trace.IsNotFound(err):
+		log.InfoContext(context.Background(), "existing RDP license not found")
+	case err != nil:
+		log.ErrorContext(context.Background(), "could not look up existing RDP license", "error", err)
+	case len(license) > 0:
+		log.InfoContext(context.Background(), "found existing RDP license")
+	}
+
+	return license, trace.Wrap(err)
+}
+
+func (c *Client) writeRDPLicense(majorVersion, minorVersion uint16, issuer, company, productID string, license []byte) error {
+	c.cfg.Logger.InfoContext(context.Background(), "writing RDP license to storage",
+		"issuer", issuer,
+		"company", company,
+		"version", fmt.Sprintf("%d.%d", majorVersion, minorVersion),
+		"product", productID,
+	)
+	return trace.Wrap(c.cfg.LicenseStore.WriteRDPLicense(
+		context.Background(),
+		majorVersion, minorVersion,
+		issuer,
+		company,
+		productID,
+		license,
+	))
+}
+
 //export cgo_handle_fastpath_pdu
 func cgo_handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))

@@ -74,6 +74,7 @@ use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
+use crate::license::GoLicenseCache;
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
@@ -1456,6 +1457,8 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
             PerformanceFlags::empty()
         },
         desktop_scale_factor: 0,
+        license_cache: Some(Arc::new(GoLicenseCache {})),
+        hardware_id: None,
     }
 }
 
@@ -1474,6 +1477,7 @@ pub struct ConnectParams {
     pub show_desktop_wallpaper: bool,
     pub ad: bool,
     pub nla: bool,
+    pub uuid: [u32; 4],
 }
 
 #[derive(Debug)]

@@ -27,7 +27,9 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -231,6 +233,31 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semv
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (p *ProcessStorage) rdpLicenseKey(majorVersion, minorVersion uint16, issuer, company, productID string) backend.Key {
+	return backend.NewKey("rdplicense", issuer, strconv.Itoa(int(majorVersion)), strconv.Itoa(int(minorVersion)), company, productID)
+}
+
+// WriteRDPLicense writes an RDP license to local storage.
+func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string, license []byte) error {
+	item := backend.Item{
+		Key:     p.rdpLicenseKey(majorVersion, minorVersion, issuer, company, productID),
+		Value:   license,
+		Expires: p.BackendStorage.Clock().Now().Add(28 * 24 * time.Hour),
+	}
+	_, err := p.stateStorage.Put(ctx, item)
+	return trace.Wrap(err)
+}
+
+// ReadRDPLicense reads a previously obtained license from storage.
+func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string) ([]byte, error) {
+	item, err := p.stateStorage.Get(ctx, p.rdpLicenseKey(majorVersion, minorVersion, issuer, company, productID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return item.Value, nil
 }
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
