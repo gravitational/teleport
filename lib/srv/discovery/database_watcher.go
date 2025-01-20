@@ -24,9 +24,12 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -101,6 +104,8 @@ func (s *Server) startDatabaseWatchers() error {
 					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
 
 					dbs = append(dbs, db)
+
+					s.collectRDSIssuesAsUserTasks(db, resourceGroup.integration, resourceGroup.discoveryConfigName)
 				}
 				mu.Lock()
 				newDatabases = dbs
@@ -136,9 +141,48 @@ func (s *Server) startDatabaseWatchers() error {
 			for dc := range discoveryConfigsChanged {
 				s.updateDiscoveryConfigStatus(dc)
 			}
+			s.upsertTasksForAWSRDSFailedEnrollments()
 		}
 	}()
 	return nil
+}
+
+// collectRDSIssuesAsUserTasks receives a discovered database converted into a Teleport Database resource and creates
+// an User Task (discover-rds) if that Database is not properly configured to be accessed from Teleport.
+// Eg, an UserTask is created if the IAM DB Authentication is not enabled
+func (s *Server) collectRDSIssuesAsUserTasks(db types.Database, integration, discoveryConfigName string) {
+	if integration == "" || discoveryConfigName == "" || !db.IsRDS() {
+		return
+	}
+
+	if db.GetAWS().RDS.IAMAuth {
+		return
+	}
+
+	isCluster := db.GetAWS().RDS.ClusterID != ""
+	databaseIdentifier := db.GetAWS().RDS.InstanceID
+	if isCluster {
+		databaseIdentifier = db.GetAWS().RDS.ClusterID
+	}
+
+	engine := db.GetStaticLabels()[types.DiscoveryLabelEngine]
+
+	s.awsRDSTasks.addFailedEnrollment(
+		awsRDSTaskKey{
+			integration: integration,
+			issueType:   usertasks.AutoDiscoverRDSIssueIAMAuthenticationDisabled,
+			accountID:   db.GetAWS().AccountID,
+			region:      db.GetAWS().Region,
+		},
+		&usertasksv1.DiscoverRDSDatabase{
+			DiscoveryConfig: discoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			SyncTime:        timestamppb.New(s.clock.Now()),
+			Name:            databaseIdentifier,
+			IsCluster:       isCluster,
+			Engine:          engine,
+		},
+	)
 }
 
 func (s *Server) databaseWatcherIterationStarted() {
@@ -171,6 +215,7 @@ func (s *Server) databaseWatcherIterationStarted() {
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 
 	s.awsRDSResourcesStatus.reset()
+	s.awsRDSTasks.reset()
 }
 
 func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
