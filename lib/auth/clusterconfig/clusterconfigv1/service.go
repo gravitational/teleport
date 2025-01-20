@@ -179,6 +179,10 @@ func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreferen
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
+	if err := p.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// check that the given RequireMFAType is supported in this build.
 	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
@@ -231,6 +235,10 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.GetAuthPreference().Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -295,6 +303,10 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.GetAuthPreference().Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

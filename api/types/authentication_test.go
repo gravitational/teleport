@@ -239,3 +239,96 @@ func TestNewAuthPreference_secondFactors(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthPreferenceValidate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default", func(t *testing.T) {
+		t.Parallel()
+
+		require.NoError(t, DefaultAuthPreference().Validate())
+	})
+
+	t.Run("stable_unix_users", func(t *testing.T) {
+		t.Parallel()
+
+		type testCase struct {
+			name   string
+			config *StableUNIXUserConfig
+			check  require.ErrorAssertionFunc
+		}
+
+		testCases := []testCase{
+			{
+				name:   "missing",
+				config: nil,
+				check:  require.NoError,
+			},
+			{
+				name: "disabled",
+				config: &StableUNIXUserConfig{
+					Enabled: false,
+				},
+				check: require.NoError,
+			},
+			{
+				name: "enabled",
+				config: &StableUNIXUserConfig{
+					Enabled:  true,
+					FirstUid: 30000,
+					LastUid:  40000,
+				},
+				check: require.NoError,
+			},
+			{
+				name: "empty_range",
+				config: &StableUNIXUserConfig{
+					Enabled:  true,
+					FirstUid: 30000,
+					LastUid:  29000,
+				},
+				check: require.Error,
+			},
+			{
+				name: "empty_range_disabled",
+				config: &StableUNIXUserConfig{
+					Enabled:  false,
+					FirstUid: 30000,
+					LastUid:  29000,
+				},
+				check: require.NoError,
+			},
+			{
+				name: "system_range",
+				config: &StableUNIXUserConfig{
+					Enabled:  true,
+					FirstUid: 100,
+					LastUid:  40000,
+				},
+				check: require.Error,
+			},
+			{
+				name: "negative_range",
+				config: &StableUNIXUserConfig{
+					Enabled:  true,
+					FirstUid: -100,
+					LastUid:  40000,
+				},
+				check: require.Error,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				authPref := &AuthPreferenceV2{
+					Spec: AuthPreferenceSpecV2{
+						StableUnixUserConfig: tc.config,
+					},
+				}
+				tc.check(t, authPref.Validate())
+			})
+		}
+	})
+}

@@ -4731,6 +4731,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
+	if err := newAuthPref.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// check that the given RequireMFAType is supported in this build.
 	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
