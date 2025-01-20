@@ -207,17 +207,17 @@ func withRDSDatabaseIssueURL(metadata *usertasksv1.UserTask, database *usertasks
 	databaseBaseURL := url.URL{
 		Scheme:   "https",
 		Host:     "console.aws.amazon.com",
-		Path:     path.Join("rds", "home"),
+		Path:     "/rds/home",
 		Fragment: fragment,
 		RawQuery: url.Values{
-			"region": []string{metadata.Spec.DiscoverRds.GetRegion()},
+			"region": []string{metadata.GetSpec().GetDiscoverRds().GetRegion()},
 		}.Encode(),
 	}
 	ret.ResourceURL = databaseBaseURL.String()
 
-	switch metadata.Spec.IssueType {
+	switch metadata.GetSpec().GetIssueType() {
 	case usertasksapi.AutoDiscoverRDSIssueIAMAuthenticationDisabled:
-		databaseBaseURL.Fragment = databaseBaseURL.Fragment + ";tab=configuration"
+		databaseBaseURL.Fragment += ";tab=configuration"
 		ret.ConfigurationURL = databaseBaseURL.String()
 	}
 
@@ -229,7 +229,7 @@ func withRDSDatabaseIssueURL(metadata *usertasksv1.UserTask, database *usertasks
 // - ResourceURL: a link to open the database in Amazon Web Console.
 // - ConfigurationURL: a link to open the database in Amazon Web Console in the configuration tab.
 func RDSDatabasesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverRDSWithURLs {
-	databases := ut.Spec.GetDiscoverRds().GetDatabases()
+	databases := ut.GetSpec().GetDiscoverRds().GetDatabases()
 	databasesWithURLs := make(map[string]*DiscoverRDSDatabaseWithURLs, len(databases))
 
 	for databaseID, database := range databases {
@@ -237,7 +237,7 @@ func RDSDatabasesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverRDSWithURLs
 	}
 
 	return &UserTaskDiscoverRDSWithURLs{
-		DiscoverRDS: ut.Spec.GetDiscoverRds(),
+		DiscoverRDS: ut.GetSpec().GetDiscoverRds(),
 		Databases:   databasesWithURLs,
 	}
 }

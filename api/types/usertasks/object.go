@@ -399,37 +399,37 @@ func validateDiscoverRDSTaskType(ut *usertasksv1.UserTask) error {
 	if ut.GetSpec().Integration == "" {
 		return trace.BadParameter("integration is required")
 	}
-	if ut.GetSpec().DiscoverRds == nil {
+	if ut.GetSpec().GetDiscoverRds() == nil {
 		return trace.BadParameter("%s requires the discover_rds field", TaskTypeDiscoverRDS)
 	}
-	if ut.GetSpec().DiscoverRds.AccountId == "" {
+	if ut.GetSpec().GetDiscoverRds().AccountId == "" {
 		return trace.BadParameter("%s requires the discover_rds.account_id field", TaskTypeDiscoverRDS)
 	}
-	if ut.GetSpec().DiscoverRds.Region == "" {
+	if ut.GetSpec().GetDiscoverRds().Region == "" {
 		return trace.BadParameter("%s requires the discover_rds.region field", TaskTypeDiscoverRDS)
 	}
 
 	expectedTaskName := TaskNameForDiscoverRDS(TaskNameForDiscoverRDSParts{
-		Integration: ut.Spec.Integration,
-		IssueType:   ut.Spec.IssueType,
-		AccountID:   ut.Spec.DiscoverRds.AccountId,
-		Region:      ut.Spec.DiscoverRds.Region,
+		Integration: ut.GetSpec().Integration,
+		IssueType:   ut.GetSpec().IssueType,
+		AccountID:   ut.GetSpec().GetDiscoverRds().AccountId,
+		Region:      ut.GetSpec().GetDiscoverRds().Region,
 	})
-	if ut.Metadata.GetName() != expectedTaskName {
+	if ut.GetMetadata().GetName() != expectedTaskName {
 		return trace.BadParameter("task name is pre-defined for discover-rds types, expected %s, got %s",
 			expectedTaskName,
 			ut.Metadata.GetName(),
 		)
 	}
 
-	if !slices.Contains(DiscoverRDSIssueTypes, ut.GetSpec().IssueType) {
+	if !slices.Contains(DiscoverRDSIssueTypes, ut.GetSpec().GetIssueType()) {
 		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverRDSIssueTypes)
 	}
 
-	if len(ut.Spec.DiscoverRds.Databases) == 0 {
+	if len(ut.GetSpec().GetDiscoverRds().GetDatabases()) == 0 {
 		return trace.BadParameter("at least one database is required")
 	}
-	for databaseIdentifier, databaseIssue := range ut.Spec.DiscoverRds.Databases {
+	for databaseIdentifier, databaseIssue := range ut.GetSpec().GetDiscoverRds().GetDatabases() {
 		if databaseIdentifier == "" {
 			return trace.BadParameter("database identifier in discover_rds.databases map is required")
 		}
