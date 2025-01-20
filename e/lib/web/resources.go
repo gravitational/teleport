@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/services"
@@ -20,7 +21,21 @@ func (p *Plugin) getAuthConnectorsHandle(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	return getAuthConnectors(r.Context(), clt)
+	connectors, err := getAuthConnectors(r.Context(), clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defaultConnectorName, defaultConnectorType, err := web.ProcessDefaultConnector(r.Context(), clt, connectors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.ListAuthConnectorsResponse{
+		DefaultConnectorName: defaultConnectorName,
+		DefaultConnectorType: defaultConnectorType,
+		Connectors:           connectors,
+	}, nil
 }
 
 func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
@@ -102,6 +117,26 @@ func (p *Plugin) deleteSAMLConnectorHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	defaultConnectorName := authPref.GetConnectorName()
+	defaultConnectorType := authPref.GetType()
+	// If the connector being deleted is the default, have the auth preference fallback to another connector.
+	if defaultConnectorType == constants.SAML && defaultConnectorName == connectorName {
+		connectors, err := getAuthConnectors(r.Context(), clt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, _, err = web.ProcessDefaultConnector(r.Context(), clt, connectors)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return web.OK(), nil
 }
 
@@ -134,6 +169,26 @@ func (p *Plugin) deleteOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 	connectorName := params.ByName("name")
 	if err := clt.DeleteOIDCConnector(r.Context(), connectorName); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	defaultConnectorName := authPref.GetConnectorName()
+	defaultConnectorType := authPref.GetType()
+	// If the connector being deleted is the default, have the auth preference fallback to another connector.
+	if defaultConnectorType == constants.OIDC && defaultConnectorName == connectorName {
+		connectors, err := getAuthConnectors(r.Context(), clt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, _, err = web.ProcessDefaultConnector(r.Context(), clt, connectors)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return web.OK(), nil

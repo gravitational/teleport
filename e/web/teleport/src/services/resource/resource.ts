@@ -1,6 +1,7 @@
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 import ResourceService, {
+  DefaultAuthConnector,
   KindAuthConnectors,
   makeResource,
   makeResourceList,
@@ -8,10 +9,17 @@ import ResourceService, {
 } from 'teleport/services/resources';
 
 class ResourceServiceE extends ResourceService {
-  fetchAuthConnectors() {
-    return api
-      .get(cfg.getAuthConnectorsListUrl())
-      .then(res => makeResourceList<KindAuthConnectors>(res));
+  fetchAuthConnectors(): Promise<{
+    defaultConnector: DefaultAuthConnector;
+    connectors: Resource<KindAuthConnectors>[];
+  }> {
+    return api.get(cfg.getAuthConnectorsListUrl()).then(res => ({
+      defaultConnector: {
+        name: res.defaultConnectorName,
+        type: res.defaultConnectorType,
+      },
+      connectors: makeResourceList<KindAuthConnectors>(res.connectors),
+    }));
   }
 
   fetchSamlConnector(name: string) {
