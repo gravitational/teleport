@@ -53,6 +53,24 @@ spec:
       # credential.
       dns_sans:
       - example.com
+      # Controls the subject distinguished name of an X509 workload identity
+      # credential issued using this identity. If unspecified, a blank subject
+      # will be used.
+      #
+      # In most circumstances, it is recommended to prefer relying on the
+      # SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed
+      # to support legacy systems designed for X.509 and not SPIFFE/WIMSE.
+      subject_template:
+        # The common name (CN - 2.5.4.3) of the subject distinguished name.
+        # Supports templating. If not provided, the common name will be omitted.
+        common_name: my-common-name
+        # The organization (O - 2.5.4.10) of the subject distinguished name.
+        # Supports templating. If not provided, the organization will be omitted.
+        organization: my-organization
+        # The organizational unit (OU - 2.5.4.11) of the subject distinguished
+        # name. Supports templating. If not provided, the organizational unit
+        # will be omitted.
+        organizational_unit: my-organizational-unit
 ```
 
 ## Templating
