@@ -1356,7 +1356,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 
 // shouldPersistJoinAttrs returns true if the join attributes should be persisted
 // into the X509 identity. This provides an emergency "off" handle for this
-// new behaviour until we are confident it is working as expected.
+// new behavior until we are confident it is working as expected.
 func shouldPersistJoinAttrs() bool {
 	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_JOIN_ATTRS") != "1"
 }
