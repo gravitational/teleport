@@ -418,6 +418,7 @@ type kubeExecCommand struct {
 	*kingpin.CmdClause
 	target                         string
 	container                      string
+	namespace                      string
 	filename                       string
 	quiet                          bool
 	stdin                          bool
@@ -434,6 +435,7 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	}
 
 	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
 	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
 	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
@@ -477,6 +479,10 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if c.namespace != "" {
+		p.Namespace = c.namespace
 	}
 
 	p.Config, err = f.ToRESTConfig()
