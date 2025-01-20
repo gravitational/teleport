@@ -97,6 +97,12 @@ class ResourceService {
       .then(res => makeResource<'role'>(res));
   }
 
+  fetchGithubConnector(name: string) {
+    return api
+      .get(cfg.getGithubConnectorUrl(name))
+      .then(res => makeResource<'github'>(res));
+  }
+
   updateGithubConnector(name: string, content: string) {
     return api
       .put(cfg.getGithubConnectorsUrl(name), { content })

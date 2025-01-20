@@ -109,7 +109,6 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 				cfg := servicecfg.MakeDefaultConfig()
 				cfg.DataDir = makeTempDir(t)
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
@@ -140,7 +139,6 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 				cfg := servicecfg.MakeDefaultConfig()
 				cfg.DataDir = makeTempDir(t)
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
@@ -284,7 +282,6 @@ func TestMonitor(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
@@ -1746,7 +1743,6 @@ func TestInstanceMetadata(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := newCfg()
 			cfg.DataDir = makeTempDir(t)
-			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.InstanceMetadataClient = tc.imClient
 
 			process, err := NewTeleport(cfg)
@@ -1811,12 +1807,10 @@ func TestInitDatabaseService(t *testing.T) {
 			cfg.DebugService = servicecfg.DebugConfig{
 				Enabled: false,
 			}
-			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Hostname = "default.example.com"
 			cfg.Auth.Enabled = true
 			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 			cfg.Proxy.Enabled = true
 			cfg.Proxy.DisableWebInterface = true
@@ -1953,6 +1947,10 @@ func TestAgentRolloutController(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
+// TestMetricsService tests that the optional metrics service exposes
+// metrics from both the in-process and global metrics registry. When the
+// service is disabled, metrics are served by the diagnostics service
+// (tested in TestMetricsInDiagnosticsService).
 func TestMetricsService(t *testing.T) {
 	t.Parallel()
 	// Test setup: create a listener for the metrics server, get its file descriptor.
@@ -2016,6 +2014,70 @@ func TestMetricsService(t *testing.T) {
 
 	// Test execution: get metrics and check the tests metrics are here.
 	metricsURL, err := url.Parse("http://" + metricsListener.Addr().String())
+	require.NoError(t, err)
+	metricsURL.Path = "/metrics"
+	resp, err := http.Get(metricsURL.String())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+}
+
+// TestMetricsInDiagnosticsService tests that the diagnostics service exposes
+// metrics from both the in-process and global metrics registry when the metrics
+// service is disabled.
+func TestMetricsInDiagnosticsService(t *testing.T) {
+	t.Parallel()
+	// Test setup: create a new teleport process
+	dataDir := makeTempDir(t)
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DataDir = dataDir
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+	cfg.DebugService.Enabled = false
+	cfg.Auth.StorageConfig.Params["path"] = dataDir
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+	// Test setup: Create and start the Teleport service.
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		assert.NoError(t, process.Close())
+		assert.NoError(t, process.Wait())
+	})
+
+	// Test setup: create our test metrics.
+	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
+	localMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "local_metric_" + nonce,
+	})
+	globalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "global_metric_" + nonce,
+	})
+	require.NoError(t, process.metricsRegistry.Register(localMetric))
+	require.NoError(t, prometheus.Register(globalMetric))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	t.Cleanup(cancel)
+	_, err = process.WaitForEvent(ctx, TeleportReadyEvent)
+	require.NoError(t, err)
+
+	// Test execution: query the metrics endpoint and check the tests metrics are here.
+	diagAddr, err := process.DiagnosticAddr()
+	require.NoError(t, err)
+	metricsURL, err := url.Parse("http://" + diagAddr.String())
 	require.NoError(t, err)
 	metricsURL.Path = "/metrics"
 	resp, err := http.Get(metricsURL.String())

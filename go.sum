@@ -851,8 +851,8 @@ github.com/aws/aws-sdk-go v1.49.12/go.mod h1:LF8svs817+Nz+DmiMQKTO3ubZ/6IaTpq3Tj
 github.com/aws/aws-sdk-go v1.55.5 h1:KKUZBfBoyqy5d3swXyiC7Q76ic40rYcbqH7qjh59kzU=
 github.com/aws/aws-sdk-go v1.55.5/go.mod h1:eRwEWoyTWFMVYVQzKMNHWP5/RV4xIUGMQfXQHfHkpNU=
 github.com/aws/aws-sdk-go-v2 v1.18.0/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
-github.com/aws/aws-sdk-go-v2 v1.32.7 h1:ky5o35oENWi0JYWUZkB7WYvVPP+bcRF5/Iq7JWSb5Rw=
-github.com/aws/aws-sdk-go-v2 v1.32.7/go.mod h1:P5WJBrYqqbWVaOxgH0X/FYYD47/nooaPOZPlQdmiN2U=
+github.com/aws/aws-sdk-go-v2 v1.32.8 h1:cZV+NUS/eGxKXMtmyhtYPJ7Z4YLoI/V8bkTdRZfYhGo=
+github.com/aws/aws-sdk-go-v2 v1.32.8/go.mod h1:P5WJBrYqqbWVaOxgH0X/FYYD47/nooaPOZPlQdmiN2U=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.7 h1:lL7IfaFzngfx0ZwUGOZdsFFnQ5uLvR0hWqqhyE7Q9M8=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.7/go.mod h1:QraP0UcVlQJsmHfioCrveWOC1nbiWUl3ej08h4mXWoc=
 github.com/aws/aws-sdk-go-v2/config v1.18.25/go.mod h1:dZnYpD5wTW/dQF0rRNLVypB396zWCcPiBIvdvSWHEg4=
@@ -873,11 +873,11 @@ github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.2/go.mod h1:fnqb94UO6YCjBIic4
 github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.45 h1:ZxB8WFVYwolhDZxuZXoesHkl+L9cXLWy0K/G0QkNATc=
 github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.45/go.mod h1:1krrbyoFFDqaNldmltPTP+mK3sAXLHPoaFtISOw2Hkk=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.33/go.mod h1:7i0PF1ME/2eUPFcjkVIwq+DOygHEoK92t5cDqNgYbIw=
-github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.26 h1:I/5wmGMffY4happ8NOCuIUEWGUvvFp5NSeQcXl9RHcI=
-github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.26/go.mod h1:FR8f4turZtNy6baO0KJ5FJUmXH/cSkI9fOngs0yl6mA=
+github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.27 h1:jSJjSBzw8VDIbWv+mmvBSP8ezsztMYJGH+eKqi9AmNs=
+github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.27/go.mod h1:/DAhLbFRgwhmvJdOfSm+WwikZrCuUJiA4WgJG0fTNSw=
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.27/go.mod h1:UrHnn3QV/d0pBZ6QBAEQcqFLf8FAzLmoUfPVIueOvoM=
-github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.26 h1:zXFLuEuMMUOvEARXFUVJdfqZ4bvvSgdGRq/ATcrQxzM=
-github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.26/go.mod h1:3o2Wpy0bogG1kyOPrgkXA8pgIfEEv0+m19O9D5+W8y8=
+github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.27 h1:l+X4K77Dui85pIj5foXDhPlnqcNRG2QUyvca300lXh8=
+github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.27/go.mod h1:KvZXSFEXm6x84yE8qffKvT3x8J5clWnVFXphpohhzJ8=
 github.com/aws/aws-sdk-go-v2/internal/ini v1.3.34/go.mod h1:Etz2dj6UHYuw+Xw830KfzCfWGMzqvUTCjUj5b76GVDc=
 github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 h1:VaRN3TlFdd6KxX1x3ILT5ynH6HvKgqdiXoTxAF4HQcQ=
 github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1/go.mod h1:FbtygfRFze9usAadmnGJNc8KsP346kEe+y2/oyhGAGc=
@@ -905,6 +905,8 @@ github.com/aws/aws-sdk-go-v2/service/ecs v1.53.2 h1:o/FdG76sTAoC8h20j6bSBE6MPJYO
 github.com/aws/aws-sdk-go-v2/service/ecs v1.53.2/go.mod h1:YpTRClSDOPvN2e3kiIrYOx1sI+YKTZVmlMiNO2AwYhE=
 github.com/aws/aws-sdk-go-v2/service/eks v1.56.0 h1:x31cGGE/t/QkrHVh5m2uWvYwDiaDXpj88nh6OdnI5r0=
 github.com/aws/aws-sdk-go-v2/service/eks v1.56.0/go.mod h1:kNUWaiotRWCnfQlprrxSMg8ALqbZyA9xLCwKXuLumSk=
+github.com/aws/aws-sdk-go-v2/service/elasticache v1.44.4 h1:unSvRFU/oMJ9pzwvhtCCnbKGqAp92oetajVv6cW7H2A=
+github.com/aws/aws-sdk-go-v2/service/elasticache v1.44.4/go.mod h1:z/DqeOQ4R/9fGJsKTCHKtbGSR7Vupon53C6D8FNUU1w=
 github.com/aws/aws-sdk-go-v2/service/glue v1.105.0 h1:raq38Qb6iJJtzADr7Z4IYHOFp5E1NVpHDGoTOsGLHNM=
 github.com/aws/aws-sdk-go-v2/service/glue v1.105.0/go.mod h1:FyYpmVnMux6fzG2kcLnVwT/swhs8DNtleGIkc8gh63c=
 github.com/aws/aws-sdk-go-v2/service/iam v1.38.3 h1:2sFIoFzU1IEL9epJWubJm9Dhrn45aTNEJuwsesaCGnk=
@@ -930,6 +932,8 @@ github.com/aws/aws-sdk-go-v2/service/rds v1.93.2 h1:Fv2//DyCH9n6LqEOvpeIFYYRfIhv
 github.com/aws/aws-sdk-go-v2/service/rds v1.93.2/go.mod h1:QEpwiX4BS6nos2d/ele6gRGalNW0Hzc1TZMmhkywQb0=
 github.com/aws/aws-sdk-go-v2/service/redshift v1.53.1 h1:fpuhuF5DuY26w61bBq8YrMYecLVs6eiQK7JbD9womPI=
 github.com/aws/aws-sdk-go-v2/service/redshift v1.53.1/go.mod h1:Uz+PdLUo8+x/iXFrZGc+j+w/AVAfc7Qmju9XjCiQGHE=
+github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.25.1 h1:anb79RuKbIO8z+SgNiDGCQln5CBI3Edzp9mXTAcZuNg=
+github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.25.1/go.mod h1:u4NPdVb3te3+QB4rdjFGE9Of4V3vPqrPbTk6fAR6qf8=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.72.0 h1:SAfh4pNx5LuTafKKWR02Y+hL3A+3TX8cTKG1OIAJaBk=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.72.0/go.mod h1:r+xl5yzMk9083rMR+sJ5TYj9Tihvf/l1oxzZXDgGj2Q=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.8 h1:WT3EPriVEpHE2jeNqHqj7l43JCIWPoZjNNRluZ7agII=
@@ -1561,8 +1565,8 @@ github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFE
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 h1:TjiJ98fWU5N28MBktP5vj1/xohin7cX/JBPPJ8iCiTE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624/go.mod h1:pERQ8qtFfvV0Pfw9jA5o1WH1snupQQ3SZ+n8CVdRJNs=
-github.com/gravitational/predicate v1.3.1 h1:f1uGg2FF6z5wZbcafYpLZJ1gl+82I0MlSd0cQKDPQe0=
-github.com/gravitational/predicate v1.3.1/go.mod h1:H5e9dUW7zb/cuKkkhfnyT9SsI/WHWJ8Ra011La16DTY=
+github.com/gravitational/predicate v1.3.2 h1:NAdaWihgGVS3nuKDZZHTda4wwNjGlvG4a+UYQ4f3gQc=
+github.com/gravitational/predicate v1.3.2/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
 github.com/gravitational/protobuf v1.3.2-teleport.1 h1:h5mh+UOKPurqDxn1hRVcr1WzSkmBi+D9qkXpaXA9PFM=
 github.com/gravitational/protobuf v1.3.2-teleport.1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/gravitational/redis/v9 v9.6.1-teleport.1 h1:gPirfPKArN2nPhTKR3h9fnEg5YuYU933+CjlDJMo4H0=
@@ -1571,8 +1575,8 @@ github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyP
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/saml v0.4.15-teleport.1 h1:kYSLpxEBEc7JLJJ+VjsZU8PbWI4gWxdCgll5cq1/rGU=
 github.com/gravitational/saml v0.4.15-teleport.1/go.mod h1:S4+611dxnKt8z/ulbvaJzcgSHsuhjVc1QHNTcr1R7Fw=
-github.com/gravitational/trace v1.4.0 h1:TtTeMElVwMX21Udb1nmK2tpWYAAMJoyjevzKOaxIFZQ=
-github.com/gravitational/trace v1.4.0/go.mod h1:g79NZzwCjWS/VVubYowaFAQsTjVTohGi0hFbIWSyGoY=
+github.com/gravitational/trace v1.5.0 h1:JbeL2HDGyzgy7G72Z2hP2gExEyA6Y2p7fCiSjyZwCJw=
+github.com/gravitational/trace v1.5.0/go.mod h1:dxezSkKm880IIDx+czWG8fq+pLnXjETBewMgN3jOBlg=
 github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 h1:pdN6V1QBWetyv/0+wjACpqVH+eVULgEjkurDLq3goeM=
 github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1 h1:qnpSQwGEnkcRpTqNOIR6bJbR0gAorgP9CSALpRcKoAA=
@@ -3134,8 +3138,8 @@ google.golang.org/protobuf v1.28.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqw
 google.golang.org/protobuf v1.29.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.30.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
-google.golang.org/protobuf v1.36.2 h1:R8FeyR1/eLmkutZOM5CWghmo5itiG9z0ktFlTVLuTmU=
-google.golang.org/protobuf v1.36.2/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
+google.golang.org/protobuf v1.36.3 h1:82DV7MYdb8anAVi3qge1wSnMDrnKK7ebr+I0hHRN1BU=
+google.golang.org/protobuf v1.36.3/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
 gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc h1:2gGKlE2+asNV9m7xrywl36YYNnBG5ZQ0r/BOOxqPpmk=
 gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc/go.mod h1:m7x9LTH6d71AHyAX77c9yqWCCa3UKHcVEj9y7hAtKDk=

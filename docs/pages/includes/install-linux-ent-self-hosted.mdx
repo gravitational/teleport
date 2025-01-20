@@ -3,14 +3,15 @@
 <TabItem label="Debian 9+/Ubuntu 16.04+ (apt)">
 
 ```code
+$ mkdir -p /etc/apt/keyrings
 # Download Teleport's PGP public key
 $ sudo curl https://apt.releases.teleport.dev/gpg \
--o /usr/share/keyrings/teleport-archive-keyring.asc
+-o /etc/apt/keyrings/teleport-archive-keyring.asc
 # Source variables about OS version
 $ source /etc/os-release
 # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
 # file for each major release of Teleport.
-$ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+$ echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
 https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
 | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 

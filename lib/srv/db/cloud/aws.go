@@ -23,10 +23,9 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -93,17 +92,18 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 	}
 
 	meta := config.database.GetAWS()
-	iam, err := config.clients.GetAWSIAMClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := config.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	iamClt := config.awsClients.getIAMClient(awsCfg)
 	return &awsClient{
 		cfg:            config,
 		dbConfigurator: dbConfigurator,
-		iam:            iam,
+		iam:            iamClt,
 		logger:         logger,
 	}, nil
 }
@@ -130,7 +130,7 @@ func getDBConfigurator(logger *slog.Logger, cfg awsConfig) (dbIAMAuthConfigurato
 type awsClient struct {
 	cfg            awsConfig
 	dbConfigurator dbIAMAuthConfigurator
-	iam            iamiface.IAMAPI
+	iam            iamClient
 	logger         *slog.Logger
 }
 
@@ -242,7 +242,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 	var policyDocument string
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		out, err := r.iam.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
+		out, err := r.iam.GetRolePolicy(ctx, &iam.GetRolePolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -252,9 +252,9 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			}
 			return nil, awslib.ConvertIAMError(err)
 		}
-		policyDocument = aws.StringValue(out.PolicyDocument)
+		policyDocument = aws.ToString(out.PolicyDocument)
 	case awslib.User:
-		out, err := r.iam.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
+		out, err := r.iam.GetUserPolicy(ctx, &iam.GetUserPolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -264,7 +264,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			}
 			return nil, awslib.ConvertIAMError(err)
 		}
-		policyDocument = aws.StringValue(out.PolicyDocument)
+		policyDocument = aws.ToString(out.PolicyDocument)
 	default:
 		return nil, trace.BadParameter("can only fetch policies for roles or users, got %v", r.cfg.identity)
 	}
@@ -280,13 +280,13 @@ func (r *awsClient) updateIAMPolicy(ctx context.Context, policy *awslib.PolicyDo
 	}
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		_, err = r.iam.PutRolePolicyWithContext(ctx, &iam.PutRolePolicyInput{
+		_, err = r.iam.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
 			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			RoleName:       aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
-		_, err = r.iam.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{
+		_, err = r.iam.PutUserPolicy(ctx, &iam.PutUserPolicyInput{
 			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			UserName:       aws.String(r.cfg.identity.GetName()),
@@ -303,12 +303,12 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 	var err error
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		_, err = r.iam.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
+		_, err = r.iam.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
-		_, err = r.iam.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
+		_, err = r.iam.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})

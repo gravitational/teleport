@@ -13,7 +13,7 @@ spec:
   # this is the only field that can be changed later.
   enabled: true
   # the token expected by the "root" cluster:
-  # https://goteleport.com/docs/management/admin/trustedclusters/#step-36-establish-trust-between-clusters
+  # https://goteleport.com/docs/admin-guides/management/admin/trustedclusters/#step-36-establish-trust-between-clusters
   token: secret-token-from-root-cluster
   # the address in 'host:port' form of the reverse tunnel listening port on the
   # "root" proxy server:

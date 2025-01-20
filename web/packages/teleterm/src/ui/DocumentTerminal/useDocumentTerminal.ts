@@ -416,10 +416,10 @@ function createCmd(
   }
 
   if (doc.kind === 'doc.gateway_cli_client') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      doc.targetUser
-    );
+    const gateway = clustersService.findGatewayByConnectionParams({
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+    });
     if (!gateway) {
       // This shouldn't happen as DocumentGatewayCliClient doesn't render DocumentTerminal before
       // the gateway is found. In any case, if it does happen for some reason, the user will see
@@ -449,10 +449,9 @@ function createCmd(
   }
 
   if (doc.kind === 'doc.gateway_kube') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      ''
-    );
+    const gateway = clustersService.findGatewayByConnectionParams({
+      targetUri: doc.targetUri,
+    });
     if (!gateway) {
       throw new Error(`No gateway found for ${doc.targetUri}`);
     }

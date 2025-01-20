@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.23.4
+go 1.23.5
 
 // Doc generation tooling
 require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced
@@ -15,7 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/teleport v0.0.0 // replaced
 	github.com/gravitational/teleport/api v0.0.0 // replaced
-	github.com/gravitational/trace v1.4.0
+	github.com/gravitational/trace v1.5.0
 	github.com/hashicorp/terraform-plugin-framework v0.10.0
 	github.com/hashicorp/terraform-plugin-go v0.18.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
@@ -23,7 +23,7 @@ require (
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.69.2
-	google.golang.org/protobuf v1.36.2
+	google.golang.org/protobuf v1.36.3
 )
 
 require (
@@ -75,14 +75,14 @@ require (
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.5 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.32.7 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.32.8 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.7 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.28.7 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.48 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.22 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.45 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.26 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.26 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.27 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.27 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.26 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.49.2 // indirect
@@ -90,6 +90,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.27.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.53.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.56.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/elasticache v1.44.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/glue v1.105.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/iam v1.38.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.8 // indirect
@@ -101,6 +102,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.37.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.93.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.53.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.25.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.72.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.8 // indirect
@@ -409,7 +411,7 @@ replace (
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2
 	sigs.k8s.io/kustomize/api => github.com/gravitational/kustomize/api v0.16.0-teleport.1
 )
 

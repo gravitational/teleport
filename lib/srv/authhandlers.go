@@ -36,12 +36,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
-	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -470,7 +468,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		log.WarnContext(ctx, "Received unexpected cert type", "cert_type", cert.CertType)
 	}
 
-	if h.isProxy() {
+	// Skip RBAC check for proxy or git servers. RBAC check on git servers are
+	// performed outside this handler.
+	if h.isProxy() || h.c.Component == teleport.ComponentForwardingGit {
 		return permissions, nil
 	}
 
@@ -645,18 +645,9 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		return trace.Wrap(err)
 	}
 
-	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
+	state, err := services.AccessStateFromSSHCertificate(ctx, cert, accessChecker, a.c.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	state := accessChecker.GetAccessState(authPref)
-	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
-
-	// Certain hardware-key based private key policies are treated as MFA verification.
-	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
-		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
-			state.MFAVerified = true
-		}
 	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
@@ -674,9 +665,6 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 			return nil
 		}
 	}
-
-	state.EnableDeviceVerification = true
-	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(

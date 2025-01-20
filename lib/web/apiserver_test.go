@@ -400,6 +400,16 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	defer caWatcher.Close()
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+		GitServerGetter: s.proxyClient.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyGitServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -415,6 +425,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
@@ -2796,7 +2807,8 @@ func TestInstallerRepoChannel(t *testing.T) {
 
 		wc := s.client(t)
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here:
+			// https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
@@ -2870,7 +2882,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		wc := s.client(t)
 
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 	echo {{ .PublicProxyAddr }}
 	echo Teleport-{{ .MajorVersion }}
@@ -2927,7 +2939,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 		wc := s.client(t)
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
@@ -8270,6 +8282,16 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyNodeWatcher.Close)
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+		GitServerGetter: client.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyGitServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -8285,6 +8307,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},

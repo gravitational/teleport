@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -43,8 +44,9 @@ import (
 )
 
 type testSite struct {
-	cfg   types.ClusterNetworkingConfig
-	nodes []types.Server
+	cfg        types.ClusterNetworkingConfig
+	nodes      []types.Server
+	gitServers []types.Server
 }
 
 func (t testSite) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -54,6 +56,16 @@ func (t testSite) GetClusterNetworkingConfig(ctx context.Context) (types.Cluster
 func (t testSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	var out []types.Server
 	for _, s := range t.nodes {
+		if fn(s) {
+			out = append(out, s)
+		}
+	}
+
+	return out, nil
+}
+func (t testSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
+	var out []types.Server
+	for _, s := range t.gitServers {
 		if fn(s) {
 			out = append(out, s)
 		}
@@ -351,6 +363,11 @@ func TestGetServers(t *testing.T) {
 		},
 	)
 
+	gitServers := []types.Server{
+		makeGitHubServer(t, "org1"),
+		makeGitHubServer(t, "org2"),
+	}
+
 	// ensure tests don't have order-dependence
 	rand.Shuffle(len(servers), func(i, j int) {
 		servers[i], servers[j] = servers[j], servers[i]
@@ -487,6 +504,28 @@ func TestGetServers(t *testing.T) {
 				require.NotNil(t, srv)
 				require.Equal(t, "agentless-1", srv.GetHostname())
 				require.True(t, srv.IsOpenSSHNode())
+			},
+		},
+		{
+			name:         "git server",
+			site:         testSite{cfg: &unambiguousCfg, gitServers: gitServers},
+			host:         "org2.teleport-github-org",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.NotNil(t, srv.GetGitHub())
+				assert.Equal(t, "org2", srv.GetGitHub().Organization)
+			},
+		},
+		{
+			name: "git server not found",
+			site: testSite{cfg: &unambiguousCfg, gitServers: gitServers},
+			host: "org-not-found.teleport-github-org",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err), i...)
+			},
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.Nil(t, srv)
 			},
 		},
 	}
@@ -890,4 +929,14 @@ func TestRouter_DialSite(t *testing.T) {
 			tt.assertion(t, conn, err)
 		})
 	}
+}
+
+func makeGitHubServer(t *testing.T, org string) types.Server {
+	t.Helper()
+	server, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  org,
+		Organization: org,
+	})
+	require.NoError(t, err)
+	return server
 }

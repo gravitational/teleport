@@ -27,15 +27,26 @@ import {
   Role,
   Rule,
   SessionRecordingMode,
+  SSHPortForwarding,
 } from 'teleport/services/resources';
 
 import {
+  createDBUserModeOptionsMap,
+  createHostUserModeOptionsMap,
   KubernetesAccess,
+  kubernetesResourceKindOptionsMap,
+  kubernetesVerbOptionsMap,
   labelsModelToLabels,
   labelsToModel,
+  portForwardingOptionsToModel,
+  requireMFATypeOptionsMap,
+  resourceKindOptionsMap,
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
+  sessionRecordingModeOptionsMap,
+  sshPortForwardingModeOptionsMap,
+  verbOptionsMap,
 } from './standardmodel';
 import { optionsWithDefaults, withDefaults } from './withDefaults';
 
@@ -51,26 +62,19 @@ const minimalRoleModel = (): RoleEditorModel => ({
     maxSessionTTL: '30h0m0s',
     clientIdleTimeout: '',
     disconnectExpiredCert: false,
-    requireMFAType: {
-      value: false,
-      label: 'No',
-    },
-    createHostUserMode: {
-      value: '',
-      label: 'Unspecified',
-    },
+    requireMFAType: requireMFATypeOptionsMap.get(false),
+    createHostUserMode: createHostUserModeOptionsMap.get(''),
     createDBUser: false,
-    createDBUserMode: {
-      value: '',
-      label: 'Unspecified',
-    },
+    createDBUserMode: createDBUserModeOptionsMap.get(''),
     desktopClipboard: true,
     createDesktopUser: false,
     desktopDirectorySharing: true,
-    defaultSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
-    sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+    defaultSessionRecordingMode:
+      sessionRecordingModeOptionsMap.get('best_effort'),
+    sshSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
     recordDesktopSessions: true,
     forwardAgent: false,
+    sshPortForwardingMode: sshPortForwardingModeOptionsMap.get(''),
   },
 });
 
@@ -261,6 +265,14 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             ssh: 'best_effort',
           },
           forward_agent: true,
+          ssh_port_forwarding: {
+            local: {
+              enabled: true,
+            },
+            remote: {
+              enabled: false,
+            },
+          },
         },
       },
     },
@@ -270,20 +282,43 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         maxSessionTTL: '1h15m30s',
         clientIdleTimeout: '2h30m45s',
         disconnectExpiredCert: true,
-        requireMFAType: { value: 'hardware_key', label: 'Hardware Key' },
-        createHostUserMode: { value: 'keep', label: 'Keep' },
+        requireMFAType: requireMFATypeOptionsMap.get('hardware_key'),
+        createHostUserMode: createHostUserModeOptionsMap.get('keep'),
         createDBUser: true,
-        createDBUserMode: {
-          value: 'best_effort_drop',
-          label: 'Drop (best effort)',
-        },
+        createDBUserMode: createDBUserModeOptionsMap.get('best_effort_drop'),
         desktopClipboard: false,
         createDesktopUser: true,
         desktopDirectorySharing: false,
-        defaultSessionRecordingMode: { value: 'strict', label: 'Strict' },
-        sshSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
+        defaultSessionRecordingMode:
+          sessionRecordingModeOptionsMap.get('strict'),
+        sshSessionRecordingMode:
+          sessionRecordingModeOptionsMap.get('best_effort'),
         recordDesktopSessions: false,
         forwardAgent: true,
+        sshPortForwardingMode:
+          sshPortForwardingModeOptionsMap.get('local-only'),
+      },
+    },
+  },
+
+  {
+    name: 'Options object with legacy port forwarding',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        options: {
+          ...minimalRole().spec.options,
+          port_forwarding: true,
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      options: {
+        ...minimalRoleModel().options,
+        sshPortForwardingMode:
+          sshPortForwardingModeOptionsMap.get('deprecated-on'),
       },
     },
   },
@@ -296,6 +331,93 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
     expect(roleEditorModelToRole(model)).toEqual(role);
   });
 });
+
+test.each<{
+  name: string;
+  portForwarding?: SSHPortForwarding;
+  legacyPortForwarding?: boolean;
+  expected: ReturnType<typeof portForwardingOptionsToModel>;
+}>([
+  { name: 'unspecified', expected: { model: '', requiresReset: false } },
+  {
+    name: 'none',
+    portForwarding: { local: { enabled: false }, remote: { enabled: false } },
+    expected: { model: 'none', requiresReset: false },
+  },
+  {
+    name: 'local-only',
+    portForwarding: { local: { enabled: true }, remote: { enabled: false } },
+    expected: { model: 'local-only', requiresReset: false },
+  },
+  {
+    name: 'remote-only',
+    portForwarding: { local: { enabled: false }, remote: { enabled: true } },
+    expected: { model: 'remote-only', requiresReset: false },
+  },
+  {
+    name: ' local-and-remote',
+    portForwarding: { local: { enabled: true }, remote: { enabled: true } },
+    expected: { model: 'local-and-remote', requiresReset: false },
+  },
+  {
+    name: 'deprecated-on',
+    legacyPortForwarding: true,
+    expected: { model: 'deprecated-on', requiresReset: false },
+  },
+  {
+    name: 'deprecated-off',
+    legacyPortForwarding: false,
+    expected: { model: 'deprecated-off', requiresReset: false },
+  },
+  {
+    name: 'local-and-remote (overriding deprecated even if specified)',
+    portForwarding: { local: { enabled: true }, remote: { enabled: true } },
+    legacyPortForwarding: false,
+    expected: { model: 'local-and-remote', requiresReset: false },
+  },
+  {
+    name: 'an empty port forwarding object',
+    portForwarding: {},
+    expected: { model: '', requiresReset: true },
+  },
+  {
+    name: 'empty local and remote objects',
+    portForwarding: { local: {}, remote: {} },
+    expected: { model: '', requiresReset: true },
+  },
+  {
+    name: 'unknown fields',
+    portForwarding: {
+      local: { enabled: true },
+      remote: { enabled: true },
+      foo: 'bar',
+    } as SSHPortForwarding,
+    expected: { model: 'local-and-remote', requiresReset: true },
+  },
+  {
+    name: 'unknown fields in local',
+    portForwarding: {
+      local: { enabled: true, foo: 'bar' },
+      remote: { enabled: false },
+    } as SSHPortForwarding,
+    expected: { model: 'local-only', requiresReset: true },
+  },
+  {
+    name: 'unknown fields in remote',
+    portForwarding: {
+      local: { enabled: false },
+      remote: { enabled: false, foo: 'bar' },
+    } as SSHPortForwarding,
+    expected: { model: 'none', requiresReset: true },
+  },
+])(
+  'portForwardingOptionsToModel(): $name',
+  ({ portForwarding, legacyPortForwarding, expected }) => {
+    expect(
+      portForwardingOptionsToModel(portForwarding, legacyPortForwarding)
+    ).toEqual(expected);
+  }
+);
 
 describe('roleToRoleEditorModel', () => {
   const minRole = minimalRole();
@@ -421,7 +543,7 @@ describe('roleToRoleEditorModel', () => {
             ...newKubeClusterResourceAccess(),
             resources: [
               expect.objectContaining({
-                verbs: [{ value: 'get', label: 'get' }],
+                verbs: [kubernetesVerbOptionsMap.get('get')],
               }),
             ],
           },
@@ -538,7 +660,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          requireMFAType: { value: false, label: 'No' },
+          requireMFAType: requireMFATypeOptionsMap.get(false),
         },
       },
     },
@@ -559,7 +681,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          createHostUserMode: { value: '', label: 'Unspecified' },
+          createHostUserMode: createHostUserModeOptionsMap.get(''),
         },
       },
     },
@@ -580,7 +702,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          createDBUserMode: { value: '', label: 'Unspecified' },
+          createDBUserMode: createDBUserModeOptionsMap.get(''),
         },
       },
     },
@@ -600,7 +722,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          defaultSessionRecordingMode: { value: '', label: 'Unspecified' },
+          defaultSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
         },
       },
     },
@@ -620,9 +742,23 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+          sshSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
         },
       },
+    },
+
+    {
+      name: 'unsupported value in spec.options.ssh_port_forwarding',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: optionsWithDefaults({
+            ssh_port_forwarding: {},
+          }),
+        },
+      },
+      model: roleModelWithReset,
     },
   ])(
     'requires reset because of $name',
@@ -734,17 +870,17 @@ describe('roleToRoleEditorModel', () => {
           resources: [
             {
               id: expect.any(String),
-              kind: { value: 'pod', label: 'Pod' },
+              kind: kubernetesResourceKindOptionsMap.get('pod'),
               name: 'some-pod',
               namespace: '*',
               verbs: [
-                { label: 'get', value: 'get' },
-                { label: 'update', value: 'update' },
+                kubernetesVerbOptionsMap.get('get'),
+                kubernetesVerbOptionsMap.get('update'),
               ],
             },
             {
               id: expect.any(String),
-              kind: { value: 'kube_node', label: 'Node' },
+              kind: kubernetesResourceKindOptionsMap.get('kube_node'),
               name: 'some-node',
               namespace: '',
               verbs: [],
@@ -781,46 +917,43 @@ describe('roleToRoleEditorModel', () => {
       ],
     } as RoleEditorModel);
   });
-});
 
-it('creates a rule model', () => {
-  expect(
-    roleToRoleEditorModel({
-      ...minimalRole(),
-      spec: {
-        ...minimalRole().spec,
-        allow: {
-          rules: [
-            {
-              resources: [ResourceKind.User, ResourceKind.DatabaseService],
-              verbs: ['read', 'list'],
-            },
-            { resources: [ResourceKind.Lock], verbs: ['create'] },
-          ],
+  it('creates a rule model', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(),
+        spec: {
+          ...minimalRole().spec,
+          allow: {
+            rules: [
+              {
+                resources: [ResourceKind.User, ResourceKind.DatabaseService],
+                verbs: ['read', 'list'],
+              },
+              { resources: [ResourceKind.Lock], verbs: ['create'] },
+            ],
+          },
         },
-      },
-    })
-  ).toEqual({
-    ...minimalRoleModel(),
-    rules: [
-      {
-        id: expect.any(String),
-        resources: [
-          { label: 'user', value: 'user' },
-          { label: 'db_service', value: 'db_service' },
-        ],
-        verbs: [
-          { label: 'read', value: 'read' },
-          { label: 'list', value: 'list' },
-        ],
-      },
-      {
-        id: expect.any(String),
-        resources: [{ label: 'lock', value: 'lock' }],
-        verbs: [{ label: 'create', value: 'create' }],
-      },
-    ],
-  } as RoleEditorModel);
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      rules: [
+        {
+          id: expect.any(String),
+          resources: [
+            resourceKindOptionsMap.get(ResourceKind.User),
+            resourceKindOptionsMap.get(ResourceKind.DatabaseService),
+          ],
+          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+        },
+        {
+          id: expect.any(String),
+          resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
+          verbs: [verbOptionsMap.get('create')],
+        },
+      ],
+    } as RoleEditorModel);
+  });
 });
 
 test('labelsToModel', () => {
@@ -872,17 +1005,17 @@ describe('roleEditorModelToRole', () => {
             resources: [
               {
                 id: 'dummy-id-1',
-                kind: { value: 'pod', label: 'Pod' },
+                kind: kubernetesResourceKindOptionsMap.get('pod'),
                 name: 'some-pod',
                 namespace: '*',
                 verbs: [
-                  { label: 'get', value: 'get' },
-                  { label: 'update', value: 'update' },
+                  kubernetesVerbOptionsMap.get('get'),
+                  kubernetesVerbOptionsMap.get('update'),
                 ],
               },
               {
                 id: 'dummy-id-2',
-                kind: { value: 'kube_node', label: 'Node' },
+                kind: kubernetesResourceKindOptionsMap.get('kube_node'),
                 name: 'some-node',
                 namespace: '',
                 verbs: [],
@@ -925,18 +1058,15 @@ describe('roleEditorModelToRole', () => {
           {
             id: 'dummy-id-1',
             resources: [
-              { label: 'user', value: ResourceKind.User },
-              { label: 'db_service', value: ResourceKind.DatabaseService },
+              resourceKindOptionsMap.get(ResourceKind.User),
+              resourceKindOptionsMap.get(ResourceKind.DatabaseService),
             ],
-            verbs: [
-              { label: 'read', value: 'read' },
-              { label: 'list', value: 'list' },
-            ],
+            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
           },
           {
             id: 'dummy-id-2',
-            resources: [{ label: 'lock', value: ResourceKind.Lock }],
-            verbs: [{ label: 'create', value: 'create' }],
+            resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
+            verbs: [verbOptionsMap.get('create')],
           },
         ],
       })
