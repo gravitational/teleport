@@ -108,6 +108,27 @@ func TestConfig_SetFromURL(t *testing.T) {
 				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_DISABLED, config.UseFIPSEndpoint)
 			},
 		},
+		{
+			name: "path style addressing enabled via url",
+			url:  "s3://path/bucket/adit?use_s3_virtual_style_addressing=false",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.False(t, config.UseVirtualStyleAddressing)
+			},
+		},
+		{
+			name: "path style addressing enabled by default",
+			url:  "s3://path/bucket/audit",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.False(t, config.UseVirtualStyleAddressing)
+			},
+		},
+		{
+			name: "path style addressing disabled via url",
+			url:  "s3://path/bucket/audit?use_s3_virtual_style_addressing=true",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.True(t, config.UseVirtualStyleAddressing)
+			},
+		},
 	}
 
 	for _, tt := range cases {

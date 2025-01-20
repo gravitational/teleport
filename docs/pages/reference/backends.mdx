@@ -650,6 +650,10 @@ Service reads these parameters to configure its interactions with S3:
 - `use_fips_endpoint=true` -  [Configure S3 FIPS
   endpoints](#configuring-aws-fips-endpoints)
 
+- `use_s3_virtual_style_addressing` - Whether to use virtual-host-style instead of path-style URLs for the
+  bucket. Only applies when a custom endpoint is set. Defaults to false when unset. If used
+  without a custom endpoint set, this option has no effect.
+
 ### S3 IAM policy
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
