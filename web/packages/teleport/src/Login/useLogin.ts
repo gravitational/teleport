@@ -36,6 +36,7 @@ export default function useLogin() {
 
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
+  const defaultConnectorName = cfg.getDefaultConnectorName();
   const isLocalAuthEnabled = cfg.getLocalAuthFlag();
   const motd = cfg.getMotd();
   const [showMotd, setShowMotd] = useState<boolean>(() => {
@@ -123,12 +124,18 @@ export default function useLogin() {
     history.push(ssoUri, true);
   }
 
+  // Move the default connector to the front of the list so that it shows up at the top.
+  const sortedProviders = moveToFront(
+    authProviders,
+    p => p.name === defaultConnectorName
+  );
+
   return {
     attempt,
     onLogin,
     checkingValidSession,
     onLoginWithSso,
-    authProviders,
+    authProviders: sortedProviders,
     auth2faType,
     preferredMfaType: cfg.getPreferredMfaType(),
     isLocalAuthEnabled,
@@ -190,3 +197,19 @@ export type State = ReturnType<typeof useLogin> & {
   isRecoveryEnabled?: boolean;
   onRecover?: (isRecoverPassword: boolean) => void;
 };
+
+/**
+ * moveToFront returns a copy of an array with the element that matches the condition to the front of it.
+ */
+function moveToFront<T>(arr: T[], condition: (item: T) => boolean): T[] {
+  console.log(arr);
+  const copy = [...arr];
+  const index = copy.findIndex(condition);
+
+  if (index > 0) {
+    const [item] = copy.splice(index, 1);
+    copy.unshift(item);
+  }
+
+  return copy;
+}
