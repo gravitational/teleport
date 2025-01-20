@@ -190,7 +190,7 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 		NodeName:    host,
 		Priv:        priv,
 		Pub:         pub,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 }
 
@@ -198,7 +198,6 @@ func newTeleportConfig(t *testing.T) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	// Replace the default auth and proxy listeners with the ones so we can
 	// run multiple tests in parallel.
-	tconf.Console = nil
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
@@ -241,10 +240,6 @@ func withDiscoveryService(t *testing.T, discoveryGroup string, awsMatchers ...ty
 		options.serviceConfigFuncs = append(options.serviceConfigFuncs, func(cfg *servicecfg.Config) {
 			cfg.Discovery.Enabled = true
 			cfg.Discovery.DiscoveryGroup = discoveryGroup
-			// Reduce the polling interval to speed up the test execution
-			// in the case of a failure of the first attempt.
-			// The default polling interval is 5 minutes.
-			cfg.Discovery.PollInterval = 1 * time.Minute
 			cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers, awsMatchers...)
 		})
 	}

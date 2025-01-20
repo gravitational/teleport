@@ -18,7 +18,7 @@
 
 import { Label } from 'teleport/types';
 
-import { Node } from '../nodes';
+import { ResourceLabel } from '../agents';
 
 /**
  * type Integration v. type Plugin:
@@ -539,6 +539,11 @@ export type EnrollEksClustersRequest = {
   region: string;
   enableAppDiscovery: boolean;
   clusterNames: string[];
+  /**
+   * User provided labels.
+   * Only supported with V2 endpoint
+   */
+  extraLabels?: ResourceLabel[];
 };
 
 export type EnrollEksClustersResponse = {
@@ -560,81 +565,6 @@ export type ListEksClustersResponse = {
    */
   clusters: AwsEksCluster[];
   nextToken?: string;
-};
-
-export type ListEc2InstancesRequest = {
-  region: Regions;
-  nextToken?: string;
-};
-
-export type ListEc2InstancesResponse = {
-  // instances is the list of EC2 Instances.
-  instances: Node[];
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsRequest = {
-  region: Regions;
-  // VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
-  vpcIds: string[];
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsResponse = {
-  // endpoints is the list of EC2 Instance Connect Endpoints.
-  endpoints: Ec2InstanceConnectEndpoint[];
-  nextToken?: string;
-  // DashboardLink is the URL for AWS Web Console that
-  // lists all the Endpoints for the queries VPCs.
-  dashboardLink: string;
-};
-
-export type Ec2InstanceConnectEndpoint = {
-  name: string;
-  // state is the current state of the EC2 Instance Connect Endpoint.
-  state: Ec2InstanceConnectEndpointState;
-  // stateMessage is an optional message describing the state of the EICE, such as an error message.
-  stateMessage?: string;
-  // dashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
-  dashboardLink: string;
-  // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
-  subnetId: string;
-  // VPCID is the VPC ID where the Endpoint is created.
-  vpcId: string;
-};
-
-export type Ec2InstanceConnectEndpointState =
-  | 'create-in-progress'
-  | 'create-complete'
-  | 'create-failed'
-  | 'delete-in-progress'
-  | 'delete-complete'
-  | 'delete-failed';
-
-export type AwsOidcDeployEc2InstanceConnectEndpointRequest = {
-  // SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-  subnetId: string;
-  // SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-  // If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-  securityGroupIds?: string[];
-};
-
-export type DeployEc2InstanceConnectEndpointRequest = {
-  region: Regions;
-  // Endpoints is a list of endpoinst to create.
-  endpoints: AwsOidcDeployEc2InstanceConnectEndpointRequest[];
-};
-
-export type AwsEc2InstanceConnectEndpoint = {
-  // Name is the EC2 Instance Connect Endpoint name.
-  name: string;
-  // SubnetID is the subnet where this endpoint was created.
-  subnetId: string;
-};
-
-export type DeployEc2InstanceConnectEndpointResponse = {
-  // Endpoints is a list of created endpoints
-  endpoints: AwsEc2InstanceConnectEndpoint[];
 };
 
 export type Subnet = {
@@ -752,4 +682,17 @@ export type Vpc = {
 export type AwsDatabaseVpcsResponse = {
   vpcs: Vpc[];
   nextToken: string;
+};
+
+/**
+ * Object that contains request fields for
+ * when requesting to create an AWS console app.
+ *
+ * This request object is only supported with v2 endpoint.
+ */
+export type CreateAwsAppAccessRequest = {
+  /**
+   * resource labels that will be set as app_server's labels
+   */
+  labels?: Record<string, string>;
 };

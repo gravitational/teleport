@@ -479,12 +479,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfDeployServiceCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.AccountID)
 	integrationConfDeployServiceCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfDeployServiceIAMArguments.AutoConfirm)
 
-	integrationConfEICECmd := integrationConfigureCmd.Command("eice-iam", "Adds required IAM permissions to connect to EC2 Instances using EC2 Instance Connect Endpoint.")
-	integrationConfEICECmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Region)
-	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
-	integrationConfEICECmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfEICEIAMArguments.AccountID)
-	integrationConfEICECmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEICEIAMArguments.AutoConfirm)
-
 	integrationConfEC2SSMCmd := integrationConfigureCmd.Command("ec2-ssm-iam", "Adds required IAM permissions and SSM Document to enable EC2 Auto Discover using SSM.")
 	integrationConfEC2SSMCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.RoleName)
 	integrationConfEC2SSMCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.Region)
@@ -508,10 +502,16 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEKSIAMArguments.AutoConfirm)
 
 	integrationConfAccessGraphCmd := integrationConfigureCmd.Command("access-graph", "Manages Access Graph configuration.")
-	integrationConfTAGSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required IAM permissions for syncing data into Access Graph service.")
-	integrationConfTAGSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
-	integrationConfTAGSyncCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AccountID)
-	integrationConfTAGSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
+	integrationConfAccessGraphAWSSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required AWS IAM permissions for syncing AWS resources into Access Graph service.")
+	integrationConfAccessGraphAWSSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
+	integrationConfAccessGraphAWSSyncCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AccountID)
+	integrationConfAccessGraphAWSSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
+
+	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
+	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
+	integrationConfAccessGraphAzureSyncCmd.Flag("role-name", "The name of the Azure Role to create and assign to the managed identity").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.RoleName)
+	integrationConfAccessGraphAzureSyncCmd.Flag("subscription-id", "The subscription ID in which to discovery resources.").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.SubscriptionID)
+	integrationConfAccessGraphAzureSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.AutoConfirm)
 
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
 	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
@@ -707,8 +707,6 @@ Examples:
 		err = onJoinOpenSSH(ccf, conf)
 	case integrationConfDeployServiceCmd.FullCommand():
 		err = onIntegrationConfDeployService(ctx, ccf.IntegrationConfDeployServiceIAMArguments)
-	case integrationConfEICECmd.FullCommand():
-		err = onIntegrationConfEICEIAM(ctx, ccf.IntegrationConfEICEIAMArguments)
 	case integrationConfEC2SSMCmd.FullCommand():
 		err = onIntegrationConfEC2SSMIAM(ctx, ccf.IntegrationConfEC2SSMIAMArguments)
 	case integrationConfAWSAppAccessCmd.FullCommand():
@@ -721,8 +719,10 @@ Examples:
 		err = onIntegrationConfListDatabasesIAM(ctx, ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
 		err = onIntegrationConfExternalAuditCmd(ctx, ccf.IntegrationConfExternalAuditStorageArguments)
-	case integrationConfTAGSyncCmd.FullCommand():
+	case integrationConfAccessGraphAWSSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
+	case integrationConfAccessGraphAzureSyncCmd.FullCommand():
+		err = onIntegrationConfAccessGraphAzureSync(ctx, ccf.IntegrationConfAccessGraphAzureSyncArguments)
 	case integrationConfAzureOIDCCmd.FullCommand():
 		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
@@ -1014,10 +1014,22 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 // user's privileges
 //
 // This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
-func onSCP(scpFlags *scp.Flags) (err error) {
+func onSCP(scpFlags *scp.Flags) error {
 	// when 'teleport scp' is executed, it cannot write logs to stderr (because
 	// they're automatically replayed by the scp client)
-	utils.SwitchLoggingToSyslog()
+	var verbosity string
+	if scpFlags.Verbose {
+		verbosity = teleport.DebugLevel
+	}
+	_, _, err := logutils.Initialize(logutils.Config{
+		Output:   teleport.Syslog,
+		Severity: verbosity,
+	})
+	if err != nil {
+		// If something went wrong, discard all logs and continue command execution.
+		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+	}
+
 	if len(scpFlags.Target) == 0 {
 		return trace.BadParameter("teleport scp: missing an argument")
 	}

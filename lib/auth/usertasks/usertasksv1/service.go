@@ -19,6 +19,7 @@
 package usertasksv1
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"time"
@@ -131,7 +132,7 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 		return nil, trace.Wrap(err)
 	}
 
-	s.updateStatus(req.UserTask)
+	s.updateStatus(req.UserTask, nil /* existing user task */)
 
 	rsp, err := s.backend.CreateUserTask(ctx, req.UserTask)
 	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
@@ -179,6 +180,8 @@ func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserT
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEc2().GetInstances()))
 	case usertasks.TaskTypeDiscoverEKS:
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEks().GetClusters()))
+	case usertasks.TaskTypeDiscoverRDS:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverRds().GetDatabases()))
 	}
 	return ret
 }
@@ -264,10 +267,7 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 	}
 
 	stateChanged := existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
-
-	if stateChanged {
-		s.updateStatus(req.UserTask)
-	}
+	s.updateStatus(req.UserTask, existingUserTask)
 
 	rsp, err := s.backend.UpdateUserTask(ctx, req.UserTask)
 	s.emitUpdateAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
@@ -333,9 +333,7 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 		stateChanged = existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
 	}
 
-	if stateChanged {
-		s.updateStatus(req.UserTask)
-	}
+	s.updateStatus(req.UserTask, existingUserTask)
 
 	rsp, err := s.backend.UpsertUserTask(ctx, req.UserTask)
 	s.emitUpsertAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
@@ -350,9 +348,20 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 	return rsp, nil
 }
 
-func (s *Service) updateStatus(ut *usertasksv1.UserTask) {
+func (s *Service) updateStatus(ut *usertasksv1.UserTask, existing *usertasksv1.UserTask) {
+	// Default status for UserTask.
 	ut.Status = &usertasksv1.UserTaskStatus{
 		LastStateChange: timestamppb.New(s.clock.Now()),
+	}
+
+	if existing != nil {
+		// Inherit everything from existing UserTask.
+		ut.Status.LastStateChange = cmp.Or(existing.GetStatus().GetLastStateChange(), ut.Status.LastStateChange)
+
+		// Update specific values.
+		if existing.GetSpec().GetState() != ut.GetSpec().GetState() {
+			ut.Status.LastStateChange = timestamppb.New(s.clock.Now())
+		}
 	}
 }
 

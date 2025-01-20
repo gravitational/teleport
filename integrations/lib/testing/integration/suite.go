@@ -93,7 +93,7 @@ func (s *Suite) initContexts(oldT *testing.T, newT *testing.T) {
 	} else {
 		baseCtx = context.Background()
 	}
-	baseCtx, _ = logger.WithField(baseCtx, "test", newT.Name())
+	baseCtx, _ = logger.With(baseCtx, "test", newT.Name())
 	baseCtx, cancel := context.WithCancel(baseCtx)
 	newT.Cleanup(cancel)
 
@@ -163,7 +163,7 @@ func (s *Suite) StartApp(app AppI) {
 		if err := app.Run(ctx); err != nil {
 			// We're in a goroutine so we can't just require.NoError(t, err).
 			// All we can do is to log an error.
-			logger.Get(ctx).WithError(err).Error("Application failed")
+			logger.Get(ctx).ErrorContext(ctx, "Application failed", "error", err)
 		}
 	}()
 

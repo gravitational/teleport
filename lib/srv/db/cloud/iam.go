@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
@@ -45,6 +46,8 @@ type IAMConfig struct {
 	Clock clockwork.Clock
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint authclient.DatabaseAccessPoint
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// HostID is the host identified where this agent is running.
@@ -52,6 +55,8 @@ type IAMConfig struct {
 	HostID string
 	// onProcessedTask is called after a task is processed.
 	onProcessedTask func(processedTask iamTask, processError error)
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
 }
 
 // Check validates the IAM configurator config.
@@ -62,6 +67,9 @@ func (c *IAMConfig) Check() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
 	if c.Clients == nil {
 		cloudClients, err := cloud.NewClients()
 		if err != nil {
@@ -71,6 +79,9 @@ func (c *IAMConfig) Check() error {
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
+	}
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -233,10 +244,12 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 		return nil, trace.Wrap(err)
 	}
 	return newAWS(ctx, awsConfig{
-		clients:    c.cfg.Clients,
-		policyName: policyName,
-		identity:   identity,
-		database:   database,
+		awsConfigProvider: c.cfg.AWSConfigProvider,
+		clients:           c.cfg.Clients,
+		database:          database,
+		identity:          identity,
+		policyName:        policyName,
+		awsClients:        c.cfg.awsClients,
 	})
 }
 

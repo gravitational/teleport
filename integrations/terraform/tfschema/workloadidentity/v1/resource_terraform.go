@@ -107,10 +107,41 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"equals": {
-									Description: "An exact string that the attribute must match.",
+								"eq": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+										Description: "The value to compare the attribute against.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									}}),
+									Description: "The attribute casted to a string must be equal to the value.",
 									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"in": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+										Description: "The list of values to compare the attribute against.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									}}),
+									Description: "The attribute casted to a string must be in the list of values.",
+									Optional:    true,
+								},
+								"not_eq": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+										Description: "The value to compare the attribute against.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									}}),
+									Description: "The attribute casted to a string must not be equal to the value.",
+									Optional:    true,
+								},
+								"not_in": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+										Description: "The list of values to compare the attribute against.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									}}),
+									Description: "The attribute casted to a string must not be in the list of values.",
+									Optional:    true,
 								},
 							}),
 							Description: "The conditions that must be met for this rule to be considered passed.",
@@ -133,6 +164,15 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 							Description: "The path of the SPIFFE ID that will be issued to the workload.  This should be prefixed with a forward-slash (\"/\").  This field supports templating using attributes.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"x509": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"dns_sans": {
+								Description: "The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Description: "Configuration specific to X509-SVIDs.",
+							Optional:    true,
 						},
 					}),
 					Description: "Configuration pertaining to the issuance of SPIFFE-compatible workload identity credentials.",
@@ -399,6 +439,7 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 																							tf := v
 																							t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition{}
 																							obj := t
+																							obj.Operator = nil
 																							{
 																								a, ok := tf.Attrs["attribute"]
 																								if !ok {
@@ -417,19 +458,162 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 																								}
 																							}
 																							{
-																								a, ok := tf.Attrs["equals"]
+																								a, ok := tf.Attrs["eq"]
 																								if !ok {
-																									diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.equals"})
+																									diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq"})
 																								} else {
-																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																									if !ok {
-																										diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.equals", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																										diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 																									} else {
-																										var t string
 																										if !v.Null && !v.Unknown {
-																											t = string(v.Value)
+																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityConditionEq{}
+																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_Eq{Eq: b}
+																											obj := b
+																											tf := v
+																											{
+																												a, ok := tf.Attrs["value"]
+																												if !ok {
+																													diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq.value"})
+																												} else {
+																													v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																													if !ok {
+																														diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																													} else {
+																														var t string
+																														if !v.Null && !v.Unknown {
+																															t = string(v.Value)
+																														}
+																														obj.Value = t
+																													}
+																												}
+																											}
 																										}
-																										obj.Equals = t
+																									}
+																								}
+																							}
+																							{
+																								a, ok := tf.Attrs["not_eq"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																									} else {
+																										if !v.Null && !v.Unknown {
+																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityConditionNotEq{}
+																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_NotEq{NotEq: b}
+																											obj := b
+																											tf := v
+																											{
+																												a, ok := tf.Attrs["value"]
+																												if !ok {
+																													diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value"})
+																												} else {
+																													v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																													if !ok {
+																														diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																													} else {
+																														var t string
+																														if !v.Null && !v.Unknown {
+																															t = string(v.Value)
+																														}
+																														obj.Value = t
+																													}
+																												}
+																											}
+																										}
+																									}
+																								}
+																							}
+																							{
+																								a, ok := tf.Attrs["in"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.in"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.in", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																									} else {
+																										if !v.Null && !v.Unknown {
+																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityConditionIn{}
+																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_In{In: b}
+																											obj := b
+																											tf := v
+																											{
+																												a, ok := tf.Attrs["values"]
+																												if !ok {
+																													diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values"})
+																												} else {
+																													v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																													if !ok {
+																														diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																													} else {
+																														obj.Values = make([]string, len(v.Elems))
+																														if !v.Null && !v.Unknown {
+																															for k, a := range v.Elems {
+																																v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																																if !ok {
+																																	diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																																} else {
+																																	var t string
+																																	if !v.Null && !v.Unknown {
+																																		t = string(v.Value)
+																																	}
+																																	obj.Values[k] = t
+																																}
+																															}
+																														}
+																													}
+																												}
+																											}
+																										}
+																									}
+																								}
+																							}
+																							{
+																								a, ok := tf.Attrs["not_in"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																									} else {
+																										if !v.Null && !v.Unknown {
+																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityConditionNotIn{}
+																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_NotIn{NotIn: b}
+																											obj := b
+																											tf := v
+																											{
+																												a, ok := tf.Attrs["values"]
+																												if !ok {
+																													diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values"})
+																												} else {
+																													v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																													if !ok {
+																														diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																													} else {
+																														obj.Values = make([]string, len(v.Elems))
+																														if !v.Null && !v.Unknown {
+																															for k, a := range v.Elems {
+																																v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																																if !ok {
+																																	diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																																} else {
+																																	var t string
+																																	if !v.Null && !v.Unknown {
+																																		t = string(v.Value)
+																																	}
+																																	obj.Values[k] = t
+																																}
+																															}
+																														}
+																													}
+																												}
+																											}
+																										}
 																									}
 																								}
 																							}
@@ -498,6 +682,51 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 													t = string(v.Value)
 												}
 												obj.Hint = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["x509"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.X509 = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.X509 = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentitySPIFFEX509{}
+													obj := obj.X509
+													{
+														a, ok := tf.Attrs["dns_sans"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.DnsSans = make([]string, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.DnsSans[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
 											}
 										}
 									}
@@ -930,25 +1159,297 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																						}
 																					}
 																					{
-																						t, ok := tf.AttrTypes["equals"]
+																						a, ok := tf.AttrTypes["eq"]
 																						if !ok {
-																							diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.equals"})
+																							diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq"})
 																						} else {
-																							v, ok := tf.Attrs["equals"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_Eq)
 																							if !ok {
-																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																								if err != nil {
-																									diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.equals", err})
-																								}
-																								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																								if !ok {
-																									diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.equals", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
-																								v.Null = string(obj.Equals) == ""
+																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_Eq{}
 																							}
-																							v.Value = string(obj.Equals)
-																							v.Unknown = false
-																							tf.Attrs["equals"] = v
+																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																							} else {
+																								v, ok := tf.Attrs["eq"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																								if !ok {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																										AttrTypes: o.AttrTypes,
+																										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																									}
+																								} else {
+																									if v.Attrs == nil {
+																										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																									}
+																								}
+																								if obj.Eq == nil {
+																									v.Null = true
+																								} else {
+																									obj := obj.Eq
+																									tf := &v
+																									{
+																										t, ok := tf.AttrTypes["value"]
+																										if !ok {
+																											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq.value"})
+																										} else {
+																											v, ok := tf.Attrs["value"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																											if !ok {
+																												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																												if err != nil {
+																													diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.eq.value", err})
+																												}
+																												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																												if !ok {
+																													diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																												}
+																												v.Null = string(obj.Value) == ""
+																											}
+																											v.Value = string(obj.Value)
+																											v.Unknown = false
+																											tf.Attrs["value"] = v
+																										}
+																									}
+																								}
+																								v.Unknown = false
+																								tf.Attrs["eq"] = v
+																							}
+																						}
+																					}
+																					{
+																						a, ok := tf.AttrTypes["not_eq"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq"})
+																						} else {
+																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_NotEq)
+																							if !ok {
+																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_NotEq{}
+																							}
+																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																							} else {
+																								v, ok := tf.Attrs["not_eq"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																								if !ok {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																										AttrTypes: o.AttrTypes,
+																										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																									}
+																								} else {
+																									if v.Attrs == nil {
+																										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																									}
+																								}
+																								if obj.NotEq == nil {
+																									v.Null = true
+																								} else {
+																									obj := obj.NotEq
+																									tf := &v
+																									{
+																										t, ok := tf.AttrTypes["value"]
+																										if !ok {
+																											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value"})
+																										} else {
+																											v, ok := tf.Attrs["value"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																											if !ok {
+																												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																												if err != nil {
+																													diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value", err})
+																												}
+																												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																												if !ok {
+																													diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																												}
+																												v.Null = string(obj.Value) == ""
+																											}
+																											v.Value = string(obj.Value)
+																											v.Unknown = false
+																											tf.Attrs["value"] = v
+																										}
+																									}
+																								}
+																								v.Unknown = false
+																								tf.Attrs["not_eq"] = v
+																							}
+																						}
+																					}
+																					{
+																						a, ok := tf.AttrTypes["in"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.in"})
+																						} else {
+																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_In)
+																							if !ok {
+																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_In{}
+																							}
+																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.in", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																							} else {
+																								v, ok := tf.Attrs["in"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																								if !ok {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																										AttrTypes: o.AttrTypes,
+																										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																									}
+																								} else {
+																									if v.Attrs == nil {
+																										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																									}
+																								}
+																								if obj.In == nil {
+																									v.Null = true
+																								} else {
+																									obj := obj.In
+																									tf := &v
+																									{
+																										a, ok := tf.AttrTypes["values"]
+																										if !ok {
+																											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values"})
+																										} else {
+																											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																											if !ok {
+																												diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																											} else {
+																												c, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																												if !ok {
+																													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																														ElemType: o.ElemType,
+																														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values)),
+																														Null:     true,
+																													}
+																												} else {
+																													if c.Elems == nil {
+																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																													}
+																												}
+																												if obj.Values != nil {
+																													t := o.ElemType
+																													if len(obj.Values) != len(c.Elems) {
+																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																													}
+																													for k, a := range obj.Values {
+																														v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																														if !ok {
+																															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																															if err != nil {
+																																diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.in.values", err})
+																															}
+																															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																															if !ok {
+																																diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																															}
+																															v.Null = string(a) == ""
+																														}
+																														v.Value = string(a)
+																														v.Unknown = false
+																														c.Elems[k] = v
+																													}
+																													if len(obj.Values) > 0 {
+																														c.Null = false
+																													}
+																												}
+																												c.Unknown = false
+																												tf.Attrs["values"] = c
+																											}
+																										}
+																									}
+																								}
+																								v.Unknown = false
+																								tf.Attrs["in"] = v
+																							}
+																						}
+																					}
+																					{
+																						a, ok := tf.AttrTypes["not_in"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in"})
+																						} else {
+																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_NotIn)
+																							if !ok {
+																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentityCondition_NotIn{}
+																							}
+																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																							} else {
+																								v, ok := tf.Attrs["not_in"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																								if !ok {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																										AttrTypes: o.AttrTypes,
+																										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																									}
+																								} else {
+																									if v.Attrs == nil {
+																										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																									}
+																								}
+																								if obj.NotIn == nil {
+																									v.Null = true
+																								} else {
+																									obj := obj.NotIn
+																									tf := &v
+																									{
+																										a, ok := tf.AttrTypes["values"]
+																										if !ok {
+																											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values"})
+																										} else {
+																											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																											if !ok {
+																												diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																											} else {
+																												c, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																												if !ok {
+																													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																														ElemType: o.ElemType,
+																														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values)),
+																														Null:     true,
+																													}
+																												} else {
+																													if c.Elems == nil {
+																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																													}
+																												}
+																												if obj.Values != nil {
+																													t := o.ElemType
+																													if len(obj.Values) != len(c.Elems) {
+																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																													}
+																													for k, a := range obj.Values {
+																														v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																														if !ok {
+																															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																															if err != nil {
+																																diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", err})
+																															}
+																															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																															if !ok {
+																																diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																															}
+																															v.Null = string(a) == ""
+																														}
+																														v.Value = string(a)
+																														v.Unknown = false
+																														c.Elems[k] = v
+																													}
+																													if len(obj.Values) > 0 {
+																														c.Null = false
+																													}
+																												}
+																												c.Unknown = false
+																												tf.Attrs["values"] = c
+																											}
+																										}
+																									}
+																								}
+																								v.Unknown = false
+																								tf.Attrs["not_in"] = v
+																							}
 																						}
 																					}
 																				}
@@ -1051,6 +1552,91 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = string(obj.Hint)
 											v.Unknown = false
 											tf.Attrs["hint"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["x509"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["x509"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.X509 == nil {
+													v.Null = true
+												} else {
+													obj := obj.X509
+													tf := &v
+													{
+														a, ok := tf.AttrTypes["dns_sans"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["dns_sans"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
+																	}
+																}
+																if obj.DnsSans != nil {
+																	t := o.ElemType
+																	if len(obj.DnsSans) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
+																	}
+																	for k, a := range obj.DnsSans {
+																		v, ok := tf.Attrs["dns_sans"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																			if err != nil {
+																				diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.dns_sans", err})
+																			}
+																			v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
+																			v.Null = string(a) == ""
+																		}
+																		v.Value = string(a)
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.DnsSans) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["dns_sans"] = c
+															}
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["x509"] = v
+											}
 										}
 									}
 								}

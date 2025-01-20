@@ -33,7 +33,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
@@ -79,6 +78,7 @@ import (
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -2019,9 +2019,7 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	return role, nil
 }
 
-var minSupportedSSHPortForwardingVersions = map[int64]semver.Version{
-	17: {Major: 17, Minor: 1, Patch: 0},
-}
+var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}
 
 func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
 	sshPortForwarding := role.GetOptions().SSHPortForwarding
@@ -2029,11 +2027,10 @@ func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semv
 		return role
 	}
 
-	minSupportedVersion, ok := minSupportedSSHPortForwardingVersions[clientVersion.Major]
-	if ok {
-		if supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedVersion.String()); supported || err != nil {
-			return role
-		}
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedSSHPortForwardingVersion.String()); supported || err != nil {
+		return role
 	}
 
 	role = apiutils.CloneProtoMsg(role)
@@ -2044,7 +2041,7 @@ func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semv
 	role.SetOptions(options)
 	reason := fmt.Sprintf(`Client version %q does not support granular SSH port forwarding. Role %q will be downgraded `+
 		`to simple port forwarding rules instead. In order to support granular SSH port forwarding, all clients must be `+
-		`updated to version %q or higher.`, clientVersion, role.GetName(), minSupportedVersion)
+		`updated to version %q or higher.`, clientVersion, role.GetName(), minSupportedSSHPortForwardingVersion)
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}

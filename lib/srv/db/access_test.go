@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -94,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -1629,13 +1631,13 @@ func (c *testContext) startHandlingConnections() {
 
 // postgresClient connects to test Postgres through database access as a
 // specified Teleport user and database account.
-func (c *testContext) postgresClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*pgconn.PgConn, error) {
-	return c.postgresClientWithAddr(ctx, c.mux.DB().Addr().String(), teleportUser, dbService, dbUser, dbName)
+func (c *testContext) postgresClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string, opts ...common.ClientOption) (*pgconn.PgConn, error) {
+	return c.postgresClientWithAddr(ctx, c.mux.DB().Addr().String(), teleportUser, dbService, dbUser, dbName, opts...)
 }
 
 // postgresClientWithAddr is like postgresClient but allows to override connection address.
-func (c *testContext) postgresClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser, dbName string) (*pgconn.PgConn, error) {
-	return postgres.MakeTestClient(ctx, common.TestClientConfig{
+func (c *testContext) postgresClientWithAddr(ctx context.Context, address, teleportUser, dbService, dbUser, dbName string, opts ...common.ClientOption) (*pgconn.PgConn, error) {
+	cfg := common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
 		Address:    address,
@@ -1647,7 +1649,13 @@ func (c *testContext) postgresClientWithAddr(ctx context.Context, address, telep
 			Username:    dbUser,
 			Database:    dbName,
 		},
-	})
+	}
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return postgres.MakeTestClient(ctx, cfg)
 }
 
 // postgresClientLocalProxy connects to test Postgres through local ALPN proxy.
@@ -2431,8 +2439,6 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *mocks.GCPSQLAdminClientMock
-	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
-	ElastiCache *mocks.ElastiCacheMock
 	// MemoryDB defines the AWS MemoryDB mock to use for MemoryDB API calls.
 	MemoryDB *mocks.MemoryDBMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
@@ -2441,6 +2447,10 @@ type agentParams struct {
 	CADownloader CADownloader
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+	// AWSDatabaseFetcherFactory provides AWS database fetchers
+	AWSDatabaseFetcherFactory *db.AWSFetcherFactory
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
@@ -2450,6 +2460,8 @@ type agentParams struct {
 	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 	// Recorder is the recorder used on sessions.
 	Recorder libevents.SessionRecorder
+	// GetEngineFn can be used to override the engine created in tests.
+	GetEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2467,9 +2479,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
-	if p.ElastiCache == nil {
-		p.ElastiCache = &mocks.ElastiCacheMock{}
-	}
 	if p.MemoryDB == nil {
 		p.MemoryDB = &mocks.MemoryDBMock{}
 	}
@@ -2481,16 +2490,14 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:                &mocks.STSMock{},
-			RDS:                &mocks.RDSMock{},
-			Redshift:           &mocks.RedshiftMock{},
-			RedshiftServerless: &mocks.RedshiftServerlessMock{},
-			ElastiCache:        p.ElastiCache,
-			MemoryDB:           p.MemoryDB,
-			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:                &mocks.IAMMock{},
-			GCPSQL:             p.GCPSQL,
+			STS:            &mocks.STSClientV1{},
+			MemoryDB:       p.MemoryDB,
+			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			GCPSQL:         p.GCPSQL,
 		}
+	}
+	if p.AWSConfigProvider == nil {
+		p.AWSConfigProvider = &mocks.AWSConfigProvider{Err: trace.AccessDenied("AWS SDK clients are disabled for tests by default")}
 	}
 
 	if p.DiscoveryResourceChecker == nil {
@@ -2524,10 +2531,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient:  c.authClient,
-		AccessPoint: c.authClient,
-		Clients:     &clients.TestCloudClients{},
-		Clock:       c.clock,
+		AuthClient:        c.authClient,
+		AccessPoint:       c.authClient,
+		Clients:           &clients.TestCloudClients{},
+		Clock:             c.clock,
+		AWSConfigProvider: p.AWSConfigProvider,
 	})
 	require.NoError(t, err)
 
@@ -2592,15 +2600,18 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				Clock:    c.clock,
 			})
 		},
-		CADownloader:             p.CADownloader,
-		OnReconcile:              p.OnReconcile,
-		ConnectionMonitor:        connMonitor,
-		CloudClients:             p.CloudClients,
-		AWSMatchers:              p.AWSMatchers,
-		AzureMatchers:            p.AzureMatchers,
-		ShutdownPollPeriod:       100 * time.Millisecond,
-		InventoryHandle:          inventoryHandle,
-		discoveryResourceChecker: p.DiscoveryResourceChecker,
+		CADownloader:              p.CADownloader,
+		OnReconcile:               p.OnReconcile,
+		ConnectionMonitor:         connMonitor,
+		CloudClients:              p.CloudClients,
+		AWSConfigProvider:         p.AWSConfigProvider,
+		AWSDatabaseFetcherFactory: p.AWSDatabaseFetcherFactory,
+		AWSMatchers:               p.AWSMatchers,
+		AzureMatchers:             p.AzureMatchers,
+		ShutdownPollPeriod:        100 * time.Millisecond,
+		InventoryHandle:           inventoryHandle,
+		discoveryResourceChecker:  p.DiscoveryResourceChecker,
+		getEngineFn:               p.GetEngineFn,
 	})
 	require.NoError(t, err)
 

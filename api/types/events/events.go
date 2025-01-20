@@ -295,6 +295,7 @@ func (m *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.InitialCommand = nil
+	out.Invited = nil
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
@@ -302,6 +303,10 @@ func (m *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.InitialCommand = trimStrSlice(m.InitialCommand, maxFieldSize)
+
+	customFieldsCount = nonEmptyStrsInSlice(m.Invited)
+	maxFieldSize = maxSizePerField(maxSize, customFieldsCount)
+	out.Invited = trimStrSlice(m.Invited, maxFieldSize)
 
 	return out
 }
@@ -501,6 +506,10 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Annotations = m.Annotations.trimToMaxSize(maxFieldsSize)
 
 	return out
+}
+
+func (m *AccessRequestExpire) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
 }
 
 func (m *AccessRequestResourceSearch) TrimToMaxSize(maxSize int) AuditEvent {

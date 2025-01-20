@@ -25,17 +25,19 @@ import {
   ButtonText,
   Flex,
   Link,
+  Subtitle1,
   Text,
   Toggle,
 } from 'design';
 import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 import { IconTooltip } from 'design/Tooltip';
+import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'teleport/config';
-import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
+import { generateCmd } from 'teleport/Discover/Kubernetes/SelfHosted';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
@@ -43,8 +45,10 @@ import {
   ConfigureDiscoveryServiceDirections,
   CreatedDiscoveryConfigDialog,
 } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import { ResourceLabelTooltip } from 'teleport/Discover/Shared/ResourceLabelTooltip';
 import { AgentStepProps } from 'teleport/Discover/types';
 import { EksMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { ResourceLabel } from 'teleport/services/agents';
 import {
   createDiscoveryConfig,
   DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
@@ -53,6 +57,7 @@ import {
 } from 'teleport/services/discovery';
 import {
   AwsEksCluster,
+  EnrollEksClustersResponse,
   integrationService,
   Regions,
 } from 'teleport/services/integrations';
@@ -62,9 +67,10 @@ import {
   DiscoverEvent,
   DiscoverEventStatus,
 } from 'teleport/services/userEvent';
+import { useV1Fallback } from 'teleport/services/version/unsupported';
 import useTeleport from 'teleport/useTeleport';
 
-import { ActionButtons, Header } from '../../Shared';
+import { ActionButtons, Header, LabelsCreater } from '../../Shared';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 import { ClustersList } from './EksClustersList';
 import { EnrollmentDialog } from './EnrollmentDialog';
@@ -134,8 +140,23 @@ export function EnrollEksCluster(props: AgentStepProps) {
   // join token will be set only if user opens ManualHelmDialog,
   // we delay it to avoid premature admin action MFA confirmation request.
   const [joinToken, setJoinToken] = useState<JoinToken>(null);
+  const [customLabels, setCustomLabels] = useState<ResourceLabel[]>([]);
+
+  // TODO(kimlisa): DELETE IN 19.0
+  const { tryV1Fallback } = useV1Fallback();
 
   const ctx = useTeleport();
+
+  function onSelectCluster(eks: CheckedEksCluster) {
+    // when changing selected cluster, clear defined labels
+    setCustomLabels([]);
+    setSelectedCluster(eks);
+  }
+
+  function clearSelectedCluster() {
+    setSelectedCluster(null);
+    setCustomLabels([]);
+  }
 
   function fetchClustersWithNewRegion(region: Regions) {
     setSelectedRegion(region);
@@ -148,7 +169,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
   }
 
   function refreshClustersList() {
-    setSelectedCluster(null);
+    clearSelectedCluster();
     // When refreshing, start the table back at page 1.
     fetchClusters({ ...tableData, startKey: '', items: [] });
   }
@@ -214,9 +235,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
     if (tableData.items.length > 0) {
       setTableData(emptyTableData);
     }
-    if (selectedCluster) {
-      setSelectedCluster(null);
-    }
+    clearSelectedCluster();
     setEnrollmentState({ status: 'notStarted' });
   }
 
@@ -279,19 +298,46 @@ export function EnrollEksCluster(props: AgentStepProps) {
     } as EksMeta);
   }
 
+  function showManualHelmDialog(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    setIsManualHelmDialogShown(true);
+  }
+
+  async function enrollWithValidation(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+    return enroll();
+  }
+
   async function enroll() {
     const integrationName = (agentMeta as EksMeta).awsIntegration.name;
     setEnrollmentState({ status: 'enrolling' });
 
     try {
-      const response = await integrationService.enrollEksClusters(
-        integrationName,
-        {
-          region: selectedRegion,
-          enableAppDiscovery: isAppDiscoveryEnabled,
-          clusterNames: [selectedCluster.name],
-        }
-      );
+      const req = {
+        region: selectedRegion,
+        enableAppDiscovery: isAppDiscoveryEnabled,
+        clusterNames: [selectedCluster.name],
+        extraLabels: customLabels,
+      };
+      let response: EnrollEksClustersResponse;
+      try {
+        response = await integrationService.enrollEksClustersV2(
+          integrationName,
+          req
+        );
+      } catch (err) {
+        response = await tryV1Fallback({
+          kind: 'enroll-eks',
+          err,
+          integrationName,
+          req,
+        });
+      }
 
       const result = response.results?.find(
         c => c.clusterName === selectedCluster.name
@@ -380,7 +426,14 @@ export function EnrollEksCluster(props: AgentStepProps) {
         isCloud: ctx.isCloud,
         automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
         automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
-        joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
+        // The labels from the `selectedCluster` are AWS tags which
+        // will be imported as is. `joinLabels` are internal Teleport labels
+        // added to each cluster when listing clusters.
+        joinLabels: [
+          ...selectedCluster.labels,
+          ...selectedCluster.joinLabels,
+          ...customLabels,
+        ],
         disableAppDiscovery: !isAppDiscoveryEnabled,
       });
     },
@@ -392,6 +445,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       ctx.storeUser.state.cluster,
       isAppDiscoveryEnabled,
       selectedCluster,
+      customLabels,
     ]
   );
 
@@ -457,7 +511,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
               autoDiscovery={isAutoDiscoveryEnabled}
               fetchStatus={tableData.fetchStatus}
               selectedCluster={selectedCluster}
-              onSelectCluster={setSelectedCluster}
+              onSelectCluster={onSelectCluster}
               fetchNextPage={fetchNextPage}
             />
           )}
@@ -469,32 +523,60 @@ export function EnrollEksCluster(props: AgentStepProps) {
             />
           )}
           {!isAutoDiscoveryEnabled && (
-            <StyledBox mb={5} mt={5}>
-              <Text mb={2}>Automatically enroll selected EKS cluster</Text>
-              <Flex alignItems="center" flexDirection="column" width="200px">
-                <ButtonPrimary
-                  width="215px"
-                  type="submit"
-                  onClick={enroll}
-                  disabled={enrollmentNotAllowed}
-                  mt={2}
-                  mb={2}
-                >
-                  Enroll EKS Cluster
-                </ButtonPrimary>
-                <Box>
-                  <ButtonText
-                    width="215px"
-                    disabled={enrollmentNotAllowed}
-                    onClick={() => {
-                      setIsManualHelmDialogShown(b => !b);
-                    }}
-                  >
-                    Or enroll manually
-                  </ButtonText>
-                </Box>
-              </Flex>
-            </StyledBox>
+            <Validation>
+              {({ validator }) => (
+                <>
+                  {selectedCluster && (
+                    <>
+                      <Flex alignItems="center" gap={1} mb={2} mt={4}>
+                        <Subtitle1>Optionally Add More Labels</Subtitle1>
+                        <ResourceLabelTooltip
+                          toolTipPosition="top"
+                          resourceKind="eks"
+                        />
+                      </Flex>
+                      <LabelsCreater
+                        labels={customLabels}
+                        setLabels={setCustomLabels}
+                        isLabelOptional={true}
+                        disableBtns={enrollmentNotAllowed}
+                        noDuplicateKey={true}
+                      />
+                    </>
+                  )}
+                  <StyledBox mb={5} mt={5}>
+                    <Text mb={2}>
+                      Automatically enroll selected EKS cluster
+                    </Text>
+                    <Flex
+                      alignItems="center"
+                      flexDirection="column"
+                      width="200px"
+                    >
+                      <ButtonPrimary
+                        width="215px"
+                        type="submit"
+                        onClick={() => enrollWithValidation(validator)}
+                        disabled={enrollmentNotAllowed}
+                        mt={2}
+                        mb={2}
+                      >
+                        Enroll EKS Cluster
+                      </ButtonPrimary>
+                      <Box>
+                        <ButtonText
+                          width="215px"
+                          disabled={enrollmentNotAllowed}
+                          onClick={() => showManualHelmDialog(validator)}
+                        >
+                          Or enroll manually
+                        </ButtonText>
+                      </Box>
+                    </Flex>
+                  </StyledBox>
+                </>
+              )}
+            </Validation>
           )}
           {isAutoDiscoveryEnabled && (
             <ActionButtons

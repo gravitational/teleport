@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthType } from 'shared/services';
+
 export type Resource<T extends Kind> = {
   id: string;
   kind: T;
@@ -88,6 +90,11 @@ export type RoleConditions = {
 };
 
 export type Labels = Record<string, string | string[]>;
+
+export type DefaultAuthConnector = {
+  name?: string;
+  type: AuthType;
+};
 
 export type KubernetesResource = {
   kind?: KubernetesResourceKind;
@@ -351,7 +358,8 @@ export type RoleOptions = {
   };
   max_session_ttl: string;
   pin_source_ip: boolean;
-  ssh_port_forwarding: SSHPortForwarding;
+  ssh_port_forwarding?: SSHPortForwarding;
+  port_forwarding?: boolean;
   record_session: {
     default: SessionRecordingMode;
     ssh?: SessionRecordingMode;
@@ -366,11 +374,11 @@ export type RoleOptions = {
 };
 
 export type SSHPortForwarding = {
-  local: {
-    enabled: boolean;
+  local?: {
+    enabled?: boolean;
   };
-  remote: {
-    enabled: boolean;
+  remote?: {
+    enabled?: boolean;
   };
 };
 

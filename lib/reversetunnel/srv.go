@@ -205,6 +205,9 @@ type Config struct {
 	// NodeWatcher is a node watcher.
 	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// GitServerWatcher is a Git server watcher.
+	GitServerWatcher *services.GenericWatcher[types.Server, readonly.Server]
+
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
@@ -273,6 +276,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.NodeWatcher == nil {
 		return trace.BadParameter("missing parameter NodeWatcher")
 	}
+	if cfg.GitServerWatcher == nil {
+		return trace.BadParameter("missing parameter GitServerWatcher")
+	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
 	}
@@ -303,8 +309,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: cfg.Component,
 			Client:    cfg.LocalAccessPoint,
-			// TODO(tross): update this after converting to slog here
-			// Logger:       cfg.Log,
+			Logger:    cfg.Logger,
 		},
 		ProxiesC:    make(chan []types.Server, 10),
 		ProxyGetter: cfg.LocalAccessPoint,
@@ -1211,10 +1216,9 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.remoteAccessPoint = accessPoint
 	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: srv.Component,
-			Client:    accessPoint,
-			// TODO(tross) update this after converting to use slog
-			// Logger:          srv.Log,
+			Component:    srv.Component,
+			Client:       accessPoint,
+			Logger:       srv.Logger,
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
@@ -1247,10 +1251,9 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			// TODO(tross): update this after converting to slog
-			// Logger:       srv.log,
-			Clock:  srv.Clock,
-			Client: remoteSite.remoteAccessPoint,
+			Logger:    srv.logger,
+			Clock:     srv.Clock,
+			Client:    remoteSite.remoteAccessPoint,
 		},
 		Types: []types.CertAuthType{types.HostCA},
 	})
@@ -1274,7 +1277,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 
 	go remoteSite.updateLocks(lockRetry)
-
 	return remoteSite, nil
 }
 

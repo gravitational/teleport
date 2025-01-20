@@ -21,13 +21,13 @@ import styled from 'styled-components';
 
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
+import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import {
   Notification,
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
-import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import {
@@ -239,7 +239,7 @@ export function Roles(props: State) {
             <Link
               color="text.main"
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
+              href="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             >
               the cluster management (RBAC)
             </Link>{' '}
@@ -252,7 +252,7 @@ export function Roles(props: State) {
       {!useNewRoleEditor &&
         (resources.status === 'creating' || resources.status === 'editing') && (
           <ResourceEditor
-            docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+            docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             title={title}
             text={resources.item.content}
             name={resources.item.name}

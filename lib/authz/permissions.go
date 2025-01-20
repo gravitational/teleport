@@ -1288,7 +1288,6 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					},
 				},
 			})
-
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())

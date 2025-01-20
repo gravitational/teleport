@@ -22,6 +22,10 @@ import api from 'teleport/services/api';
 import { integrationService } from './integrations';
 import { IntegrationAudience, IntegrationStatusCode } from './types';
 
+beforeEach(() => {
+  jest.resetAllMocks();
+});
+
 test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);

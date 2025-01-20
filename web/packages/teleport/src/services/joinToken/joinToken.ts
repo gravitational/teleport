@@ -20,6 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import makeJoinToken from './makeJoinToken';
 import { JoinRule, JoinToken, JoinTokenRequest } from './types';
 
@@ -27,13 +28,40 @@ const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
 class JoinTokenService {
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
-  fetchJoinToken(
+  fetchJoinTokenV2(
     req: JoinTokenRequest,
+    signal: AbortSignal = null
+  ): Promise<JoinToken> {
+    return (
+      api
+        .post(
+          cfg.api.discoveryJoinToken.createV2,
+          {
+            roles: req.roles,
+            join_method: req.method || 'token',
+            allow: makeAllowField(req.rules || []),
+            suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
+              req.suggestedAgentMatcherLabels
+            ),
+            suggested_labels: makeLabelMapOfStrArrs(req.suggestedLabels),
+          },
+          signal
+        )
+        .then(makeJoinToken)
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  }
+
+  // TODO(kimlisa): DELETE IN 19.0
+  // replaced by fetchJoinTokenV2 that accepts labels.
+  fetchJoinToken(
+    req: Omit<JoinTokenRequest, 'suggestedLabels'>,
     signal: AbortSignal = null
   ): Promise<JoinToken> {
     return api
       .post(
-        cfg.getJoinTokenUrl(),
+        cfg.api.discoveryJoinToken.create,
         {
           roles: req.roles,
           join_method: req.method || 'token',

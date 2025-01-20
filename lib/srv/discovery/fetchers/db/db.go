@@ -22,11 +22,17 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -64,8 +70,78 @@ func IsAzureMatcherType(matcherType string) bool {
 	return len(makeAzureFetcherFuncs[matcherType]) > 0
 }
 
-// MakeAWSFetchers creates new AWS database fetchers.
-func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
+// AWSClientProvider provides AWS service API clients.
+type AWSClientProvider interface {
+	// GetElastiCacheClient provides an [ElasticacheClient].
+	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
+	// GetRDSClient provides an [RDSClient].
+	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
+	// GetRedshiftClient provides an [RedshiftClient].
+	GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient
+	// GetRedshiftServerlessClient provides an [RSSClient].
+	GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
+	return rds.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
+	return redshift.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient {
+	return rss.NewFromConfig(cfg, optFns...)
+}
+
+// AWSFetcherFactoryConfig is the configuration for an [AWSFetcherFactory].
+type AWSFetcherFactoryConfig struct {
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+	// AWSClients provides AWS SDK clients.
+	AWSClients AWSClientProvider
+	// CloudClients is an interface for retrieving AWS SDK v1 cloud clients.
+	CloudClients cloud.AWSClients
+}
+
+func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
+	if c.CloudClients == nil {
+		return trace.BadParameter("missing CloudClients")
+	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
+	if c.AWSClients == nil {
+		c.AWSClients = defaultAWSClients{}
+	}
+	return nil
+}
+
+// AWSFetcherFactory makes AWS database fetchers.
+type AWSFetcherFactory struct {
+	cfg AWSFetcherFactoryConfig
+}
+
+// NewAWSFetcherFactory checks the given config and returns a new fetcher
+// provider.
+func NewAWSFetcherFactory(cfg AWSFetcherFactoryConfig) (*AWSFetcherFactory, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AWSFetcherFactory{
+		cfg: cfg,
+	}, nil
+}
+
+// MakeFetchers returns AWS database fetchers for each matcher given.
+func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]common.Fetcher, error) {
+	var result []common.Fetcher
 	for _, matcher := range matchers {
 		assumeRole := types.AssumeRole{}
 		if matcher.AssumeRole != nil {
@@ -80,13 +156,15 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:          clients,
+						AWSClients:          f.cfg.CloudClients,
 						Type:                matcherType,
 						AssumeRole:          assumeRole,
 						Labels:              matcher.Tags,
 						Region:              region,
 						Integration:         matcher.Integration,
 						DiscoveryConfigName: discoveryConfigName,
+						AWSConfigProvider:   f.cfg.AWSConfigProvider,
+						awsClients:          f.cfg.AWSClients,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -146,12 +224,4 @@ func filterDatabasesByLabels(ctx context.Context, databases types.Databases, lab
 		}
 	}
 	return matchedDatabases
-}
-
-// flatten flattens a nested slice [][]T to []T.
-func flatten[T any](s [][]T) (result []T) {
-	for i := range s {
-		result = append(result, s[i]...)
-	}
-	return
 }

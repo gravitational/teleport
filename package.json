@@ -24,7 +24,7 @@
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
+    "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
@@ -65,7 +65,7 @@
     "prettier": "^3.4.2",
     "react-select-event": "^5.5.1",
     "storybook": "^8.4.7",
-    "typescript": "^5.7.2",
+    "typescript": "^5.7.3",
     "vite": "^6.0.6"
   },
   "dependencies": {

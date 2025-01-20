@@ -20,13 +20,10 @@ package web
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 
@@ -555,48 +552,6 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	return nil, trace.Wrap(err)
 }
 
-// awsOIDCConfigureEICEIAM returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint
-// to access EC2 instances.
-func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	queryParams := r.URL.Query()
-
-	awsRegion := queryParams.Get("awsRegion")
-	if err := aws.IsValidRegion(awsRegion); err != nil {
-		return nil, trace.BadParameter("invalid awsRegion")
-	}
-
-	awsAccountID := queryParams.Get("awsAccountID")
-	if err := aws.IsValidAccountID(awsAccountID); err != nil {
-		return nil, trace.Wrap(err, "invalid awsAccountID")
-	}
-
-	role := queryParams.Get("role")
-	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role %q", role)
-	}
-
-	// The script must execute the following command:
-	// teleport integration configure eice-iam
-	argsList := []string{
-		"integration", "configure", "eice-iam",
-		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
-	}
-	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the EC2 enrollment.",
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
-
-	return nil, trace.Wrap(err)
-}
-
 // awsOIDCConfigureAppAccessIAM returns a script that configures the required IAM permissions to enable App Access
 // using the AWS OIDC Credentials.
 // Only IAM Roles with `teleport.dev/integration: Allowed` Tag can be used.
@@ -743,6 +698,7 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 }
 
 // awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
+// v2 endpoint introduces "extraLabels" field.
 func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
@@ -829,56 +785,6 @@ func (h *Handler) awsOIDCListEKSClusters(w http.ResponseWriter, r *http.Request,
 	return ui.AWSOIDCListEKSClustersResponse{
 		NextToken: listResp.NextToken,
 		Clusters:  ui.MakeEKSClusters(listResp.Clusters),
-	}, nil
-}
-
-// awsOIDCListEC2 returns a list of EC2 Instances using the ListEC2 action of the AWS OIDC Integration.
-func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	ctx := r.Context()
-
-	var req ui.AWSOIDCListEC2Request
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	integrationName := p.ByName("name")
-	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
-	}
-
-	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	listResp, err := clt.IntegrationAWSOIDCClient().ListEC2(ctx, &integrationv1.ListEC2Request{
-		Integration: integrationName,
-		Region:      req.Region,
-		NextToken:   req.NextToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessChecker, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers := make([]ui.Server, 0, len(listResp.Servers))
-	for _, s := range listResp.Servers {
-		logins, err := accessChecker.GetAllowedLoginsForResource(s)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		slices.Sort(logins)
-
-		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins, false /* requiresRequest */))
-	}
-
-	return ui.AWSOIDCListEC2Response{
-		NextToken: listResp.NextToken,
-		Servers:   servers,
 	}, nil
 }
 
@@ -1055,7 +961,7 @@ func awsOIDCListAllDatabases(ctx context.Context, clt authclient.ClientI, integr
 	return fetchedRDSs, nil
 }
 
-func awsOIDCRequiredVPCSHelper(ctx context.Context, clt authclient.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
+func awsOIDCRequiredVPCSHelper(ctx context.Context, clt client.GetResourcesClient, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
 	// Get all database services with ecs/fargate metadata label.
 	fetchedDbSvcs, err := fetchAWSOIDCDatabaseServices(ctx, clt)
 	if err != nil {
@@ -1087,120 +993,15 @@ func awsOIDCRequiredVPCSHelper(ctx context.Context, clt authclient.ClientI, req 
 	}, nil
 }
 
-// awsOIDCListEC2ICE returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
-func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	ctx := r.Context()
-
-	var req ui.AWSOIDCListEC2ICERequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	integrationName := p.ByName("name")
-	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
-	}
-
-	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	vpcIds := req.VPCIDs
-	if len(vpcIds) == 0 {
-		vpcIds = []string{req.VPCID}
-	}
-
-	resp, err := clt.IntegrationAWSOIDCClient().ListEICE(ctx, &integrationv1.ListEICERequest{
-		Integration: integrationName,
-		Region:      req.Region,
-		VpcIds:      vpcIds,
-		NextToken:   req.NextToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	endpoints := make([]awsoidc.EC2InstanceConnectEndpoint, 0, len(resp.Ec2Ices))
-	for _, e := range resp.Ec2Ices {
-		endpoints = append(endpoints, awsoidc.EC2InstanceConnectEndpoint{
-			Name:          e.Name,
-			State:         e.State,
-			StateMessage:  e.StateMessage,
-			DashboardLink: e.DashboardLink,
-			SubnetID:      e.SubnetId,
-			VPCID:         e.VpcId,
-		})
-	}
-
-	return ui.AWSOIDCListEC2ICEResponse{
-		NextToken:     resp.NextToken,
-		DashboardLink: resp.DashboardLink,
-		EC2ICEs:       endpoints,
-	}, nil
-}
-
-// awsOIDCDeployC2ICE creates an EC2 Instance Connect Endpoint.
-func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	ctx := r.Context()
-
-	var req ui.AWSOIDCDeployEC2ICERequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	integrationName := p.ByName("name")
-	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
-	}
-
-	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	endpoints := make([]*integrationv1.EC2ICEndpoint, 0, len(req.Endpoints))
-	for _, endpoint := range req.Endpoints {
-		endpoints = append(endpoints, &integrationv1.EC2ICEndpoint{
-			SubnetId:         endpoint.SubnetID,
-			SecurityGroupIds: endpoint.SecurityGroupIDs,
-		})
-	}
-
-	// Backwards compatible: get the endpoint from the deprecated fields.
-	if len(endpoints) == 0 {
-		endpoints = append(endpoints, &integrationv1.EC2ICEndpoint{
-			SubnetId:         req.SubnetID,
-			SecurityGroupIds: req.SecurityGroupIDs,
-		})
-	}
-
-	createResp, err := clt.IntegrationAWSOIDCClient().CreateEICE(ctx, &integrationv1.CreateEICERequest{
-		Integration: integrationName,
-		Region:      req.Region,
-		Endpoints:   endpoints,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	respEndpoints := make([]ui.AWSOIDCDeployEC2ICEResponseEndpoint, 0, len(createResp.CreatedEndpoints))
-	for _, endpoint := range createResp.CreatedEndpoints {
-		respEndpoints = append(respEndpoints, ui.AWSOIDCDeployEC2ICEResponseEndpoint{
-			Name:     endpoint.Name,
-			SubnetID: endpoint.SubnetId,
-		})
-	}
-
-	return ui.AWSOIDCDeployEC2ICEResponse{
-		Name:      createResp.Name,
-		Endpoints: respEndpoints,
-	}, nil
-}
-
 // awsOIDCCreateAWSAppAccess creates an AppServer that uses an AWS OIDC Integration for proxying access.
+// v2 endpoint introduces "labels" field
 func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
+
+	var req ui.AWSOIDCCreateAWSAppAccessRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
@@ -1229,9 +1030,11 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	labels := map[string]string{
-		constants.AWSAccountIDLabel: parsedRoleARN.AccountID,
+	labels := make(map[string]string)
+	if len(req.Labels) > 0 {
+		labels = req.Labels
 	}
+	labels[constants.AWSAccountIDLabel] = parsedRoleARN.AccountID
 
 	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr, labels)
 	if err != nil {
@@ -1351,6 +1154,11 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
+	proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// The script must execute the following command:
 	// teleport integration configure awsoidc-idp
 	argsList := []string{
@@ -1358,56 +1166,15 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyAddr)),
 	}
+
 	policyPreset := queryParams.Get("policyPreset")
 	if err := awsoidc.ValidatePolicyPreset(awsoidc.PolicyPreset(policyPreset)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if policyPreset != "" {
 		argsList = append(argsList, fmt.Sprintf("--policy-preset=%s", shsprintf.EscapeDefaultContext(policyPreset)))
-	}
-
-	// We have two set up modes:
-	// - use the Proxy HTTP endpoint as Identity Provider
-	// - use an S3 Bucket for storing the public keys
-	//
-	// The script will pick a mode depending on the query params received here.
-	// If the S3 location was defined, then it will use that mode and upload the Public Keys to the S3 Bucket.
-	// Otherwise, it will create an IdP pointing to the current Cluster.
-	//
-	// Whatever the chosen mode, the Proxy HTTP endpoint will always return the public keys.
-	s3Bucket := queryParams.Get("s3Bucket")
-	s3Prefix := queryParams.Get("s3Prefix")
-
-	switch {
-	case s3Bucket == "" && s3Prefix == "":
-		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		argsList = append(argsList,
-			fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyAddr)),
-		)
-
-	default:
-		if s3Bucket == "" || s3Prefix == "" {
-			return nil, trace.BadParameter("s3Bucket and s3Prefix query params are required")
-		}
-		s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
-
-		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		jwksJSON, err := json.Marshal(jwksContents)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		argsList = append(argsList,
-			fmt.Sprintf("--s3-bucket-uri=%s", shsprintf.EscapeDefaultContext(s3URI.String())),
-			fmt.Sprintf("--s3-jwks-base64=%s", base64.StdEncoding.EncodeToString(jwksJSON)),
-		)
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{

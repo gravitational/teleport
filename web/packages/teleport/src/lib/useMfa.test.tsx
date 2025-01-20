@@ -27,7 +27,7 @@ import {
   MfaChallengeResponse,
 } from 'teleport/services/mfa';
 
-import { useMfa } from './useMfa';
+import { MfaCanceledError, useMfa } from './useMfa';
 
 const mockChallenge: MfaAuthenticateChallenge = {
   webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
@@ -232,14 +232,15 @@ describe('useMfa', () => {
       expect(auth.getMfaChallenge).toHaveBeenCalled();
     });
 
-    mfa.current.resetAttempt();
+    mfa.current.cancelAttempt();
 
-    await expect(respPromise).rejects.toThrow(
-      new Error('MFA attempt cancelled by user')
-    );
+    await expect(respPromise).rejects.toThrow(new MfaCanceledError());
 
     await waitFor(() => {
       expect(mfa.current.attempt.status).toEqual('error');
     });
+    expect(
+      mfa.current.attempt.status === 'error' && mfa.current.attempt.error
+    ).toEqual(new MfaCanceledError());
   });
 });

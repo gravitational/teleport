@@ -85,6 +85,18 @@ func TestConvertRequestFailureError(t *testing.T) {
 			},
 			wantIsError: trace.IsNotFound,
 		},
+		{
+			name: "v2 sdk error for ecs ClusterNotFoundException",
+			inputError: &awshttp.ResponseError{
+				ResponseError: &smithyhttp.ResponseError{
+					Response: &smithyhttp.Response{Response: &http.Response{
+						StatusCode: http.StatusBadRequest,
+					}},
+					Err: trace.Errorf("ClusterNotFoundException"),
+				},
+			},
+			wantIsError: trace.IsNotFound,
+		},
 	}
 
 	for _, test := range tests {
@@ -182,7 +194,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.errCheck(t, ConvertIAMv2Error(tt.inErr))
+			tt.errCheck(t, ConvertIAMError(tt.inErr))
 		})
 	}
 }
