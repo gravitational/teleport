@@ -8,7 +8,7 @@ require (
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.5.0
-	github.com/jonboulle/clockwork v0.4.0
+	github.com/jonboulle/clockwork v0.5.0
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.9.0
 	github.com/pelletier/go-toml v1.9.5
