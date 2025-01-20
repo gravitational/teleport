@@ -18,13 +18,21 @@ jobs:
       allow-ghsas: 'GHSA-6xf3-5hp7-xqqg'
       # IronRDP uses MIT/Apache-2.0 but slashes are not recognized by dependency review action
       allow-dependencies-licenses: >-
+        pkg:cargo/ironrdp-cliprdr,
         pkg:cargo/ironrdp-core,
         pkg:cargo/ironrdp-async,
         pkg:cargo/ironrdp-connector,
+        pkg:cargo/ironrdp-displaycontrol,
+        pkg:cargo/ironrdp-dvc,
+        pkg:cargo/ironrdp-error,
+        pkg:cargo/ironrdp-graphics,
         pkg:cargo/ironrdp-pdu,
+        pkg:cargo/ironrdp-rdpdr,
+        pkg:cargo/ironrdp-rdpsnd,
         pkg:cargo/ironrdp-session,
         pkg:cargo/ironrdp-svc,
         pkg:cargo/ironrdp-tokio,
+        pkg:cargo/ironrdp-tls,
         pkg:cargo/asn1-rs,
         pkg:cargo/asn1-rs-derive,
         pkg:cargo/asn1-rs-impl,
