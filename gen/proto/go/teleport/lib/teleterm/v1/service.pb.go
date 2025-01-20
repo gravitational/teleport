@@ -4036,10 +4036,11 @@ func (x *AuthenticateWebDeviceResponse) GetConfirmationToken() *v12.DeviceConfir
 }
 
 type GetAppRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AppUri        string                 `protobuf:"bytes,1,opt,name=app_uri,json=appUri,proto3" json:"app_uri,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	AppUri string `protobuf:"bytes,1,opt,name=app_uri,json=appUri,proto3" json:"app_uri,omitempty"`
 }
 
 func (x *GetAppRequest) Reset() {
@@ -4080,10 +4081,11 @@ func (x *GetAppRequest) GetAppUri() string {
 }
 
 type GetAppResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	App           *App                   `protobuf:"bytes,1,opt,name=app,proto3" json:"app,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	App *App `protobuf:"bytes,1,opt,name=app,proto3" json:"app,omitempty"`
 }
 
 func (x *GetAppResponse) Reset() {
