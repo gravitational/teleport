@@ -23,12 +23,21 @@ import { Box } from 'design';
 
 import { State as ResourceState } from 'teleport/components/useResources';
 import cfg from 'teleport/config';
-import { Resource } from 'teleport/services/resources';
+import {
+  DefaultAuthConnector,
+  KindAuthConnectors,
+  Resource,
+} from 'teleport/services/resources';
 
 import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
 import getSsoIcon from '../ssoIcons/getSsoIcon';
 
-export default function ConnectorList({ items, onDelete }: Props) {
+export function ConnectorList<T extends KindAuthConnectors>({
+  items,
+  defaultConnector,
+  setAsDefault,
+  onDelete,
+}: Props<T>) {
   const history = useHistory();
   items = items || [];
   const $items = items.map(item => {
@@ -42,7 +51,10 @@ export default function ConnectorList({ items, onDelete }: Props) {
         kind={kind}
         id={id}
         Icon={Icon}
-        isDefault={false}
+        isDefault={
+          defaultConnector.name === name && defaultConnector.type === kind
+        }
+        onSetAsDefault={() => setAsDefault({ type: kind, name })}
         isPlaceholder={false}
         onEdit={() => history.push(cfg.getEditAuthConnectorRoute(kind, name))}
         onDelete={onDelete}
@@ -53,14 +65,19 @@ export default function ConnectorList({ items, onDelete }: Props) {
 
   return (
     <AuthConnectorsGrid>
-      <LocalConnectorTile />
+      <LocalConnectorTile
+        isDefault={defaultConnector.type === 'local'}
+        setAsDefault={() => setAsDefault({ type: 'local' })}
+      />
       {$items}
     </AuthConnectorsGrid>
   );
 }
 
-type Props = {
-  items: Resource<'github'>[];
+type Props<T extends KindAuthConnectors> = {
+  items: Resource<T>[];
+  defaultConnector: DefaultAuthConnector;
+  setAsDefault: (defaultConnector: DefaultAuthConnector) => void;
   onDelete: ResourceState['remove'];
 };
 

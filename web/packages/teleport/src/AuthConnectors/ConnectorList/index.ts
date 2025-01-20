@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ConnectorList from './ConnectorList';
+export { ConnectorList } from './ConnectorList';
 
 export { CtaConnectors } from './CTAConnectors';
-
-export default ConnectorList;

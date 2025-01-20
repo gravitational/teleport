@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 
 import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
@@ -33,11 +33,11 @@ import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
 import useResources from 'teleport/components/useResources';
 import cfg from 'teleport/config';
-import { Resource } from 'teleport/services/resources';
+import { DefaultAuthConnector, Resource } from 'teleport/services/resources';
 import useTeleport from 'teleport/useTeleport';
 
 import { GitHubConnectorEditor } from './AuthConnectorEditor';
-import ConnectorList from './ConnectorList';
+import { ConnectorList } from './ConnectorList';
 import { CtaConnectors } from './ConnectorList/CTAConnectors';
 import DeleteConnectorDialog from './DeleteConnectorDialog';
 import EmptyList from './EmptyList';
@@ -78,12 +78,32 @@ export function AuthConnectorsContainer() {
 export function AuthConnectors() {
   const ctx = useTeleport();
   const [items, setItems] = useState<Resource<'github'>[]>([]);
+  const [defaultConnector, setDefaultConnector] =
+    useState<DefaultAuthConnector>();
 
   const [fetchAttempt, fetchConnectors] = useAsync(
     useCallback(async () => {
-      return await ctx.resourceService.fetchGithubConnectors().then(setItems);
+      return await ctx.resourceService.fetchGithubConnectors().then(res => {
+        setItems(res.connectors);
+        setDefaultConnector(res.defaultConnector);
+      });
     }, [ctx.resourceService])
   );
+
+  const [setDefaultAttempt, updateDefaultConnector] = useAsync(
+    async (connector: DefaultAuthConnector) =>
+      await ctx.resourceService.setDefaultAuthConnector(connector)
+  );
+
+  function onUpdateDefaultConnector(connector: DefaultAuthConnector) {
+    const originalDefault = defaultConnector;
+    setDefaultConnector(connector);
+    updateDefaultConnector(connector).catch(err => {
+      // Revert back to the original default if the operation failed.
+      setDefaultConnector(originalDefault);
+      throw err;
+    });
+  }
 
   function remove(name: string) {
     return ctx.resourceService
@@ -101,6 +121,21 @@ export function AuthConnectors() {
   const history = useHistory();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
+
+  // Calculate the next default connector.
+  const nextDefaultConnector = useMemo(() => {
+    // If there is only one (or no) connectors, the fallback will always be "local"
+    if (items.length < 2) {
+      return 'Local Connector';
+    }
+    // If the connector being removed is last in the list, the next default will be the second last connector.
+    if (items[items.length - 1].name === resources?.item?.name) {
+      return items[items.length - 2].name;
+    } else {
+      // If the connector being removed isn't the last connector, the next default will always be the last connector.
+      return items[items.length - 1].name;
+    }
+  }, [items, resources.item]);
 
   return (
     <FeatureBox>
@@ -129,14 +164,26 @@ export function AuthConnectors() {
           <Flex flexDirection="column" width="100%" gap={5}>
             <Box>
               <H2 mb={4}>Your Connectors</H2>
+              {setDefaultAttempt.status === 'error' && (
+                <Alert>
+                  Failed to set connector as default:{' '}
+                  {setDefaultAttempt.statusText}
+                </Alert>
+              )}
               {isEmpty ? (
                 <EmptyList
                   onCreate={() =>
                     history.push(cfg.getCreateAuthConnectorRoute('github'))
                   }
+                  isLocalDefault={defaultConnector.type === 'local'}
                 />
               ) : (
-                <ConnectorList items={items} onDelete={resources.remove} />
+                <ConnectorList
+                  items={items}
+                  onDelete={resources.remove}
+                  defaultConnector={defaultConnector}
+                  setAsDefault={onUpdateDefaultConnector}
+                />
               )}
             </Box>
             <CtaConnectors />
@@ -165,6 +212,8 @@ export function AuthConnectors() {
           kind={resources.item.kind}
           onClose={resources.disregard}
           onDelete={() => remove(resources.item.name)}
+          isDefault={defaultConnector.name === resources.item.name}
+          nextDefault={nextDefaultConnector}
         />
       )}
     </FeatureBox>
