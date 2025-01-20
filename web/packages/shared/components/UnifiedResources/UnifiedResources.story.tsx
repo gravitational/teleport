@@ -32,9 +32,9 @@ import { apps, moreApps } from 'teleport/Apps/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
 import { databases, moreDatabases } from 'teleport/Databases/fixtures';
 import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
+import { gitServers } from 'teleport/GitServers/fixtures';
 import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
 import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
-import { gitServers } from 'teleport/GitServers/fixtures';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';

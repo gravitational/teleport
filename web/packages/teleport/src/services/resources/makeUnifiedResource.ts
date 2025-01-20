@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import makeGitServer from 'teleport/services/gitservers/makeGitServer';
+import makeGitServer from 'teleport/services/gitServers/makeGitServer';
 
 import { UnifiedResource, UnifiedResourceKind } from '../agents';
 import makeApp from '../apps/makeApps';

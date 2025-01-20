@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { GitServer } from 'web/packages/teleport/src/services/gitServers';
+
 import type { Platform } from 'design/platform';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
@@ -25,7 +27,6 @@ import { Desktop } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';
 import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
-import { GitServer } from 'teleport/services/gitservers';
 
 import type { MfaChallengeResponse } from '../mfa';
 

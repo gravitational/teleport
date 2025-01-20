@@ -16,19 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { GitServer } from 'teleport/services/gitservers';
-
-export const gitServers: GitServer[] = [
-  {
-    kind: 'git_server',
-    id: '00000000-0000-0000-0000-000000000000',
-    clusterId: 'im-a-cluster',
-    hostname: 'my-org.github-org',
-    subKind: 'github',
-    labels: [],
-    github: {
-      organization: 'my-org',
-      integration: 'my-org',
-    },
-  },
-];
+export { ConnectDialog } from './ConnectDialog';
