@@ -19,7 +19,6 @@
 package webauthn
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -92,11 +91,9 @@ func verifyAttestation(cfg *types.Webauthn, obj protocol.AttestationObject) erro
 		if _, err := cert.Verify(opts); err == nil {
 			allowed = true // OK, but keep checking
 		} else {
-			log.DebugContext(context.Background(),
-				"Attestation check for allowed CAs failed",
-				"subject", cert.Subject,
-				"error", err,
-			)
+			log.WithError(err).
+				WithField("subject", cert.Subject).
+				Debug("Attestation check for allowed CAs failed")
 		}
 
 		opts = verifyOptsBase // take copy
@@ -104,11 +101,9 @@ func verifyAttestation(cfg *types.Webauthn, obj protocol.AttestationObject) erro
 		if _, err := cert.Verify(opts); err == nil {
 			return trace.BadParameter("attestation certificate %q from issuer %q not allowed", cert.Subject, cert.Issuer)
 		} else if !errors.As(err, new(x509.UnknownAuthorityError)) {
-			log.DebugContext(context.Background(),
-				"Attestation check for denied CAs failed",
-				"subject", cert.Subject,
-				"error", err,
-			)
+			log.WithError(err).
+				WithField("subject", cert.Subject).
+				Debug("Attestation check for denied CAs failed")
 		}
 	}
 	if !allowed {
