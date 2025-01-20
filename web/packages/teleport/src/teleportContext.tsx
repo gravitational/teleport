@@ -134,31 +134,6 @@ class TeleportContext implements types.Context {
       return disabledFeatureFlags;
     }
 
-    // If feature hiding is enabled in the license, this returns true if the user has no list access to any feature within the management section.
-    function hasManagementSectionAccess() {
-      if (!cfg.hideInaccessibleFeatures) {
-        return true;
-      }
-      return (
-        userContext.getUserAccess().list ||
-        userContext.getRoleAccess().list ||
-        userContext.getEventAccess().list ||
-        userContext.getSessionsAccess().list ||
-        userContext.getTrustedClusterAccess().list ||
-        userContext.getBillingAccess().list ||
-        userContext.getPluginsAccess().list ||
-        userContext.getIntegrationsAccess().list ||
-        userContext.hasDiscoverAccess() ||
-        userContext.getDeviceTrustAccess().list ||
-        userContext.getLockAccess().list ||
-        userContext.getAccessListAccess().list ||
-        userContext.getAccessGraphAccess().list ||
-        hasAccessMonitoringAccess() ||
-        userContext.getTokenAccess().create ||
-        userContext.getBotsAccess().list
-      );
-    }
-
     function hasAccessRequestsAccess() {
       // If feature hiding is enabled in the license, only allow access to access requests if the user has permission to access them, either by
       // having list access, requestable roles, or allowed search_as_roles.
@@ -233,7 +208,6 @@ class TeleportContext implements types.Context {
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
       accessMonitoring: hasAccessMonitoringAccess(),
-      managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
       accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
       tokens: userContext.getTokenAccess().create,
@@ -273,7 +247,6 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   enrollIntegrations: false,
   locks: false,
   newLocks: false,
-  managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
   accessGraphIntegrations: false,

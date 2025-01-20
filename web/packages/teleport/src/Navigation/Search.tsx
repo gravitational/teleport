@@ -25,9 +25,9 @@ import { color, height, space } from 'design/system';
 
 import { storageService } from 'teleport/services/storageService';
 
-import { RecentHistory, RecentHistoryItem } from '../RecentHistory';
 import { CustomNavigationCategory } from './categories';
 import { NavigationSection, NavigationSubsection } from './Navigation';
+import { RecentHistory, RecentHistoryItem } from './RecentHistory';
 import {
   CustomChildrenSection,
   getSubsectionStyles,
