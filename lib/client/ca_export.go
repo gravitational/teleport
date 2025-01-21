@@ -60,10 +60,12 @@ type ExportedAuthority struct {
 	Data []byte
 }
 
-// ExportAllAuthorities returns all authorities of a particular type in OpenSSH
-// compatible formats.
-// If the ExportAuthoritiesRequest.AuthType is present only prints keys for CAs of this type,
-// otherwise returns host and user SSH keys.
+// ExportAllAuthorities exports public keys of all authorities of a particular
+// type. The export format depends on the authority type, see below for
+// details.
+//
+// An empty ExportAuthoritiesRequest.AuthType is interpreted as an export for
+// host and user SSH keys.
 //
 // Exporting using "tls*", "database", "windows" AuthType:
 // Returns the certificate authority public key to be used by systems that rely on TLS.
