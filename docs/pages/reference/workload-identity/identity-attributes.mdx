@@ -45,6 +45,10 @@ join.
 
 ### `workload.unix`
 
+Attributes sourced from the Unix workload attestor.
+
+See TODO for more information.
+
 | Attribute                | Description                                   |
 |--------------------------|-----------------------------------------------|
 | `workload.unix.attested` | Whether the workload passed Unix attestation. |
@@ -54,13 +58,18 @@ join.
 
 ### `workload.kubernetes`
 
-| Attribute              | Description                                       |
-|------------------------|---------------------------------------------------|
-| `user.name`            | The name of the user.                             |
-| `user.is_bot`          | Whether the user is a bot.                        |
-| `user.bot_name`        | If the user is a bot, the name of the bot.        |
-| `user.bot_instance_id` | If the user is a bot, the instance ID of the bot. |
-| `user.labels`          | Labels of the user.                               |
+Attributes sourced from the Kubernetes workload attestor.
+
+See TODO for more information
+
+| Attribute                             | Description                                         |
+|---------------------------------------|-----------------------------------------------------|
+| `workload.kubernetes.attested`        | Whether the workload passed Kubernetes attestation. |
+| `workload.kubernetes.namespace`       | The namespace of the workload pod.                  |
+| `workload.kubernetes.pod_name`        | The name of the workload pod.                       |
+| `workload.kubernetes.service_account` | The service account of the workload pod.            |
+| `workload.kubernetes.pod_uid`         | The UID of the workload pod.                        |
+| `workload.kubernetes.labels`          | The labels of the workload pod.                     |
 
 ## User Attributes
 
