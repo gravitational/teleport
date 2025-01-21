@@ -47,7 +47,7 @@ type GroupMember struct {
 
 // ListGroupMembers returns a list of all members of the group with the given ID.
 func (c *Client) ListGroupMembers(ctx context.Context, groupID string) ([]GroupMember, error) {
-	b, err := newPayloadRequestBody(groupID)
+	b, err := newDNPayloadRequestBody(groupID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

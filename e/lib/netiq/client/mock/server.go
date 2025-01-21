@@ -50,12 +50,12 @@ func New() *Server {
 
 	router.HandleFunc("GET /osp/a/idm/auth/oauth2/.well-known/openid-configuration", server.handleOSPToken)
 	router.HandleFunc("POST /osp/a/idm/auth/oauth2/token", server.handleOSPAuth)
-	router.HandleFunc("GET /api/rest/access/users", server.handleGetUsers)
+	router.HandleFunc("GET /api/rest/access/users/list", server.handleGetUsers)
 	router.HandleFunc("GET /api/rest/catalog/groups", server.handleGetGroups)
 	router.HandleFunc("POST /api/rest/access/groups/members", server.handleGetGroupMembers)
-	router.HandleFunc("GET /api/rest/access/roles/listV2", server.handleGetRoles)
+	router.HandleFunc("GET /api/rest/catalog/roles/listV2", server.handleGetRoles)
 	router.HandleFunc("POST /api/rest/catalog/roles/role/assignments/v2", server.handleGetRoleMembers)
-	router.HandleFunc("POST /api/rest/access/roles/parentRoles", server.handleGetRoleParents)
+	router.HandleFunc("POST /api/rest/catalog/roles/parentRoles/list", server.handleGetRoleParents)
 	router.HandleFunc("GET /api/rest/catalog/resources/listV2", server.handleGetResources)
 	router.HandleFunc("POST /api/rest/catalog/roles/mappedResources/list", server.handleGetRoleMappedResources)
 

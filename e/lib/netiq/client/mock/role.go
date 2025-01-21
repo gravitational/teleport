@@ -47,7 +47,7 @@ func (s *Server) handleGetRoleMembers(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	payload, err := decodePayloadRequestBody(req.Body)
+	payload, err := decodeDNPayloadRequestBody(req.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = writeJSON(w, newBadRequestError("invalid request body"))
@@ -69,10 +69,10 @@ func (s *Server) handleGetRoleMembers(w http.ResponseWriter, req *http.Request) 
 		NextIndex  int                    `json:"nextIndex"`
 	}
 
-	members, ok := s.roleMembers[payload.ID]
+	members, ok := s.roleMembers[payload.DN]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = writeJSON(w, newBadRequestError("invalid role ID "+payload.ID))
+		_ = writeJSON(w, newBadRequestError("invalid role ID "+payload.DN))
 		return
 	}
 

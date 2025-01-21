@@ -101,6 +101,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeAWSIdentityCenter: awsICPluginDescriptor{},
 	types.PluginTypeMSTeams:           pluginInstallerFn(installMSTeamsPlugin),
 	types.PluginTypeEmail:             pluginInstallerFn(installEmailPlugin),
+	types.PluginTypeNetIQ:             netIQPluginDescriptor{},
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {

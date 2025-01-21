@@ -385,3 +385,15 @@ func newPayloadRequestBody(id string) ([]byte, error) {
 	})
 	return b.Bytes(), trace.Wrap(err)
 }
+
+type dnPayloadRequest struct {
+	DN string `json:"dn"`
+}
+
+func newDNPayloadRequestBody(dn string) ([]byte, error) {
+	b := new(bytes.Buffer)
+	err := json.NewEncoder(b).Encode(&dnPayloadRequest{
+		DN: dn,
+	})
+	return b.Bytes(), trace.Wrap(err)
+}

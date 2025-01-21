@@ -31,7 +31,7 @@ type Role struct {
 
 // ListRoles returns a list of all roles in the Identity Vault.
 func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
-	const rolesBase = "rest/access/roles/listV2"
+	const rolesBase = "rest/catalog/roles/listV2"
 
 	roles, err := listResponse(
 		ctx,
@@ -81,7 +81,7 @@ func (c *Client) ListRoleSubRoles(ctx context.Context, roleID string) ([]RoleRef
 		return nil, trace.Wrap(err)
 	}
 
-	const rolesBase = "rest/access/roles/subroles"
+	const rolesBase = "rest/catalog/roles/subRoles/list"
 
 	roleRef, err := listResponse(
 		ctx,
@@ -104,7 +104,7 @@ func (c *Client) ListRoleParentRoles(ctx context.Context, roleID string) ([]Role
 		return nil, trace.Wrap(err)
 	}
 
-	const rolesBase = "rest/access/roles/parentRoles"
+	const rolesBase = "rest/catalog/roles/parentRoles/list"
 	roleRef, err := listResponse(
 		ctx,
 		c,
@@ -158,7 +158,7 @@ type RoleAssignmentStatus struct {
 
 // ListRoleMembers returns a list of all members of the role with the given ID.
 func (c *Client) ListRoleMembers(ctx context.Context, roleID string) ([]RoleAssignmentStatus, error) {
-	b, err := newPayloadRequestBody(roleID)
+	b, err := newDNPayloadRequestBody(roleID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

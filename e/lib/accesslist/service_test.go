@@ -505,7 +505,6 @@ func TestService_GetAccessList(t *testing.T) {
 
 	// userDenyWhere gets not found for non-existent list
 	_, err = c.svc.GetAccessList(c.userDenyWhereCtx, &accesslistv1.GetAccessListRequest{Name: "non-existent-list"})
-	fmt.Printf("Error: %v\n", err)
 	require.True(t, trace.IsNotFound(err))
 
 	// userWhere can only see a4

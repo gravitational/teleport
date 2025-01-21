@@ -64,6 +64,18 @@ func (*MsTeamsPluginSpec) PluginSpecType() types.PluginType {
 	return types.PluginTypeMSTeams
 }
 
+// NetIQPluginSpec holds the configuration for the NetIQ plugin.
+type NetIQPluginSpec struct {
+	ApiEndpoint         string `json:"apiEndpoint,omitempty"`
+	OauthIssuerEndpoint string `json:"oauthIssuerEndpoint,omitempty"`
+	InsecureSkipVerify  bool   `json:"insecureSkipVerify,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for NetIqPluginSpec
+func (*NetIQPluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeNetIQ
+}
+
 type EmailPluginSpec struct {
 	Sender            string `json:"sender,omitempty"`
 	FallbackRecipient string `json:"fallbackRecipient,omitempty"`
@@ -116,6 +128,9 @@ type PluginDetails struct {
 
 	// Okta is the status of the Okta plugin
 	Okta *types.PluginOktaStatusV1 `json:"okta,omitempty"`
+
+	// NetIQ is the status of the NetIQ plugin
+	NetIQ *types.PluginNetIQStatusV1 `json:"netiq,omitempty"`
 }
 
 // PluginGitlabDetails holds information about the Gitlab plugin
@@ -144,6 +159,8 @@ func (p *Plugin) UnmarshalJSON(data []byte) error {
 	switch msg.Type {
 	case types.PluginTypeOkta:
 		out.Spec = &OktaPluginSpec{}
+	case types.PluginTypeNetIQ:
+		out.Spec = &NetIQPluginSpec{}
 	}
 
 	if err := json.Unmarshal(data, &out); err != nil {
@@ -192,6 +209,10 @@ func NewPlugin(p *types.PluginV1) (*Plugin, error) {
 		}
 
 		uiP.Status.Details = details
+	case status.GetNetIq() != nil:
+		uiP.Status.Details = &PluginDetails{
+			NetIQ: status.GetNetIq(),
+		}
 	}
 
 	return uiP, nil
@@ -251,6 +272,8 @@ func pluginDetails(p types.Plugin) string {
 		return fmt.Sprintf(`Messages will be sent to assigned reviewers and the default recipient "%s"`, settings.Msteams.DefaultRecipient)
 	case *types.PluginSpecV1_Email:
 		return fmt.Sprintf(`Emails will be sent by %q to %q`, settings.Email.Sender, settings.Email.FallbackRecipient)
+	case *types.PluginSpecV1_NetIq:
+		return fmt.Sprintf(`Users, groups, roles and resources will be synchronized from NetIQ at %q`, settings.NetIq.ApiEndpoint)
 	default:
 		return ""
 	}
@@ -303,7 +326,12 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			Sender:            settings.Email.Sender,
 			FallbackRecipient: settings.Email.FallbackRecipient,
 		}
-
+	case *types.PluginSpecV1_NetIq:
+		return &NetIQPluginSpec{
+			ApiEndpoint:         settings.NetIq.ApiEndpoint,
+			OauthIssuerEndpoint: settings.NetIq.OauthIssuerEndpoint,
+			InsecureSkipVerify:  settings.NetIq.InsecureSkipVerify,
+		}
 	default:
 		return nil
 	}

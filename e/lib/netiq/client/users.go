@@ -20,7 +20,7 @@ type User struct {
 
 // ListUsers returns a list of all users in the Identity Vault.
 func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
-	const usersBase = "rest/access/users"
+	const usersBase = "rest/access/users/list"
 
 	users, err := listResponse(
 		ctx,

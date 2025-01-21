@@ -50,6 +50,7 @@ func (s *Service) pullNetIQData(ctx context.Context) (results resources, err err
 	g.SetLimit(maxParallelRequests)
 
 	for _, group := range groups {
+		group := group
 		g.Go(func() error {
 			groupMembership, err := s.collectGroupMemberships(ctx, group)
 			if err != nil {
@@ -62,6 +63,7 @@ func (s *Service) pullNetIQData(ctx context.Context) (results resources, err err
 	}
 
 	for _, role := range roles {
+		role := role
 		g.Go(func() error {
 			roleMembership, err := s.collectRoleMemberships(ctx, role)
 			if err != nil {
@@ -81,11 +83,11 @@ func (s *Service) pullNetIQData(ctx context.Context) (results resources, err err
 		case err := <-errs:
 			collectedErrs = append(collectedErrs, err)
 		case groupMember := <-groupMemberships:
-			results.groupMembers = convertGroupMembers(groupMember.groupID, groupMember.members)
+			results.groupMembers = append(results.groupMembers, convertGroupMembers(groupMember.groupID, groupMember.members)...)
 		case roleMember := <-roleMemberships:
-			results.roleMembers = convertRoleMembers(roleMember.roleID, roleMember.members)
-			results.mappedResources = convertRoleMappedResources(roleMember.roleID, roleMember.mappedResources)
-			results.parentRoles = convertRoleParentRoles(roleMember.roleID, roleMember.parentRoles)
+			results.roleMembers = append(results.roleMembers, convertRoleMembers(roleMember.roleID, roleMember.members)...)
+			results.mappedResources = append(results.mappedResources, convertRoleMappedResources(roleMember.roleID, roleMember.mappedResources)...)
+			results.parentRoles = append(results.parentRoles, convertRoleParentRoles(roleMember.roleID, roleMember.parentRoles)...)
 		}
 	}
 
@@ -239,7 +241,7 @@ func convertRoleMembers(roleID string, roleMembers []netiqclient.RoleAssignmentS
 		statusCode, _ := strconv.Atoi(member.StatusCode)
 		out = append(out, &accessgraphv1alpha.NetIQMemberAssignmentRef{
 			RoleId:                    roleID,
-			Dn:                        member.Dn,
+			Dn:                        member.RecipientDn,
 			RecipientType:             recipientTypeToEnum(member.RecipientType),
 			RecipientTypeSubcontainer: member.RecipientTypeSubContainer,
 			StatusCode:                uint32(statusCode),

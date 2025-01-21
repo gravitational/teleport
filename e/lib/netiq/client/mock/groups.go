@@ -78,7 +78,7 @@ func (s *Server) handleGetGroupMembers(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	payload, err := decodePayloadRequestBody(req.Body)
+	payload, err := decodeDNPayloadRequestBody(req.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = writeJSON(w, newBadRequestError("invalid request body"))
@@ -104,10 +104,10 @@ func (s *Server) handleGetGroupMembers(w http.ResponseWriter, req *http.Request)
 		Total        int           `json:"total"`
 	}
 
-	members, ok := s.groupMembers[payload.ID]
+	members, ok := s.groupMembers[payload.DN]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = writeJSON(w, newBadRequestError("invalid group ID "+payload.ID))
+		_ = writeJSON(w, newBadRequestError("invalid group ID "+payload.DN))
 		return
 	}
 
@@ -159,6 +159,16 @@ type idPayloadRequest struct {
 
 func decodePayloadRequestBody(r io.Reader) (idPayloadRequest, error) {
 	b := idPayloadRequest{}
+	err := json.NewDecoder(r).Decode(&b)
+	return b, trace.Wrap(err)
+}
+
+type dnPayloadRequest struct {
+	DN string `json:"dn"`
+}
+
+func decodeDNPayloadRequestBody(r io.Reader) (dnPayloadRequest, error) {
+	b := dnPayloadRequest{}
 	err := json.NewDecoder(r).Decode(&b)
 	return b, trace.Wrap(err)
 }

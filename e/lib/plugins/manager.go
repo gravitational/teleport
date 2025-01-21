@@ -78,6 +78,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeAWSIdentityCenter: withLeaderLock(awsIdentityCenterInstanceFactory),
 			types.PluginTypeMSTeams:           msTeamsInstanceFactory,
 			types.PluginTypeEmail:             emailInstanceFactory,
+			types.PluginTypeNetIQ:             netIQInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {

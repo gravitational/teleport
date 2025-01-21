@@ -35,4 +35,7 @@ const (
 
 	// ComponentEntraID is the Entra ID service component.
 	ComponentEntraID = "entra-id"
+
+	// ComponentNetIQ is the NetIQ service component.
+	ComponentNetIQ = "netiq"
 )
