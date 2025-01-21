@@ -597,7 +597,7 @@ print_welcome_message() {
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
-        log_only "Find more details on how to use Teleport here: https://goteleport.com/docs/user-manual/"
+        log_only "Find more details on how to use Teleport here: https://goteleport.com/docs/"
     else
         log_important "The Teleport service was installed, but it does not appear to have started successfully."
         if is_using_systemd; then

@@ -123,13 +123,15 @@ export interface App {
      * proxy hostname] if public_addr is not present.
      * If the app belongs to a leaf cluster, fqdn is equal to [name].[root cluster proxy hostname].
      *
-     * fqdn is not present for SAML applications.
+     * fqdn is not present for SAML applications. Available only when the app was fetched through the
+     * ListUnifiedResources RPC.
      *
      * @generated from protobuf field: string fqdn = 10;
      */
     fqdn: string;
     /**
-     * aws_roles is a list of AWS IAM roles for the application representing AWS console.
+     * aws_roles is a list of AWS IAM roles for the application representing AWS console. Available
+     * only when the app wast fetched through the ListUnifiedResources RPC.
      *
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AWSRole aws_roles = 11;
      */

@@ -16,17 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box } from 'design';
 
 import { State as ResourceState } from 'teleport/components/useResources';
+import cfg from 'teleport/config';
+import {
+  DefaultAuthConnector,
+  KindAuthConnectors,
+  Resource,
+} from 'teleport/services/resources';
 
 import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
 import getSsoIcon from '../ssoIcons/getSsoIcon';
-import { State as AuthConnectorState } from '../useAuthConnectors';
 
-export default function ConnectorList({ items, onEdit, onDelete }: Props) {
+export function ConnectorList<T extends KindAuthConnectors>({
+  items,
+  defaultConnector,
+  setAsDefault,
+  onDelete,
+}: Props<T>) {
+  const history = useHistory();
   items = items || [];
   const $items = items.map(item => {
     const { id, name, kind } = item;
@@ -39,9 +51,12 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
         kind={kind}
         id={id}
         Icon={Icon}
-        isDefault={false}
+        isDefault={
+          defaultConnector.name === name && defaultConnector.type === kind
+        }
+        onSetAsDefault={() => setAsDefault({ type: kind, name })}
         isPlaceholder={false}
-        onEdit={onEdit}
+        onEdit={() => history.push(cfg.getEditAuthConnectorRoute(kind, name))}
         onDelete={onDelete}
         name={name}
       />
@@ -50,15 +65,19 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
 
   return (
     <AuthConnectorsGrid>
-      <LocalConnectorTile />
+      <LocalConnectorTile
+        isDefault={defaultConnector.type === 'local'}
+        setAsDefault={() => setAsDefault({ type: 'local' })}
+      />
       {$items}
     </AuthConnectorsGrid>
   );
 }
 
-type Props = {
-  items: AuthConnectorState['items'];
-  onEdit: ResourceState['edit'];
+type Props<T extends KindAuthConnectors> = {
+  items: Resource<T>[];
+  defaultConnector: DefaultAuthConnector;
+  setAsDefault: (defaultConnector: DefaultAuthConnector) => void;
   onDelete: ResourceState['remove'];
 };
 

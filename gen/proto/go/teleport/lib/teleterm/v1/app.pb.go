@@ -89,9 +89,11 @@ type App struct {
 	// proxy hostname] if public_addr is not present.
 	// If the app belongs to a leaf cluster, fqdn is equal to [name].[root cluster proxy hostname].
 	//
-	// fqdn is not present for SAML applications.
+	// fqdn is not present for SAML applications. Available only when the app was fetched through the
+	// ListUnifiedResources RPC.
 	Fqdn string `protobuf:"bytes,10,opt,name=fqdn,proto3" json:"fqdn,omitempty"`
-	// aws_roles is a list of AWS IAM roles for the application representing AWS console.
+	// aws_roles is a list of AWS IAM roles for the application representing AWS console. Available
+	// only when the app wast fetched through the ListUnifiedResources RPC.
 	AwsRoles []*AWSRole `protobuf:"bytes,11,rep,name=aws_roles,json=awsRoles,proto3" json:"aws_roles,omitempty"`
 	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
 	// Only applicable to TCP App Access.

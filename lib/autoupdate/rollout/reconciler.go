@@ -56,9 +56,10 @@ var (
 // - we reconcile 2 resources with one
 // - both input and output are singletons, we don't need the multi resource logic nor stream/paginated APIs
 type reconciler struct {
-	clt   Client
-	log   *slog.Logger
-	clock clockwork.Clock
+	clt     Client
+	log     *slog.Logger
+	clock   clockwork.Clock
+	metrics *metrics
 
 	rolloutStrategies []rolloutStrategy
 
@@ -74,6 +75,8 @@ func (r *reconciler) reconcile(ctx context.Context) error {
 
 	ctx, cancel := context.WithTimeout(ctx, reconciliationTimeout)
 	defer cancel()
+
+	var startTime time.Time
 	tries := 0
 	var err error
 	for tries < maxConflictRetry {
@@ -82,17 +85,22 @@ func (r *reconciler) reconcile(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+			startTime = r.clock.Now()
 			err = r.tryReconcile(ctx)
+			duration := r.clock.Since(startTime)
 			switch {
 			case err == nil:
+				r.metrics.observeReconciliationTry(metricsReconciliationResultLabelValueSuccess, duration)
 				return nil
 			case trace.IsCompareFailed(err), trace.IsNotFound(err):
 				// The resource changed since we last saw it
 				// We must have raced against another auth
 				// Let's retry the reconciliation
 				r.log.DebugContext(ctx, "retrying reconciliation", "error", err)
+				r.metrics.observeReconciliationTry(metricsReconciliationResultLabelValueRetry, duration)
 			default:
 				// error is non-nil and non-retryable
+				r.metrics.observeReconciliationTry(metricsReconciliationResultLabelValueFail, duration)
 				return trace.Wrap(err, "failed to reconcile rollout")
 			}
 		}
@@ -105,7 +113,7 @@ func (r *reconciler) reconcile(ctx context.Context) error {
 // The creation/update/deletion can fail with a trace.CompareFailedError or trace.NotFoundError
 // if the resource change while we were computing it.
 // The caller must handle those error and retry the reconciliation.
-func (r *reconciler) tryReconcile(ctx context.Context) error {
+func (r *reconciler) tryReconcile(ctx context.Context) (err error) {
 	// get autoupdate_config
 	var config *autoupdate.AutoUpdateConfig
 	if c, err := r.clt.GetAutoUpdateConfig(ctx); err == nil {
@@ -113,6 +121,7 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 	} else if !trace.IsNotFound(err) {
 		return trace.Wrap(err, "getting autoupdate_config")
 	}
+	r.metrics.observeConfig(config)
 
 	// get autoupdate_version
 	var version *autoupdate.AutoUpdateVersion
@@ -121,10 +130,11 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 	} else if !trace.IsNotFound(err) {
 		return trace.Wrap(err, "getting autoupdate version")
 	}
+	r.metrics.observeVersion(version, r.clock.Now())
 
 	// get autoupdate_agent_rollout
 	rolloutExists := true
-	existingRollout, err := r.clt.GetAutoUpdateAgentRollout(ctx)
+	rollout, err := r.clt.GetAutoUpdateAgentRollout(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err, "getting autoupdate_agent_rollout")
 	}
@@ -133,13 +143,24 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 		rolloutExists = false
 	}
 
+	// We observe the current rollout.
+	r.metrics.observeRollout(rollout, r.clock.Now())
+	// If the reconciliation succeeded, we observe the rollout again to reflect its new values.
+	defer func() {
+		if err != nil {
+			return
+		}
+		r.metrics.observeRollout(rollout, r.clock.Now())
+	}()
+
 	// if autoupdate_version does not exist or does not contain spec.agents, we should not configure a rollout
 	if version.GetSpec().GetAgents() == nil {
 		if !rolloutExists {
 			// the rollout doesn't exist, nothing to do
 			return nil
 		}
-		// the rollout exists, we must delete it
+		// the rollout exists, we must delete it. We also clear the rollout object for metrics purposes.
+		rollout = nil
 		return r.clt.DeleteAutoUpdateAgentRollout(ctx)
 	}
 
@@ -148,14 +169,14 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "mutating rollout")
 	}
-	newStatus, err := r.computeStatus(ctx, existingRollout, newSpec, config.GetSpec().GetAgents().GetSchedules())
+	newStatus, err := r.computeStatus(ctx, rollout, newSpec, config.GetSpec().GetAgents().GetSchedules())
 	if err != nil {
 		return trace.Wrap(err, "computing rollout status")
 	}
 
 	// We compute if something changed.
-	specChanged := !proto.Equal(existingRollout.GetSpec(), newSpec)
-	statusChanged := !proto.Equal(existingRollout.GetStatus(), newStatus)
+	specChanged := !proto.Equal(rollout.GetSpec(), newSpec)
+	statusChanged := !proto.Equal(rollout.GetStatus(), newStatus)
 	rolloutChanged := specChanged || statusChanged
 
 	// if nothing changed, no need to update the resource
@@ -167,25 +188,25 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 	// if there are no existing rollout, we create a new one and set the status
 	if !rolloutExists {
 		r.log.DebugContext(ctx, "creating rollout")
-		rollout, err := update.NewAutoUpdateAgentRollout(newSpec)
+		rollout, err = update.NewAutoUpdateAgentRollout(newSpec)
 		rollout.Status = newStatus
 		if err != nil {
 			return trace.Wrap(err, "validating new rollout")
 		}
-		_, err = r.clt.CreateAutoUpdateAgentRollout(ctx, rollout)
+		rollout, err = r.clt.CreateAutoUpdateAgentRollout(ctx, rollout)
 		return trace.Wrap(err, "creating rollout")
 	}
 
 	r.log.DebugContext(ctx, "updating rollout")
 	// If there was a previous rollout, we update its spec and status and do an update.
 	// We don't create a new resource to keep the metadata containing the revision ID.
-	existingRollout.Spec = newSpec
-	existingRollout.Status = newStatus
-	err = update.ValidateAutoUpdateAgentRollout(existingRollout)
+	rollout.Spec = newSpec
+	rollout.Status = newStatus
+	err = update.ValidateAutoUpdateAgentRollout(rollout)
 	if err != nil {
 		return trace.Wrap(err, "validating mutated rollout")
 	}
-	_, err = r.clt.UpdateAutoUpdateAgentRollout(ctx, existingRollout)
+	rollout, err = r.clt.UpdateAutoUpdateAgentRollout(ctx, rollout)
 	return trace.Wrap(err, "updating rollout")
 }
 
@@ -216,14 +237,14 @@ func (r *reconciler) buildRolloutSpec(config *autoupdate.AutoUpdateConfigSpecAge
 // When config and version modes don't match, the lowest integer takes precedence.
 var (
 	agentModeCode = map[string]int{
-		update.AgentsUpdateModeDisabled:  0,
-		update.AgentsUpdateModeSuspended: 1,
-		update.AgentsUpdateModeEnabled:   2,
+		update.AgentsUpdateModeDisabled:  1,
+		update.AgentsUpdateModeSuspended: 2,
+		update.AgentsUpdateModeEnabled:   3,
 	}
 	codeToAgentMode = map[int]string{
-		0: update.AgentsUpdateModeDisabled,
-		1: update.AgentsUpdateModeSuspended,
-		2: update.AgentsUpdateModeEnabled,
+		1: update.AgentsUpdateModeDisabled,
+		2: update.AgentsUpdateModeSuspended,
+		3: update.AgentsUpdateModeEnabled,
 	}
 )
 

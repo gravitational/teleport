@@ -22,7 +22,6 @@ import api from 'teleport/services/api';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
-import makeNode from '../nodes/makeNode';
 import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
@@ -33,9 +32,6 @@ import {
   AwsOidcPingResponse,
   AwsRdsDatabase,
   CreateAwsAppAccessRequest,
-  DeployEc2InstanceConnectEndpointRequest,
-  DeployEc2InstanceConnectEndpointResponse,
-  Ec2InstanceConnectEndpoint,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
   Integration,
@@ -50,10 +46,6 @@ import {
   ListAwsSecurityGroupsResponse,
   ListAwsSubnetsRequest,
   ListAwsSubnetsResponse,
-  ListEc2InstanceConnectEndpointsRequest,
-  ListEc2InstanceConnectEndpointsResponse,
-  ListEc2InstancesRequest,
-  ListEc2InstancesResponse,
   ListEksClustersRequest,
   ListEksClustersResponse,
   RdsEngineIdentifier,
@@ -330,21 +322,11 @@ export const integrationService = {
       .then(resp => resp.clusterDashboardUrl);
   },
 
-  async enrollEksClusters(
+  async enrollEksClustersV2(
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
     const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
-
-    // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
-    if (!req.extraLabels?.length) {
-      return api.post(
-        cfg.getEnrollEksClusterUrl(integrationName),
-        req,
-        null,
-        mfaResponse
-      );
-    }
 
     return (
       api
@@ -356,6 +338,22 @@ export const integrationService = {
         )
         // TODO(kimlisa): DELETE IN 19.0
         .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+  // replaced by enrollEksClustersV2 that accepts labels.
+  async enrollEksClusters(
+    integrationName: string,
+    req: Omit<EnrollEksClustersRequest, 'extraLabels'>
+  ): Promise<EnrollEksClustersResponse> {
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return api.post(
+      cfg.getEnrollEksClusterUrl(integrationName),
+      req,
+      null,
+      mfaResponse
     );
   },
 
@@ -371,52 +369,6 @@ export const integrationService = {
           clusters: eksClusters,
           nextToken: json?.nextToken,
         };
-      });
-  },
-
-  // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.
-  fetchAwsEc2Instances(
-    integrationName,
-    req: ListEc2InstancesRequest
-  ): Promise<ListEc2InstancesResponse> {
-    return api
-      .post(cfg.getListEc2InstancesUrl(integrationName), req)
-      .then(json => {
-        const instances = json?.servers ?? [];
-        return {
-          instances: instances.map(makeNode),
-          nextToken: json?.nextToken,
-        };
-      });
-  },
-
-  // Returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
-  fetchAwsEc2InstanceConnectEndpoints(
-    integrationName,
-    req: ListEc2InstanceConnectEndpointsRequest
-  ): Promise<ListEc2InstanceConnectEndpointsResponse> {
-    return api
-      .post(cfg.getListEc2InstanceConnectEndpointsUrl(integrationName), req)
-      .then(json => {
-        const endpoints = json?.ec2Ices ?? [];
-
-        return {
-          endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
-          nextToken: json?.nextToken,
-          dashboardLink: json?.dashboardLink,
-        };
-      });
-  },
-
-  // Deploys an EC2 Instance Connect Endpoint.
-  deployAwsEc2InstanceConnectEndpoints(
-    integrationName,
-    req: DeployEc2InstanceConnectEndpointRequest
-  ): Promise<DeployEc2InstanceConnectEndpointResponse> {
-    return api
-      .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
-      .then(resp => {
-        return resp ?? [];
       });
   },
 
@@ -507,20 +459,6 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     securityGroups: aws?.rds?.security_groups ?? [],
     accountId: aws?.account_id,
     region: aws?.region,
-  };
-}
-
-function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
-  json = json ?? {};
-  const { name, state, stateMessage, dashboardLink, subnetId, vpcId } = json;
-
-  return {
-    name,
-    state,
-    stateMessage,
-    dashboardLink,
-    subnetId,
-    vpcId,
   };
 }
 
