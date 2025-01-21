@@ -14,29 +14,17 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-// +build !darwin,!windows
-
 package dns
 
-import (
-	"context"
-	"runtime"
-
-	"github.com/gravitational/trace"
-)
-
-var (
-	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-)
+import "context"
 
 type OSUpstreamNameserverSource struct{}
 
 func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
+	return &OSUpstreamNameserverSource{}, nil
 }
 
 func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
+	// TODO(nklaassen): implement UpstreamNameservers on windows.
+	return nil, nil
 }
