@@ -385,7 +385,7 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 		PublicAddr:  routeToApp.PublicAddr,
 		ClusterName: routeToApp.ClusterName,
 		Uri:         routeToApp.URI,
-		TargetPort:  uint32(routeToApp.TargetPort),
+		TargetPort:  routeToApp.TargetPort,
 	}
 
 	reloginReq := &apiteleterm.ReloginRequest{
