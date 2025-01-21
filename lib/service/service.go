@@ -1351,7 +1351,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if address := os.Getenv("PYROSCOPE_SERVER_ADDRESS"); address != "" {
+	if address := os.Getenv("TELEPORT_PYROSCOPE_SERVER_ADDRESS"); address != "" {
 		hostname, err := os.Hostname()
 		if err != nil {
 			hostname = "unknown"
@@ -1361,7 +1361,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		var profileTypes []pyroscope.ProfileType
 
 		// Check for memory-related profile types
-		if os.Getenv("PYROSCOPE_PROFILE_MEMORY_ENABLED") == "true" {
+		if os.Getenv("TELEPORT_PYROSCOPE_PROFILE_MEMORY_ENABLED") == "true" {
 			profileTypes = append(profileTypes,
 				pyroscope.ProfileAllocObjects,
 				pyroscope.ProfileAllocSpace,
@@ -1370,11 +1370,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			)
 		}
 
-		if os.Getenv("PYROSCOPE_PROFILE_CPU_ENABLED") == "true" {
+		if os.Getenv("TELEPORT_PYROSCOPE_PROFILE_CPU_ENABLED") == "true" {
 			profileTypes = append(profileTypes, pyroscope.ProfileCPU)
 		}
 
-		if os.Getenv("PYROSCOPE_PROFILE_GOROUTINES_ENABLED") == "true" {
+		if os.Getenv("TELEPORT_PYROSCOPE_PROFILE_GOROUTINES_ENABLED") == "true" {
 			profileTypes = append(profileTypes, pyroscope.ProfileGoroutines)
 		}
 
@@ -1383,15 +1383,15 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 
 		var uploadRate *time.Duration
-		if rate := os.Getenv("PYROSCOPE_UPLOAD_RATE"); rate != "" {
+		if rate := os.Getenv("TELEPORT_PYROSCOPE_UPLOAD_RATE"); rate != "" {
 			parsedRate, err := time.ParseDuration(rate)
 			if err != nil {
-				slog.InfoContext(process.ExitContext(), "invalid PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
+				slog.InfoContext(process.ExitContext(), "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
 			} else {
 				uploadRate = &parsedRate
 			}
 		} else {
-			slog.InfoContext(process.ExitContext(), "PYROSCOPE_UPLOAD_RATE not specified, using default")
+			slog.InfoContext(process.ExitContext(), "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
 		}
 
 		// Build pyroscope config
@@ -1400,7 +1400,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			ServerAddress:   address,
 			Logger:          pyroscope.StandardLogger,
 			Tags: map[string]string{
-				"host":     hostname,
+				"host":    hostname,
 				"version": teleport.Version,
 				"git_ref": teleport.Gitref,
 			},

@@ -131,6 +131,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/grafana/pyroscope-go v1.2.0
 	github.com/gravitational/license v0.0.0-20240313232707-8312e719d624
 	github.com/gravitational/roundtrip v1.0.2
 	github.com/gravitational/teleport/api v0.0.0
@@ -243,8 +244,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
-
-require github.com/grafana/pyroscope-go v1.2.0
 
 require (
 	cel.dev/expr v0.19.1 // indirect
