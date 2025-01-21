@@ -973,8 +973,14 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
 	h.POST("/webapi/github", h.WithAuth(h.createGithubConnectorHandle))
+	// The extra "connector" in the path is to avoid a wildcard conflict with the github handlers used
+	// during the login flow ("github/login/web" and "github/callback").
+	h.GET("/webapi/github/connector/:name", h.WithAuth(h.getGithubConnectorHandle))
 	h.PUT("/webapi/github/:name", h.WithAuth(h.updateGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
+
+	// Sets the default connector in the auth preference.
+	h.PUT("/webapi/authconnector/default", h.WithAuth(h.setDefaultConnectorHandle))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
@@ -1801,21 +1807,25 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	} else {
 		authType := cap.GetType()
 		var localConnectorName string
+		var defaultConnectorName string
 
 		if authType == constants.Local {
 			localConnectorName = cap.GetConnectorName()
+		} else {
+			defaultConnectorName = cap.GetConnectorName()
 		}
 
 		authSettings = webclient.WebConfigAuthSettings{
-			Providers:          authProviders,
-			SecondFactor:       types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
-			AllowPasswordless:  cap.GetAllowPasswordless(),
-			AuthType:           authType,
-			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
-			LocalConnectorName: localConnectorName,
-			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
-			MOTD:               cap.GetMessageOfTheDay(),
+			Providers:            authProviders,
+			SecondFactor:         types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+			LocalAuthEnabled:     cap.GetAllowLocalAuth(),
+			AllowPasswordless:    cap.GetAllowPasswordless(),
+			AuthType:             authType,
+			DefaultConnectorName: defaultConnectorName,
+			PreferredLocalMFA:    cap.GetPreferredLocalMFA(),
+			LocalConnectorName:   localConnectorName,
+			PrivateKeyPolicy:     cap.GetPrivateKeyPolicy(),
+			MOTD:                 cap.GetMessageOfTheDay(),
 		}
 	}
 
@@ -3678,6 +3688,32 @@ func (h *Handler) siteNodeConnect(
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) setDefaultConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req ui.SetDefaultAuthConnectorRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	authPref.SetConnectorName(req.Name)
+	authPref.SetType(req.Type)
+
+	_, err = clt.UpsertAuthPreference(r.Context(), authPref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
 }
 
 type podConnectParams struct {

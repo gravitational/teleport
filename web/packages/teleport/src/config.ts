@@ -43,6 +43,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
+import { KindAuthConnectors } from './services/resources';
 
 export type Cfg = typeof cfg;
 const cfg = {
@@ -125,6 +126,8 @@ const cfg = {
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
+    /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
+    defaultConnectorName: '',
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
@@ -203,6 +206,15 @@ const cfg = {
     requests: '/web/requests/:requestId?',
 
     downloadCenter: '/web/downloads',
+
+    // sso routes
+    ssoConnector: {
+      /**
+       * create is the dedicated page for creating a new auth connector.
+       */
+      create: '/web/sso/new/:connectorType(github|oidc|saml)',
+      edit: '/web/sso/edit/:connectorType(github|oidc|saml)/:connectorName?',
+    },
 
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -283,6 +295,7 @@ const cfg = {
     rolePath: '/v1/webapi/roles/:name?',
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
+    githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
@@ -420,6 +433,8 @@ const cfg = {
     msTeamsAppZipPath:
       '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
 
+    defaultConnectorPath: '/v1/webapi/authconnector/default',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -490,6 +505,10 @@ const cfg = {
 
   getAuth2faType() {
     return cfg.auth ? cfg.auth.second_factor : null;
+  },
+
+  getDefaultConnectorName() {
+    return cfg.auth ? cfg.auth.defaultConnectorName : '';
   },
 
   getPreferredMfaType() {
@@ -776,6 +795,20 @@ const cfg = {
     return generatePath(cfg.routes.kubernetes, { clusterId });
   },
 
+  getEditAuthConnectorRoute(
+    connectorType: KindAuthConnectors,
+    connectorName?: string
+  ) {
+    return generatePath(cfg.routes.ssoConnector.edit, {
+      connectorType,
+      connectorName,
+    });
+  },
+
+  getCreateAuthConnectorRoute(connectorType: KindAuthConnectors) {
+    return generatePath(cfg.routes.ssoConnector.create, { connectorType });
+  },
+
   getUsersUrl() {
     return cfg.api.usersPath;
   },
@@ -925,6 +958,10 @@ const cfg = {
 
   getGithubConnectorsUrl(name?: string) {
     return generatePath(cfg.api.githubConnectorsPath, { name });
+  },
+
+  getGithubConnectorUrl(name: string) {
+    return generatePath(cfg.api.githubConnectorPath, { name });
   },
 
   getTrustedClustersUrl(name?: string) {

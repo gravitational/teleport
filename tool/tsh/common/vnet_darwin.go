@@ -17,7 +17,6 @@
 package common
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -28,38 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
-
-type vnetCommand struct {
-	*kingpin.CmdClause
-}
-
-func newVnetCommand(app *kingpin.Application) *vnetCommand {
-	cmd := &vnetCommand{
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
-	}
-	return cmd
-}
-
-func (c *vnetCommand) run(cf *CLIConf) error {
-	appProvider, err := newVnetAppProvider(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	processManager, err := vnet.Run(cf.Context, &vnet.RunConfig{AppProvider: appProvider})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		processManager.Close()
-	}()
-
-	fmt.Println("VNet is ready.")
-
-	return trace.Wrap(processManager.Wait())
-}
 
 // vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
 // vnetdaemon build tag. This is typically the case when running tsh in development where it's not
@@ -83,7 +50,7 @@ type vnetAdminSetupCommand struct {
 	euid int
 }
 
-func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
+func newPlatformVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
 		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
 	}
@@ -101,7 +68,6 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		// This runs as root so we need to be configured with the user's home path.
 		return trace.BadParameter("%s must be set", types.HomeEnvVar)
 	}
-
 	config := daemon.Config{
 		SocketPath: c.socketPath,
 		IPv6Prefix: c.ipv6Prefix,
@@ -113,6 +79,10 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 			Euid:  c.euid,
 		},
 	}
+	return trace.Wrap(vnet.RunDarwinAdminProcess(cf.Context, config))
+}
 
-	return trace.Wrap(vnet.RunAdminProcess(cf.Context, config))
+// the vnet-service command is only supported on windows.
+func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
 }

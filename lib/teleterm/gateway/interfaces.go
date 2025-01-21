@@ -42,6 +42,8 @@ type Gateway interface {
 	TargetSubresourceName() string
 	SetTargetSubresourceName(value string)
 	Log() *logrus.Entry
+	// LocalAddress returns the local host in the net package terms (localhost or 127.0.0.1, depending
+	// on the platform).
 	LocalAddress() string
 	LocalPort() string
 	LocalPortInt() int
@@ -97,7 +99,4 @@ type Kube interface {
 // App defines an app gateway.
 type App interface {
 	Gateway
-
-	// LocalProxyURL returns the URL of the local proxy.
-	LocalProxyURL() string
 }

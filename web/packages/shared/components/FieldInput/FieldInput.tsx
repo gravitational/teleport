@@ -59,6 +59,7 @@ const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
       toolTipContent = null,
       disabled = false,
       markAsError = false,
+      required = false,
       ...styles
     },
     ref
@@ -94,6 +95,7 @@ const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
         size={size}
         aria-invalid={hasError || markAsError}
         aria-describedby={helperTextId}
+        required={required}
       />
     );
 
@@ -219,7 +221,7 @@ export type FieldInputProps = BoxProps & {
   id?: string;
   name?: string;
   value?: string;
-  label?: string;
+  label?: React.ReactNode;
   helperText?: React.ReactNode;
   icon?: React.ComponentType<IconProps>;
   size?: InputSize;
@@ -245,4 +247,5 @@ export type FieldInputProps = BoxProps & {
   // input box as error color before validator
   // runs (which marks it as error)
   markAsError?: boolean;
+  required?: boolean;
 };
