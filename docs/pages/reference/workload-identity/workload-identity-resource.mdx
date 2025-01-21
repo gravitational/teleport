@@ -71,6 +71,42 @@ spec:
         # name. Supports templating. If not provided, the organizational unit
         # will be omitted.
         organizational_unit: my-organizational-unit
+  # The rules control when this WorkloadIdentity can be used to issue a
+  # credential.
+  rules:
+    # When allow rules are specified, at least one must pass in order for the
+    # WorkloadIdentity to be used to issue a credential. This effectively
+    # creates an OR relationship between the rules.
+    #
+    # If no allow rules are specified, then the WorkloadIdentity can be issued
+    # to any workload with the correct workload_identity_labels within their
+    # roleset.
+    allow:
+    # Each rule consists of a set of conditions. All conditions must pass in
+    # order for the rule to be considered a match. This effectively creates an
+    # AND relationship between the conditions.
+    - conditions:
+      # Each rule condition specifies the identity attribute to test, an
+      # operator, and the values to test against.
+      - attribute: join.kubernetes.pod.name
+        # eq - Equals. This checks for an exact match between the attribute
+        # and the specified value.
+        eq:
+          value: my-pod
+      - attribute: join.kubernetes.namespace
+        # not_eq - Not Equals. This checks for an exact mismatch between the
+        # attribute and the specified value.
+        not_eq:
+          value: kube-system
+      - attribute: join.kubernetes.service_account.name
+        # in - In. This checks if the attribute is in the list of values.
+        in:
+          values: [my-service-account, my-other-service-account]
+      - attribute: join.kubernetes.service_account.name
+        # not_in - Not In. This checks if the attribute is not in the list of
+        # values.
+        not_in:
+          values: [not-this-sa, not-this-sa-either]
 ```
 
 ## Templating
