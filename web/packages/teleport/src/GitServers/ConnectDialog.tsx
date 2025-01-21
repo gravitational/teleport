@@ -91,7 +91,7 @@ export function ConnectDialog({
             mb="2"
             text="tsh git clone <git-clone-ssh-url>"
           />
-          To configure an existing Git repository, go to the repository then
+          To configure an existing Git repository, go to the repository and then
           <TextSelectCopy mt="1" mb="2" text="tsh git config update" />
         </Box>
         <Box>
