@@ -51,6 +51,7 @@ import (
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
+	"github.com/grafana/pyroscope-go"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1347,6 +1348,82 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if cfg.Tracing.Enabled {
 		if err := process.initTracingService(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+	}
+
+	if address := os.Getenv("PYROSCOPE_SERVER_ADDRESS"); address != "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			hostname = "unknown"
+		}
+
+		// Initialize an empty slice of profile types
+		var profileTypes []pyroscope.ProfileType
+
+		// Check for memory-related profile types
+		if os.Getenv("PYROSCOPE_PROFILE_MEMORY_ENABLED") == "true" {
+			profileTypes = append(profileTypes,
+				pyroscope.ProfileAllocObjects,
+				pyroscope.ProfileAllocSpace,
+				pyroscope.ProfileInuseObjects,
+				pyroscope.ProfileInuseSpace,
+			)
+		}
+
+		if os.Getenv("PYROSCOPE_PROFILE_CPU_ENABLED") == "true" {
+			profileTypes = append(profileTypes, pyroscope.ProfileCPU)
+		}
+
+		if os.Getenv("PYROSCOPE_PROFILE_GOROUTINES_ENABLED") == "true" {
+			profileTypes = append(profileTypes, pyroscope.ProfileGoroutines)
+		}
+
+		if len(profileTypes) == 0 {
+			slog.InfoContext(process.ExitContext(), "No profile types enabled, using default")
+		}
+
+		var uploadRate *time.Duration
+		if rate := os.Getenv("PYROSCOPE_UPLOAD_RATE"); rate != "" {
+			parsedRate, err := time.ParseDuration(rate)
+			if err != nil {
+				slog.InfoContext(process.ExitContext(), "invalid PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
+			} else {
+				uploadRate = &parsedRate
+			}
+		} else {
+			slog.InfoContext(process.ExitContext(), "PYROSCOPE_UPLOAD_RATE not specified, using default")
+		}
+
+		// Build pyroscope config
+		config := pyroscope.Config{
+			ApplicationName: "teleport",
+			ServerAddress:   address,
+			Logger:          pyroscope.StandardLogger,
+			Tags: map[string]string{
+				"pod":     hostname,
+				"version": teleport.Version,
+				"git_ref": teleport.Gitref,
+			},
+		}
+
+		// Set specific ProfileTypes or fall back to defaults
+		if len(profileTypes) > 0 {
+			config.ProfileTypes = profileTypes
+		}
+
+		// Set UploadRate or fall back to defaults
+		if uploadRate != nil {
+			config.UploadRate = *uploadRate
+		}
+
+		profiler, err := pyroscope.Start(config)
+		if err != nil {
+			slog.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "error", err)
+		} else {
+			process.OnExit("pyroscope.profiler", func(payload any) {
+				profiler.Flush(payload == nil)
+				_ = profiler.Stop()
+			})
 		}
 	}
 
