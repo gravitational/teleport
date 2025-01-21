@@ -43,9 +43,14 @@ export enum CaptureEvent {
   OnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
 }
 
+/**
+ * IntegrationEnrollEvent defines integration enrollment
+ * events.
+ */
 export enum IntegrationEnrollEvent {
   Started = 'tp.ui.integrationEnroll.start',
   Complete = 'tp.ui.integrationEnroll.complete',
+  Step = 'tp.ui.integrationEnroll.step',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -76,7 +81,70 @@ export enum IntegrationEnrollKind {
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
   EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
   DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
+  AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
 }
+
+/**
+ * IntegrationEnrollStep defines configurable steps for an integration type.
+ * Value matches with proto enums defined in the backend.
+ */
+export enum IntegrationEnrollStep {
+  /**
+   * AWSIC steps defined for AWS Idenity Center plugin.
+   */
+  ConnectOidc = 'INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC',
+  ImportResourceSetDefaultOwner = 'INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER',
+  IdentitySourceUploadSamlMetadata = 'INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA',
+  ScimTestConnection = 'INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION',
+}
+
+/**
+ * IntegrationEnrollStatusCode defines status codes for a given
+ * integration configuration step event.
+ * Value matches with proto enums defined in the backend.
+ */
+export enum IntegrationEnrollStatusCode {
+  Success = 'INTEGRATION_ENROLL_STATUS_CODE_SUCCESS',
+  Skipped = 'INTEGRATION_ENROLL_STATUS_CODE_SKIPPED',
+  Error = 'INTEGRATION_ENROLL_STATUS_CODE_ERROR',
+  Aborted = 'INTEGRATION_ENROLL_STATUS_CODE_ABORTED',
+}
+
+/**
+ * IntegrationEnrollStepStatus defines fields for reporting
+ * integration configuration step event.
+ */
+export type IntegrationEnrollStepStatus =
+  | {
+      code: Exclude<
+        IntegrationEnrollStatusCode,
+        IntegrationEnrollStatusCode.Error
+      >;
+    }
+  | {
+      code: IntegrationEnrollStatusCode.Error;
+      error: string;
+    };
+
+/**
+ * IntegrationEnrollEventData defines integration
+ * enroll event. Use for start, complete and step events.
+ */
+export type IntegrationEnrollEventData = {
+  id: string;
+  kind: IntegrationEnrollKind;
+  step?: IntegrationEnrollStep;
+  status?: IntegrationEnrollStepStatus;
+};
+
+/**
+ * IntegrationEnrollEventRequest defines integration enroll
+ * event request as expected in the backend.
+ */
+export type IntegrationEnrollEventRequest = {
+  event: IntegrationEnrollEvent;
+  eventData: IntegrationEnrollEventData;
+};
 
 // These constants should match the constant defined in backend found in:
 // lib/usagereporter/web/userevent.go
@@ -173,16 +241,6 @@ export type EventMeta = {
 };
 
 export type PreUserEvent = UserEvent & EventMeta;
-
-export type IntegrationEnrollEventData = {
-  id: string;
-  kind: IntegrationEnrollKind;
-};
-
-export type IntegrationEnrollEventRequest = {
-  event: IntegrationEnrollEvent;
-  eventData: IntegrationEnrollEventData;
-};
 
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;
