@@ -115,7 +115,7 @@ export function getDocumentGatewayTitle(doc: DocumentGateway): string {
 
   switch (targetKind) {
     case 'db': {
-      return targetUser ? `${targetUser}@${targetName}` : targetName;
+      return targetUser ? `${targetName} (${targetUser})` : targetName;
     }
     case 'app': {
       return targetSubresourceName
