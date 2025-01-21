@@ -64,7 +64,7 @@ export function StatusBar() {
             title={breadcrumbs.map(({ name }) => name).join(' → ')}
           >
             {breadcrumbs.map((breadcrumb, index) => (
-              <Fragment key={breadcrumbs.slice(0, index).join('-')}>
+              <Fragment key={`${index}-${breadcrumb.name}`}>
                 {breadcrumb.Icon && (
                   <breadcrumb.Icon color="text.muted" size="small" mr={-1} />
                 )}
