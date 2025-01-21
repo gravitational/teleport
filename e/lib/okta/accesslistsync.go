@@ -398,7 +398,7 @@ func (a *accessListSync) startSync(ctx context.Context) {
 
 	// Let's make sure that any existing access lists are reflected in the Okta requester role.
 	if err := a.refreshCurrentImports(ctx); err != nil {
-		a.logger.ErrorContext(ctx, "Unable to refresh current imports")
+		a.logger.ErrorContext(ctx, "Unable to refresh current imports", "error", err)
 	} else {
 		if err := a.addRolesToOktaRequester(ctx); err != nil {
 			a.logger.ErrorContext(ctx, "Unable to update Okta requester role")

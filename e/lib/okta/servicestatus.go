@@ -43,7 +43,7 @@ func (s *serviceStatus) UpdateUserSync(ctx context.Context, now time.Time, nUser
 		userSync.NumUsersSynced = int32(nUsers)
 	}
 	s.propagateErrors(err)
-	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
+	ReportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
 func (s *serviceStatus) UpdateAppGroupSync(ctx context.Context, now time.Time, nApps, nGroups int, err error) {
@@ -64,7 +64,7 @@ func (s *serviceStatus) UpdateAppGroupSync(ctx context.Context, now time.Time, n
 		s.details.AppGroupSyncDetails.LastSuccessful = &now
 	}
 	s.propagateErrors(err)
-	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
+	ReportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
 func (s *serviceStatus) UpdateAccessListSync(ctx context.Context, now time.Time, nApps, nGroups int, err error) {
@@ -84,7 +84,7 @@ func (s *serviceStatus) UpdateAccessListSync(ctx context.Context, now time.Time,
 		acl.LastSuccessful = &now
 	}
 	s.propagateErrors(err)
-	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
+	ReportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
 func (s *serviceStatus) propagateErrors(err error) {
@@ -120,8 +120,8 @@ func formatError(err error) error {
 	}
 }
 
-// reportPluginStatus will report the plugin status to the given status sink if it exists.
-func reportPluginStatus(ctx context.Context, log *slog.Logger, pluginStatusSink common.StatusSink, code types.PluginStatusCode, details *types.PluginOktaStatusV1) {
+// ReportPluginStatus will report the plugin status to the given status sink if it exists.
+func ReportPluginStatus(ctx context.Context, log *slog.Logger, pluginStatusSink common.StatusSink, code types.PluginStatusCode, details *types.PluginOktaStatusV1) {
 	if pluginStatusSink == nil {
 		return
 	}
@@ -131,5 +131,34 @@ func reportPluginStatus(ctx context.Context, log *slog.Logger, pluginStatusSink 
 		Details: &types.PluginStatusV1_Okta{Okta: details},
 	}); err != nil {
 		log.ErrorContext(ctx, "Error emitting plugin status", "error", err)
+	}
+}
+
+type PluginOktaStatusParams struct {
+	SyncSettings types.PluginOktaSyncSettings
+	ScimEnabled  bool
+}
+
+func NewPluginOktaStatus(params PluginOktaStatusParams) *types.PluginOktaStatusV1 {
+	return &types.PluginOktaStatusV1{
+		SsoDetails: &types.PluginOktaStatusDetailsSSO{
+			Enabled: true,
+			AppId:   params.SyncSettings.AppId,
+			AppName: params.SyncSettings.AppName,
+		},
+		AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
+			Enabled: !params.SyncSettings.DisableSyncAppGroups,
+		},
+		UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
+			Enabled: params.SyncSettings.SyncUsers,
+		},
+		ScimDetails: &types.PluginOktaStatusDetailsSCIM{
+			Enabled: params.ScimEnabled,
+		},
+		AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
+			Enabled:      params.SyncSettings.SyncAccessLists,
+			GroupFilters: params.SyncSettings.GroupFilters,
+			AppFilters:   params.SyncSettings.AppFilters,
+		},
 	}
 }

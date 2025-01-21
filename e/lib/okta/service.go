@@ -112,38 +112,17 @@ type Config struct {
 	// PluginStatusSink is an optional status sink for reporting the plugin status.
 	PluginStatusSink common.StatusSink
 
-	// UserSyncEnabled indicates that the Okta service will try to sync user
-	// records from the upstream Okta organization
-	UserSyncEnabled bool
-
-	// SSOConnectorID specifies which SSO connector users will be joining from
-	SSOConnectorID string
-
-	// AccessListSyncEnabled indicates that the Okta service will try to sync
-	// Okta permissions via access lists.
-	AccessListSyncEnabled bool
-
-	// DefaultOwners is the list of default owners for imported access lists.
-	DefaultOwners []string
-
-	// AccessListSyncAppFilters is the list of app filters for use by the access list sync.
-	AccessListSyncAppFilters []string
+	// accessListSyncAppFilters is the list of app filters for use by the access list sync.
 	accessListSyncAppFilters []*regexp.Regexp
 
-	// AccessListSyncGroupFilters is the list of group filters for use by the access list sync.
-	AccessListSyncGroupFilters []string
+	// accessListSyncGroupFilters is the list of group filters for use by the access list sync.
 	accessListSyncGroupFilters []*regexp.Regexp
-
-	// OktaSAMLAppID is the Okta-assigned ID for the SAML app that the service
-	// uses as a gateway for syncing users. If empty, the service will revert to
-	// the legacy method of polling the whole Okta organization.
-	OktaSAMLAppID string
 
 	// ConnectorService is the SAML connector service.
 	ConnectorService sso.SAMLConnectorService
 
-	// DisableAppGroupSync allows to disable Okta application and group sync.
-	DisableAppGroupSync bool
+	// SyncSettings are Okta plugin sync settings.
+	SyncSettings types.PluginOktaSyncSettings
 
 	// SCIMEnabled indicates that SCIM support is enabled for this instance
 	SCIMEnabled bool
@@ -202,22 +181,22 @@ func (c *Config) CheckAndSetDefaults() error {
 		// Default to running 5 backend tasks per second.
 		c.BackendTasksPerSecond = 5
 	}
-	if c.UserSyncEnabled && c.SSOConnectorID == "" {
+	if c.SyncSettings.SyncUsers && c.SyncSettings.SsoConnectorId == "" {
 		return trace.BadParameter("Okta SSO Connector ID must be set if user sync is enabled")
 	}
 
-	if c.AccessListSyncEnabled {
+	if c.SyncSettings.SyncAccessLists {
 		if c.Access == nil {
 			return trace.BadParameter("access is missing")
 		}
 		if c.AccessLists == nil {
 			return trace.BadParameter("access lists is missing")
 		}
-		if len(c.DefaultOwners) == 0 {
+		if len(c.SyncSettings.DefaultOwners) == 0 {
 			return trace.BadParameter("default owners is missing")
 		}
 
-		for _, filter := range c.AccessListSyncAppFilters {
+		for _, filter := range c.SyncSettings.AppFilters {
 			compiledFilter, err := utils.CompileExpression(filter)
 			if err != nil {
 				return trace.Wrap(err)
@@ -225,7 +204,7 @@ func (c *Config) CheckAndSetDefaults() error {
 			c.accessListSyncAppFilters = append(c.accessListSyncAppFilters, compiledFilter)
 		}
 
-		for _, filter := range c.AccessListSyncGroupFilters {
+		for _, filter := range c.SyncSettings.GroupFilters {
 			compiledFilter, err := utils.CompileExpression(filter)
 			if err != nil {
 				return trace.Wrap(err)
@@ -375,7 +354,7 @@ func New(ctx context.Context, config Config) (*Service, error) {
 // newWithClientCreator will create a new Okta service with the given oktaClient.
 func newWithClientCreator(ctx context.Context, config Config, creator api.OktaClientFn) (*Service, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
-		reportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
+		ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
 			types.PluginStatusCode_OTHER_ERROR,
 			nil /* no details available yet */)
 		return nil, trace.Wrap(err)
@@ -405,36 +384,24 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		timeBetweenSyncs:        config.TimeBetweenSyncs,
 		syncStoppedCh:           make(chan struct{}, 1),
 		stopCh:                  make(chan struct{}, 1),
-		ssoConnectorID:          config.SSOConnectorID,
-		oktaSAMLAppID:           config.OktaSAMLAppID,
-		disableOktaAppGroupSync: config.DisableAppGroupSync,
+		ssoConnectorID:          config.SyncSettings.SsoConnectorId,
+		oktaSAMLAppID:           config.SyncSettings.AppId,
+		disableOktaAppGroupSync: config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus: serviceStatus{
 			sink:   config.PluginStatusSink,
 			code:   types.PluginStatusCode_UNKNOWN,
 			logger: config.Logger,
-			details: &types.PluginOktaStatusV1{
-				AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
-					Enabled: !config.DisableAppGroupSync,
-				},
-				UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
-					Enabled: config.UserSyncEnabled,
-				},
-				ScimDetails: &types.PluginOktaStatusDetailsSCIM{
-					Enabled: config.SCIMEnabled,
-				},
-				AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
-					Enabled:      config.AccessListSyncEnabled,
-					GroupFilters: config.AccessListSyncGroupFilters,
-					AppFilters:   config.AccessListSyncAppFilters,
-				},
-			},
+			details: NewPluginOktaStatus(PluginOktaStatusParams{
+				SyncSettings: config.SyncSettings,
+				ScimEnabled:  config.SCIMEnabled,
+			}),
 		},
 	}
 	// TODO(tross) pass in config.Logger once this supports slog. Until then
 	// it will create a logger if the passed in logger is nil.
 	s.tlsConfig = app.CopyAndConfigureTLS(nil, s.accessPoint, config.TLSConfig)
 
-	if config.UserSyncEnabled {
+	if config.SyncSettings.SyncUsers {
 		config.Logger.InfoContext(ctx, "User sync is enabled", "okta_org_url", config.OktaAPIEndpoint)
 
 		var err error
@@ -461,7 +428,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		api.ScopeGroupsRead,
 	}
 
-	if !config.DisableAppGroupSync {
+	if !config.SyncSettings.DisableSyncAppGroups {
 		// If app and group sync is enabled, add the necessary scopes.
 		// to manage apps and groups assignments in Okta.
 		scopes = append(scopes, []string{
@@ -495,7 +462,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
 	}
 
-	if config.AccessListSyncEnabled {
+	if config.SyncSettings.SyncAccessLists {
 		config.Logger.InfoContext(ctx, "Access list synchronization is enabled")
 		alSync, err := newAccessListSync(accessListSyncConfig{
 			Logger:              s.logger,
@@ -506,7 +473,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 			Access:              config.Access,
 			AccessLists:         config.AccessLists,
 			OrgURL:              s.orgURL,
-			Owners:              config.DefaultOwners,
+			Owners:              config.SyncSettings.DefaultOwners,
 			AppsGetter:          s.apps.Clone,
 			GroupsGetter:        s.groups.Clone,
 			AppFilters:          config.accessListSyncAppFilters,

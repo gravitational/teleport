@@ -34,23 +34,16 @@ const (
 // service factory (As opposed to the okta.Config struct, which holds a lot of
 // implementation details)
 type oktaSettings struct {
-	apiEndPoint           string
-	pluginStatusSink      common.StatusSink
-	syncPeriod            time.Duration
-	userSyncEnabled       bool
-	ssoConnectorID        string
-	accessListSyncEnabled bool
-	defaultOwners         []string
-	appFilters            []string
-	groupFilters          []string
-	oktaAppID             string
-	appGroupSyncDisabled  bool
-	scimEnabled           bool
-	oktaAuthProvider      api.AuthProvider
+	orgUrl           string
+	authProvider     api.AuthProvider
+	pluginStatusSink common.StatusSink
+	syncPeriod       time.Duration
+	syncSettings     types.PluginOktaSyncSettings
+	scimEnabled      bool
 }
 
 func (s *oktaSettings) orgURLBase64() string {
-	orgURL := strings.TrimSuffix(s.apiEndPoint, "/")
+	orgURL := strings.TrimSuffix(s.orgUrl, "/")
 	return base64.RawURLEncoding.EncodeToString([]byte(orgURL))
 }
 
@@ -64,18 +57,19 @@ func InitOkta(process *service.TeleportProcess) error {
 	// Remove any leading and trailing whitespace from the token.
 	token := strings.TrimSpace(string(tokenBytes))
 
-	process.RegisterWithAuthServer(types.RoleOkta, OktaIdentityEvent)
 	process.RegisterCriticalFunc(oktaInit, func() error {
 		return initOktaService(process.ExitContext(), process,
 			oktaSettings{
-				apiEndPoint:           process.Config.Okta.APIEndpoint,
-				syncPeriod:            process.Config.Okta.SyncSettings.AppGroupSyncPeriod,
-				userSyncEnabled:       false,
-				accessListSyncEnabled: process.Config.Okta.SyncSettings.SyncAccessLists,
-				defaultOwners:         process.Config.Okta.SyncSettings.DefaultOwners,
-				appFilters:            process.Config.Okta.SyncSettings.AppFilters,
-				groupFilters:          process.Config.Okta.SyncSettings.GroupFilters,
-				oktaAuthProvider:      api.NewSSWSAuthProvider(token),
+				orgUrl:       process.Config.Okta.APIEndpoint,
+				authProvider: api.NewSSWSAuthProvider(token),
+				syncPeriod:   process.Config.Okta.SyncSettings.AppGroupSyncPeriod,
+				syncSettings: types.PluginOktaSyncSettings{
+					SyncUsers:       false,
+					SyncAccessLists: process.Config.Okta.SyncSettings.SyncAccessLists,
+					DefaultOwners:   process.Config.Okta.SyncSettings.DefaultOwners,
+					AppFilters:      process.Config.Okta.SyncSettings.AppFilters,
+					GroupFilters:    process.Config.Okta.SyncSettings.GroupFilters,
+				},
 			},
 			process.GetID())
 	})
@@ -88,19 +82,16 @@ type OktaPluginPrams struct {
 	Process *service.TeleportProcess
 	// PluginStatusSink is the sink for plugin status events.
 	PluginStatusSink common.StatusSink
-	// Settings are the Okta settings.
-	Settings types.PluginOktaSettings
-	// Token is the Okta API token.
-	Token string
 	// PluginName is the name of the plugin.
 	PluginName string
-	// AppGroupSyncDisabled allows to disable app group sync.
-	AppGroupSyncDisabled bool
-	// SCIMEnabled indicates that SCIM sync is enabled for this plugin
-	// instance.
-	SCIMEnabled bool
+	// OrgUrl is Okta org URL.
+	OrgUrl string
 	// AuthProvider is the Okta auth provider.
 	AuthProvider api.AuthProvider
+	// SyncSettings are the Okta sync settings.
+	SyncSettings types.PluginOktaSyncSettings
+	// SCIMEnabled indicates that SCIM sync is enabled for this plugin instance.
+	SCIMEnabled bool
 }
 
 // InitOktaPlugin will initialize and start the Okta service for plugin use. This will not
@@ -113,28 +104,23 @@ func InitOktaPlugin(ctx context.Context, params OktaPluginPrams) string {
 	identityEvent := EventWithComponents(OktaIdentityEvent, components...)
 
 	process := params.Process
-	settings := params.Settings
 	// Set the expected instance role for this identity event since it's unique to this plugin.
 	process.SetExpectedHostedPluginRole(types.RoleOkta, identityEvent)
 
 	process.RegisterWithAuthServer(types.RoleOkta, identityEvent)
 	process.RegisterFunc(oktaInit, func() error {
-		return initOktaService(ctx, process,
+		return initOktaService(
+			ctx, process,
 			oktaSettings{
-				userSyncEnabled:       settings.SyncSettings.SyncUsers,
-				appGroupSyncDisabled:  params.AppGroupSyncDisabled,
-				accessListSyncEnabled: settings.SyncSettings.SyncAccessLists,
-				apiEndPoint:           settings.OrgUrl,
-				pluginStatusSink:      params.PluginStatusSink,
-				ssoConnectorID:        settings.SyncSettings.SsoConnectorId,
-				defaultOwners:         settings.SyncSettings.DefaultOwners,
-				appFilters:            settings.SyncSettings.AppFilters,
-				groupFilters:          settings.SyncSettings.GroupFilters,
-				oktaAppID:             settings.SyncSettings.AppId,
-				scimEnabled:           params.SCIMEnabled,
-				oktaAuthProvider:      params.AuthProvider,
+				orgUrl:           params.OrgUrl,
+				authProvider:     params.AuthProvider,
+				pluginStatusSink: params.PluginStatusSink,
+				syncSettings:     params.SyncSettings,
+				scimEnabled:      params.SCIMEnabled,
 			},
-			pluginLogComponent(params.PluginName), components...)
+			pluginLogComponent(params.PluginName),
+			components...,
+		)
 	})
 
 	return EventWithComponents(OktaStopped, components...)
@@ -219,34 +205,27 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	oktaLeader.Start(ctx)
 
 	oktaService, err := okta.New(ctx, okta.Config{
-		Leader:                     oktaLeader,
-		ConnectorService:           conn.Client,
-		Logger:                     process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
-		Clock:                      process.Clock,
-		TLSConfig:                  tlsConfig,
-		Authorizer:                 authorizer,
-		ClusterName:                clusterName,
-		Hostname:                   process.Config.Hostname,
-		HostID:                     process.Config.HostUUID,
-		RotationGetter:             process.GetRotation,
-		Emitter:                    asyncEmitter,
-		AccessPoint:                accessPoint,
-		Access:                     conn.Client,
-		AccessLists:                conn.Client.AccessListClient(),
-		OnHeartbeat:                process.OnHeartbeat(teleport.Okta),
-		OktaAPIEndpoint:            settings.apiEndPoint,
-		PluginStatusSink:           settings.pluginStatusSink,
-		TimeBetweenSyncs:           settings.syncPeriod,
-		UserSyncEnabled:            settings.userSyncEnabled,
-		DisableAppGroupSync:        settings.appGroupSyncDisabled,
-		SSOConnectorID:             settings.ssoConnectorID,
-		AccessListSyncEnabled:      settings.accessListSyncEnabled,
-		DefaultOwners:              settings.defaultOwners,
-		AccessListSyncAppFilters:   settings.appFilters,
-		AccessListSyncGroupFilters: settings.groupFilters,
-		OktaSAMLAppID:              settings.oktaAppID,
-		SCIMEnabled:                settings.scimEnabled,
-		AuthProvider:               settings.oktaAuthProvider,
+		Leader:           oktaLeader,
+		ConnectorService: conn.Client,
+		Logger:           process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
+		Clock:            process.Clock,
+		TLSConfig:        tlsConfig,
+		Authorizer:       authorizer,
+		ClusterName:      clusterName,
+		Hostname:         process.Config.Hostname,
+		HostID:           process.Config.HostUUID,
+		RotationGetter:   process.GetRotation,
+		Emitter:          asyncEmitter,
+		AccessPoint:      accessPoint,
+		Access:           conn.Client,
+		AccessLists:      conn.Client.AccessListClient(),
+		OnHeartbeat:      process.OnHeartbeat(teleport.Okta),
+		OktaAPIEndpoint:  settings.orgUrl,
+		PluginStatusSink: settings.pluginStatusSink,
+		TimeBetweenSyncs: settings.syncPeriod,
+		SyncSettings:     settings.syncSettings,
+		SCIMEnabled:      settings.scimEnabled,
+		AuthProvider:     settings.authProvider,
 	})
 	if err != nil {
 		return trace.Wrap(err)

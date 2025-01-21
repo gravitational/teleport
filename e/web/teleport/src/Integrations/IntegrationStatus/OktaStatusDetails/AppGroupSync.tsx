@@ -26,7 +26,7 @@ export function AppGroupSync({ spec }: { spec: OktaAppGroupSyncDetails }) {
         <CenteredFlex>
           <PanelTitle>Apps & User Groups Sync</PanelTitle>
         </CenteredFlex>
-        <CustomLabel enabled={true} />
+        <CustomLabel enabled={spec.enabled} />
       </CenteredFlex>
       <FlexWrap gap={3}>
         <InnerCard>

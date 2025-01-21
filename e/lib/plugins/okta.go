@@ -21,6 +21,11 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("field Spec.Okta must be present")
 	}
 
+	scimEnabled, err := isOktaSCIMEnabled(deps)
+	if err != nil {
+		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
+	}
+
 	oktaCredsProvider, creds, err := okta.SelectAuthProviderStaticCredentials(ctx, okta.ParamSelectAuthProviderStaticCredentials{
 		StaticCredentials: deps.staticCredentials,
 		Auth:              deps.parentProcess.GetAuthServer().Cache,
@@ -28,24 +33,32 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		Clock:             deps.parentProcess.Clock,
 	})
 	if trace.IsNotFound(err) {
-		if oktaSpec.SyncSettings.SyncUsers || oktaSpec.SyncSettings.SyncAccessLists {
-			return nil, trace.Wrap(err)
+		if oktaSpec.SyncSettings.SyncUsers {
+			return nil, trace.BadParameter("user sync enabled but, Okta credentials missing")
 		}
-		// This is SSO-only integration (Level 1). Report RUNNING status and not really
-		// emitting plugin status by okta client during calling okta API.
+		if oktaSpec.SyncSettings.SyncAccessLists {
+			return nil, trace.BadParameter("Access Lists sync enabled but, Okta credentials missing")
+		}
+		// This is either:
+		//   - SSO-only integration
+		//   - SCIM-only integration without credentials
+		// Report status as running without starting plugin service.
 		return func() error {
-			if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
-				Code: types.PluginStatusCode_RUNNING,
-				Details: &types.PluginStatusV1_Okta{
-					Okta: &types.PluginOktaStatusV1{
-						SsoDetails: &types.PluginOktaStatusDetailsSSO{
-							Enabled: true,
-						},
-					},
-				},
-			}); err != nil {
-				deps.logger.ErrorContext(ctx, "Failed to emit status", "error", err)
+			if scimEnabled {
+				deps.logger.InfoContext(ctx, "SCIM-only integration. Updating plugin status, without starting the plugin")
+			} else {
+				deps.logger.InfoContext(ctx, "SSO-only integration. Updating plugin status, without starting the plugin")
 			}
+			// DisableSyncAppGroups is false by default, let's flip it so it's reported
+			// correctly.
+			oktaSpec.SyncSettings.DisableSyncAppGroups = true
+			okta.ReportPluginStatus(
+				ctx, deps.logger, deps.statusSink, types.PluginStatusCode_RUNNING,
+				okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
+					SyncSettings: *oktaSpec.SyncSettings,
+					ScimEnabled:  scimEnabled,
+				}),
+			)
 			<-deps.lifetime.Done()
 			return nil
 		}, nil
@@ -53,25 +66,21 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.Wrap(err, "selecting okta credentials")
 	}
 
-	scimEnabled, err := isOktaSCIMEnabled(deps)
-	if err != nil {
-		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
-	}
-
 	// TODO: Propagate license changes to Okta hosted plugin runtime.
 	// Currently, if license gets upgraded, okta service will still be
 	// running with stale settings (unless it was restarted).
 	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().GetEntitlement(entitlements.OktaUserSync).Enabled
+	oktaSpec.SyncSettings.DisableSyncAppGroups = oktaSpec.SyncSettings.DisableSyncAppGroups || shouldDisableAppGroupSync(creds)
 	return func() error {
 		closeEvent := services.InitOktaPlugin(deps.lifetime,
 			services.OktaPluginPrams{
-				Process:              deps.parentProcess,
-				PluginStatusSink:     deps.statusSink,
-				Settings:             *oktaSpec,
-				AuthProvider:         oktaCredsProvider,
-				PluginName:           plugin.GetName(),
-				AppGroupSyncDisabled: shouldDisableAppGroupSync(creds) || oktaSpec.SyncSettings.DisableSyncAppGroups,
-				SCIMEnabled:          scimEnabled,
+				Process:          deps.parentProcess,
+				PluginStatusSink: deps.statusSink,
+				PluginName:       plugin.GetName(),
+				OrgUrl:           oktaSpec.OrgUrl,
+				AuthProvider:     oktaCredsProvider,
+				SyncSettings:     *oktaSpec.SyncSettings,
+				SCIMEnabled:      scimEnabled,
 			},
 		)
 		// wait for the calling context to finish before doing anything else.

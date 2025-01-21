@@ -63,12 +63,6 @@ func makeOktaDetails(plugin *types.PluginV1) (*PluginDetails, error) {
 		return nil, trace.BadParameter("malformed okta plugin - missing status")
 	}
 
-	pluginStatusDetails.SsoDetails = &types.PluginOktaStatusDetailsSSO{
-		Enabled: true,
-		AppId:   oktaSettings.SyncSettings.AppId,
-		AppName: oktaSettings.SyncSettings.AppName,
-	}
-
 	detailedStatus := &PluginDetails{Okta: pluginStatusDetails}
 
 	return detailedStatus, nil

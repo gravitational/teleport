@@ -161,12 +161,12 @@ func (t *testProxyGetter) GetProxyIDs() []string {
 type testServiceOpt func(*Config)
 
 func withUserSyncEnabled(cfg *Config) {
-	cfg.UserSyncEnabled = true
+	cfg.SyncSettings.SyncUsers = true
 }
 
 func withOktaAppID(appID string) testServiceOpt {
 	return func(cfg *Config) {
-		cfg.OktaSAMLAppID = appID
+		cfg.SyncSettings.AppId = appID
 	}
 }
 
@@ -178,7 +178,7 @@ func withClock(clock clockwork.Clock) testServiceOpt {
 
 func withSSOConnector(c string) testServiceOpt {
 	return func(cfg *Config) {
-		cfg.SSOConnectorID = c
+		cfg.SyncSettings.SsoConnectorId = c
 	}
 }
 
