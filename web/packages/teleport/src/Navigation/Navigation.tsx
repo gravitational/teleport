@@ -75,13 +75,14 @@ const PanelBackground = styled.div`
 export type NavigationSection = {
   category?: SidenavCategory;
   subsections?: NavigationSubsection[];
-  route?: string;
   /* standalone is whether this is a clickable nav section with no subsections/drawer. */
-  standalone?: boolean;
-  /* Icon is the custom icon to display for a standalone section. This should only for standalone sections, as icons for categories are derived automatically by CategoryIcon */
-  Icon?: (props) => ReactNode;
-  /* title is the custom title of a standalone section */
-  title?: string;
+  standalone?: {
+    /* Icon is the custom icon to display for a standalone section. This should only for standalone sections, as icons for categories are derived automatically by CategoryIcon */
+    Icon: (props) => ReactNode;
+    /* title is the custom title of a standalone section */
+    title: string;
+    route?: string;
+  };
 };
 /**
  * NavigationSubsection is a subsection of a NavigationSection, these are the items listed in the drawer of a NavigationSection, or if isTopMenuItem is true, in the top menu (eg. Account Settings).
@@ -128,10 +129,11 @@ function getDashboardNavigationSections(
   const navigationSections = features
     .filter(feature => feature.showInDashboard)
     .map(feature => ({
-      standalone: true,
-      title: feature.navigationItem.title,
-      Icon: feature.navigationItem.icon,
-      route: feature.navigationItem.getLink(cfg.proxyCluster),
+      standalone: {
+        title: feature.navigationItem.title,
+        Icon: feature.navigationItem.icon,
+        route: feature.navigationItem.getLink(cfg.proxyCluster),
+      },
     }));
 
   return navigationSections;
@@ -454,11 +456,11 @@ export function Navigation() {
           if (section.standalone) {
             return (
               <StandaloneSection
-                key={section.route}
-                title={section.title}
-                route={section.route}
-                Icon={section.Icon}
-                $active={section.route === currentView?.route}
+                key={section.standalone.route}
+                title={section.standalone.title}
+                route={section.standalone.route}
+                Icon={section.standalone.Icon}
+                $active={section.standalone.route === currentView?.route}
               />
             );
           }

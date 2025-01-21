@@ -70,11 +70,7 @@ export function DefaultSection({
         isExpanded={isExpanded}
         tabIndex={section.standalone ? 0 : -1}
       >
-        {section.Icon ? (
-          <section.Icon />
-        ) : (
-          <CategoryIcon category={section.category} />
-        )}
+        <CategoryIcon category={section.category} />
         {section.category}
       </CategoryButton>
 
