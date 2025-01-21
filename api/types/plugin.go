@@ -134,6 +134,7 @@ type PluginStatus interface {
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
+	GetNetIq() *PluginNetIQStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
