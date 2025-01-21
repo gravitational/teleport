@@ -2022,6 +2022,75 @@ export const formatters: Formatters = {
       return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
+  [eventCodes.AWS_IC_ACCOUNT_SYNC]: {
+    type: 'aws_identity_center.account.sync',
+    desc: 'AWS IAM Identity Center Account Sync',
+    format: ({ imported_resources }) => {
+      const names = imported_resources.map(m => m.name);
+      const namesJoined = names.join(', ');
+      return `${pluralize(names.length, 'Imported account')} [${namesJoined}]`;
+    },
+  },
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_SYNC]: {
+    type: 'aws_identity_center.account_assignment.sync',
+    desc: 'AWS IAM Identity Center Account Assignment Sync',
+    format: ({ imported_resources }) => {
+      const names = imported_resources.map(m => m.name);
+      const namesJoined = names.join(', ');
+      return `${pluralize(names.length, 'Imported account assignment')} [${namesJoined}]`;
+    },
+  },
+  [eventCodes.AWS_IC_USER_GROUP_SYNC]: {
+    type: 'aws_identity_center.user_group.sync',
+    desc: 'AWS IAM Identity Center User Group Sync',
+    // format: ({ imported_resources }) => `principal created`,
+    format: ({ imported_resources }) => {
+      const names = imported_resources.map(m => m.name);
+      const namesJoined = names.join(', ');
+      return `${pluralize(names.length, 'Imported group')} [${namesJoined}]`;
+    },
+  },
+  [eventCodes.AWSIC_PERMISSION_SET_SYNC]: {
+    type: 'aws_identity_center.permission_set.sync',
+    desc: 'AWS IAM Identity Center Permission Set Sync',
+    format: ({ imported_resources }) => {
+      const names = imported_resources.map(m => m.name);
+      const namesJoined = names.join(', ');
+      return `${pluralize(names.length, 'Imported permission set')} [${namesJoined}]`;
+    },
+  },
+  [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE]: {
+    type: 'aws_identity_center.principal_assignment.create',
+    desc: 'AWS IAM Identity Center Principal Assignment Created',
+    format: ({ principal_id, principal_type }) => {
+      return `Account assignment created for principal [${principal_id}] of type [${principal_type}]`;
+    },
+  },
+  [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_DELETE]: {
+    type: 'aws_identity_center.principal_assignment.delete',
+    desc: 'AWS IAM Identity Center Principal Assignment Deleted',
+    format: ({ principal_id, principal_type }) => {
+      return `Account assignment deleted for principal [${principal_id}] of type [${principal_type}]`;
+    },
+  },
+  [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_CREATE]: {
+    type: 'aws_identity_center.principal_provisioning.create',
+    desc: 'AWS IAM Identity Center Principal Created',
+    format: ({ principal_id, principal_type }) =>
+      `Principal [${principal_id}] of type [${principal_type}] created`,
+  },
+  [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_DELETE]: {
+    type: 'aws_identity_center.principal_provisioning.delete',
+    desc: 'AWS IAM Identity Center Principal Deleted',
+    format: ({ principal_id, principal_type }) =>
+      `Principal [${principal_id}] of type [${principal_type}] deleted`,
+  },
+  [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_UPDATE]: {
+    type: 'aws_identity_center.principal_provisioning.update',
+    desc: 'AWS IAM Identity Center Principal Updated',
+    format: ({ principal_id, principal_type }) =>
+      `Principal [${principal_id}] of type [${principal_type}] updated`,
+  },
 };
 
 const unknownFormatter = {

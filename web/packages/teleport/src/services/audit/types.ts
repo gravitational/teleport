@@ -312,6 +312,15 @@ export const eventCodes = {
   CONTACT_DELETE: 'TCTC002I',
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
+  AWS_IC_ACCOUNT_SYNC: 'TAIC001I',
+  AWSIC_ACCOUNT_ASSIGNMENT_SYNC: 'TAIC002I',
+  AWSIC_PERMISSION_SET_SYNC: 'TAIC003I',
+  AWS_IC_USER_GROUP_SYNC: 'TAIC004I',
+  AWSIC_PRINCIPAL_ASSIGNMENT_CREATE: 'TAIC005I',
+  AWSIC_PRINCIPAL_ASSIGNMENT_DELETE: 'TAIC006I',
+  AWSIC_PRINCIPAL_PROVISIONING_CREATE: 'TAIC007I',
+  AWSIC_PRINCIPAL_PROVISIONING_DELETE: 'TAIC008I',
+  AWSIC_PRINCIPAL_PROVISIONING_UPDATE: 'TAIC009I',
 } as const;
 
 /**
@@ -1785,6 +1794,33 @@ export type RawEvents = {
       exitError: string;
     }
   >;
+  [eventCodes.AWS_IC_USER_GROUP_SYNC]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_USER_GROUP_SYNC
+  >;
+  [eventCodes.AWS_IC_ACCOUNT_SYNC]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_ACCOUNT_SYNC
+  >;
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_SYNC]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_SYNC
+  >;
+  [eventCodes.AWSIC_PERMISSION_SET_SYNC]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWSIC_PERMISSION_SET_SYNC
+  >;
+  [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE]: RawEventAwsIcPrincipalAssignment<
+    typeof eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE
+  >;
+  [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_DELETE]: RawEventAwsIcPrincipalAssignment<
+    typeof eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE
+  >;
+  [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_CREATE]: RawEventAwsIcPrincipalProvisioning<
+    typeof eventCodes.AWSIC_PRINCIPAL_PROVISIONING_CREATE
+  >;
+  [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_DELETE]: RawEventAwsIcPrincipalProvisioning<
+    typeof eventCodes.AWSIC_PRINCIPAL_PROVISIONING_DELETE
+  >;
+  [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_UPDATE]: RawEventAwsIcPrincipalProvisioning<
+    typeof eventCodes.AWSIC_PRINCIPAL_PROVISIONING_UPDATE
+  >;
 };
 
 /**
@@ -1982,6 +2018,38 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
     db_service: string;
     db_name: string;
     args: { sql?: string };
+  }
+>;
+
+type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
+  T,
+  {
+    import_count: number;
+    imported_resources: {
+      name: string;
+      arn: string;
+      id?: string;
+      assigned_permission_set_arn?: string;
+    }[];
+  }
+>;
+
+type RawEventAwsIcPrincipalAssignment<T extends EventCode> = RawEvent<
+  T,
+  {
+    external_id: string;
+    principal_id: string;
+    principal_type: string;
+    principal_assignments: { account_id: string; permission_set_arn: string }[];
+  }
+>;
+
+type RawEventAwsIcPrincipalProvisioning<T extends EventCode> = RawEvent<
+  T,
+  {
+    external_id: string;
+    principal_id: string;
+    principal_type: string;
   }
 >;
 
