@@ -17,13 +17,17 @@ limitations under the License.
 package prompt
 
 import (
+	"context"
+	"log/slog"
 	"os"
+	"runtime"
 	"sync"
 )
 
 var (
-	stdinMU sync.Mutex
-	stdin   StdinReader
+	stdinMU               sync.Mutex
+	stdin                 StdinReader
+	stdinTerminalFallback bool
 )
 
 // StdinReader contains ContextReader methods applicable to stdin.
@@ -42,6 +46,7 @@ func Stdin() StdinReader {
 	defer stdinMU.Unlock()
 	if stdin == nil {
 		cr := NewContextReader(os.Stdin)
+		cr = maybeUseStdinTerminalFallbackLocked(cr)
 		go cr.handleInterrupt()
 		stdin = cr
 	}
@@ -68,4 +73,37 @@ func NotifyExit() {
 		_ = cr.Close()
 	}
 	stdinMU.Unlock()
+}
+
+// EnableStdinTerminalFallback attempts to use a fallback like /dev/tty when stdin is
+// not the terminal. This can be useful when tsh is called by another terminal
+// tool (e.g. git).
+func EnableStdinTerminalFallback() {
+	stdinMU.Lock()
+	defer stdinMU.Unlock()
+	stdinTerminalFallback = true
+}
+
+func maybeUseStdinTerminalFallbackLocked(original *ContextReader) *ContextReader {
+	if !stdinTerminalFallback || runtime.GOOS == "windows" || original.IsTerminal() {
+		return original
+	}
+
+	// File /dev/tty is the controlling tty of the current terminal. Not
+	// available on Windows.
+	// https://man7.org/linux/man-pages/man4/tty.4.html
+	devTTY, err := os.Open("/dev/tty")
+	if err != nil {
+		slog.DebugContext(context.Background(), "Failed to open /dev/tty", "error", err)
+		return original
+	}
+
+	fallback := NewContextReader(devTTY)
+	if !fallback.IsTerminal() {
+		slog.DebugContext(context.Background(), "/dev/tty is not a terminal")
+		return original
+	}
+
+	slog.DebugContext(context.Background(), "Using /dev/tty for prompt")
+	return fallback
 }
