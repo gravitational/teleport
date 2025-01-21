@@ -20,6 +20,7 @@ package azuresync
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
@@ -29,13 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	featNamePrincipals      = "azure/principals"
-	featNameRoleDefinitions = "azure/roledefinitions"
-	featNameRoleAssignments = "azure/roleassignments"
-	featNameVms             = "azure/virtualmachines"
 )
 
 // fetcherConcurrency is an arbitrary per-resource type concurrency to ensure significant throughput. As we increase
@@ -123,11 +117,22 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	}, nil
 }
 
+const (
+	featNamePrincipals      = "azure/principals"
+	featNameRoleDefinitions = "azure/roledefinitions"
+	featNameRoleAssignments = "azure/roleassignments"
+	featNameVms             = "azure/virtualmachines"
+)
+
 // Features is a set of booleans that are received from the Access Graph to indicate which resources it can receive
 type Features struct {
-	Principals      bool
+	// Principals indicates Azure principals can be be fetched
+	Principals bool
+	// RoleDefinitions indicates Azure role definitions can be fetched
 	RoleDefinitions bool
+	// RoleAssignments indicates Azure role assignments can be fetched
 	RoleAssignments bool
+	// VirtualMachines indicates Azure virtual machines can be fetched
 	VirtualMachines bool
 }
 
@@ -168,7 +173,7 @@ func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(fetcherConcurrency)
 	var result = &Resources{}
-	errsCh := make(chan error, fetcherConcurrency)
+	errsCh := make(chan error)
 	if feats.Principals {
 		eg.Go(func() error {
 			principals, err := fetchPrincipals(ctx, f.SubscriptionID, f.graphClient)
@@ -219,13 +224,25 @@ func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 		})
 	}
 
+	// Receive errors from the error channel until it's closed
+	var errs []error
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			err, ok := <-errsCh
+			if !ok {
+				return
+			}
+			errs = append(errs, err)
+		}
+	}()
+
 	// Return the result along with any errors collected
 	_ = eg.Wait()
 	close(errsCh)
-	var errs []error
-	for err := range errsCh {
-		errs = append(errs, err)
-	}
+	wg.Wait()
 	return result, trace.NewAggregate(errs...)
 }
 
