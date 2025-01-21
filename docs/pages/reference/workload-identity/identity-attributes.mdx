@@ -1,0 +1,73 @@
+---
+title: Identity Attributes
+description: Information about the identity attributes that can be used in WorkloadIdentity templates and rules.
+---
+
+## Join Attributes
+
+Join attributes are sourced from the join process that the Bot underwent. These
+typically allow you to identify the machine that the `tbot` agent is runnign on.
+
+### `join.meta`
+
+The `join.meta` attributes are not related to any specific join method, and
+instead typically provide information about the join token that was used to
+join.
+
+| Field                       | Description                                                                                                                                                                                                                         |
+|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `join.meta.join_token_name` | The name of the join token that was used to join. This field is omitted if the join token that was used to join was of the `token` method as in this case, the name of the join token is sensitive. Example: `my-gitlab-join-token` |
+| `join.meta.join_method`     | The name of the join method that was used to join. Example: `gitlab`                                                                                                                                                                |
+
+### `join.azure`
+
+### `join.bitbucket`
+
+### `join.circleci`
+
+### `join.gcp`
+
+### `join.github`
+
+### `join.gitlab`
+
+### `join.iam`
+
+### `join.kubernetes`
+
+### `join.spacelift`
+
+### `join.terrraform_cloud`
+
+### `join.tpm`
+
+## Workload Attributes
+
+### `workload.unix`
+
+| Attribute                | Description                                   |
+|--------------------------|-----------------------------------------------|
+| `workload.unix.attested` | Whether the workload passed Unix attestation. |
+| `workload.unix.pid`      | The PID of the workload process.              |
+| `workload.unix.gid`      | The primary user ID of the workload process.  |
+| `workload.unix.uid`      | The primary group ID of the workload process. |
+
+### `workload.kubernetes`
+
+| Attribute              | Description                                       |
+|------------------------|---------------------------------------------------|
+| `user.name`            | The name of the user.                             |
+| `user.is_bot`          | Whether the user is a bot.                        |
+| `user.bot_name`        | If the user is a bot, the name of the bot.        |
+| `user.bot_instance_id` | If the user is a bot, the instance ID of the bot. |
+| `user.labels`          | Labels of the user.                               |
+
+## User Attributes
+
+| Attribute              | Description                                       |
+|------------------------|---------------------------------------------------|
+| `user.name`            | The name of the user.                             |
+| `user.is_bot`          | Whether the user is a bot.                        |
+| `user.bot_name`        | If the user is a bot, the name of the bot.        |
+| `user.bot_instance_id` | If the user is a bot, the instance ID of the bot. |
+| `user.labels`          | Labels of the user.                               |
