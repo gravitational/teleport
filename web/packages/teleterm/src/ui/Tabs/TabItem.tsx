@@ -87,7 +87,7 @@ export function TabItem(props: TabItemProps) {
           <ButtonIcon
             active={active}
             size={0}
-            id="close"
+            className="close"
             title={closeTabTooltip}
             css={`
               transition: none;
@@ -162,7 +162,7 @@ const TabContent = styled.div<{
     color: ${props => props.theme.colors.text.main};
     transition: color 0.3s;
 
-    > #close {
+    > .close {
       display: flex;
     }
   }
