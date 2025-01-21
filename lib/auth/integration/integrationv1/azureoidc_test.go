@@ -30,6 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 func TestGenerateAzureOIDCToken(t *testing.T) {
