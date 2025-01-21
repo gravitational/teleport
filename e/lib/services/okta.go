@@ -57,6 +57,7 @@ func InitOkta(process *service.TeleportProcess) error {
 	// Remove any leading and trailing whitespace from the token.
 	token := strings.TrimSpace(string(tokenBytes))
 
+	process.RegisterWithAuthServer(types.RoleOkta, OktaIdentityEvent)
 	process.RegisterCriticalFunc(oktaInit, func() error {
 		return initOktaService(process.ExitContext(), process,
 			oktaSettings{
