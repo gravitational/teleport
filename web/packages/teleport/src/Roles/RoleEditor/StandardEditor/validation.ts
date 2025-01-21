@@ -46,6 +46,7 @@ const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
 ];
 
 export type RoleEditorModelValidationResult = {
+  isValid: boolean;
   metadata: MetadataValidationResult;
   resources: ResourceAccessValidationResult[];
   rules: AccessRuleValidationResult[];
@@ -73,6 +74,7 @@ export function validateRoleEditorModel(
   previousResult: RoleEditorModelValidationResult | undefined
 ): RoleEditorModelValidationResult {
   return {
+    isValid: true,
     metadata: validateMetadata(
       model.metadata,
       previousModel?.metadata,

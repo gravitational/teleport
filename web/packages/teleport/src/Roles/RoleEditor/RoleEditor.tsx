@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { Alert, Box, Flex } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -67,6 +67,9 @@ export const RoleEditor = ({
   const yamlEditorId = `${idPrefix}-yaml`;
 
   const [standardModel, dispatch] = useStandardModel(originalRole?.object);
+  useEffect(() => {
+    // run roleDiff if valid
+  }, [standardModel]);
 
   const [yamlModel, setYamlModel] = useState<YamlEditorModel>({
     content: originalRole?.yaml ?? '',
