@@ -21,9 +21,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -40,7 +40,6 @@ func TestAuthExport(t *testing.T) {
 	validateTLSCertificateDERFunc := func(t *testing.T, b []byte) {
 		cert, err := x509.ParseCertificate(b)
 		require.NoError(t, err)
-		require.NotNil(t, cert, "ParseCertificate failed")
 		require.Equal(t, "localhost", cert.Subject.CommonName, "unexpected certificate subject CN")
 	}
 
@@ -51,15 +50,16 @@ func TestAuthExport(t *testing.T) {
 		validateTLSCertificateDERFunc(t, pemBlock.Bytes)
 	}
 
+	ctx := context.Background()
+
 	for _, tt := range []struct {
 		name           string
-		authType       string
+		params         url.Values
 		expectedStatus int
 		assertBody     func(t *testing.T, bs []byte)
 	}{
 		{
 			name:           "all",
-			authType:       "",
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
 				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
@@ -67,60 +67,78 @@ func TestAuthExport(t *testing.T) {
 			},
 		},
 		{
-			name:           "host",
-			authType:       "host",
+			name: "host",
+			params: url.Values{
+				"type": []string{"host"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
 				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
 			},
 		},
 		{
-			name:           "user",
-			authType:       "user",
+			name: "user",
+			params: url.Values{
+				"type": []string{"user"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
 				require.Contains(t, string(b), "cert-authority ecdsa-sha2-nistp256")
 			},
 		},
 		{
-			name:           "windows",
-			authType:       "windows",
+			name: "windows",
+			params: url.Values{
+				"type": []string{"windows"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody:     validateTLSCertificateDERFunc,
 		},
 		{
-			name:           "db",
-			authType:       "db",
+			name: "db",
+			params: url.Values{
+				"type": []string{"db"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
-			name:           "db-der",
-			authType:       "db-der",
+			name: "db-der",
+			params: url.Values{
+				"type": []string{"db-der"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody:     validateTLSCertificateDERFunc,
 		},
 		{
-			name:           "db-client",
-			authType:       "db-client",
+			name: "db-client",
+			params: url.Values{
+				"type": []string{"db-client"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
-			name:           "db-client-der",
-			authType:       "db-client-der",
+			name: "db-client-der",
+			params: url.Values{
+				"type": []string{"db-client-der"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody:     validateTLSCertificateDERFunc,
 		},
 		{
-			name:           "tls",
-			authType:       "tls",
+			name: "tls",
+			params: url.Values{
+				"type": []string{"tls"},
+			},
 			expectedStatus: http.StatusOK,
 			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
-			name:           "invalid",
-			authType:       "invalid",
+			name: "invalid",
+			params: url.Values{
+				"type": []string{"invalid"},
+			},
 			expectedStatus: http.StatusBadRequest,
 			assertBody: func(t *testing.T, b []byte) {
 				require.Contains(t, string(b), `"invalid" authority type is not supported`)
@@ -128,30 +146,36 @@ func TestAuthExport(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			// export host certificate
+			runTest := func(t *testing.T, endpoint string) {
+				authExportTestByEndpoint(ctx, t, endpoint, tt.params, tt.expectedStatus, tt.assertBody)
+			}
+
 			t.Run("deprecated endpoint", func(t *testing.T) {
-				endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
-				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
+				runTest(t, pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export"))
 			})
 			t.Run("new endpoint", func(t *testing.T) {
-				endpointExport := pack.clt.Endpoint("webapi", "auth", "export")
-				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
+				runTest(t, pack.clt.Endpoint("webapi", "auth", "export"))
 			})
 		})
 	}
 }
 
-func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, expectedStatus int, assertBody func(t *testing.T, bs []byte)) {
-	ctx := context.Background()
-
-	if authType != "" {
-		endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, authType)
-	}
-
+func authExportTestByEndpoint(
+	ctx context.Context,
+	t *testing.T,
+	exportEndpoint string,
+	params url.Values,
+	expectedStatus int,
+	assertBody func(t *testing.T, bs []byte),
+) {
 	reqCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
+	encodedParams := params.Encode()
+	if encodedParams != "" {
+		exportEndpoint = exportEndpoint + "?" + encodedParams
+	}
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, exportEndpoint, nil)
 	require.NoError(t, err)
 
 	anonHTTPClient := &http.Client{
@@ -164,15 +188,15 @@ func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, exp
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
 
-	bs, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	require.NoError(t, err)
 
-	require.Equal(t, expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
+	require.Equal(t, expectedStatus, resp.StatusCode, "invalid status code with body %s", string(body))
 
-	require.NotEmpty(t, bs, "unexpected empty body from http response")
+	require.NotEmpty(t, body, "unexpected empty body from http response")
 	if assertBody != nil {
-		assertBody(t, bs)
+		assertBody(t, body)
 	}
 }
