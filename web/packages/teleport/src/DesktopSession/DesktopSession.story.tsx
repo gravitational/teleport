@@ -262,14 +262,17 @@ export const WebAuthnPrompt = () => (
     }}
     wsConnection={{ status: 'open' }}
     mfa={{
-      errorText: '',
-      requested: true,
-      setErrorText: () => null,
-      addMfaToScpUrls: false,
-      onWebauthnAuthenticate: () => null,
-      onSsoAuthenticate: () => null,
-      webauthnPublicKey: null,
-      ssoChallenge: null,
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+      challenge: {
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
+      },
     }}
   />
 );
