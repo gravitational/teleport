@@ -61,7 +61,7 @@ export function StatusBar() {
               flex-shrink: 0;
               font-size: 13px;
             `}
-            title="Active tab"
+            title={breadcrumbs.map(({ name }) => name).join(' → ')}
           >
             {breadcrumbs.map((breadcrumb, index) => (
               <Fragment key={breadcrumbs.slice(0, index).join('-')}>
