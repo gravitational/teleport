@@ -104,6 +104,7 @@ export function makeDocumentPtySession(
     kind: 'doc.terminal_shell',
     uri: '/docs/terminal_shell',
     title: '/Users/alice/Documents',
+    rootClusterId: 'teleport-local',
     ...props,
   };
 }
@@ -117,7 +118,7 @@ export function makeDocumentTshNode(
     title: 'alice@node',
     serverUri: makeServer().uri,
     status: '',
-    rootClusterId: '',
+    rootClusterId: 'teleport-local',
     leafClusterId: '',
     origin: 'connection_list',
     serverId: '1234abcd-1234-abcd-1234-abcd1234abcd',

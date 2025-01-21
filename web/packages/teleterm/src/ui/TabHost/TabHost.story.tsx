@@ -17,9 +17,12 @@
  */
 
 import { Meta } from '@storybook/react';
-import { useState } from 'react';
+import { createRef } from 'react';
 
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import {
   makeDocumentAccessRequests,
@@ -33,10 +36,11 @@ import {
   makeDocumentPtySession,
   makeDocumentTshNode,
 } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import { Tabs } from 'teleterm/ui/Tabs/Tabs';
+
+import { TabHostContainer } from './TabHost';
 
 const meta: Meta = {
-  title: 'Teleterm/Tabs',
+  title: 'Teleterm/TabHost',
 };
 
 export default meta;
@@ -54,20 +58,16 @@ const allDocuments: Document[] = [
   makeDocumentAuthorizeWebSession(),
 ];
 
+const cluster = makeRootCluster();
+
 export function Story() {
-  const [activeTab, setActiveTab] = useState(allDocuments[0].uri);
+  const ctx = new MockAppContext();
+  ctx.addRootClusterWithDoc(cluster, allDocuments);
   return (
-    <MockAppContextProvider>
-      <Tabs
-        items={allDocuments}
-        activeTab={activeTab}
-        onMoved={() => {}}
-        closeTabTooltip=""
-        newTabTooltip=""
-        onNew={() => {}}
-        onContextMenu={() => {}}
-        onSelect={d => setActiveTab(d.uri)}
-      />
+    <MockAppContextProvider appContext={ctx}>
+      <ResourcesContextProvider>
+        <TabHostContainer topBarContainerRef={createRef()} />
+      </ResourcesContextProvider>
     </MockAppContextProvider>
   );
 }
