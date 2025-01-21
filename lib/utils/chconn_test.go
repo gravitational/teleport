@@ -81,7 +81,7 @@ func TestChConn(t *testing.T) {
 
 type sshConn struct {
 	conn ssh.Conn
-	ch   ssh.Channel
+	ch   ssh.ChannelWithDeadlines
 }
 
 func startSSHServer(t testing.TB, listener net.Listener, sshConnCh chan<- sshConn) {
@@ -109,7 +109,7 @@ func startSSHServer(t testing.TB, listener net.Listener, sshConnCh chan<- sshCon
 
 			sshConnCh <- sshConn{
 				conn: conn,
-				ch:   ch,
+				ch:   ch.(ssh.ChannelWithDeadlines),
 			}
 		}
 	}()

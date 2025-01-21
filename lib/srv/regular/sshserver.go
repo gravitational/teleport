@@ -1308,7 +1308,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				return
 			}
 			go ssh.DiscardRequests(reqC)
-			go s.handleProxyJump(ctx, ccx, identityContext, ch, *req)
+			go s.handleProxyJump(ctx, ccx, identityContext, ch.(ssh.ChannelWithDeadlines), *req)
 			return
 		// Channels of type "session" handle requests that are involved in running
 		// commands on a server. In the case of proxy mode subsystem and agent
@@ -1320,7 +1320,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-			go s.handleSessionRequests(ctx, ccx, identityContext, ch, requests)
+			go s.handleSessionRequests(ctx, ccx, identityContext, ch.(ssh.ChannelWithDeadlines), requests)
 			return
 		default:
 			s.rejectChannel(ctx, nch, ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
@@ -1373,7 +1373,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			return
 		}
 		go func() {
-			s.handleSessionRequests(ctx, ccx, identityContext, ch, requests)
+			s.handleSessionRequests(ctx, ccx, identityContext, ch.(ssh.ChannelWithDeadlines), requests)
 			if decr != nil {
 				decr()
 			}
@@ -1404,7 +1404,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			return
 		}
 		go ssh.DiscardRequests(reqC)
-		go s.handleDirectTCPIPRequest(ctx, ccx, identityContext, ch, req)
+		go s.handleDirectTCPIPRequest(ctx, ccx, identityContext, ch.(ssh.ChannelWithDeadlines), req)
 	default:
 		s.rejectChannel(ctx, nch, ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 	}
@@ -1440,7 +1440,7 @@ func (w *stderrWriter) WriteString(s string) (int, error) {
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
-func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.ChannelWithDeadlines, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
 	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
@@ -1505,7 +1505,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 // handleSessionRequests handles out of band session requests once the session
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
+func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.ChannelWithDeadlines, in <-chan *ssh.Request) {
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to fetch cluster networking config", "error", err)
@@ -2009,7 +2009,7 @@ func (s *Server) handleVersionRequest(ctx context.Context, req *ssh.Request) {
 }
 
 // handleProxyJump handles ProxyJump request that is executed via direct tcp-ip dial on the proxy
-func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, req sshutils.DirectTCPIPReq) {
+func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.ChannelWithDeadlines, req sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)

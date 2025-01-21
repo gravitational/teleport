@@ -603,7 +603,7 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 
 // TrackActivity keeps track of all activity on ssh.Channel. The caller should
 // use the returned ssh.Channel instead of the original one.
-func (c *ServerContext) TrackActivity(ch ssh.Channel) ssh.Channel {
+func (c *ServerContext) TrackActivity(ch ssh.ChannelWithDeadlines) ssh.ChannelWithDeadlines {
 	return newTrackingChannel(ch, c)
 }
 

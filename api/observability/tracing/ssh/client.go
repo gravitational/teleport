@@ -157,8 +157,8 @@ func (c *Client) OpenChannel(
 
 	ch, reqs, err := c.Client.OpenChannel(name, wrapPayload(ctx, c.capability, config.TextMapPropagator, data))
 	return &Channel{
-		Channel: ch,
-		opts:    c.opts,
+		ChannelWithDeadlines: ch.(ssh.ChannelWithDeadlines),
+		opts:                 c.opts,
 	}, reqs, err
 }
 
@@ -267,7 +267,7 @@ func (c *clientWrapper) NewSession(callback ChannelRequestCallback) (*Session, e
 			}
 		}()
 
-		session, err = newCryptoSSHSession(ch, reqs)
+		session, err = newCryptoSSHSession(ch.(ssh.ChannelWithDeadlines), reqs)
 		if err != nil {
 			_ = ch.Close()
 			return nil, trace.Wrap(err)
@@ -294,7 +294,7 @@ type wrappedSSHConn struct {
 
 	channelOpened atomic.Bool
 
-	ch   ssh.Channel
+	ch   ssh.ChannelWithDeadlines
 	reqs <-chan *ssh.Request
 }
 
@@ -311,7 +311,7 @@ func (f *wrappedSSHConn) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *s
 // golang.org/x/crypto/ssh.(Client).NewSession takes ownership of all
 // SSH channel requests and doesn't allow the caller to view or reply
 // to them, so this workaround is needed.
-func newCryptoSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request) (*ssh.Session, error) {
+func newCryptoSSHSession(ch ssh.ChannelWithDeadlines, reqs <-chan *ssh.Request) (*ssh.Session, error) {
 	return (&ssh.Client{
 		Conn: &wrappedSSHConn{
 			ch:   ch,
@@ -383,15 +383,15 @@ func (c *clientWrapper) OpenChannel(name string, data []byte) (_ ssh.Channel, _ 
 
 	ch, reqs, err := c.Conn.OpenChannel(name, wrapPayload(ctx, c.capability, config.TextMapPropagator, data))
 	return channelWrapper{
-		Channel: ch,
-		manager: c,
+		ChannelWithDeadlines: ch.(ssh.ChannelWithDeadlines),
+		manager:              c,
 	}, reqs, err
 }
 
 // channelWrapper wraps an ssh.Channel to allow for requests to
 // contain tracing context.
 type channelWrapper struct {
-	ssh.Channel
+	ssh.ChannelWithDeadlines
 	manager *clientWrapper
 }
 
@@ -417,5 +417,5 @@ func (c channelWrapper) SendRequest(name string, wantReply bool, payload []byte)
 	)
 	defer func() { tracing.EndSpan(span, err) }()
 
-	return c.Channel.SendRequest(name, wantReply, wrapPayload(ctx, c.manager.capability, config.TextMapPropagator, payload))
+	return c.ChannelWithDeadlines.SendRequest(name, wantReply, wrapPayload(ctx, c.manager.capability, config.TextMapPropagator, payload))
 }

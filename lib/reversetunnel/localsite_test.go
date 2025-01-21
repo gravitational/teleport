@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 func TestRemoteConnCleanup(t *testing.T) {
 	t.Parallel()
 
-	const clockBlockers = 3 //periodic ticker + heart beat timer + resync ticker
+	const clockBlockers = 3 // periodic ticker + heart beat timer + resync ticker
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -439,7 +439,7 @@ func (*mockedSSHConn) RemoteAddr() net.Addr {
 }
 
 type mockedSSHChannel struct {
-	ssh.Channel
+	ssh.ChannelWithDeadlines
 
 	reqHandler func(name string, wantReply bool, payload []byte) (bool, error)
 }

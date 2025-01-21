@@ -28,16 +28,16 @@ import (
 
 // Channel is a wrapper around ssh.Channel that adds tracing support.
 type Channel struct {
-	ssh.Channel
+	ssh.ChannelWithDeadlines
 	tracingSupported tracingCapability
 	opts             []tracing.Option
 }
 
 // NewTraceChannel creates a new Channel.
-func NewTraceChannel(ch ssh.Channel, opts ...tracing.Option) *Channel {
+func NewTraceChannel(ch ssh.ChannelWithDeadlines, opts ...tracing.Option) *Channel {
 	return &Channel{
-		Channel: ch,
-		opts:    opts,
+		ChannelWithDeadlines: ch,
+		opts:                 opts,
 	}
 }
 
@@ -60,7 +60,7 @@ func (c *Channel) SendRequest(ctx context.Context, name string, wantReply bool, 
 	)
 	defer func() { tracing.EndSpan(span, err) }()
 
-	return c.Channel.SendRequest(
+	return c.ChannelWithDeadlines.SendRequest(
 		name, wantReply, wrapPayload(ctx, c.tracingSupported, config.TextMapPropagator, payload),
 	)
 }
