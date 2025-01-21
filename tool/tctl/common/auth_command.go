@@ -124,7 +124,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		fmt.Sprintf("export certificate type (%v)", strings.Join(allowedCertificateTypes, ", "))).
 		EnumVar(&a.authType, allowedCertificateTypes...)
 	a.authExport.Flag("integration", "Name of the integration. Only applies to \"github\" CAs.").StringVar(&a.integration)
-	a.authExport.Flag("out-prefix", "If set writes exported authorities to files with the given prefix").
+	a.authExport.Flag("out-prefix", "If set writes exported authorities to files with the given path prefix").
 		StringVar(&a.exportOutputPrefix)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair.").Hidden()
