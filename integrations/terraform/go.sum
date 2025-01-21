@@ -1306,6 +1306,10 @@ github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aN
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gosuri/uitable v0.0.4 h1:IG2xLKRvErL3uhY6e1BylFzG+aJiwQviDDTfOKeKTpY=
 github.com/gosuri/uitable v0.0.4/go.mod h1:tKR86bXuXPZazfOTG1FIzvjIdXzd0mo4Vtn16vt0PJo=
+github.com/grafana/pyroscope-go v1.2.0 h1:aILLKjTj8CS8f/24OPMGPewQSYlhmdQMBmol1d3KGj8=
+github.com/grafana/pyroscope-go v1.2.0/go.mod h1:2GHr28Nr05bg2pElS+dDsc98f3JTUh2f6Fz1hWXrqwk=
+github.com/grafana/pyroscope-go/godeltaprof v0.1.8 h1:iwOtYXeeVSAeYefJNaxDytgjKtUuKQbJqgAIjlnicKg=
+github.com/grafana/pyroscope-go/godeltaprof v0.1.8/go.mod h1:2+l7K7twW49Ct4wFluZD3tZ6e0SjanjcUUBPVD/UuGU=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1 h1:zGsdDzqXSuXI+1t+2TRRzdYiv+B3M4IgOPA8W/raFOA=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1/go.mod h1:6FzirJfdffakAVqmHjwVfFkpru/gNbIazUOK5rIhndc=
 github.com/gravitational/go-libfido2 v1.5.3-teleport.1 h1:nPfxiTH2Sr3J6zan280fbHOkWE7gRF/lMqvhcXKh2ek=
