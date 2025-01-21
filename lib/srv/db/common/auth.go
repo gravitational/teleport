@@ -40,7 +40,6 @@ import (
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/oauth2"
@@ -663,9 +662,9 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 // GetMemoryDBToken generates a MemoryDB auth token.
 func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	meta := database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -677,9 +676,9 @@ func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, 
 	tokenReq := &awsRedisIAMTokenRequest{
 		userID:      databaseUser,
 		targetID:    meta.MemoryDB.ClusterName,
-		serviceName: strings.ToLower(memorydb.ServiceName),
+		serviceName: "memorydb",
 		region:      meta.Region,
-		credentials: awsSession.Config.Credentials,
+		credentials: migration.NewCredentialsAdapter(awsCfg.Credentials),
 		clock:       a.cfg.Clock,
 	}
 	token, err := tokenReq.toSignedRequestURI()
