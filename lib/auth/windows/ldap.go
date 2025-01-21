@@ -181,15 +181,15 @@ func (c *LDAPClient) Close() {
 	c.mu.Unlock()
 }
 
-func extractReferrals(err error) []string {
-	if err == nil {
+// extractReferrals gathers referrals from ldapErr
+// If LDAP server can't provide the information required but has the knowledge of proper it will return error like:
+// LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310084A
+// You then have to parse content of the ber-encoded error to extract the address for the referral
+func extractReferrals(ldapErr *ldap.Error) []string {
+	if ldapErr == nil {
 		return nil
 	}
 
-	var ldapErr *ldap.Error
-	if !errors.As(err, &ldapErr) {
-		return nil
-	}
 	if ldapErr.ResultCode != ldap.LDAPResultReferral {
 		return nil
 	}
@@ -212,6 +212,8 @@ func extractReferrals(err error) []string {
 	out := make([]string, 0, len(referrals))
 	for _, referral := range referrals {
 		referralValue := referral.Value.(string)
+		//value is in form of ldaps://my.domain.example.com/DC=my,DC=domain,DC=example,DC=com
+		// we have to remove everything after the last /
 		last := strings.LastIndex(referralValue, "/")
 		if last >= 0 {
 			referralValue = referralValue[:last]
@@ -273,20 +275,29 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	defer c.mu.Unlock()
 
 	res, err := c.client.SearchWithPaging(req, searchPageSize)
-	referrals := extractReferrals(err)
+
+	if err == nil {
+		return res.Entries, nil
+	}
+
+	var ldapErr *ldap.Error
+	if !errors.As(err, &ldapErr) {
+		return nil, trace.Wrap(err, "fetching LDAP object %q with filter %q", dn, filter)
+	}
+	referrals := extractReferrals(ldapErr)
 	if len(referrals) > 0 {
 		for i := 0; i < len(referrals); i++ {
 			if conn, err := c.connectionCreator(referrals[i]); err == nil {
 				res, err := conn.SearchWithPaging(req, searchPageSize)
 				if err == nil {
 					return res.Entries, nil
-				} else if len(referrals) < 10 {
-					newReferrals := extractReferrals(err)
+				} else if len(referrals) < 10 && errors.As(err, &ldapErr) {
+					newReferrals := extractReferrals(ldapErr)
 					referrals = append(referrals, newReferrals...)
 				}
 			}
 		}
-		return nil, trace.Wrap(fmt.Errorf("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ",")))
+		return nil, trace.BadParameter("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ","))
 	} else if err != nil {
 		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
