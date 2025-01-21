@@ -265,12 +265,13 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClie
 			perms = 0600
 		}
 
+		fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(authorities), a.output)
 		for i, authority := range authorities {
 			name := fmt.Sprintf("%s%d.cer", a.output, i)
 			if err := os.WriteFile(name, authority.Data, perms); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("Wrote %s\n", name)
+			fmt.Println(name)
 		}
 		return nil
 	}
