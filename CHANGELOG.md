@@ -1125,6 +1125,7 @@ Teleport.
 
 ## 15.4.26 (01/21/2025)
 
+* Fixed WebAuthn attestation for Windows Hello. [#51249](https://github.com/gravitational/teleport/pull/51249)
 * Fixed client tools auto-updates executed by aliases (causes recursive alias error). [#51183](https://github.com/gravitational/teleport/pull/51183)
 * Include invited and reason fields in SessionStartEvents. [#51177](https://github.com/gravitational/teleport/pull/51177)
 * Updated Go to 1.22.11. [#51138](https://github.com/gravitational/teleport/pull/51138)
