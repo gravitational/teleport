@@ -285,6 +285,10 @@ const (
 	// ComponentUpdater represents the agent updater.
 	ComponentUpdater = "updater"
 
+
+	// ComponentGit represents git proxy related services.
+	ComponentGit = "git"
+
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
 
