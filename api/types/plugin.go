@@ -753,13 +753,13 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 	// Promote "unknown" credential source values to OIDC for backwards
 	// compatibility with old plugin records
-	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
-		c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
-	}
+	// if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
+	// 	c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+	// }
 
-	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC && c.IntegrationName == "" {
-		return trace.BadParameter("AWS OIDC integration name must be set")
-	}
+	// if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC && c.IntegrationName == "" {
+	// 	return trace.BadParameter("AWS OIDC integration name must be set")
+	// }
 
 	if c.Arn == "" {
 		return trace.BadParameter("AWS Identity Center Instance ARN must be set")

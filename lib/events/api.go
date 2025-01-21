@@ -861,6 +861,28 @@ const (
 
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
+
+	// AWSICAccountSync is emitted when AWS Identity Center accounts are synced.
+	AWSICAccountSync = "aws_identity_center.account.sync"
+	// AWSICAccountAssignmentSync is emitted when AWS Identity Center account assignments are synced.
+	AWSICAccountAssignmentSync = "aws_identity_center.account_assignment.sync"
+	// AWSICPermissionSetSync is emitted when AWS Identity Center permission sets are synced.
+	AWSICPermissionSetSync = "aws_identity_center.permission_set.sync"
+	// AWSICUserGroupSync is emitted when AWS Identity Center user groups are synced.
+	// Emitted only once per a new successful integration installation.
+	AWSICUserGroupSync = "aws_identity_center.user_group.sync"
+	// AWSICPrincipalAssignmentCreate is emitted when a principal account assignment is
+	// created in the AWS Identity Center.
+	AWSICPrincipalAssignmentCreate = "aws_identity_center.principal_assignment.create"
+	// AWSICPrincipalAssignmentDelete is emitted when a principal account assignment is
+	// deleted in the AWS Identity Center.
+	AWSICPrincipalAssignmentDelete = "aws_identity_center.principal_assignment.delete"
+	// AWSICPrincipalProvisioningCreate is emitted when a principal is created in the AWS Identity Center.
+	AWSICPrincipalProvisioningCreate = "aws_identity_center.principal_provisioning.create"
+	// AWSICPrincipalProvisioningDelete is emitted when a principal is deleted in the AWS Identity Center.
+	AWSICPrincipalProvisioningDelete = "aws_identity_center.principal_provisioning.delete"
+	// AWSICPrincipalProvisioningUpdate is emitted when a principal is updated in the AWS Identity Center.
+	AWSICPrincipalProvisioningUpdate = "aws_identity_center.principal_provisioning.update"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

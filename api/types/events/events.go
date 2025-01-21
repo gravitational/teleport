@@ -2434,3 +2434,15 @@ func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
 func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
+func (m *AWSICPrincipalAssignment) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AWSICPrincipalProvisioning) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

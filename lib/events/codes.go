@@ -693,6 +693,25 @@ const (
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
 
+	// AWSICAccountSyncCode is the AWS Identity Center account sync event code.
+	AWSICAccountSyncCode = "TAIC001I"
+	// AWSICAccountAssignmentSyncCode is the AWS Identity Center account assignment sync event code.
+	AWSICAccountAssignmentSyncCode = "TAIC002I"
+	// AWSICPermissionSetSyncCode is the AWS Identity Center permission set sync event code.
+	AWSICPermissionSetSyncCode = "TAIC003I"
+	// AWSICUserGroupSyncCode is the AWS Identity Center user group sync event code.
+	AWSICUserGroupSyncCode = "TAIC004I"
+	// AWSICPrincipalAssignmentCreateCode is the AWS Identity Center principal assignment create event code.
+	AWSICPrincipalAssignmentCreateCode = "TAIC005I"
+	// AWSICPrincipalAssignmentDeleteCode is the AWS Identity Center principal assignment delete event code.
+	AWSICPrincipalAssignmentDeleteCode = "TAIC006I"
+	// AWSICPrincipalProvisioningCreateCode is the AWS Identity Center principal provisioning create event code.
+	AWSICPrincipalProvisioningCreateCode = "TAIC007I"
+	// AWSICPrincipalProvisioningDeleteCode is the AWS Identity Center principal provisioning delete event code.
+	AWSICPrincipalProvisioningDeleteCode = "TAIC008I"
+	// AWSICPrincipalProvisioningUpdateCode is the AWS Identity Center principal provisioning update event code.
+	AWSICPrincipalProvisioningUpdateCode = "TAIC009I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

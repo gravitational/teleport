@@ -823,6 +823,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,
 		}
+	case *AWSICResourceSync:
+		out.Event = &OneOf_AWSICResourceSync{
+			AWSICResourceSync: e,
+		}
+	case *AWSICPrincipalProvisioning:
+		out.Event = &OneOf_AWSICPrincipalProvisioning{
+			AWSICPrincipalProvisioning: e,
+		}
+	case *AWSICPrincipalAssignment:
+		out.Event = &OneOf_AWSICPrincipalAssignment{
+			AWSICPrincipalAssignment: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}
