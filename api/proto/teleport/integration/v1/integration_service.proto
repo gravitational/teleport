@@ -122,12 +122,12 @@ message GenerateAWSOIDCTokenResponse {
   string token = 1;
 }
 
-// GenerateAzureOIDCTokenRequest are the parameters used to request an AWS OIDC
+// GenerateAzureOIDCTokenRequest are the parameters used to request an Azure OIDC
 // Integration token.
 message GenerateAzureOIDCTokenRequest {
   // Integration is the Azure OIDC Integration name.
   // Required.
-  string integration = 2;
+  string integration = 1;
 }
 
 // GenerateAzureOIDCTokenResponse contains a signed Azure OIDC Integration token.

@@ -1440,6 +1440,7 @@ func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration
 	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
 }
 
+// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
 func (w *DiscoveryWrapper) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
 	return w.NoCache.GenerateAzureOIDCToken(ctx, integration)
 }
