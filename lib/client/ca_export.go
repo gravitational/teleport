@@ -80,7 +80,8 @@ type ExportedAuthority struct {
 	Data []byte
 }
 
-// ExportAllAuthorities returns authorities in OpenSSH compatible formats.
+// ExportAllAuthorities returns all authorities of a particular type in OpenSSH
+// compatible formats.
 // If the ExportAuthoritiesRequest.AuthType is present only prints keys for CAs of this type,
 // otherwise returns host and user SSH keys.
 //
@@ -111,7 +112,8 @@ func ExportAllAuthorities(ctx context.Context, client authclient.ClientI, req Ex
 	return exportAllAuthorities(ctx, client, req, exportSecrets)
 }
 
-// ExportAllAuthoritiesSecrets exports authority private keys.
+// ExportAllAuthoritiesSecrets exports private keys of all authorities of a
+// particular type.
 // See [ExportAllAuthorities] for more information.
 //
 // At least one authority is guaranteed on success.
