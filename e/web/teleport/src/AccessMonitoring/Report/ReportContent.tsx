@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { H2 } from 'design';
-import { InfoFilled } from 'design/Icon/Icons/InfoFilled';
+import { Info as InfoIcon } from 'design/Icon';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import { BarGraph } from 'e-teleport/AccessMonitoring/Report/BarGraph/BarGraph';
@@ -126,7 +126,7 @@ export function ReportContent(props: ReportContentProps) {
 
           <Info>
             <InfoButton onClick={e => handleInfoClick(e, index)}>
-              <InfoFilled />
+              <InfoIcon />
             </InfoButton>
 
             {openInfo === index && (
