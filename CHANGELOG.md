@@ -269,6 +269,7 @@ TOTP will continue to be accepted for the initial login.
 
 ## 16.4.14 (01/21/2025)
 
+* Fixed WebAuthn attestation for Windows Hello. [#51248](https://github.com/gravitational/teleport/pull/51248)
 * Fixed client tools auto-updates executed by aliases (causes recursive alias error). [#51182](https://github.com/gravitational/teleport/pull/51182)
 * Include invited and reason fields in SessionStartEvents. [#51176](https://github.com/gravitational/teleport/pull/51176)
 * Updated Go to 1.22.11. [#51137](https://github.com/gravitational/teleport/pull/51137)
