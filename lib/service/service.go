@@ -1400,7 +1400,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			ServerAddress:   address,
 			Logger:          pyroscope.StandardLogger,
 			Tags: map[string]string{
-				"pod":     hostname,
+				"host":     hostname,
 				"version": teleport.Version,
 				"git_ref": teleport.Gitref,
 			},
