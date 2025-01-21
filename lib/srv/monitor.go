@@ -477,25 +477,25 @@ func (w *Monitor) handleLockInForce(lockErr error) {
 }
 
 type trackingChannel struct {
-	ssh.Channel
+	ssh.ChannelWithDeadlines
 	t ActivityTracker
 }
 
-func newTrackingChannel(ch ssh.Channel, t ActivityTracker) ssh.Channel {
+func newTrackingChannel(ch ssh.ChannelWithDeadlines, t ActivityTracker) ssh.ChannelWithDeadlines {
 	return trackingChannel{
-		Channel: ch,
-		t:       t,
+		ChannelWithDeadlines: ch,
+		t:                    t,
 	}
 }
 
 func (ch trackingChannel) Read(buf []byte) (int, error) {
-	n, err := ch.Channel.Read(buf)
+	n, err := ch.ChannelWithDeadlines.Read(buf)
 	ch.t.UpdateClientActivity()
 	return n, err
 }
 
 func (ch trackingChannel) Write(buf []byte) (int, error) {
-	n, err := ch.Channel.Write(buf)
+	n, err := ch.ChannelWithDeadlines.Write(buf)
 	ch.t.UpdateClientActivity()
 	return n, err
 }

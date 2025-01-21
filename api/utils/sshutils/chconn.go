@@ -17,7 +17,6 @@ limitations under the License.
 package sshutils
 
 import (
-	"errors"
 	"io"
 	"net"
 	"sync"
@@ -25,8 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 type Conn interface {
@@ -39,36 +36,25 @@ type Conn interface {
 
 // NewChConn returns a new net.Conn implemented over
 // SSH channel
-func NewChConn(conn Conn, ch ssh.Channel) *ChConn {
-	return newChConn(conn, ch, false)
+func NewChConn(conn Conn, ch ssh.ChannelWithDeadlines) *ChConn {
+	const exclusiveFalse = false
+	return newChConn(conn, ch, exclusiveFalse)
 }
 
 // NewExclusiveChConn returns a new net.Conn implemented over
 // SSH channel, whenever this connection closes
-func NewExclusiveChConn(conn Conn, ch ssh.Channel) *ChConn {
-	return newChConn(conn, ch, true)
+func NewExclusiveChConn(conn Conn, ch ssh.ChannelWithDeadlines) *ChConn {
+	const exclusiveTrue = true
+	return newChConn(conn, ch, exclusiveTrue)
 }
 
-func newChConn(conn Conn, ch ssh.Channel, exclusive bool) *ChConn {
-	reader, writer := net.Pipe()
-	c := &ChConn{
-		Channel:   ch,
+func newChConn(conn Conn, ch ssh.ChannelWithDeadlines, exclusive bool) *ChConn {
+	return &ChConn{
+		ChannelWithDeadlines: ch,
+
 		conn:      conn,
 		exclusive: exclusive,
-		reader:    reader,
-		writer:    writer,
 	}
-	// Start copying from the SSH channel to the writer part of the pipe. The
-	// clients are reading from the reader part of the pipe (see Read below).
-	//
-	// This goroutine stops when either the SSH channel closes or this
-	// connection is closed e.g. by a http.Server (see Close below).
-	go func() {
-		io.Copy(writer, ch)
-		// propagate EOF across the pipe to the read half.
-		writer.Close()
-	}()
-	return c
 }
 
 // ChConn is a net.Conn like object
@@ -76,16 +62,11 @@ func newChConn(conn Conn, ch ssh.Channel, exclusive bool) *ChConn {
 type ChConn struct {
 	mu sync.Mutex
 
-	ssh.Channel
+	ssh.ChannelWithDeadlines
 	conn Conn
 	// exclusive indicates that whenever this channel connection
 	// is getting closed, the underlying connection is closed as well
 	exclusive bool
-
-	// reader is the part of the pipe that clients read from.
-	reader net.Conn
-	// writer is the part of the pipe that receives data from SSH channel.
-	writer net.Conn
 
 	// closed prevents double-close
 	closed bool
@@ -100,13 +81,7 @@ func (c *ChConn) Close() error {
 	}
 	c.closed = true
 	var errors []error
-	if err := c.Channel.Close(); err != nil {
-		errors = append(errors, err)
-	}
-	if err := c.reader.Close(); err != nil {
-		errors = append(errors, err)
-	}
-	if err := c.writer.Close(); err != nil {
+	if err := c.ChannelWithDeadlines.Close(); err != nil {
 		errors = append(errors, err)
 	}
 	// Exclusive means close the underlying SSH connection as well.
@@ -131,28 +106,14 @@ func (c *ChConn) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
 
-// Read reads from the channel.
-func (c *ChConn) Read(data []byte) (int, error) {
-	n, err := c.reader.Read(data)
-	// A lot of code relies on "use of closed network connection" error to
-	// gracefully handle terminated connections so convert the closed pipe
-	// error to it.
-	if err != nil && errors.Is(err, io.ErrClosedPipe) {
-		return n, trace.ConnectionProblem(err, constants.UseOfClosedNetworkConnection)
-	}
-	// Do not wrap the error to avoid masking the underlying error such as
-	// timeout error which is returned when read deadline is exceeded.
-	return n, err
-}
-
 // SetDeadline sets a connection deadline.
 func (c *ChConn) SetDeadline(t time.Time) error {
-	return c.reader.SetDeadline(t)
+	return c.ChannelWithDeadlines.SetReadDeadline(t)
 }
 
 // SetReadDeadline sets a connection read deadline.
 func (c *ChConn) SetReadDeadline(t time.Time) error {
-	return c.reader.SetReadDeadline(t)
+	return c.ChannelWithDeadlines.SetReadDeadline(t)
 }
 
 // SetWriteDeadline sets write deadline on a connection

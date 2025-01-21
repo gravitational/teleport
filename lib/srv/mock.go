@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/user"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -400,6 +401,10 @@ func (c *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte
 func (c *mockSSHChannel) Stderr() io.ReadWriter {
 	return c.stdErr
 }
+
+func (*mockSSHChannel) SetDeadline(time.Time) error      { return nil }
+func (*mockSSHChannel) SetReadDeadline(time.Time) error  { return nil }
+func (*mockSSHChannel) SetWriteDeadline(time.Time) error { return nil }
 
 type fakeBPF struct {
 	bpf bpf.NOP

@@ -244,7 +244,7 @@ func TestSetEnvs(t *testing.T) {
 }
 
 type mockSSHChannel struct {
-	ssh.Channel
+	ssh.ChannelWithDeadlines
 }
 
 func TestWrappedSSHConn(t *testing.T) {

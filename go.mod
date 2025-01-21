@@ -595,3 +595,5 @@ exclude (
 	google.golang.org/grpc/stats/opentelemetry v0.0.0-20240907200651-3ffb98b2c93a
 	google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3
 )
+
+replace golang.org/x/crypto v0.32.0 => github.com/espadolini/xcrypto v0.0.0-20250121164423-73e3c2039f69

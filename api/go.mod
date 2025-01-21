@@ -51,3 +51,5 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250102185135-69823020774d // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace golang.org/x/crypto v0.32.0 => github.com/espadolini/xcrypto v0.0.0-20250121164423-73e3c2039f69
