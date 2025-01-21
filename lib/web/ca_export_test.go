@@ -17,20 +17,27 @@
 package web
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAuthExport(t *testing.T) {
+	t.Parallel()
+
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()
 
@@ -48,6 +55,39 @@ func TestAuthExport(t *testing.T) {
 		require.NotNil(t, pemBlock, "pem.Decode failed")
 
 		validateTLSCertificateDERFunc(t, pemBlock.Bytes)
+	}
+
+	validateFormatZip := func(
+		t *testing.T,
+		body []byte,
+		wantCAFiles int,
+		validateCAFile func(t *testing.T, contents []byte),
+	) {
+		r, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+		require.NoError(t, err, "zip.NewReader")
+
+		files := r.File
+		assert.Len(t, files, wantCAFiles, "mismatched number of CA files inside zip")
+
+		// Traverse files in order. We want them to be named "ca0.cer, "ca1.cer",
+		// etc.
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Name < files[j].Name
+		})
+		for i, f := range files {
+			wantName := fmt.Sprintf("ca%d.cer", i)
+			assert.Equal(t, wantName, f.Name, "mismatched name of CA file inside zip")
+
+			fileReader, err := f.Open()
+			require.NoError(t, err, "open CA file inside zip")
+			fileBytes, err := io.ReadAll(fileReader)
+			require.NoError(t, err, "read CA file contents inside zip")
+
+			validateCAFile(t, fileBytes)
+		}
+	}
+	validateFormatZipPEM := func(t *testing.T, body []byte, wantCAFiles int) {
+		validateFormatZip(t, body, wantCAFiles, validateTLSCertificatePEMFunc)
 	}
 
 	ctx := context.Background()
@@ -144,8 +184,41 @@ func TestAuthExport(t *testing.T) {
 				require.Contains(t, string(b), `"invalid" authority type is not supported`)
 			},
 		},
+		{
+			name: "format empty",
+			params: url.Values{
+				"type":   []string{"tls-user"},
+				"format": []string{""},
+			},
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificatePEMFunc,
+		},
+		{
+			name: "format invalid",
+			params: url.Values{
+				"type":   []string{"tls-user"},
+				"format": []string{"invalid"},
+			},
+			expectedStatus: http.StatusBadRequest,
+			assertBody: func(t *testing.T, b []byte) {
+				assert.Contains(t, string(b), "unsupported format")
+			},
+		},
+		{
+			name: "format=zip",
+			params: url.Values{
+				"type":   []string{"tls-user"},
+				"format": []string{"zip"},
+			},
+			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				validateFormatZipPEM(t, b, 1 /* wantCAFiles */)
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			runTest := func(t *testing.T, endpoint string) {
 				authExportTestByEndpoint(ctx, t, endpoint, tt.params, tt.expectedStatus, tt.assertBody)
 			}
