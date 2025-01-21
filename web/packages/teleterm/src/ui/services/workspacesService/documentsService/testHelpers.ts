@@ -17,9 +17,9 @@
  */
 
 import {
-  makeApp,
-  makeDatabase,
-  makeKube,
+  makeAppGateway,
+  makeDatabaseGateway,
+  makeKubeGateway,
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
@@ -60,17 +60,18 @@ export function makeDocumentCluster(
 export function makeDocumentGatewayDatabase(
   props?: Partial<DocumentGateway>
 ): DocumentGateway {
+  const gw = makeDatabaseGateway();
   return {
     kind: 'doc.gateway',
     uri: '/docs/gateway_database',
-    title: 'aurora (sre)',
-    targetUri: makeDatabase().uri,
     gatewayUri: '/gateways/db-gateway',
-    port: '1232',
-    targetName: 'aurora',
-    targetUser: 'sre',
+    title: 'aurora (sre)',
+    targetUri: gw.targetUri,
+    port: gw.localPort,
+    targetName: gw.targetName,
+    targetUser: gw.targetUser,
     status: '',
-    targetSubresourceName: '',
+    targetSubresourceName: gw.targetSubresourceName,
     origin: 'connection_list',
     ...props,
   };
@@ -79,17 +80,18 @@ export function makeDocumentGatewayDatabase(
 export function makeDocumentGatewayApp(
   props?: Partial<DocumentGateway>
 ): DocumentGateway {
+  const gw = makeAppGateway();
   return {
     kind: 'doc.gateway',
     uri: '/docs/gateway_app',
     title: 'grafana',
-    targetUri: makeApp().uri,
-    gatewayUri: '/gateways/app-gateway',
-    port: '1232',
-    targetName: '',
-    targetUser: '',
+    targetUri: gw.targetUri,
+    gatewayUri: gw.uri,
+    port: gw.localPort,
+    targetName: gw.targetName,
+    targetUser: gw.targetUser,
     status: '',
-    targetSubresourceName: '',
+    targetSubresourceName: gw.targetSubresourceName,
     origin: 'connection_list',
     ...props,
   };
@@ -126,16 +128,17 @@ export function makeDocumentTshNode(
 export function makeDocumentGatewayCliClient(
   props?: Partial<DocumentGatewayCliClient>
 ): DocumentGatewayCliClient {
+  const gw = makeDatabaseGateway();
   return {
     kind: 'doc.gateway_cli_client',
     uri: '/docs/gateway_cli_client',
     title: 'psql · aurora (sre)',
     rootClusterId: 'teleport-local',
     leafClusterId: '',
-    targetProtocol: 'postgres',
-    targetUri: makeDatabase().uri,
-    targetName: 'aurora',
-    targetUser: 'sre',
+    targetProtocol: gw.protocol,
+    targetUri: gw.targetUri,
+    targetName: gw.targetName,
+    targetUser: gw.targetUser,
     status: '',
     ...props,
   };
@@ -144,13 +147,14 @@ export function makeDocumentGatewayCliClient(
 export function makeDocumentGatewayKube(
   props?: Partial<DocumentGatewayKube>
 ): DocumentGatewayKube {
+  const gw = makeKubeGateway();
   return {
     kind: 'doc.gateway_kube',
     uri: '/docs/gateway_kube',
     title: 'cookie',
     rootClusterId: 'teleport-local',
     leafClusterId: '',
-    targetUri: makeKube().uri,
+    targetUri: gw.targetUri,
     status: '',
     origin: 'connection_list',
     ...props,
