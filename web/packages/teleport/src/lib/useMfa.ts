@@ -43,7 +43,7 @@ export type MfaProps = {
 type mfaResponsePromiseWithResolvers = {
   promise: Promise<MfaChallengeResponse>;
   resolve: (v: MfaChallengeResponse) => void;
-  reject: (v?: any) => void;
+  reject: (err: Error) => void;
 };
 
 /**
@@ -56,9 +56,6 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   const [mfaRequired, setMfaRequired] = useState<boolean>();
   const [options, setMfaOptions] = useState<MfaOption[]>();
   const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
-
-  const mfaResponsePromiseWithResolvers =
-    useRef<mfaResponsePromiseWithResolvers>();
 
   useEffect(() => {
     setMfaRequired(isMfaRequired);
@@ -77,7 +74,6 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   //   4. Receive the mfa response through the mfaResponsePromise ref and return it.
   //
   // The caller should also display errors seen in attempt.
-
   const [attempt, getResponse, setMfaAttempt] = useAsync(
     useCallback(
       async (challenge?: MfaAuthenticateChallenge) => {
@@ -90,50 +86,50 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
           return;
         }
 
-        // Set mfa requirement and options after we get a challenge for the first time.
-        if (!mfaRequired) setMfaRequired(true);
-        if (!options) setMfaOptions(getMfaChallengeOptions(challenge));
-
         // Prepare a new promise to collect the mfa response retrieved
         // through the submit function.
-        let resolve, reject;
+        let resolve: (value: MfaChallengeResponse) => void;
+        let reject: (err: Error) => void;
         const promise = new Promise<MfaChallengeResponse>((res, rej) => {
           resolve = res;
           reject = rej;
         });
 
-        mfaResponsePromiseWithResolvers.current = {
+        mfaResponseRef.current = {
           promise,
           resolve,
           reject,
         };
 
+        // Set mfa requirement and options after we get a challenge for the first time.
+        setMfaRequired(true);
+        setMfaOptions(getMfaChallengeOptions(challenge));
+
         setMfaChallenge(challenge);
         try {
           return await promise;
         } finally {
-          mfaResponsePromiseWithResolvers.current = null;
           setMfaChallenge(null);
         }
       },
-      [req, mfaResponsePromiseWithResolvers, options, mfaRequired]
+      [req, mfaRequired]
     )
   );
 
-  const resetAttempt = () => {
-    if (mfaResponsePromiseWithResolvers.current)
-      mfaResponsePromiseWithResolvers.current.reject(
-        new Error('MFA attempt cancelled by user')
-      );
-    mfaResponsePromiseWithResolvers.current = null;
-    setMfaChallenge(null);
-    setMfaAttempt(makeEmptyAttempt());
+  const mfaResponseRef = useRef<mfaResponsePromiseWithResolvers>();
+
+  const cancelAttempt = () => {
+    if (mfaResponseRef.current) {
+      mfaResponseRef.current.reject(new MfaCanceledError());
+    }
   };
 
   const getChallengeResponse = useCallback(
     async (challenge?: MfaAuthenticateChallenge) => {
       const [resp, err] = await getResponse(challenge);
+
       if (err) throw err;
+
       return resp;
     },
     [getResponse]
@@ -141,12 +137,12 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
 
   const submit = useCallback(
     async (mfaType?: DeviceType, totpCode?: string) => {
-      if (!mfaResponsePromiseWithResolvers.current) {
+      if (!mfaResponseRef.current) {
         throw new Error('submit called without an in flight MFA attempt');
       }
 
       try {
-        await mfaResponsePromiseWithResolvers.current.resolve(
+        await mfaResponseRef.current.resolve(
           await auth.getMfaChallengeResponse(challenge, mfaType, totpCode)
         );
       } catch (err) {
@@ -158,7 +154,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
         });
       }
     },
-    [challenge, mfaResponsePromiseWithResolvers, setMfaAttempt]
+    [challenge, setMfaAttempt]
   );
 
   return {
@@ -168,7 +164,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
     getChallengeResponse,
     submit,
     attempt,
-    resetAttempt,
+    cancelAttempt,
   };
 }
 
@@ -207,7 +203,7 @@ export type MfaState = {
   ) => Promise<MfaChallengeResponse>;
   submit: (mfaType?: DeviceType, totpCode?: string) => Promise<void>;
   attempt: Attempt<any>;
-  resetAttempt: () => void;
+  cancelAttempt: () => void;
 };
 
 // used for testing
@@ -219,6 +215,12 @@ export function makeDefaultMfaState(): MfaState {
     getChallengeResponse: async () => null,
     submit: () => null,
     attempt: makeEmptyAttempt(),
-    resetAttempt: () => null,
+    cancelAttempt: () => null,
   };
+}
+
+export class MfaCanceledError extends Error {
+  constructor() {
+    super('User canceled MFA attempt');
+  }
 }

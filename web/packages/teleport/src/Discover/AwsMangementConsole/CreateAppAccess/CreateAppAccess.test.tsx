@@ -56,6 +56,8 @@ afterEach(() => {
 });
 
 test('create app access', async () => {
+  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+
   const { ctx, discoverCtx } = getMockedContexts();
 
   renderCreateAppAccess(ctx, discoverCtx);
@@ -64,9 +66,10 @@ test('create app access', async () => {
   await userEvent.click(screen.getByRole('button', { name: /next/i }));
   await screen.findByText(/aws-console/i);
   expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
+  expect(integrationService.createAwsAppAccess).not.toHaveBeenCalled();
 });
 
-test('create app access with v1 endpoint', async () => {
+test('create app access with v1 endpoint auto retry', async () => {
   jest
     .spyOn(integrationService, 'createAwsAppAccessV2')
     .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
@@ -78,10 +81,9 @@ test('create app access with v1 endpoint', async () => {
   await screen.findByText(/bash/i);
 
   await userEvent.click(screen.getByRole('button', { name: /next/i }));
-  await screen.findByText(ProxyRequiresUpgrade);
-
-  await userEvent.click(screen.getByRole('button', { name: /next/i }));
   await screen.findByText(/aws-console/i);
+
+  expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
   expect(integrationService.createAwsAppAccess).toHaveBeenCalledTimes(1);
 });
 

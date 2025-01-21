@@ -288,6 +288,9 @@ const (
 	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
 	ComponentRolloutController = "rollout-controller"
 
+	// ComponentGit represents git proxy related services.
+	ComponentGit = "git"
+
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
 

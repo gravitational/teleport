@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/utils"
-	tslices "github.com/gravitational/teleport/lib/utils/slices"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func Test_filterBuffer(t *testing.T) {
@@ -188,43 +188,43 @@ func Test_filterBuffer(t *testing.T) {
 				var resources []string
 				switch o := obj.(type) {
 				case *corev1.SecretList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.DeploymentList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.DaemonSetList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.StatefulSetList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *authv1.RoleBindingList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *batchv1.CronJobList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *batchv1.JobList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.PodList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.ConfigMapList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.ServiceAccountList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *appsv1.ReplicaSetList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.ServiceList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *corev1.PersistentVolumeClaimList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *authv1.RoleList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *networkingv1.IngressList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.IngressList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.DaemonSetList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.ReplicaSetList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *extensionsv1beta1.DeploymentList:
-					resources = collectResourcesFromResponse(tslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
 				case *metav1.Table:
 					for i := range o.Rows {
 						row := &(o.Rows[i])

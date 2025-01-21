@@ -63,6 +63,8 @@ type ForwardServerConfig struct {
 	Emitter events.StreamEmitter
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+	// KeyManager manages keys for git proxies.
+	KeyManager *KeyManager
 	// HostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
 	HostCertificate ssh.Signer
@@ -108,6 +110,9 @@ func (c *ForwardServerConfig) CheckAndSetDefaults() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
 	}
+	if c.KeyManager == nil {
+		return trace.BadParameter("missing parameter KeyManager")
+	}
 	if c.HostCertificate == nil {
 		return trace.BadParameter("missing parameter HostCertificate")
 	}
@@ -147,7 +152,7 @@ type ForwardServer struct {
 	remoteClient *tracessh.Client
 
 	// verifyRemoteHost is a callback to verify remote host like "github.com".
-	// Can be overridden for tests. Defaults to verifyRemoteHost.
+	// Can be overridden for tests. Defaults to cfg.KeyManager.HostKeyCallback.
 	verifyRemoteHost ssh.HostKeyCallback
 	// makeRemoteSigner generates the client certificate for connecting to the
 	// remote server. Can be overridden for tests. Defaults to makeRemoteSigner.
@@ -171,10 +176,16 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	verifyRemoteHost, err := cfg.KeyManager.HostKeyCallback(cfg.TargetServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	logger := slog.With(teleport.ComponentKey, teleport.ComponentForwardingGit,
 		"src_addr", cfg.SrcAddr.String(),
 		"dst_addr", cfg.DstAddr.String(),
 	)
+
 	s := &ForwardServer{
 		StreamEmitter:    cfg.Emitter,
 		cfg:              cfg,
@@ -183,7 +194,7 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		logger:           logger,
 		reply:            sshutils.NewReply(logger),
 		id:               uuid.NewString(),
-		verifyRemoteHost: verifyRemoteHost(cfg.TargetServer),
+		verifyRemoteHost: verifyRemoteHost,
 		makeRemoteSigner: makeRemoteSigner,
 	}
 	// TODO(greedy52) extract common parts from srv.NewAuthHandlers like
@@ -584,17 +595,6 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 		})
 	default:
 		return nil, trace.BadParameter("unsupported subkind %q", cfg.TargetServer.GetSubKind())
-	}
-}
-
-func verifyRemoteHost(targetServer types.Server) ssh.HostKeyCallback {
-	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		switch targetServer.GetSubKind() {
-		case types.SubKindGitHub:
-			return VerifyGitHubHostKey(hostname, remote, key)
-		default:
-			return trace.BadParameter("unsupported subkind %q", targetServer.GetSubKind())
-		}
 	}
 }
 

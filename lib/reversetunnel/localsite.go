@@ -389,6 +389,7 @@ func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ 
 		HostUUID:        s.srv.ID,
 		TargetServer:    params.TargetServer,
 		Clock:           s.clock,
+		KeyManager:      s.srv.gitKeyManager,
 	}
 	remoteServer, err := git.NewForwardServer(serverConfig)
 	if err != nil {
