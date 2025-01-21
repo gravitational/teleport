@@ -55,8 +55,8 @@ var (
 	}
 	limitedWriter = newLimitedResponseWriter()
 
-	toolsDir    string
-	uriTemplate string
+	toolsDir string
+	baseURL  string
 )
 
 func TestMain(m *testing.M) {

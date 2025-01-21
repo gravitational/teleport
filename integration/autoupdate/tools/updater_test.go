@@ -53,7 +53,7 @@ func TestUpdate(t *testing.T) {
 	updater := tools.NewUpdater(
 		toolsDir,
 		testVersions[0],
-		tools.WithURITemplate(uriTemplate),
+		tools.WithBaseURL(baseURL),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestParallelUpdate(t *testing.T) {
 	updater := tools.NewUpdater(
 		toolsDir,
 		testVersions[0],
-		tools.WithURITemplate(uriTemplate),
+		tools.WithBaseURL(baseURL),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	updater := tools.NewUpdater(
 		toolsDir,
 		testVersions[0],
-		tools.WithURITemplate(uriTemplate),
+		tools.WithBaseURL(baseURL),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
