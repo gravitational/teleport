@@ -86,11 +86,11 @@ export enum IntegrationEnrollKind {
 
 /**
  * IntegrationEnrollStep defines configurable steps for an integration type.
+ * Value matches with proto enums defined in the backend.
  */
 export enum IntegrationEnrollStep {
   /**
    * AWSIC steps defined for AWS Idenity Center plugin.
-   * Value matches with proto enums defined in the backend.
    */
   ConnectOidc = 'INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC',
   ImportResourceSetDefaultOwner = 'INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER',
