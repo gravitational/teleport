@@ -186,9 +186,14 @@ export type KubernetesResourceValidationResult = {
   verbs: ValidationResult;
 };
 
+/**
+ * Validates a `kind` field of a `KubernetesResourceModel`. In roles with
+ * version v6, the auth server allows only specifying access for `pod`
+ * Kubernetes resources.
+ */
 const validKubernetesKind = (
   kind: KubernetesResourceKind,
-  ver: RoleVersion | undefined
+  ver: RoleVersion
 ): ValidationResult => {
   switch (ver) {
     case 'v3':
@@ -204,7 +209,6 @@ const validKubernetesKind = (
       };
 
     case 'v7':
-    case undefined: // not filled in yet
       return { valid: true };
 
     default:

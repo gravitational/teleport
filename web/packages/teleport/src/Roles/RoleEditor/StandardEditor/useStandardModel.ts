@@ -20,7 +20,7 @@ import { current, original } from 'immer';
 import { Dispatch } from 'react';
 import { useImmerReducer } from 'use-immer';
 
-import { Role } from 'teleport/services/resources';
+import { Role, RoleVersion } from 'teleport/services/resources';
 
 import {
   hasModifiedFields,
@@ -113,6 +113,10 @@ const reduce = (
 
     case 'set-metadata':
       state.roleModel.metadata = payload;
+      updateRoleVersionInResources(
+        state.roleModel.resources,
+        payload.version.value
+      );
       break;
 
     case 'set-options':
@@ -167,7 +171,6 @@ const reduce = (
  */
 const processEditorModel = (state: StandardEditorModel) => {
   const { roleModel, originalRole, validationResult } = state;
-  updateRoleVersionInResources(roleModel);
   state.isDirty = hasModifiedFields(roleModel, originalRole);
   state.validationResult = validateRoleEditorModel(
     // It's crucial to use `current` and `original` here from the performance
@@ -180,11 +183,11 @@ const processEditorModel = (state: StandardEditorModel) => {
   );
 };
 
-const updateRoleVersionInResources = (roleModel: RoleEditorModel) => {
-  const version = roleModel.metadata.version.value;
-  for (const res of roleModel.resources.filter(
-    res => res.kind === 'kube_cluster'
-  )) {
+const updateRoleVersionInResources = (
+  resources: ResourceAccess[],
+  version: RoleVersion
+) => {
+  for (const res of resources.filter(res => res.kind === 'kube_cluster')) {
     res.roleVersion = version;
     for (const kubeRes of res.resources) {
       kubeRes.roleVersion = version;

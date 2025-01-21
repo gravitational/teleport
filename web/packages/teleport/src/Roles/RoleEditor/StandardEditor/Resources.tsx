@@ -355,7 +355,6 @@ function KubernetesResourceView({
 }) {
   const { kind, name, namespace, verbs } = value;
   const theme = useTheme();
-  console.log('ROLE VERSION', value.roleVersion);
   return (
     <Box
       border={1}

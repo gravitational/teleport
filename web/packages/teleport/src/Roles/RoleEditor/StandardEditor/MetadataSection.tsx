@@ -64,7 +64,7 @@ export const MetadataSection = ({
       <LabelsInput
         disableBtns={isProcessing}
         labels={value.labels}
-        setLabels={labels => onChange?.({ ...value, labels })}
+        setLabels={labels => onChange({ ...value, labels })}
         rule={precomputed(validation.fields.labels)}
       />
     </Box>
@@ -74,7 +74,6 @@ export const MetadataSection = ({
       options={roleVersionOptions}
       value={value.version}
       onChange={version => onChange({ ...value, version })}
-      // rule={precomputed(validation.fields.verbs)}
       mb={0}
     />
   </SectionBox>
