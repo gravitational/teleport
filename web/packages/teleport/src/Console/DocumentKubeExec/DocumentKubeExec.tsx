@@ -25,7 +25,7 @@ import Document from 'teleport/Console/Document';
 import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
 import * as stores from 'teleport/Console/stores/types';
-import { useMfa } from 'teleport/lib/useMfa';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 
 import KubeExecData from './KubeExecDataDialog';
 
@@ -38,11 +38,11 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendKubeExecData } =
     useKubeExecSession(doc);
-  const mfa = useMfa(tty);
+  const mfa = useMfaEmitter(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, mfa.requested]);
+  }, [visible, mfa.challenge]);
   const theme = useTheme();
 
   const terminal = (
@@ -62,7 +62,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      <AuthnDialog mfaState={mfa} onClose={closeDocument} />
 
       {status === 'waiting-for-exec-data' && (
         <KubeExecData onExec={sendKubeExecData} onClose={closeDocument} />
