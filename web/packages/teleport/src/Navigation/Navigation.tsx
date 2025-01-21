@@ -81,7 +81,7 @@ export type NavigationSection = {
     Icon: (props) => ReactNode;
     /* title is the custom title of a standalone section */
     title: string;
-    route?: string;
+    route: string;
   };
 };
 /**
