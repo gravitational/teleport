@@ -74,7 +74,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	uuidp "github.com/google/uuid"
+	"github.com/google/uuid"
 	"log/slog"
 	"os"
 	"runtime/cgo"
@@ -332,7 +332,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user key was nil")
 	}
 
-	hostID, err := uuidp.Parse(c.cfg.HostID)
+	hostID, err := uuid.Parse(c.cfg.HostID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -362,7 +362,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
-			uuid:                    cHostID,
+			client_id:               cHostID,
 		},
 	)
 

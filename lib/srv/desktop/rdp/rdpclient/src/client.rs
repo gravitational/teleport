@@ -1458,7 +1458,7 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         },
         desktop_scale_factor: 0,
         license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
-        hardware_id: Some(params.uuid),
+        hardware_id: Some(params.client_id),
     }
 }
 
@@ -1477,7 +1477,7 @@ pub struct ConnectParams {
     pub show_desktop_wallpaper: bool,
     pub ad: bool,
     pub nla: bool,
-    pub uuid: [u32; 4],
+    pub client_id: [u32; 4],
 }
 
 #[derive(Debug)]
