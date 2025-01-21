@@ -25,6 +25,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -61,19 +62,17 @@ type Config struct {
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
 	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
-}
-
-type elasticacheClient interface {
-	elasticache.DescribeUsersAPIClient
-
-	ListTagsForResource(ctx context.Context, in *elasticache.ListTagsForResourceInput, optFns ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error)
-	ModifyUser(ctx context.Context, in *elasticache.ModifyUserInput, optFns ...func(*elasticache.Options)) (*elasticache.ModifyUserOutput, error)
+	getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient
 }
 
 type defaultAWSClients struct{}
 
 func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
 	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
+	return memorydb.NewFromConfig(cfg, optFns...)
 }
 
 // CheckAndSetDefaults validates the config and set defaults.

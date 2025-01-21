@@ -31,10 +31,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 
@@ -968,7 +968,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 
 // NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
 // cluster.
-func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
+func NewDatabaseFromMemoryDBCluster(cluster *memorydbtypes.Cluster, extraLabels map[string]string) (types.Database, error) {
 	endpointType := apiawsutils.MemoryDBClusterEndpoint
 
 	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
@@ -983,7 +983,7 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		}, aws.ToString(cluster.Name)),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
-			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.ClusterEndpoint.Address), aws.ToInt64(cluster.ClusterEndpoint.Port)),
+			URI:      fmt.Sprintf("%v:%d", aws.ToString(cluster.ClusterEndpoint.Address), cluster.ClusterEndpoint.Port),
 			AWS:      *metadata,
 		})
 }
@@ -1200,7 +1200,7 @@ func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpoi
 
 // MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
-func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
+func MetadataFromMemoryDBCluster(cluster *memorydbtypes.Cluster, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(cluster.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1290,7 +1290,7 @@ func ExtraElastiCacheLabels(cluster *ectypes.ReplicationGroup, tags []ectypes.Ta
 
 // ExtraMemoryDBLabels returns a list of extra labels for provided MemoryDB
 // cluster.
-func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSubnetGroups []*memorydb.SubnetGroup) map[string]string {
+func ExtraMemoryDBLabels(cluster *memorydbtypes.Cluster, tags []memorydbtypes.Tag, allSubnetGroups []memorydbtypes.SubnetGroup) map[string]string {
 	labels := make(map[string]string)
 
 	// Engine version.
@@ -1304,6 +1304,7 @@ func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSub
 		}
 	}
 
+	labels[types.DiscoveryLabelEngine] = aws.ToString(cluster.Engine)
 	// Add AWS resource tags.
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }

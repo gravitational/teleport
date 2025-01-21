@@ -126,6 +126,8 @@ import g2 from './assets/g2.svg';
 import gable from './assets/gable.svg';
 import gemDark from './assets/gem-dark.svg';
 import gemLight from './assets/gem-light.svg';
+import gitDark from './assets/git-dark.svg';
+import gitLight from './assets/git-light.svg';
 import githubDark from './assets/github-dark.svg';
 import githubLight from './assets/github-light.svg';
 import gitlab from './assets/gitlab.svg';
@@ -413,6 +415,8 @@ export {
   gable,
   gemDark,
   gemLight,
+  gitDark,
+  gitLight,
   githubDark,
   githubLight,
   gitlab,
