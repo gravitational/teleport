@@ -75,7 +75,6 @@ type AuthCommand struct {
 	genTTL                     time.Duration
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
-	exportOutputPrefix         string
 	output                     string
 	outputFormat               identityfile.Format
 	compatVersion              string
@@ -124,8 +123,9 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		fmt.Sprintf("export certificate type (%v)", strings.Join(allowedCertificateTypes, ", "))).
 		EnumVar(&a.authType, allowedCertificateTypes...)
 	a.authExport.Flag("integration", "Name of the integration. Only applies to \"github\" CAs.").StringVar(&a.integration)
-	a.authExport.Flag("out-prefix", "If set writes exported authorities to files with the given path prefix").
-		StringVar(&a.exportOutputPrefix)
+	a.authExport.
+		Flag("out", "If set writes exported authorities to files with the given path prefix").
+		StringVar(&a.output)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair.").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -255,18 +255,18 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClie
 		return trace.Wrap(err)
 	}
 
-	if l := len(authorities); l > 1 && a.exportOutputPrefix == "" {
-		return trace.BadParameter("found %d authorities to export, use --out-prefix to export all", l)
+	if l := len(authorities); l > 1 && a.output == "" {
+		return trace.BadParameter("found %d authorities to export, use --out to export all", l)
 	}
 
-	if a.exportOutputPrefix != "" {
+	if a.output != "" {
 		perms := os.FileMode(0644)
 		if a.exportPrivateKeys {
 			perms = 0600
 		}
 
 		for i, authority := range authorities {
-			name := fmt.Sprintf("%s%d.cer", a.exportOutputPrefix, i)
+			name := fmt.Sprintf("%s%d.cer", a.output, i)
 			if err := os.WriteFile(name, authority.Data, perms); err != nil {
 				return trace.Wrap(err)
 			}
