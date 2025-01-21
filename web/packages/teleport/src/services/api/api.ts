@@ -149,6 +149,8 @@ const api = {
       if (!mfaResponse && isAdminActionRequiresMfaError(err)) {
         mfaResponse = await api.getAdminActionMfaResponse();
         return await api.fetch(url, customOptions, mfaResponse);
+      } else {
+        throw err;
       }
     }
   },
