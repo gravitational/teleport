@@ -12,9 +12,6 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 import cfg, { EnterpriseConfig } from 'e-teleport/config';
-import { useFeatures } from 'teleport/FeaturesContext';
-import { NavigationCategory } from 'teleport/Navigation/categories';
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 import { getCurrentTheme } from 'teleport/ThemeProvider';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -53,11 +50,7 @@ function locationIsEqual(a: Location, b: Location) {
 export function AccessGraph() {
   const { clusterId } = useStickyClusterId();
 
-  const features = useFeatures();
-  const backUrl = getFirstRouteForCategory(
-    features,
-    NavigationCategory.Management
-  );
+  const backUrl = cfg.oss.getUnifiedResourcesRoute(cfg.oss.proxyCluster);
 
   const { preferences } = useUser();
 

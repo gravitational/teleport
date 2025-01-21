@@ -41,11 +41,7 @@ import { Users } from 'e-teleport/Users';
 import NewRequest from 'e-teleport/Workflow/NewRequest/NewRequest';
 import ReviewRequests from 'e-teleport/Workflow/ReviewRequests/ReviewRequests';
 import * as OSS from 'teleport/features';
-import {
-  ManagementSection,
-  NavigationCategory,
-} from 'teleport/Navigation/categories';
-import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
+import { NavigationCategory } from 'teleport/Navigation/categories';
 import { storageService } from 'teleport/services/storageService';
 import {
   NavTitle,
@@ -71,8 +67,7 @@ class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {
 }
 
 class FeatureAccessRequests implements TeleportFeature {
-  category = NavigationCategory.Resources;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
 
   route: TeleportFeatureRoute; // intentionally undefined
 
@@ -99,8 +94,7 @@ class FeatureAccessRequests implements TeleportFeature {
 }
 
 class FeatureNewAccessRequest implements TeleportFeature {
-  category = NavigationCategory.Resources;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
 
   parent = FeatureAccessRequests;
 
@@ -124,8 +118,7 @@ class FeatureNewAccessRequest implements TeleportFeature {
 }
 
 class FeatureReviewAccessRequests implements TeleportFeature {
-  category = NavigationCategory.Resources;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
 
   parent = FeatureAccessRequests;
 
@@ -169,8 +162,6 @@ export class FeatureDiscoverE extends OSS.FeatureDiscover {
 // ****************************
 
 export class FeatureUsageSummary implements TeleportFeature {
-  section = ManagementSection.Billing;
-
   route = {
     title: 'Usage Tracking',
     path: cfg.routes.usageSummarySummary,
@@ -217,6 +208,8 @@ class FeatureDownloadCenter implements TeleportFeature {
     },
   };
   topMenuItem = this.navigationItem;
+
+  showInDashboard = true;
 }
 
 class FeatureSupport implements TeleportFeature {
@@ -241,9 +234,7 @@ class FeatureSupport implements TeleportFeature {
 // ****************************
 
 class FeatureAccessMonitoring implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Identity;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
 
   route = {
     title: 'Access Monitoring',
@@ -276,9 +267,7 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
 }
 
 class FeatureAccessListManagement implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Identity;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
 
   route = {
     title: 'Manage Access Lists',
@@ -303,7 +292,7 @@ class FeatureAccessListManagement implements TeleportFeature {
 }
 
 class FeatureNewAccessList implements TeleportFeature {
-  sideNavCategory = SideNavigationCategory.AddNew;
+  category = NavigationCategory.AddNew;
 
   route = {
     title: NavTitle.NewAccessList,
@@ -332,9 +321,7 @@ class FeatureNewAccessList implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Identity;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
 
   route = {
     title: 'Trusted Devices',
@@ -362,8 +349,6 @@ class FeatureDeviceTrust implements TeleportFeature {
 }
 
 class FeatureIntegrations extends OSS.FeatureIntegrations {
-  category = NavigationCategory.Management;
-
   route = {
     ...super.getRoute(),
     // Enterprise version includes the enterprise only
@@ -399,7 +384,7 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
 }
 
 class FeatureIntegrationStatus implements TeleportFeature {
-  category = NavigationCategory.Management;
+  category = NavigationCategory.Access;
 
   parent = FeatureIntegrations;
 
@@ -480,9 +465,7 @@ class FeatureUsersE extends OSS.FeatureUsers {
 }
 
 class FeatureAccessGraph implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Permissions;
-  sideNavCategory = SideNavigationCategory.Policy;
+  category = NavigationCategory.Policy;
 
   route = {
     title: `Access Graph - ${NavTitle.AccessGraphDashboard}`,

@@ -442,7 +442,7 @@ function getDefaultSort(): SortType {
 export type State = ReturnType<typeof useNewRequest>;
 
 export function getResourceId(resource: ResourceDefinition, clusterId: string) {
-  if (resource.kind === 'node') {
+  if (resource.kind === 'node' || resource.kind === 'git_server') {
     return resource.id;
   }
   if (resource.kind === 'namespace') {
@@ -468,6 +468,7 @@ export function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
     saml_idp_service_provider: { ...resources.saml_idp_service_provider },
     namespace: { ...resources.namespace },
     aws_ic_account_assignment: { ...resources.aws_ic_account_assignment },
+    git_server: { ...resources.git_server },
   };
 }
 
