@@ -258,7 +258,7 @@ const auth = {
   async getMfaChallenge(
     req: CreateAuthenticateChallengeRequest,
     abortSignal?: AbortSignal
-  ): Promise<MfaAuthenticateChallenge> | undefined {
+  ): Promise<MfaAuthenticateChallenge | undefined> {
     return api
       .post(
         cfg.api.mfaAuthnChallengePath,
@@ -274,7 +274,7 @@ const auth = {
   },
 
   // getChallengeResponse gets an MFA challenge response for the provided parameters.
-  // If challenge is undefined or has no viable challenge options, returns empty.
+  // If challenge is undefined or has no viable challenge options, returns empty response.
   async getMfaChallengeResponse(
     challenge: MfaAuthenticateChallenge,
     mfaType?: DeviceType,

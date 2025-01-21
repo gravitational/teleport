@@ -153,10 +153,9 @@ const api = {
     }
   },
 
-  async getAdminActionMfaResponse(allowReuse?: boolean) {
+  async getAdminActionMfaResponse() {
     const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse,
     });
 
     if (!challenge) {
