@@ -565,6 +565,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEmail
 	case *PluginSpecV1_Msteams:
 		return PluginTypeMSTeams
+	case *PluginSpecV1_NetIq:
+		return PluginTypeNetIQ
 	default:
 		return PluginTypeUnknown
 	}
