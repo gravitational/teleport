@@ -309,6 +309,10 @@ func (k *KeyRing) clientCertPool(clusters ...string) (*x509.CertPool, error) {
 		return nil, trace.Wrap(err)
 	}
 	pool := x509.NewCertPool()
+	if len(certPoolPEM) == 0 {
+		// It's valid to have no matching CAs and therefore an empty cert pool.
+		return pool, nil
+	}
 	if !pool.AppendCertsFromPEM(certPoolPEM) {
 		return nil, trace.BadParameter("failed to parse TLS CA certificate")
 	}
