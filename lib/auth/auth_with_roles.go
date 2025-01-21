@@ -5438,7 +5438,7 @@ func (a *ServerWithRoles) GenerateSnowflakeJWT(ctx context.Context, req *proto.S
 				"user", a.context.User.GetName(),
 				"error", err,
 			)
-			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/database-access/reference/cli/#tctl-auth-sign.`)
+			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/reference/agent-services/database-access-reference/cli/#tctl-auth-sign.`)
 		}
 	}
 	return a.authServer.GenerateSnowflakeJWT(ctx, req)

@@ -1,0 +1,43 @@
+Use `tsh git ls` to view a list of GitHub organizations you have access to:
+```code
+$ tsh git ls
+Type   Organization  Username URL
+------ ------------- -------- --------------------------------
+GitHub my-github-org my-user  https://github.com/my-github-org
+```
+
+Teleport requires your GitHub identity to impersonate you. If you haven't
+provided it yet, run the following command:
+```code
+$ tsh git login --github-org my-github-org
+  If browser window does not open automatically, open it by clicking on the link:
+   http://127.0.0.1:55555/some-id
+  Your GitHub username is my-user.
+```
+
+This command opens a browser, prompting you to authenticate with GitHub via the
+OAuth app:
+![GitHub SSO authorization view](../../../img/github-sso-auth-screen.jpg)
+
+To clone a repository from your GitHub organization, find the SSH clone URL and
+run:
+```code
+$ tsh git clone git@github.com:my-github-org/my-repo.git
+Cloning into 'my-repo'...
+```
+
+To configure an existing Git repository with Teleport, go to the repository and
+run:
+```code
+$ tsh git config update
+The current Git directory is configured with Teleport for GitHub organization "my-github-org".
+```
+
+Once the repo is cloned or configured, you can use `git` commands as normal:
+```
+$ cd my-repo
+$ git fetch
+```
+
+Note that the OAuth app authentication flow and Git repository configuration are
+one-time setups and don't need to be repeated.

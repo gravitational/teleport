@@ -170,6 +170,7 @@ export function Story(props: StoryProps) {
     } else {
       let tcpPorts = [
         { port: 1337, endPort: 4242 },
+        { port: 4242, endPort: 0 },
         { port: 17231, endPort: 0 },
         { port: 27381, endPort: 28400 },
       ];

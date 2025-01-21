@@ -625,7 +625,7 @@ func (a *Server) syncUsableKeysAlert(ctx context.Context, usableKeysResults map[
 		msg += "The Auth Service will continue signing certificates with raw software keys. "
 	}
 	msg += "These CAs must be rotated to begin using the configured key type. " +
-		"See https://goteleport.com/docs/management/operations/ca-rotation/"
+		"See https://goteleport.com/docs/admin-guides/management/operations/ca-rotation/"
 
 	alert, err := types.NewClusterAlert("ca-key-types/"+a.ServerID, msg, alertOptions...)
 	if err != nil {

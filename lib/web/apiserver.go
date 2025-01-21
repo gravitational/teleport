@@ -975,6 +975,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/github/:name", h.WithAuth(h.updateGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
+	// Sets the default connector in the auth preference.
+	h.PUT("/webapi/authconnector/default", h.WithAuth(h.setDefaultConnectorHandle))
+
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.PUT("/webapi/trustedcluster/:name", h.WithAuth(h.upsertTrustedClusterHandle))
@@ -1022,20 +1025,16 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deploydatabaseservices", h.WithClusterAuth(h.awsOIDCDeployDatabaseServices))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/listdeployeddatabaseservices", h.WithClusterAuth(h.awsOIDCListDeployedDatabaseService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
 	// TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters
 	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(enrollEksClusters)
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	// v2 endpoint introduces "extraLabels" field.
 	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databasevpcs", h.WithClusterAuth(h.awsOIDCListDatabaseVPCs))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/subnets", h.WithClusterAuth(h.awsOIDCListSubnets))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
-	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
@@ -1792,21 +1791,25 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	} else {
 		authType := cap.GetType()
 		var localConnectorName string
+		var defaultConnectorName string
 
 		if authType == constants.Local {
 			localConnectorName = cap.GetConnectorName()
+		} else {
+			defaultConnectorName = cap.GetConnectorName()
 		}
 
 		authSettings = webclient.WebConfigAuthSettings{
-			Providers:          authProviders,
-			SecondFactor:       types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
-			AllowPasswordless:  cap.GetAllowPasswordless(),
-			AuthType:           authType,
-			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
-			LocalConnectorName: localConnectorName,
-			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
-			MOTD:               cap.GetMessageOfTheDay(),
+			Providers:            authProviders,
+			SecondFactor:         types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+			LocalAuthEnabled:     cap.GetAllowLocalAuth(),
+			AllowPasswordless:    cap.GetAllowPasswordless(),
+			AuthType:             authType,
+			DefaultConnectorName: defaultConnectorName,
+			PreferredLocalMFA:    cap.GetPreferredLocalMFA(),
+			LocalConnectorName:   localConnectorName,
+			PrivateKeyPolicy:     cap.GetPrivateKeyPolicy(),
+			MOTD:                 cap.GetMessageOfTheDay(),
 		}
 	}
 
@@ -3665,6 +3668,32 @@ func (h *Handler) siteNodeConnect(
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) setDefaultConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req ui.SetDefaultAuthConnectorRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	authPref.SetConnectorName(req.Name)
+	authPref.SetType(req.Type)
+
+	_, err = clt.UpsertAuthPreference(r.Context(), authPref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
 }
 
 type podConnectParams struct {

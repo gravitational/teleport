@@ -164,10 +164,11 @@ Install `tsh` on your local workstation:
 
 (!docs/pages/includes/install-tsh.mdx!)
 
-Log in to receive short-lived certificates from Teleport:
+Log in to receive short-lived certificates from Teleport. Replace 
+<Var name="teleport.example.com" /> with your Teleport cluster's public address
+as configured above:
 
 ```code
-# Replace teleport.example.com with your Teleport cluster's public address as configured above.
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 > Profile URL:        https://teleport.example.com:443
   Logged in as:       teleport-admin

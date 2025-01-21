@@ -24,8 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -54,7 +55,7 @@ func TestUsers(t *testing.T) {
 	smMock := libsecrets.NewMockSecretsManagerClient(libsecrets.MockSecretsManagerClientConfig{
 		Clock: clock,
 	})
-	ecMock := &mocks.ElastiCacheMock{}
+	ecMock := &mocks.ElastiCacheClient{}
 	ecMock.AddMockUser(elastiCacheUser("alice", "group1"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("bob", "group1", "group2"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("charlie", "group2", "group3"), managedTags)
@@ -74,8 +75,8 @@ func TestUsers(t *testing.T) {
 	db6 := mustCreateMemoryDBDatabase(t, "db6", "acl1")
 
 	users, err := NewUsers(Config{
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
 		Clients: &clients.TestCloudClients{
-			ElastiCache:    ecMock,
 			MemoryDB:       mdbMock,
 			SecretsManager: smMock,
 		},
@@ -90,6 +91,9 @@ func TestUsers(t *testing.T) {
 			return nil
 		},
 		ClusterName: "example.teleport.sh",
+		awsClients: fakeAWSClients{
+			ecClient: ecMock,
+		},
 	})
 	require.NoError(t, err)
 
@@ -187,12 +191,12 @@ func mustCreateRDSDatabase(t *testing.T, name string) types.Database {
 	return db
 }
 
-func elastiCacheUser(name string, groupIDs ...string) *elasticache.User {
-	return &elasticache.User{
+func elastiCacheUser(name string, groupIDs ...string) ectypes.User {
+	return ectypes.User{
 		UserId:       aws.String(name),
 		ARN:          aws.String("arn:aws:elasticache:us-east-1:123456789012:user:" + name),
 		UserName:     aws.String(name),
-		UserGroupIds: aws.StringSlice(groupIDs),
+		UserGroupIds: groupIDs,
 	}
 }
 
@@ -202,4 +206,12 @@ func memoryDBUser(name string, aclNames ...string) *memorydb.User {
 		Name:     aws.String(name),
 		ACLNames: aws.StringSlice(aclNames),
 	}
+}
+
+type fakeAWSClients struct {
+	ecClient elasticacheClient
+}
+
+func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
+	return f.ecClient
 }

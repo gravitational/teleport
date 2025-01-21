@@ -41,10 +41,12 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/google/go-cmp/cmp"
@@ -2138,6 +2140,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
+	awsRDSDBWithIntegration := awsRDSDB.Copy()
+	rewriteCloudResource(t, awsRDSDBWithIntegration, rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
+
 	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
 
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
@@ -2177,6 +2182,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		expectDatabases             []types.Database
 		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
 		discoveryConfigStatusCheck  func(*testing.T, discoveryconfig.Status)
+		userTasksCheck              func(*testing.T, []*usertasksv1.UserTask)
 		wantEvents                  int
 	}{
 		{
@@ -2436,6 +2442,43 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.Equal(t, "DISCOVERY_CONFIG_STATE_SYNCING", s.State)
 			},
 		},
+		{
+			name: "discover-rds user task must be created when database is not configured to allow IAM DB Authentication",
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:       []string{types.AWSMatcherRDS},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-west-1"},
+						Integration: integrationName,
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			expectDatabases: []types.Database{awsRDSDBWithIntegration},
+			wantEvents:      1,
+			userTasksCheck: func(t *testing.T, uts []*usertasksv1.UserTask) {
+				require.Len(t, uts, 1)
+				gotUserTask := uts[0]
+				require.Equal(t, "3ae76664-b54d-5b74-b59a-bd7bff3be053", gotUserTask.GetMetadata().GetName())
+				require.Equal(t, "OPEN", gotUserTask.GetSpec().GetState())
+				require.Equal(t, "discover-rds", gotUserTask.GetSpec().GetTaskType())
+				require.Equal(t, "rds-iam-auth-disabled", gotUserTask.GetSpec().GetIssueType())
+				require.Equal(t, "my-integration", gotUserTask.GetSpec().GetIntegration())
+
+				require.NotNil(t, gotUserTask.GetSpec().GetDiscoverRds())
+				require.Equal(t, "123456789012", gotUserTask.GetSpec().GetDiscoverRds().GetAccountId())
+				require.Equal(t, "us-west-1", gotUserTask.GetSpec().GetDiscoverRds().GetRegion())
+
+				require.Contains(t, gotUserTask.GetSpec().GetDiscoverRds().GetDatabases(), "aws-rds")
+				gotDatabase := gotUserTask.GetSpec().GetDiscoverRds().GetDatabases()["aws-rds"]
+				require.Equal(t, "my-discovery-config", gotDatabase.DiscoveryConfig)
+				require.Equal(t, "main", gotDatabase.DiscoveryGroup)
+				require.Equal(t, "postgres", gotDatabase.Engine)
+				require.Equal(t, "aws-rds", gotDatabase.Name)
+				require.False(t, gotDatabase.IsCluster)
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -2585,6 +2628,22 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.NoError(t, err)
 
 				tc.discoveryConfigStatusCheck(t, dc.Status)
+			}
+			if tc.userTasksCheck != nil {
+				var userTasks []*usertasksv1.UserTask
+				var nextPage string
+				for {
+					userTasksResp, nextPageResp, err := tlsServer.Auth().ListUserTasksByIntegration(ctx, 0, nextPage, integrationName)
+					require.NoError(t, err)
+
+					userTasks = append(userTasks, userTasksResp...)
+
+					if nextPageResp == "" {
+						break
+					}
+					nextPage = nextPageResp
+				}
+				tc.userTasksCheck(t, userTasks)
 			}
 		})
 	}
@@ -3868,8 +3927,14 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 }
 
 type fakeAWSClients struct {
+	ecClient       db.ElastiCacheClient
 	rdsClient      db.RDSClient
 	redshiftClient db.RedshiftClient
+	rssClient      db.RSSClient
+}
+
+func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {
+	return f.ecClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {
@@ -3878,4 +3943,8 @@ func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options
 
 func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
 	return f.redshiftClient
+}
+
+func (f fakeAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) db.RSSClient {
+	return f.rssClient
 }
