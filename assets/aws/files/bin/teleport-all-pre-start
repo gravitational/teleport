@@ -17,13 +17,9 @@ if [[ "${USE_LETSENCRYPT}" != "true" ]]; then
     exit 0
 fi
 
-# Remove any pre-existing `debug.sock` file locally
-if [[ -e /var/lib/teleport/debug.sock ]]; then
-    echo "Removing existing debug.sock file locally"
-    rm -f /var/lib/teleport/debug.sock
-fi
-
 # Copy certificates into place
+# Exclude debug.sock and any other .sock files from the sync
+# This is necessary because the sync operation will fail if the debug.sock file is present
 /bin/aws s3 sync \
     --exact-timestamps \
     --exclude="debug.sock" \
