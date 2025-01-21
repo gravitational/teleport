@@ -174,15 +174,6 @@ func TestSystemdUnitDriver(t *testing.T) {
 
 	require.Equal(t, "fake-schedule-3", string(sb))
 
-	// verify ForceNop
-	err = driver.ForceNop(ctx)
-	require.NoError(t, err)
-
-	sb, err = os.ReadFile(schedPath)
-	require.NoError(t, err)
-
-	require.Equal(t, scheduleNop, string(sb))
-
 	// verify that an empty schedule value is treated equivalent to a reset
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
 	require.NoError(t, err)
@@ -190,6 +181,37 @@ func TestSystemdUnitDriver(t *testing.T) {
 	sb, err = os.ReadFile(schedPath)
 	require.NoError(t, err)
 	require.Equal(t, "", string(sb))
+}
+
+// TestSystemdUnitDriverNop verifies the nop schedule behavior of the systemd unit export driver.
+func TestSystemdUnitDriverNop(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// use a sub-directory of a temp dir in order to verify that
+	// driver creates dir when needed.
+	dir := filepath.Join(t.TempDir(), "config")
+
+	driver, err := NewSystemdUnitDriver(SystemdUnitDriverConfig{
+		ConfigDir: dir,
+	})
+	require.NoError(t, err)
+
+	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
+		SystemdUnitSchedule: "fake-schedule",
+	})
+	require.NoError(t, err)
+
+	err = driver.ForceNop(ctx)
+	require.NoError(t, err)
+
+	schedPath := filepath.Join(dir, "schedule")
+	sb, err := os.ReadFile(schedPath)
+	require.NoError(t, err)
+
+	require.Equal(t, scheduleNop, string(sb))
 }
 
 // fakeDriver is used to inject custom behavior into a dummy Driver instance.

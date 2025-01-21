@@ -317,9 +317,10 @@ type Driver interface {
 	// that the control plane has been upgraded s.t. this agent is no longer compatible.
 	Reset(ctx context.Context) error
 
-	// ForceNOP sets the NOP schedule, ensuring that updates do not happen.
-	// This schedule was originally for testing, but now it also ensures that
-	// the teleport-update binary can disable all versions of the teleport-upgrader script.
+	// ForceNop sets the NOP schedule, ensuring that updates do not happen.
+	// This schedule was originally only used for testing, but now it is also used by the
+	// teleport-update binary to protect against package updates that could interfere with
+	// the new update system.
 	ForceNop(ctx context.Context) error
 }
 
