@@ -642,6 +642,10 @@ const (
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
+
+	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
+	// organizations for GitHub integrations.
+	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
 )
 
 // SCP is Secure Copy.

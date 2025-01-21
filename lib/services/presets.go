@@ -196,6 +196,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindWorkloadIdentity, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
+					types.NewRule(types.KindGitServer, RW()),
 				},
 			},
 		},
@@ -252,6 +253,9 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.Wildcard},
 					},
 				},
+				GitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{teleport.TraitInternalGitHubOrgs},
+				}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -664,6 +668,7 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindAccessMonitoringRule,
 							types.KindStaticHostUser,
 							types.KindWorkloadIdentity,
+							types.KindGitServer,
 						},
 						Verbs: RW(),
 					},
@@ -928,6 +933,16 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
+	// GitHub permissions.
+	if len(role.GetGitHubPermissions(types.Allow)) == 0 {
+		if githubOrgs := defaultGitHubOrgs()[role.GetName()]; len(githubOrgs) > 0 {
+			role.SetGitHubPermissions(types.Allow, []types.GitHubPermission{{
+				Organizations: githubOrgs,
+			}})
+			changed = true
+		}
+	}
+
 	if !changed {
 		return nil, trace.AlreadyExists("no change")
 	}
@@ -1038,4 +1053,10 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 	}
 
 	return changed, nil
+}
+
+func defaultGitHubOrgs() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
 }
