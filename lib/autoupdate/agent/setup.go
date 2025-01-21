@@ -239,9 +239,10 @@ func (ns *Namespace) Setup(ctx context.Context) error {
 		}
 		if enabled {
 			if err := oldTimer.Disable(ctx, true); err != nil {
-				return trace.Wrap(err, "failed to disable deprecated teleport-upgrade systemd timer")
+				ns.log.ErrorContext(ctx, "The deprecated teleport-ent-updater package is installed on this server, and it cannot be disabled due to an error. You must remove the teleport-ent-updater package after verifying that teleport-update is working.", errorKey, err)
+			} else {
+				ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been disabled to prevent conflicts. Please remove the teleport-ent-updater package after verifying that teleport-update is working.")
 			}
-			ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been disabled to prevent conflicts. Please remove the teleport-ent-updater package after verifying that teleport-update is working.")
 		}
 	}
 	return nil
@@ -284,9 +285,10 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		}
 		if present {
 			if err := oldTimer.Enable(ctx, true); err != nil {
-				return trace.Wrap(err, "failed to disable deprecated teleport-upgrade systemd timer")
+				ns.log.ErrorContext(ctx, "The deprecated teleport-ent-updater package is installed on this server, and it cannot be re-enabled due to an error. Please fix the teleport-ent-updater package if you intend to use the deprecated updater.", errorKey, err)
+			} else {
+				ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been re-enabled to ensure continued updates. To disable automatic updates entirely, please remove the teleport-ent-updater package.")
 			}
-			ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been re-enabled to ensure continued updates. To disable automatic updates entirely, please remove the teleport-ent-updater package.")
 		}
 	}
 	return nil

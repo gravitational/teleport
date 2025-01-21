@@ -1238,7 +1238,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	// If the installation is managed by teleport-update, it supersedes the teleport-upgrader script.
-	ok, err := autoupdate.IsActive()
+	ok, err := autoupdate.IsManagedByUpdater()
 	if err != nil {
 		process.logger.WarnContext(process.ExitContext(), "Failed to determine if auto-updates are enabled.", "error", err)
 	} else if ok {
@@ -1288,7 +1288,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		switch upgraderKind {
 		case types.UpgraderKindTeleportUpdate:
-			isDefault, err := autoupdate.IsDefault()
+			isDefault, err := autoupdate.IsManagedAndDefault()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

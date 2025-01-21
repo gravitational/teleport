@@ -26,36 +26,55 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// IsActive returns true if the local Teleport binary is managed by teleport-update.
+// IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
 // Note that true may be returned even if auto-updates is disabled or the version is pinned.
-func IsActive() (bool, error) {
+// The binary is considered managed if it lives under /opt/teleport, but not within the package
+// path at /opt/teleport/system.
+func IsManagedByUpdater() (bool, error) {
 	teleportPath, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
-	updaterBasePath := filepath.Clean(teleportOptDir) + "/"
-	absPath, err := filepath.Abs(teleportPath)
+	// Check if current binary is under the updater-managed path.
+	managed, err := hasParentDir(teleportPath, teleportOptDir)
 	if err != nil {
-		return false, trace.Wrap(err, "cannot get absolute path for Teleport binary")
+		return false, trace.Wrap(err)
 	}
-	if !strings.HasPrefix(absPath, updaterBasePath) {
+	if !managed {
 		return false, nil
 	}
-	systemDir := filepath.Join(teleportOptDir, systemNamespace)
-	return !strings.HasPrefix(absPath, systemDir), nil
+	// Return false if the binary is under the updater-managed path, but in the system prefix reserved for the package.
+	system, err := hasParentDir(teleportPath, filepath.Join(teleportOptDir, systemNamespace))
+	return !system, err
 }
 
-// IsDefault returns true if the local Teleport binary is both managed by teleport-update
+// IsManagedAndDefault returns true if the local Teleport binary is both managed by teleport-update
 // and the default installation (with teleport.service as the unit file name).
-func IsDefault() (bool, error) {
+// The binary is considered managed and default if it lives within /opt/teleport/default.
+func IsManagedAndDefault() (bool, error) {
 	teleportPath, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
-	defaultPath := filepath.Join(teleportOptDir, defaultNamespace) + "/"
-	absPath, err := filepath.Abs(teleportPath)
+	return hasParentDir(teleportPath, filepath.Join(teleportOptDir, defaultNamespace))
+}
+
+// hasParentDir returns true if dir is any parent directory of parent.
+// hasParentDir does not resolve symlinks, and requires that files be represented the same way in dir and parent.
+func hasParentDir(dir, parent string) (bool, error) {
+	// Note that os.Stat + os.SameFile would be more reliable,
+	// but does not work well for arbitrarily nested subdirectories.
+	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return false, trace.Wrap(err, "cannot get absolute path for Teleport binary")
+		return false, trace.Wrap(err, "cannot get absolute path for directory %s", dir)
 	}
-	return strings.HasPrefix(absPath, defaultPath), nil
+	absParent, err := filepath.Abs(parent)
+	if err != nil {
+		return false, trace.Wrap(err, "cannot get absolute path for parent directory %s", dir)
+	}
+	sep := string(filepath.Separator)
+	if !strings.HasSuffix(absParent, sep) {
+		absParent += sep
+	}
+	return strings.HasPrefix(absDir, absParent), nil
 }

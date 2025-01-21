@@ -322,13 +322,10 @@ func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "list-unit-files", "--quiet", s.ServiceName)
-	switch {
-	case code < 0:
+	if code < 0 {
 		return false, trace.Errorf("unable to determine if systemd service %s is present", s.ServiceName)
-	case code == 0:
-		return true, nil
 	}
-	return false, nil
+	return code == 0, nil
 }
 
 // checkSystem returns an error if the system is not compatible with this process manager.
