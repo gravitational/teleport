@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -126,49 +126,43 @@ type packageURL struct {
 	Optional bool
 }
 
-// makeURLs returns package URLs for the Teleport archive to download.
-func makeURLs(uriTmpl string, version string) ([]packageURL, error) {
-	tmpl, err := template.New("uri").Parse(uriTmpl)
+// teleportPackageURLs returns the URL for the Teleport archive to download. The format is:
+// https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
+func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
+	var flags autoupdate.InstallFlags
+	m := modules.GetModules()
+	if m.IsBoringBinary() {
+		flags |= autoupdate.FlagFIPS
+	}
+	if m.IsEnterpriseBuild() || m.IsBoringBinary() {
+		flags |= autoupdate.FlagEnterprise
+	}
+
+	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "teleport", autoupdate.Revision{
+		Version: version,
+		Flags:   flags,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	m := modules.GetModules()
-	params := struct {
-		OS, Version, Arch, Package string
-		FIPS, Enterprise           bool
-	}{
-		OS:         runtime.GOOS,
-		Version:    version,
-		Arch:       runtime.GOARCH,
-		FIPS:       m.IsBoringBinary(),
-		Enterprise: m.IsEnterpriseBuild() || m.IsBoringBinary(),
-		Package:    "teleport",
-	}
-
 	switch runtime.GOOS {
 	case constants.DarwinOS:
-		var teleportUriBuf bytes.Buffer
-		if err = tmpl.Execute(&teleportUriBuf, params); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		params.Package = "tsh"
-		var tshUriBuf bytes.Buffer
-		if err = tmpl.Execute(&tshUriBuf, params); err != nil {
+		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", autoupdate.Revision{
+			Version: version,
+			Flags:   flags,
+		})
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return []packageURL{
-			{Archive: teleportUriBuf.String(), Hash: teleportUriBuf.String() + ".sha256"},
-			{Archive: tshUriBuf.String(), Hash: tshUriBuf.String() + ".sha256", Optional: true},
+			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
+			{Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
 		}, nil
 	default:
-		var teleportUriBuf bytes.Buffer
-		if err = tmpl.Execute(&teleportUriBuf, params); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		return []packageURL{
-			{Archive: teleportUriBuf.String(), Hash: teleportUriBuf.String() + ".sha256"},
+			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
 		}, nil
 	}
 }

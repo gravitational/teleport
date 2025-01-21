@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
@@ -49,15 +50,6 @@ import (
 const (
 	// teleportToolsVersionEnv is environment name for requesting specific version for update.
 	teleportToolsVersionEnv = "TELEPORT_TOOLS_VERSION"
-	// cdnURITemplate is the default template for the Teleport CDN download URL.
-	cdnURITemplate = `https://cdn.teleport.dev/
-	{{- if eq .OS "darwin" }}
-	{{- .Package }}{{ if and .Enterprise (eq .Package "teleport") }}-ent{{ end }}-{{ .Version }}.pkg
-	{{- else if eq .OS "windows" }}
-	{{- .Package }}-v{{ .Version }}-windows-amd64-bin.zip
-	{{- else }}
-	{{- .Package }}{{ if .Enterprise }}-ent{{ end }}-v{{ .Version }}-{{ .OS }}-{{ .Arch }}{{ if .FIPS }}-fips{{ end }}-bin.tar.gz
-	{{- end }}`
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -74,6 +66,13 @@ var (
 
 // Option applies an option value for the Updater.
 type Option func(u *Updater)
+
+// WithBaseURL defines custom base url for the updater.
+func WithBaseURL(baseURL string) Option {
+	return func(u *Updater) {
+		u.baseURL = baseURL
+	}
+}
 
 // WithURITemplate defines custom URI template for the updater.
 func WithURITemplate(uriTemplate string) Option {
@@ -101,9 +100,10 @@ type Updater struct {
 	toolsDir     string
 	localVersion string
 	tools        []string
+	uriTemplate  string
+	baseURL      string
 
-	uriTemplate string
-	client      *http.Client
+	client *http.Client
 }
 
 // NewUpdater initializes the updater for client tools auto updates. We need to specify the tools directory
@@ -116,7 +116,8 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 		tools:        DefaultClientTools(),
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
-		uriTemplate:  cdnURITemplate,
+		uriTemplate:  autoupdate.DefaultCDNURITemplate,
+		baseURL:      autoupdate.DefaultBaseURL,
 		client:       http.DefaultClient,
 	}
 	for _, option := range options {
@@ -262,7 +263,7 @@ func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string)
 // with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 	// Get platform specific download URLs.
-	packages, err := makeURLs(u.uriTemplate, toolsVersion)
+	packages, err := teleportPackageURLs(u.uriTemplate, u.baseURL, toolsVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}

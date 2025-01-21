@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -34,10 +35,10 @@ import (
 var (
 	// version is the current version of the Teleport.
 	version = teleport.Version
-	// uriTemplate is CDN URI template for downloading official Teleport packages.
-	uriTemplate = cdnURITemplate
-	// templateEnvVar allows the template for the Teleport package URL to be specified via env var.
-	templateEnvVar = "TELEPORT_URL_TEMPLATE"
+	// baseURL is CDN URL for downloading official Teleport packages.
+	baseURL = autoupdate.DefaultBaseURL
+	// baseURLEnvVar allows to override base URL for the Teleport package URL via env var.
+	baseURLEnvVar = "TELEPORT_CDN_BASE_URL"
 )
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
@@ -54,12 +55,12 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 		return nil
 	}
 
-	// Overrides default URI template to define custom CDN for downloading updates.
-	if envURITemplate := os.Getenv(templateEnvVar); envURITemplate != "" {
-		uriTemplate = envURITemplate
+	// Overrides default base URL for custom CDN for downloading updates.
+	if envBaseURL := os.Getenv(baseURLEnvVar); envBaseURL != "" {
+		baseURL = envBaseURL
 	}
 
-	updater := NewUpdater(toolsDir, version, WithURITemplate(uriTemplate))
+	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
 	// At process startup, check if a version has already been downloaded to
 	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
 	// environment variable. If so, re-exec that version of client tools.
@@ -87,12 +88,12 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
 	}
-	// Overrides default URI template to define custom CDN for downloading updates.
-	if envURITemplate := os.Getenv(templateEnvVar); envURITemplate != "" {
-		uriTemplate = envURITemplate
+	// Overrides default base URL for custom CDN for downloading updates.
+	if envBaseURL := os.Getenv(baseURLEnvVar); envBaseURL != "" {
+		baseURL = envBaseURL
 	}
 
-	updater := NewUpdater(toolsDir, version, WithURITemplate(uriTemplate))
+	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
 	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
 	if err != nil {
 		return trace.Wrap(err)

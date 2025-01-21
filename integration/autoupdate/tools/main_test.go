@@ -55,8 +55,8 @@ var (
 	}
 	limitedWriter = newLimitedResponseWriter()
 
-	toolsDir    string
-	uriTemplate string
+	toolsDir string
+	baseURL  string
 )
 
 func TestMain(m *testing.M) {
@@ -81,13 +81,9 @@ func TestMain(m *testing.M) {
 			http.ServeFile(limitedWriter.Wrap(w), r, filePath)
 		}
 	}))
-	uriTemplate = fmt.Sprintf(`%s/
-		{{- if eq .OS "darwin" }}{{ .Package }}{{if .Enterprise}}-ent{{end}}-{{.Version}}.pkg
-		{{- else if eq .OS "windows" }}{{ .Package }}-v{{.Version}}-windows-amd64-bin.zip
-		{{- else }}{{ .Package }}{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz
-		{{- end }}`, server.URL)
+	baseURL = server.URL
 	for _, version := range testVersions {
-		if err := buildAndArchiveApps(ctx, tmp, toolsDir, version, server.URL); err != nil {
+		if err := buildAndArchiveApps(ctx, tmp, version, server.URL); err != nil {
 			log.Fatalf("failed to build testing app binary archive: %v", err)
 		}
 	}
@@ -135,7 +131,7 @@ func serve256File(w http.ResponseWriter, _ *http.Request, filePath string) {
 }
 
 // buildAndArchiveApps compiles the updater integration and pack it depends on platform is used.
-func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, version string, uriTemplate string) error {
+func buildAndArchiveApps(ctx context.Context, path string, version string, baseURL string) error {
 	versionPath := filepath.Join(path, version)
 	for _, app := range []string{"tsh", "tctl"} {
 		output := filepath.Join(versionPath, app)
@@ -145,7 +141,7 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 		case constants.DarwinOS:
 			output = filepath.Join(versionPath, app+".app", "Contents", "MacOS", app)
 		}
-		if err := buildBinary(output, toolsDir, version, uriTemplate, app); err != nil {
+		if err := buildBinary(output, version, baseURL, app); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -163,13 +159,13 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 }
 
 // buildBinary executes command to build client tool binary with updater logic for testing.
-func buildBinary(output string, toolsDir string, version string, uriTemplate string, app string) error {
+func buildBinary(output string, version string, baseURL string, app string) error {
 	cmd := exec.Command(
 		"go", "build", "-o", output,
 		"-ldflags", strings.Join([]string{
 			fmt.Sprintf("-X 'github.com/gravitational/teleport/integration/autoupdate/tools/updater.version=%s'", version),
 			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.version=%s'", version),
-			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.uriTemplate=%s'", uriTemplate),
+			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.baseURL=%s'", baseURL),
 		}, " "),
 		fmt.Sprintf("./updater/%s", app),
 	)
