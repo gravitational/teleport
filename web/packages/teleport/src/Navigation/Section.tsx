@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import React, { PropsWithChildren, ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
@@ -148,6 +148,33 @@ export function CustomChildrenSection({
   );
 }
 
+/**
+ * StandaloneSection is a section with no subsections, instead of expanding a drawer, the category button is clickable and takes you directly to a route.
+ */
+export function StandaloneSection({
+  title,
+  route,
+  Icon,
+  $active,
+}: {
+  title: string;
+  route: string;
+  Icon: (props) => ReactNode;
+  $active: boolean;
+}) {
+  return (
+    <CategoryButton
+      as={NavLink}
+      $active={$active}
+      isExpanded={false}
+      to={route}
+    >
+      <Icon />
+      {title}
+    </CategoryButton>
+  );
+}
+
 export const rightPanelWidth = 236;
 
 export const RightPanel = styled(Box).attrs({ px: '5px' })<{
@@ -265,6 +292,7 @@ export const CategoryButton = styled.button<{
   font-weight: ${props => props.theme.typography.body4.fontWeight};
   letter-spacing: ${props => props.theme.typography.body4.letterSpacing};
   line-height: ${props => props.theme.typography.body4.lineHeight};
+  text-decoration: none;
 
   ${props => getCategoryStyles(props.theme, props.$active, props.isExpanded)}
 `;
