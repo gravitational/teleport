@@ -1123,6 +1123,17 @@ follow the manual setup guide.
 All Teleport Assist functionality and OpenAI integration has been removed from
 Teleport.
 
+## 15.4.26 (01/21/2025)
+
+* Fixed WebAuthn attestation for Windows Hello. [#51249](https://github.com/gravitational/teleport/pull/51249)
+* Fixed client tools auto-updates executed by aliases (causes recursive alias error). [#51183](https://github.com/gravitational/teleport/pull/51183)
+* Include invited and reason fields in SessionStartEvents. [#51177](https://github.com/gravitational/teleport/pull/51177)
+* Updated Go to 1.22.11. [#51138](https://github.com/gravitational/teleport/pull/51138)
+* Assuming an Access Request in Teleport Connect now propagates elevated permissions to already opened Kubernetes tabs. [#51057](https://github.com/gravitational/teleport/pull/51057)
+* Fixed AWS SigV4 parse errors in app access when the application omits the optional spaces between the SigV4 components. [#51045](https://github.com/gravitational/teleport/pull/51045)
+* Fixed a Database Service bug where `db_service.resources.aws.assume_role_arn` settings could affect non-AWS dynamic databases or incorrectly override `db_service.aws.assume_role_arn` settings. [#51042](https://github.com/gravitational/teleport/pull/51042)
+* Prevent routing issues for agentless nodes that are created with non-UUID `metadata.name` fields. [#50926](https://github.com/gravitational/teleport/pull/50926)
+
 ## 15.4.25 (1/10/2024)
 
 * Prevent quoting errors in log messages. [#50823](https://github.com/gravitational/teleport/pull/50823)
