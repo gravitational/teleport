@@ -23,6 +23,7 @@ import (
 	"slices"
 
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
@@ -65,5 +66,12 @@ func LabelsToRedshiftServerlessTags(labels map[string]string) []rsstypes.Tag {
 func LabelsToElastiCacheTags(labels map[string]string) []ectypes.Tag {
 	return LabelsToTags(labels, func(key, value string) ectypes.Tag {
 		return ectypes.Tag{Key: &key, Value: &value}
+	})
+}
+
+// LabelsToMemoryDBTags converts labels into a [memorydbtypes.Tag] list.
+func LabelsToMemoryDBTags(labels map[string]string) []memorydbtypes.Tag {
+	return LabelsToTags(labels, func(key, value string) memorydbtypes.Tag {
+		return memorydbtypes.Tag{Key: &key, Value: &value}
 	})
 }
