@@ -262,6 +262,10 @@ export type Document =
   | DocumentConnectMyComputer
   | DocumentAuthorizeWebSession;
 
+/**
+ * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.
+ * See the comment for DocumentTshNodeWithLoginHost for more details.
+ */
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
 ): doc is DocumentTshNodeWithLoginHost {
@@ -270,6 +274,10 @@ export function isDocumentTshNodeWithLoginHost(
   return doc.kind === 'doc.terminal_tsh_node' && !('serverId' in doc);
 }
 
+/**
+ * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.
+ * See the comment for DocumentTshNodeWithLoginHost for more details.
+ */
 export function isDocumentTshNodeWithServerId(
   doc: Document
 ): doc is DocumentTshNodeWithServerId {
