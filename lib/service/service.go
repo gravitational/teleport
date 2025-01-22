@@ -4331,7 +4331,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxySigner, err := process.getPROXYSigner(conn.ServerIdentity)
+	proxySigner, err := process.getPROXYSigner(conn.ServerIdentity, cfg.Proxy.PROXYAllowDowngrade)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5372,7 +5372,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) getPROXYSigner(ident *state.Identity) (multiplexer.PROXYHeaderSigner, error) {
+func (process *TeleportProcess) getPROXYSigner(ident *state.Identity, allowDowngrade bool) (multiplexer.PROXYHeaderSigner, error) {
 	signer, err := keys.ParsePrivateKey(ident.KeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not parse identity's private key")
@@ -5383,7 +5383,7 @@ func (process *TeleportProcess) getPROXYSigner(ident *state.Identity) (multiplex
 		return nil, trace.Wrap(err, "could not create JWT signer")
 	}
 
-	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner)
+	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner, allowDowngrade)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
