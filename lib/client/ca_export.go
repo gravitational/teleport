@@ -132,15 +132,6 @@ func ExportAuthorities(ctx context.Context, client authclient.ClientI, req Expor
 	return exportAuthorities(ctx, client, req, ExportAllAuthorities)
 }
 
-// ExportAuthoritiesSecrets is the single-authority variant of
-// [ExportAllAuthoritiesSecrets].
-// Soft-deprecated, prefer using [ExportAllAuthoritiesSecrets] and handling
-// exports with more than one authority gracefully.
-func ExportAuthoritiesSecrets(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
-	// TODO(codingllama): Remove ExportAuthoritiesSecrets.
-	return exportAuthorities(ctx, client, req, ExportAllAuthoritiesSecrets)
-}
-
 func exportAuthorities(
 	ctx context.Context,
 	client authclient.ClientI,
