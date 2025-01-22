@@ -706,6 +706,10 @@ type Auth struct {
 	// with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
+	// ProxyProtocolAllowDowngrade controls support for downgrading IPv6 source addresses in PROXY headers to pseudo IPv4
+	// addresses when connecting to an IPv4 destination
+	ProxyProtocolAllowDowngrade *types.BoolOption `yaml:"proxy_protocol_allow_downgrade,omitempty"`
+
 	// ClusterName is the name of the CA who manages this cluster
 	ClusterName ClusterName `yaml:"cluster_name,omitempty"`
 
@@ -2087,6 +2091,9 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
+	// ProxyProtocolAllowDowngrade controls support for downgrading IPv6 source addresses in PROXY headers to pseudo IPv4
+	// addresses when connecting to an IPv4 destination
+	ProxyProtocolAllowDowngrade *types.BoolOption `yaml:"proxy_protocol_allow_downgrade,omitempty"`
 	// KubeProxy configures kubernetes protocol support of the proxy
 	Kube KubeProxy `yaml:"kubernetes,omitempty"`
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a

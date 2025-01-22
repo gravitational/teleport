@@ -403,7 +403,7 @@ func TestProxyLine_AddSignature(t *testing.T) {
 				TLVs: tt.inputTLVs,
 			}
 
-			err := pl.AddSignature([]byte(tt.signature), []byte(tt.cert))
+			err := pl.AddTeleportTLVs([]byte(tt.signature), []byte(tt.cert), nil)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr, "Didn't find expected error")
 			} else {
@@ -422,12 +422,33 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	tlsProxyCert, casGetter, jwtSigner := getTestCertCAsGetterAndSigner(t, clusterName)
 
 	ip := "1.2.3.4"
+	ipV6 := "::1"
 	sAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 444}
 	dAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 555}
+
+	sAddrV6 := net.TCPAddr{IP: net.ParseIP(ipV6), Port: 888}
+	dAddrV6 := net.TCPAddr{IP: net.ParseIP(ipV6), Port: 999}
+
+	sAddrPseudo, err := getPseudoIPV4(sAddrV6)
+	require.NoError(t, err)
 
 	signature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
 		ClusterName:        clusterName,
 		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	signatureV6, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      sAddrV6.String(),
+		DestinationAddress: dAddrV6.String(),
+	})
+	require.NoError(t, err)
+
+	signatureDowngrade, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      sAddrV6.String(),
 		DestinationAddress: dAddr.String(),
 	})
 	require.NoError(t, err)
@@ -462,6 +483,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 
 		sAddr            net.TCPAddr
 		dAddr            net.TCPAddr
+		originalSAddr    *net.TCPAddr
 		hostCACert       []byte
 		localClusterName string
 		signature        string
@@ -549,15 +571,48 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 			cert:             tlsProxyCert,
 			wantErr:          "",
 		},
+		{
+			desc:             "success v6",
+			sAddr:            sAddrV6,
+			dAddr:            dAddrV6,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signatureV6,
+			cert:             tlsProxyCert,
+			wantErr:          "",
+		},
+		{
+			desc:             "success ipv6->ipv4 downgrade",
+			sAddr:            sAddrPseudo,
+			dAddr:            dAddr,
+			originalSAddr:    &sAddrV6,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signatureDowngrade,
+			cert:             tlsProxyCert,
+			wantErr:          "",
+		},
+		{
+			desc:             "failure ipv6->ipv4 downgrade, pseudo source address does not match signed ipv6",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			originalSAddr:    &sAddrV6,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signatureDowngrade,
+			cert:             tlsProxyCert,
+			wantErr:          "mismatched pseudo IPv4 source and original IPv6 in proxy line",
+		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
 			pl := ProxyLine{
-				Source:      sAddr,
-				Destination: dAddr,
+				Source:      tt.sAddr,
+				Destination: tt.dAddr,
 			}
-			err := pl.AddSignature([]byte(tt.signature), tt.cert)
+
+			err := pl.AddTeleportTLVs([]byte(tt.signature), tt.cert, tt.originalSAddr)
 			require.NoError(t, err)
 
 			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{

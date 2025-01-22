@@ -942,6 +942,9 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.PROXYProtocolMode = val
 	}
 
+	allowDowngrade := fc.Auth.ProxyProtocolAllowDowngrade
+	cfg.Auth.PROXYAllowDowngrade = allowDowngrade != nil && allowDowngrade.Value
+
 	if fc.Auth.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
 		if err != nil {
@@ -1207,6 +1210,9 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		cfg.Proxy.PROXYProtocolMode = val
 	}
+
+	allowDowngrade := fc.Proxy.ProxyProtocolAllowDowngrade
+	cfg.Proxy.PROXYAllowDowngrade = allowDowngrade != nil && allowDowngrade.Value
 
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)

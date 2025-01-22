@@ -4270,6 +4270,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	proxySigner, err := process.getPROXYSigner(conn.ServerIdentity)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5322,7 +5323,7 @@ func (process *TeleportProcess) getPROXYSigner(ident *state.Identity) (multiplex
 		return nil, trace.Wrap(err, "could not create JWT signer")
 	}
 
-	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner)
+	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner, process.Config.Proxy.PROXYAllowDowngrade)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
