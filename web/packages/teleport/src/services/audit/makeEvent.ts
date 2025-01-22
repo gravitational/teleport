@@ -2022,41 +2022,14 @@ export const formatters: Formatters = {
       return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
-  [eventCodes.AWS_IC_ACCOUNT_SYNC]: {
+  [eventCodes.AWS_IC_RESOURCE_SYNC]: {
     type: 'aws_identity_center.account.sync',
-    desc: 'Account Sync',
-    format: ({ imported_resources }) => {
-      const names = imported_resources.map(m => m.name);
-      const namesJoined = names.join(', ');
-      return `${pluralize(names.length, 'Imported account')} [${namesJoined}]`;
-    },
-  },
-  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_SYNC]: {
-    type: 'aws_identity_center.account_assignment.sync',
-    desc: 'Account Assignment Sync',
-    format: ({ imported_resources }) => {
-      const names = imported_resources.map(m => m.name);
-      const namesJoined = names.join(', ');
-      return `${pluralize(names.length, 'Imported account assignment')} [${namesJoined}]`;
-    },
-  },
-  [eventCodes.AWS_IC_USER_GROUP_SYNC]: {
-    type: 'aws_identity_center.user_group.sync',
-    desc: 'User Group Sync',
-    // format: ({ imported_resources }) => `principal created`,
-    format: ({ imported_resources }) => {
-      const names = imported_resources.map(m => m.name);
-      const namesJoined = names.join(', ');
-      return `${pluralize(names.length, 'Imported group')} [${namesJoined}]`;
-    },
-  },
-  [eventCodes.AWSIC_PERMISSION_SET_SYNC]: {
-    type: 'aws_identity_center.permission_set.sync',
-    desc: 'Permission Set Sync',
-    format: ({ imported_resources }) => {
-      const names = imported_resources.map(m => m.name);
-      const namesJoined = names.join(', ');
-      return `${pluralize(names.length, 'Imported permission set')} [${namesJoined}]`;
+    desc: 'AWS IAM Identity Center Resource Sync',
+    format: ({ user_group }) => {
+      if (user_group) {
+        return 'User groups imported and synced as Access List';
+      }
+      return 'Periodic upstream account, account assignment, permission set sync';
     },
   },
   [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE]: {

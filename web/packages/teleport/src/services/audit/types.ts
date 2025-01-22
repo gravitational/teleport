@@ -312,15 +312,12 @@ export const eventCodes = {
   CONTACT_DELETE: 'TCTC002I',
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
-  AWS_IC_ACCOUNT_SYNC: 'TAIC001I',
-  AWSIC_ACCOUNT_ASSIGNMENT_SYNC: 'TAIC002I',
-  AWSIC_PERMISSION_SET_SYNC: 'TAIC003I',
-  AWS_IC_USER_GROUP_SYNC: 'TAIC004I',
-  AWSIC_PRINCIPAL_ASSIGNMENT_CREATE: 'TAIC005I',
-  AWSIC_PRINCIPAL_ASSIGNMENT_DELETE: 'TAIC006I',
-  AWSIC_PRINCIPAL_PROVISIONING_CREATE: 'TAIC007I',
-  AWSIC_PRINCIPAL_PROVISIONING_DELETE: 'TAIC008I',
-  AWSIC_PRINCIPAL_PROVISIONING_UPDATE: 'TAIC009I',
+  AWS_IC_RESOURCE_SYNC: 'TAIC001I',
+  AWSIC_PRINCIPAL_ASSIGNMENT_CREATE: 'TAIC002I',
+  AWSIC_PRINCIPAL_ASSIGNMENT_DELETE: 'TAIC003I',
+  AWSIC_PRINCIPAL_PROVISIONING_CREATE: 'TAIC004I',
+  AWSIC_PRINCIPAL_PROVISIONING_DELETE: 'TAIC005I',
+  AWSIC_PRINCIPAL_PROVISIONING_UPDATE: 'TAIC006I',
 } as const;
 
 /**
@@ -1794,17 +1791,8 @@ export type RawEvents = {
       exitError: string;
     }
   >;
-  [eventCodes.AWS_IC_USER_GROUP_SYNC]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_USER_GROUP_SYNC
-  >;
-  [eventCodes.AWS_IC_ACCOUNT_SYNC]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_ACCOUNT_SYNC
-  >;
-  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_SYNC]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_SYNC
-  >;
-  [eventCodes.AWSIC_PERMISSION_SET_SYNC]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWSIC_PERMISSION_SET_SYNC
+  [eventCodes.AWS_IC_RESOURCE_SYNC]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC
   >;
   [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE]: RawEventAwsIcPrincipalAssignment<
     typeof eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE
@@ -2021,16 +2009,23 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
   }
 >;
 
+type AwsIcResourceSyncEvent = {
+  total_items: number;
+  items: {
+    name: string;
+    arn: string;
+    id?: string;
+    assigned_permission_set_arn?: string;
+  }[];
+};
+
 type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
   T,
   {
-    import_count: number;
-    imported_resources: {
-      name: string;
-      arn: string;
-      id?: string;
-      assigned_permission_set_arn?: string;
-    }[];
+    account: AwsIcResourceSyncEvent;
+    account_assignment: AwsIcResourceSyncEvent;
+    user_group: AwsIcResourceSyncEvent;
+    permission_set: AwsIcResourceSyncEvent;
   }
 >;
 

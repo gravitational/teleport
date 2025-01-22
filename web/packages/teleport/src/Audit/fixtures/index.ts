@@ -3799,42 +3799,72 @@ export const events = [
     ],
   },
   {
-    code: 'TAIC002I',
-    event: 'aws_identity_center.account_assignment.sync',
-    time: '2025-01-22T02:23:25.736Z',
-    uid: '11c323fa-bd55-4beb-b1d2-f77cf8d5f85c',
-    import_count: 2,
-    imported_resources: [
-      {
-        assigned_permission_set_arn:
-          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-25beafadd65e32d5',
-        id: '711387105216',
-        name: 'account1',
-      },
-      {
-        assigned_permission_set_arn:
-          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
-        id: '116981771655',
-        name: 'account2',
-      },
-    ],
-  },
-  {
-    code: 'TAIC003I',
-    event: 'aws_identity_center.permission_set.sync',
-    time: '2025-01-22T02:23:25.736Z',
-    uid: 'd0e749e6-6e3b-495d-9ec1-2f25f1d07620',
-    import_count: 2,
-    imported_resources: [
-      {
-        arn: 'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
-        name: 'DataScientist',
-      },
-      {
-        arn: 'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-e644c1c111dc9656',
-        name: 'NetworkAdministrator',
-      },
-    ],
+    code: 'TAIC001I',
+    event: 'aws_identity_center.resource.sync',
+    time: '2025-01-22T21:25:51.02Z',
+    uid: '10ce769a-e740-4c72-bdfb-0e13a4b5ca75',
+    account: {
+      items: [
+        {
+          arn: 'arn:aws:organizations::0260xxx:account/o-u0gc7iutph/11xxx71655',
+          assigned_permission_set_arn: '',
+          id: '1169xxx55',
+          name: 'account1',
+        },
+        {
+          arn: 'arn:aws:organizations::0260xxx54232:account/o-u0gc7iutph/0260xxx2',
+          assigned_permission_set_arn: '',
+          id: '02xxx2',
+          name: 'account2',
+        },
+      ],
+      success: true,
+      total_items: 2,
+    },
+    account_assignment: {
+      items: [
+        {
+          assigned_permission_set_arn:
+            'arn:aws:sso:::permissionSet/ssoins-8824xxx26a/ps-93cddcxxx',
+          id: '116981771655',
+          name: 'account1',
+        },
+        {
+          assigned_permission_set_arn:
+            'arn:aws:sso:::permissionSet/ssoins-8824xxx26a/ps-93cddcxxx',
+          id: '253490786533',
+          name: 'account2',
+        },
+      ],
+      success: true,
+      total_items: 2,
+    },
+    user_group: {
+      items: [
+        {
+          id: '1234example',
+          name: 'group1',
+        },
+        {
+          id: '1234example2',
+          name: 'group2',
+        },
+      ],
+      success: true,
+      total_items: 2,
+    },
+    permission_set: {
+      items: [
+        {
+          arn: 'arn:aws:sso:::permissionSet/ssoins-8824xxx26a/ps-93cddcxxx',
+          assigned_permission_set_arn: '',
+          id: '',
+          name: 'DataScientist',
+        },
+      ],
+      success: true,
+      total_items: 1,
+    },
   },
   {
     code: 'TAIC005I',
@@ -3848,7 +3878,7 @@ export const events = [
       {
         account_id: 'account2',
         permission_set_arn:
-          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
+          'arn:aws:sso:::permissionSet/ssoins-8824xxx26a/ps-93cddcxxx',
       },
     ],
   },
@@ -3864,7 +3894,7 @@ export const events = [
       {
         account_id: 'account1',
         permission_set_arn:
-          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
+          'arn:aws:sso:::permissionSet/ssoins-8824xxx26a/ps-93cddcxxx',
       },
     ],
   },
