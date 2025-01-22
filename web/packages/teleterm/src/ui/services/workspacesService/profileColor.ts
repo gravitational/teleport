@@ -42,13 +42,15 @@ export function parseProfileColor(
     }
   >
 ): ProfileColor {
+  const getDefault = () => getNextProfileColor(workspaces);
   return profileColors
+    .default(getDefault)
     .catch(ctx => {
       new Logger('WorkspacesService').error(
         'Failed to read profile color preference',
         ctx.error
       );
-      return getNextProfileColor(workspaces);
+      return getDefault();
     })
     .parse(color);
 }
