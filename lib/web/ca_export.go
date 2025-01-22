@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -82,7 +81,7 @@ func (h *Handler) authExportPublicError(w http.ResponseWriter, r *http.Request, 
 
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
-	reader := strings.NewReader(string(authorities[0].Data))
+	reader := bytes.NewReader(authorities[0].Data)
 	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
 	return nil
 }
