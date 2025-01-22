@@ -158,7 +158,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 			NextToken: aws.String(nextToken),
 		})
 		if err != nil {
-			return nil, awslib.ConvertIAMv2Error(err)
+			return nil, awslib.ConvertIAMError(err)
 		}
 
 		ret = append(ret, resp.ServiceArns...)

@@ -35,5 +35,5 @@ func execAdminProcess(ctx context.Context, config daemon.Config) error {
 
 // DaemonSubcommand runs the VNet daemon process.
 func DaemonSubcommand(ctx context.Context) error {
-	return trace.Wrap(daemon.Start(ctx, RunAdminProcess))
+	return trace.Wrap(daemon.Start(ctx, RunDarwinAdminProcess))
 }

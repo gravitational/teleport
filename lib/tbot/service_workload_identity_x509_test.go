@@ -19,9 +19,12 @@ package tbot
 import (
 	"context"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/stretchr/testify/require"
 
@@ -113,6 +116,16 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, "spiffe://root/valid/by-name", svid.ID.String())
+
+		// Validate the trust bundle was written to disk, and, that our SVID
+		// appears valid according to the trust bundle.
+		td := spiffeid.RequireTrustDomainFromString("root")
+		bundle, err := x509bundle.Load(
+			td, filepath.Join(tmpDir, config.SVIDTrustBundlePEMPath),
+		)
+		require.NoError(t, err)
+		_, _, err = x509svid.Verify(svid.Certificates, bundle)
+		require.NoError(t, err)
 	})
 	t.Run("By Labels", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -145,5 +158,15 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, "spiffe://root/valid/by-labels", svid.ID.String())
+
+		// Validate the trust bundle was written to disk, and, that our SVID
+		// appears valid according to the trust bundle.
+		td := spiffeid.RequireTrustDomainFromString("root")
+		bundle, err := x509bundle.Load(
+			td, filepath.Join(tmpDir, config.SVIDTrustBundlePEMPath),
+		)
+		require.NoError(t, err)
+		_, _, err = x509svid.Verify(svid.Certificates, bundle)
+		require.NoError(t, err)
 	})
 }
