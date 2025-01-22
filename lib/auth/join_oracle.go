@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/oracle/oci-go-sdk/v65/common"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -92,7 +91,7 @@ func checkOracleAllowRules(claims oracle.Claims, token string, allowRules []*typ
 			continue
 		}
 		if len(rule.Regions) != 0 && !slices.ContainsFunc(rule.Regions, func(region string) bool {
-			return string(common.StringToRegion(region)) == claims.Region()
+			return string(oracle.ParseRegion(region)) == claims.Region()
 		}) {
 			continue
 		}
@@ -109,7 +108,7 @@ func formatHeaderFromMap(m map[string]string) http.Header {
 	return header
 }
 
-func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest, endpoint string) (*oracle.Claims, error) {
+func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest, fetchClaims oracleClaimsFetcher) (*oracle.Claims, error) {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
@@ -120,7 +119,7 @@ func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *
 	}
 
 	outerHeaders := formatHeaderFromMap(req.Headers)
-	innerHeaders := formatHeaderFromMap(req.InnerHeaders)
+	innerHeaders := formatHeaderFromMap(req.PayloadHeaders)
 	if err := checkHeaders(outerHeaders, challenge, a.GetClock()); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,20 +133,18 @@ func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *
 	if len(hostParts) != 4 {
 		return nil, trace.BadParameter("unexpected host: %v", host)
 	}
-	region := string(common.StringToRegion(hostParts[1]))
+	region := string(oracle.ParseRegion(hostParts[1]))
 	if region == "" {
 		return nil, trace.BadParameter("invalid region: %v", region)
 	}
-	if endpoint == "" {
-		endpoint = fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
-	}
 
+	endpoint := fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
 	authReq, err := oracle.CreateRequestFromHeaders(endpoint, innerHeaders, outerHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	claims, err := oracle.FetchOraclePrincipalClaims(ctx, authReq)
+	claims, err := fetchClaims(ctx, authReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,14 +166,16 @@ func (a *Server) RegisterUsingOracleMethod(
 	ctx context.Context,
 	challengeResponse client.RegisterOracleChallengeResponseFunc,
 ) (certs *proto.Certs, err error) {
-	certs, err = a.registerUsingOracleMethod(ctx, challengeResponse, "" /* default endpoint */)
+	certs, err = a.registerUsingOracleMethod(ctx, challengeResponse, oracle.FetchOraclePrincipalClaims)
 	return certs, trace.Wrap(err)
 }
+
+type oracleClaimsFetcher func(ctx context.Context, req *http.Request) (oracle.Claims, error)
 
 func (a *Server) registerUsingOracleMethod(
 	ctx context.Context,
 	challengeResponse client.RegisterOracleChallengeResponseFunc,
-	endpoint string,
+	fetchClaims oracleClaimsFetcher,
 ) (certs *proto.Certs, err error) {
 	var provisionToken types.ProvisionToken
 	var joinRequest *types.RegisterUsingTokenRequest
@@ -206,7 +205,7 @@ func (a *Server) registerUsingOracleMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	claims, err := a.checkOracleRequest(ctx, challenge, req, endpoint)
+	claims, err := a.checkOracleRequest(ctx, challenge, req, fetchClaims)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

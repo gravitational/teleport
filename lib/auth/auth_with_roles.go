@@ -30,7 +30,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/oracle/oci-go-sdk/v65/common"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 
@@ -53,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -2393,7 +2393,7 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	return nil
 }
 
-func validateJoinToken(token types.ProvisionToken) error {
+func validateOracleJoinToken(token types.ProvisionToken) error {
 	if token.GetJoinMethod() != types.JoinMethodOracle {
 		return nil
 	}
@@ -2405,12 +2405,20 @@ func validateJoinToken(token types.ProvisionToken) error {
 	}
 	oracleSpec := tokenV2.Spec.Oracle
 	if oracleSpec == nil {
-		return trace.BadParameter("missing oracle spec")
+		return trace.BadParameter("missing spec")
 	}
 	for _, allow := range oracleSpec.Allow {
+		if _, err := oracle.ParseRegionFromOCID(allow.Tenancy); err != nil {
+			return trace.BadParameter("invalid tenant: %v", allow.Tenancy)
+		}
+		for _, compartment := range allow.ParentCompartments {
+			if _, err := oracle.ParseRegionFromOCID(compartment); err != nil {
+				return trace.BadParameter("invalid compartment: %v", compartment)
+			}
+		}
 		for _, region := range allow.Regions {
-			if common.StringToRegion(region) == "" {
-				return trace.BadParameter("invalid oracle region: %v", region)
+			if oracle.ParseRegion(region) == "" {
+				return trace.BadParameter("invalid region: %v", region)
 			}
 		}
 	}
@@ -2454,7 +2462,7 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := validateJoinToken(token); err != nil {
+	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2479,7 +2487,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := validateJoinToken(token); err != nil {
+	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 

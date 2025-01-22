@@ -164,7 +164,7 @@ func TestJoinServiceClient_RegisterUsingOracleMethod(t *testing.T) {
 		Headers: map[string]string{
 			"x-teleport-challenge": mockChallenge,
 		},
-		InnerHeaders: map[string]string{
+		PayloadHeaders: map[string]string{
 			"x-teleport-challenge": mockChallenge,
 		},
 	}

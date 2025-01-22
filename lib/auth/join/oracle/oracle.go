@@ -42,18 +42,10 @@ const (
 )
 
 const (
-	// TenancyClaim is the name of the claim for an instance's tenant ID.
-	TenancyClaim = "opc-tenant"
-	// CompartmentClaim is the name of the claim for an instance's compartment ID.
-	CompartmentClaim = "opc-compartment"
-	// InstanceClaim is the name of the claim for an instance's ID.
-	InstanceClaim = "opc-instance"
+	tenancyClaim     = "opc-tenant"
+	compartmentClaim = "opc-compartment"
+	instanceClaim    = "opc-instance"
 )
-
-// FormatDateHeader formats a date for x-date.
-func FormatDateHeader(d time.Time) string {
-	return d.UTC().Format(http.TimeFormat)
-}
 
 type authenticateClientDetails struct {
 	RequestHeaders http.Header `json:"requestHeaders"`
@@ -85,42 +77,42 @@ func (c Claims) Region() string {
 	return region
 }
 
-type Claim struct {
+type claim struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
-type Principal struct {
-	Claims []Claim `json:"claims"`
+type principal struct {
+	Claims []claim `json:"claims"`
 }
 
-func (p Principal) GetClaims() Claims {
+func (p principal) getClaims() Claims {
 	claims := Claims{}
 	for _, claim := range p.Claims {
 		switch claim.Key {
-		case TenancyClaim:
+		case tenancyClaim:
 			claims.TenancyID = claim.Value
-		case CompartmentClaim:
+		case compartmentClaim:
 			claims.CompartmentID = claim.Value
-		case InstanceClaim:
+		case instanceClaim:
 			claims.InstanceID = claim.Value
 		}
 	}
 	return claims
 }
 
-type AuthenticateClientResult struct {
-	ErrorMessage string    `json:"errorMessage"`
-	Principal    Principal `json:"principal"`
+type authenticateClientResult struct {
+	ErrorMessage string    `json:"errorMessage,omitempty"`
+	Principal    principal `json:"principal,omitempty"`
 }
 
-type AuthenticateClientResponse struct {
-	AuthenticateClientResult `presentIn:"body"`
+type authenticateClientResponse struct {
+	Result authenticateClientResult `presentIn:"body"`
 }
 
 func newAuthenticateClientRequest(time time.Time, challenge string, headers http.Header) authenticateClientRequest {
 	req := authenticateClientRequest{
-		Date:      FormatDateHeader(time),
+		Date:      time.UTC().Format(http.TimeFormat),
 		Challenge: challenge,
 		UserAgent: teleportUserAgent,
 		Details: authenticateClientDetails{
@@ -237,10 +229,10 @@ func FetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (Claims,
 		return Claims{}, trace.Wrap(err)
 	}
 	defer authResp.Body.Close()
-	var resp AuthenticateClientResponse
+	var resp authenticateClientResponse
 	unmarshalErr := common.UnmarshalResponse(authResp, &resp)
-	if authResp.StatusCode >= 300 || resp.ErrorMessage != "" {
-		msg := resp.ErrorMessage
+	if authResp.StatusCode >= 300 || resp.Result.ErrorMessage != "" {
+		msg := resp.Result.ErrorMessage
 		if msg == "" {
 			msg = authResp.Status
 		}
@@ -249,9 +241,26 @@ func FetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (Claims,
 	if unmarshalErr != nil {
 		return Claims{}, trace.Wrap(unmarshalErr)
 	}
-	return resp.Principal.GetClaims(), nil
+	return resp.Result.Principal.getClaims(), nil
 }
 
+// Hack: StringToRegion will lazily load regions from a config file if its
+// input isn't in its hard-coded list, in a non-threadsafe way. Call it here
+// to load the config ahead of time.
+var _ = common.StringToRegion("")
+
+// ParseRegion parses a string into a full (not abbreviated) Oracle Cloud
+// region. It returns the empty string if the input is not a valid region.
+func ParseRegion(rawRegion string) string {
+	region := common.StringToRegion(rawRegion)
+	if _, err := region.RealmID(); err != nil {
+		return ""
+	}
+	return string(region)
+}
+
+// ParseRegionFromOCID parses an Oracle OCID and returns the embedded region.
+// It returns an error if the input is not a valid OCID.
 func ParseRegionFromOCID(ocid string) (string, error) {
 	// OCID format: ocid1.<RESOURCE TYPE>.<REALM>.[REGION][.FUTURE USE].<UNIQUE ID>
 	ocidParts := strings.Split(ocid, ".")
@@ -264,7 +273,7 @@ func ParseRegionFromOCID(ocid string) (string, error) {
 		return "", trace.BadParameter("invalid ocid version: %v", ocidParts[0])
 	}
 	resourceType := ocidParts[1]
-	region := common.StringToRegion(ocidParts[3])
+	region := ParseRegion(ocidParts[3])
 	switch resourceType {
 	case "instance":
 		if region == "" {
@@ -272,7 +281,7 @@ func ParseRegionFromOCID(ocid string) (string, error) {
 		}
 	case "compartment", "tenancy":
 		if ocidParts[3] != "" {
-			return "", trace.BadParameter("resource %v should not have a region", resourceType)
+			return "", trace.BadParameter("resource type %v should not have a region", resourceType)
 		}
 	default:
 		return "", trace.BadParameter("unsupported resource type: %v", resourceType)
@@ -282,5 +291,5 @@ func ParseRegionFromOCID(ocid string) (string, error) {
 	default:
 		return "", trace.BadParameter("invalid realm: %v", ocidParts[2])
 	}
-	return string(region), nil
+	return region, nil
 }

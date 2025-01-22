@@ -111,19 +111,19 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 	}{
 		{
 			name: "ok",
-			handler: defaultHandle(http.StatusOK, AuthenticateClientResult{
-				Principal: Principal{
-					Claims: []Claim{
+			handler: defaultHandle(http.StatusOK, authenticateClientResult{
+				Principal: principal{
+					Claims: []claim{
 						{
-							Key:   TenancyClaim,
+							Key:   tenancyClaim,
 							Value: defaultTenancyID,
 						},
 						{
-							Key:   CompartmentClaim,
+							Key:   compartmentClaim,
 							Value: defaultCompartmentID,
 						},
 						{
-							Key:   InstanceClaim,
+							Key:   instanceClaim,
 							Value: defaultInstanceID,
 						},
 					},
@@ -146,12 +146,12 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 		},
 		{
 			name:    "http error",
-			handler: defaultHandle(http.StatusNotFound, AuthenticateClientResult{}),
+			handler: defaultHandle(http.StatusNotFound, authenticateClientResult{}),
 			assert:  assert.Error,
 		},
 		{
 			name: "api error",
-			handler: defaultHandle(http.StatusOK, AuthenticateClientResult{
+			handler: defaultHandle(http.StatusOK, authenticateClientResult{
 				ErrorMessage: "it didn't work",
 			}),
 			assert: assert.Error,
@@ -175,6 +175,100 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 			claims, err := FetchOraclePrincipalClaims(ctx, req)
 			tc.assert(t, err)
 			assert.Equal(t, tc.expectedClaims, claims)
+		})
+	}
+}
+
+func TestParseRegion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		inputRegion    string
+		expectedRegion string
+	}{
+		{
+			name:           "valid full region",
+			inputRegion:    "us-phoenix-1",
+			expectedRegion: "us-phoenix-1",
+		},
+		{
+			name:           "valid abbreviated region",
+			inputRegion:    "iad",
+			expectedRegion: "us-ashburn-1",
+		},
+		{
+			name:        "invalid region",
+			inputRegion: "foo",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expectedRegion, ParseRegion(tc.inputRegion))
+		})
+	}
+}
+
+func TestParseRegionFromOCID(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		ocid           string
+		assert         assert.ErrorAssertionFunc
+		expectedRegion string
+	}{
+		{
+			name:           "ok",
+			ocid:           "ocid1.instance.oc1.us-phoenix-1.abcd1234",
+			assert:         assert.NoError,
+			expectedRegion: "us-phoenix-1",
+		},
+		{
+			name:           "ok with future use",
+			ocid:           "ocid1.instance.oc1.us-phoenix-1.FUTURE.abcd1234",
+			assert:         assert.NoError,
+			expectedRegion: "us-phoenix-1",
+		},
+		{
+			name:   "ok with compartment/tenancy",
+			ocid:   "ocid1.compartment.oc1..abcd1234",
+			assert: assert.NoError,
+		},
+		{
+			name:   "not an ocid",
+			ocid:   "some.junk",
+			assert: assert.Error,
+		},
+		{
+			name:   "invalid version",
+			ocid:   "ocid2.instance.oc1.us-phoenix-1.abcd1234",
+			assert: assert.Error,
+		},
+		{
+			name:   "missing region on instance",
+			ocid:   "ocid1.instance.oc1..abcd1234",
+			assert: assert.Error,
+		},
+		{
+			name:   "unexpected region on compartment/tenancy",
+			ocid:   "ocid1.tenancy.oc1.us-phoenix-1.abcd1234",
+			assert: assert.Error,
+		},
+		{
+			name:   "invalid realm",
+			ocid:   "ocid1.instance.ocxyz.us-phoenix-1.abcd1234",
+			assert: assert.Error,
+		},
+		{
+			name:   "invalid region",
+			ocid:   "ocid1.instance.oc1.junk-region.abcd1234",
+			assert: assert.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			region, err := ParseRegionFromOCID(tc.ocid)
+			tc.assert(t, err)
+			assert.Equal(t, tc.expectedRegion, region)
 		})
 	}
 }

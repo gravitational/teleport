@@ -1804,7 +1804,7 @@ message ProvisionTokenSpecV2Oracle {
   // to use this ProvisionToken.
   message Rule {
     // Tenancy is the OCID of the instance's tenancy. Required.
-    string Tenancy = 1 [(gogoproto.jsontag) = "tenancy,omitempty"];
+    string Tenancy = 1 [(gogoproto.jsontag) = "tenancy"];
     // ParentCompartments is a list of the OCIDs of compartments an instance is
     // allowed to join from. Only direct parents are allowed, i.e. no nested
     // compartments. If empty, any compartment is allowed.

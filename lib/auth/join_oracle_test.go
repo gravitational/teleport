@@ -21,13 +21,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/oracle/oci-go-sdk/v65/common"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/trace"
 )
 
 func TestCheckHeaders(t *testing.T) {
@@ -48,7 +46,7 @@ func TestCheckHeaders(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		headers := formatHeaderFromMap(map[string]string{
 			"Authorization":        defaultAuthHeader,
-			oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+			oracle.DateHeader:      clock.Now().UTC().Format(http.TimeFormat),
 			oracle.ChallengeHeader: defaultChallenge,
 		})
 		require.NoError(t, checkHeaders(headers, defaultChallenge, clock))
@@ -62,7 +60,7 @@ func TestCheckHeaders(t *testing.T) {
 			name: "missing signed headers",
 			headers: map[string]string{
 				"Authorization":        `Signature foo="bar"`,
-				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.DateHeader:      clock.Now().UTC().Format(http.TimeFormat),
 				oracle.ChallengeHeader: defaultChallenge,
 			},
 		},
@@ -70,7 +68,7 @@ func TestCheckHeaders(t *testing.T) {
 			name: "date not signed",
 			headers: map[string]string{
 				"Authorization":        fmt.Sprintf(`Signature headers="%s"`, oracle.ChallengeHeader),
-				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.DateHeader:      clock.Now().UTC().Format(http.TimeFormat),
 				oracle.ChallengeHeader: defaultChallenge,
 			},
 		},
@@ -78,7 +76,7 @@ func TestCheckHeaders(t *testing.T) {
 			name: "challenge not signed",
 			headers: map[string]string{
 				"Authorization":        fmt.Sprintf(`Signature headers="%s"`, oracle.DateHeader),
-				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.DateHeader:      clock.Now().UTC().Format(http.TimeFormat),
 				oracle.ChallengeHeader: defaultChallenge,
 			},
 		},
@@ -93,7 +91,7 @@ func TestCheckHeaders(t *testing.T) {
 			name: "date too early",
 			headers: map[string]string{
 				"Authorization":        defaultAuthHeader,
-				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now().Add(10 * time.Minute)),
+				oracle.DateHeader:      clock.Now().Add(10 * time.Minute).UTC().Format(http.TimeFormat),
 				oracle.ChallengeHeader: defaultChallenge,
 			},
 		},
@@ -101,7 +99,7 @@ func TestCheckHeaders(t *testing.T) {
 			name: "date too late",
 			headers: map[string]string{
 				"Authorization":        defaultAuthHeader,
-				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now().Add(-10 * time.Minute)),
+				oracle.DateHeader:      clock.Now().Add(-10 * time.Minute).UTC().Format(http.TimeFormat),
 				oracle.ChallengeHeader: defaultChallenge,
 			},
 		},
@@ -109,14 +107,14 @@ func TestCheckHeaders(t *testing.T) {
 			name: "missing challenge",
 			headers: map[string]string{
 				"Authorization":   defaultAuthHeader,
-				oracle.DateHeader: oracle.FormatDateHeader(clock.Now()),
+				oracle.DateHeader: clock.Now().UTC().Format(http.TimeFormat),
 			},
 		},
 		{
 			name: "challenge does not match",
 			headers: map[string]string{
 				"Authorization":        defaultAuthHeader,
-				oracle.DateHeader:      oracle.FormatDateHeader(clock.Now()),
+				oracle.DateHeader:      clock.Now().UTC().Format(http.TimeFormat),
 				oracle.ChallengeHeader: "differentchallenge",
 			},
 		},
@@ -128,16 +126,22 @@ func TestCheckHeaders(t *testing.T) {
 	}
 }
 
-func claimsResponse(claimMap map[string]string) oracle.AuthenticateClientResult {
-	claims := make([]oracle.Claim, 0, len(claimMap))
+func claimsResponse(claimMap map[string]string) ([]byte, error) {
+	claims := make([]map[string]string, len(claimMap))
 	for k, v := range claimMap {
-		claims = append(claims, oracle.Claim{Key: k, Value: v})
+		claims = append(claims, map[string]string{
+			"key":   k,
+			"value": v,
+		})
 	}
-	return oracle.AuthenticateClientResult{
-		Principal: oracle.Principal{
-			Claims: claims,
+
+	payload := map[string]any{
+		"principal": map[string]any{
+			"claims": claims,
 		},
 	}
+	data, err := json.Marshal(payload)
+	return data, trace.Wrap(err)
 }
 
 func makeOCID(resourceType, region, id string) string {
@@ -367,19 +371,13 @@ func TestRegisterUsingOracleMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, a.UpsertToken(ctx, token))
 
-	oracleAPIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		data, err := json.Marshal(claimsResponse(map[string]string{
-			oracle.TenancyClaim:     makeTenancyID("foo"),
-			oracle.CompartmentClaim: makeCompartmentID("bar"),
-			oracle.InstanceClaim:    makeInstanceID("us-phoenix-1", "baz"),
-		}))
-		if !assert.NoError(t, err) {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		w.Write(data)
-	}))
-	t.Cleanup(oracleAPIServer.Close)
+	mockFetchClaims := func(_ context.Context, _ *http.Request) (oracle.Claims, error) {
+		return oracle.Claims{
+			TenancyID:     makeTenancyID("foo"),
+			CompartmentID: makeCompartmentID("bar"),
+			InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+		}, nil
+	}
 
 	_, err = a.registerUsingOracleMethod(
 		ctx,
@@ -396,11 +394,11 @@ func TestRegisterUsingOracleMethod(t *testing.T) {
 					PublicSSHKey: sshPublicKey,
 					PublicTLSKey: tlsPublicKey,
 				},
-				Headers:      mapFromHeader(outerHeaders),
-				InnerHeaders: mapFromHeader(innerHeaders),
+				Headers:        mapFromHeader(outerHeaders),
+				PayloadHeaders: mapFromHeader(innerHeaders),
 			}, nil
 		},
-		oracleAPIServer.URL,
+		mockFetchClaims,
 	)
 	require.NoError(t, err)
 }

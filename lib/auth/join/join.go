@@ -359,7 +359,10 @@ func registerThroughProxy(
 
 	var certs *proto.Certs
 	switch params.JoinMethod {
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM, types.JoinMethodOracle:
+	case types.JoinMethodIAM,
+		types.JoinMethodAzure,
+		types.JoinMethodTPM,
+		types.JoinMethodOracle:
 		// These join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
@@ -830,7 +833,7 @@ func registerUsingOracleMethod(
 		return &proto.RegisterUsingOracleMethodRequest{
 			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 			Headers:                   mapFromHeader(outerHeaders),
-			InnerHeaders:              mapFromHeader(innerHeaders),
+			PayloadHeaders:            mapFromHeader(innerHeaders),
 		}, nil
 	})
 	return certs, trace.Wrap(err)
