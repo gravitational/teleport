@@ -81,6 +81,7 @@ describe('restoring workspace', () => {
           },
           isBarCollapsed: false,
         },
+        color: 'purple',
         localClusterUri: testWorkspace.localClusterUri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
@@ -117,6 +118,7 @@ describe('restoring workspace', () => {
             resources: new Map(),
           },
         },
+        color: 'purple',
         localClusterUri: cluster.uri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
@@ -132,6 +134,43 @@ describe('restoring workspace', () => {
     });
     expect(workspacesService.getRestoredState().workspaces).toStrictEqual({});
   });
+
+  it('restores profile color from state or assignes if empty', async () => {
+    const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
+    const workspaceFoo: PersistedWorkspace = {
+      color: 'blue',
+      localClusterUri: clusterFoo.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
+    const workspaceBar: PersistedWorkspace = {
+      localClusterUri: clusterBar.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterBaz = makeRootCluster({ uri: '/clusters/baz' });
+    const workspaceBaz: PersistedWorkspace = {
+      localClusterUri: clusterBaz.uri,
+      documents: [],
+      location: undefined,
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster: [clusterFoo, clusterBar, clusterBaz],
+      persistedWorkspaces: {
+        [clusterFoo.uri]: workspaceFoo,
+        [clusterBar.uri]: workspaceBar,
+        [clusterBaz.uri]: workspaceBaz,
+      },
+    });
+
+    workspacesService.restorePersistedState();
+
+    expect(workspacesService.getWorkspace(clusterFoo.uri).color).toBe('blue'); // read from disk
+    expect(workspacesService.getWorkspace(clusterBar.uri).color).toBe('purple'); // the first unused color
+    expect(workspacesService.getWorkspace(clusterBaz.uri).color).toBe('green'); // the second unused color
+  });
 });
 
 describe('state persistence', () => {
@@ -146,6 +185,7 @@ describe('state persistence', () => {
             isBarCollapsed: true,
             pending: getEmptyPendingAccessRequest(),
           },
+          color: 'purple',
           localClusterUri: cluster.uri,
           documents: [
             {
