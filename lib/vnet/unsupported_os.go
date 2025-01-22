@@ -39,15 +39,6 @@ func platformConfigureOS(_ context.Context, _ *osConfig) error {
 
 // Satisfy unused linter.
 var (
-	_ = osConfig{
-		tunName:    "",
-		tunIPv4:    "",
-		tunIPv6:    "",
-		dnsAddr:    "",
-		cidrRanges: nil,
-		dnsZones:   nil,
-	}
-	_ = tunIPv6ForPrefix
 	_ = newOSConfigurator
 	_ = (*osConfigurator).runOSConfigurationLoop
 )
