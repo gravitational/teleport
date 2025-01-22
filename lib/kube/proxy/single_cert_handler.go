@@ -35,11 +35,11 @@ import (
 const (
 	// paramTeleportCluster is the path parameter key containing a base64
 	// encoded Teleport cluster name for path-routed forwarding.
-	paramTeleportCluster = "encodedTeleportCluster"
+	paramTeleportCluster = "base64Cluster"
 
 	// paramKubernetesCluster is the path parameter key containing a base64
 	// encoded Teleport cluster name for path-routed forwarding.
-	paramKubernetesCluster = "encodedKubernetesCluster"
+	paramKubernetesCluster = "base64KubeCluster"
 )
 
 // parseRouteFromPath extracts route information from the given path parameters
@@ -89,13 +89,24 @@ func parseRouteFromPath(p httprouter.Params) (string, string, error) {
 // temporary identity is issued, the request can proceed as usual through this
 // path-based route so long as the path and identity route fields are equal.
 func ensureRouteNotOverwritten(ident *tlsca.Identity, routeToCluster, kubernetesCluster string) error {
-	const overwriteDeniedMsg = "existing route in identity may not be overwritten"
+	teleportClusterChanged := ident.RouteToCluster != routeToCluster
+	kubeClusterChanged := ident.KubernetesCluster != kubernetesCluster
 
-	if ident.RouteToCluster != "" && ident.RouteToCluster != routeToCluster {
-		return trace.AccessDenied(overwriteDeniedMsg)
+	// If session MFA is enabled, either cluster-wide or for the target cluster
+	// via role options, access attempts without an MFA assertion will pass
+	// through here and fail during `CheckAccess()` in `authorize()`. If retried
+	// with an assertion, we should not allow routing parameters to be
+	// overwritten even if somehow empty ("") as that would allow MFA certs to
+	// access any cluster.
+	if ident.MFAVerified != "" && (teleportClusterChanged || kubeClusterChanged) {
+		return trace.AccessDenied("identity routing parameters are required when MFA assertions are present")
 	}
 
-	if ident.KubernetesCluster != "" && ident.KubernetesCluster != kubernetesCluster {
+	const overwriteDeniedMsg = "existing route in identity may not be overwritten"
+	if ident.RouteToCluster != "" && teleportClusterChanged {
+		return trace.AccessDenied(overwriteDeniedMsg)
+	}
+	if ident.KubernetesCluster != "" && kubeClusterChanged {
 		return trace.AccessDenied(overwriteDeniedMsg)
 	}
 

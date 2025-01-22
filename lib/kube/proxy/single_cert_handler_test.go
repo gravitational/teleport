@@ -159,7 +159,7 @@ func TestSingleCertRouting(t *testing.T) {
 			},
 		},
 		{
-			name: "requires non-empty identity routing parameters for session MFA",
+			name: "requires routing parameters when per-session MFA is enabled",
 			roleSpec: RoleSpec{
 				Name:       roleName,
 				KubeUsers:  roleKubeUsers,
@@ -176,28 +176,13 @@ func TestSingleCertRouting(t *testing.T) {
 				WithMFAVerified(),
 			},
 			assert: func(t *testing.T, restConfig *rest.Config) {
-				// Unrealistic test case, but we'll use a regular
-				// identity-routed client to force this edge case: if per-
-				// session MFA is enabled, the forwarder must require nonempty
-				// routing parameters.
-				// Ordinarily we'd still test with a path-routed client, but
-				// the singleCertHandler explicitly (only) allows overriding
-				// route parameters when they're empty, and it runs before
-				// setupContext().
-				// In practice, clients will request an MFA cert which must
-				// have valid routing parameters. The client will be responsible
-				// for converting a path-routed request to identity routing as
-				// part of its MFA check.
+				// If a user somehow manages to get auth to issue an MFA cert
+				// with no routing parameters, we should refuse to route the
+				// request arbitrarily.
 
-				client, err := kubernetes.NewForConfig(restConfig)
-				require.NoError(t, err)
-
+				client := pathRoutedKubeClient(t, restConfig, clusterName, "a")
 				_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(context.Background(), "foo", metav1.GetOptions{})
-				require.ErrorContains(t, err, "access denied")
-
-				// Note: if this fails, this will instead return some variant of
-				// 'Kubernetes cluster "" not found' indicating it tried to
-				// route to a cluster named "" which should not be possible.
+				require.ErrorContains(t, err, "identity routing parameters are required")
 			},
 		},
 	}

@@ -343,7 +343,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
 	for _, method := range allHTTPMethods() {
-		router.Handle(method, "/v1/teleport/:encodedTeleportCluster/:encodedKubernetesCluster/*path", fwd.singleCertHandler())
+		router.Handle(method, "/v1/teleport/:base64Cluster/:base64KubeCluster/*path", fwd.singleCertHandler())
 	}
 
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
@@ -772,23 +772,6 @@ func (f *Forwarder) setupContext(
 
 	identity := authCtx.Identity.GetIdentity()
 	teleportClusterName := identity.RouteToCluster
-	kubeCluster := identity.KubernetesCluster
-
-	// Check if per-session MFA is required, and if so, require the identity to
-	// have explicitly set RouteToCluster and KubernetesCluster fields. When
-	// combined with the singleCertHandler's ensureRouteNotOverwritten, this
-	// ensures all authenticated routes have nonempty identity routing fields,
-	// that those fields cannot be changed by path parameters, and that requests
-	// only authorize against / reach the cluster in the identity.
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	state := authCtx.GetAccessState(authPref)
-	if state.MFARequired != services.MFARequiredNever && (teleportClusterName == "" || kubeCluster == "") {
-		return nil, trace.AccessDenied("access denied: session MFA requires identity routing parameters")
-	}
-
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
 	}
@@ -803,8 +786,10 @@ func (f *Forwarder) setupContext(
 		kubeServers  []types.KubeServer
 		kubeResource *types.KubernetesResource
 		apiResource  apiResource
+		err          error
 	)
 
+	kubeCluster := identity.KubernetesCluster
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
@@ -828,6 +813,11 @@ func (f *Forwarder) setupContext(
 		return nil, trace.Wrap(err)
 	}
 	recordingConfig, err := f.cfg.CachingAuthClient.GetSessionRecordingConfig(f.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
