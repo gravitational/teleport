@@ -29,6 +29,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"errors"
 	"io"
 	"log/slog"
@@ -53,6 +54,9 @@ var (
 	ErrBadIP = &trace.BadParameterError{Message: "client source and destination addresses should be valid same TCP version non-nil IP addresses"}
 )
 
+// Start of class E IPv4 CIDR range
+const classEPrefix byte = 240
+
 // PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 // Possible values:
 // - 'on': one PROXY header is accepted and required per incoming connection.
@@ -66,6 +70,7 @@ type PROXYProtocolMode string
 const (
 	PROXYProtocolOn          PROXYProtocolMode = "on"
 	PROXYProtocolOff         PROXYProtocolMode = "off"
+	PROXYProtocolDowngrade   PROXYProtocolMode = "allow-downgrade"
 	PROXYProtocolUnspecified PROXYProtocolMode = ""
 )
 
@@ -404,21 +409,46 @@ func isDifferentTCPVersion(addr1, addr2 net.TCPAddr) bool {
 	return (addr1.IP.To4() != nil && addr2.IP.To4() == nil) || (addr2.IP.To4() != nil && addr1.IP.To4() == nil)
 }
 
-func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer JWTPROXYSigner) ([]byte, error) {
-	sAddr := getTCPAddr(sourceAddress)
-	dAddr := getTCPAddr(destinationAddress)
-	if sAddr.IP == nil || dAddr.IP == nil || isDifferentTCPVersion(sAddr, dAddr) {
-		return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", sourceAddress, destinationAddress)
+// hash an IPv6 into a class E IPv4
+// https://developers.cloudflare.com/network/pseudo-ipv4/
+func getPseudoIPV4(addr net.TCPAddr) (net.TCPAddr, error) {
+	hash := sha256.Sum256([]byte(addr.IP))
+	ip := hash[len(hash)-4:]
+	ip[0] |= classEPrefix
+
+	return net.TCPAddr{
+		IP:   net.IP(ip),
+		Port: addr.Port,
+	}, nil
+}
+
+func signPROXYHeader(in signPROXYHeaderInput) ([]byte, error) {
+	originalSourceAddr := getTCPAddr(in.source)
+	sAddr := originalSourceAddr
+	dAddr := getTCPAddr(in.destination)
+	if sAddr.IP == nil || dAddr.IP == nil {
+		return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", in.source, in.destination)
 	}
 	if sAddr.Port < 0 || dAddr.Port < 0 {
 		return nil, trace.BadParameter("could not parse port (source:%q, destination: %q)",
-			sourceAddress.String(), destinationAddress.String())
+			in.source.String(), in.destination.String())
 	}
 
-	signature, err := signer.SignPROXYJWT(jwt.PROXYSignParams{
-		SourceAddress:      sAddr.String(),
+	if isDifferentTCPVersion(sAddr, dAddr) {
+		if in.proxyMode != PROXYProtocolDowngrade {
+			return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", in.source, in.destination)
+		}
+
+		var err error
+		if sAddr, err = getPseudoIPV4(sAddr); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	signature, err := in.signer.SignPROXYJWT(jwt.PROXYSignParams{
+		SourceAddress:      originalSourceAddr.String(),
 		DestinationAddress: dAddr.String(),
-		ClusterName:        clusterName,
+		ClusterName:        in.clusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not sign jwt token for PROXY line")
@@ -428,12 +458,19 @@ func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName str
 	if sAddr.IP.To4() == nil {
 		protocol = TCP6
 	}
+
 	pl := ProxyLine{
 		Protocol:    protocol,
 		Source:      sAddr,
 		Destination: dAddr,
 	}
-	err = pl.AddSignature([]byte(signature), signingCert)
+
+	var originalAddr *net.TCPAddr = nil
+	if !originalSourceAddr.IP.Equal(sAddr.IP) {
+		originalAddr = &originalSourceAddr
+	}
+
+	err = pl.AddTeleportTLVs([]byte(signature), in.signingCert, originalAddr)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not add signature to proxy line")
 	}
@@ -831,15 +868,26 @@ type PROXYSigner struct {
 	getCertificate utils.GetCertificateFunc
 	clock          clockwork.Clock
 	clusterName    string
+	proxyMode      PROXYProtocolMode
 }
 
 // NewPROXYSigner returns a new instance of PROXYSigner
-func NewPROXYSigner(clusterName string, getCertificate utils.GetCertificateFunc, clock clockwork.Clock) (*PROXYSigner, error) {
+func NewPROXYSigner(clusterName string, getCertificate utils.GetCertificateFunc, clock clockwork.Clock, proxyMode PROXYProtocolMode) (*PROXYSigner, error) {
 	return &PROXYSigner{
 		getCertificate: getCertificate,
 		clock:          clock,
 		clusterName:    clusterName,
+		proxyMode:      proxyMode,
 	}, nil
+}
+
+type signPROXYHeaderInput struct {
+	source      net.Addr
+	destination net.Addr
+	proxyMode   PROXYProtocolMode
+	clusterName string
+	signingCert []byte
+	signer      JWTPROXYSigner
 }
 
 // SignPROXYHeader creates a signed PROXY header with provided source and destination addresses
@@ -870,7 +918,16 @@ func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, err
 		return nil, trace.Wrap(err)
 	}
 
-	header, err := signPROXYHeader(source, destination, p.clusterName, signingCert, jwtKey)
+	proxyHeaderInput := signPROXYHeaderInput{
+		source:      source,
+		destination: destination,
+		clusterName: p.clusterName,
+		signingCert: signingCert,
+		signer:      jwtKey,
+		proxyMode:   p.proxyMode,
+	}
+
+	header, err := signPROXYHeader(proxyHeaderInput)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

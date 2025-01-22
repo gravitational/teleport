@@ -36,8 +36,26 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 
 	addr1 := net.TCPAddr{IP: net.ParseIP("1.2.3.4"), Port: 444}
 	addr2 := net.TCPAddr{IP: net.ParseIP("5.4.3.2"), Port: 555}
+	addrV6 := net.TCPAddr{IP: net.ParseIP("::1"), Port: 999}
 
-	signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+	signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+		source:      &addr1,
+		destination: &addr2,
+		clusterName: clusterName,
+		signingCert: tlsProxyCert,
+		signer:      jwtSigner,
+		proxyMode:   PROXYProtocolOn,
+	})
+	require.NoError(t, err)
+
+	signedHeaderDowngrade, err := signPROXYHeader(signPROXYHeaderInput{
+		source:      &addrV6,
+		destination: &addr2,
+		clusterName: clusterName,
+		signingCert: tlsProxyCert,
+		signer:      jwtSigner,
+		proxyMode:   PROXYProtocolDowngrade,
+	})
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -75,11 +93,24 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 			expectedRemoteAddr: addr1.String(),
 			PROXYProtocolMode:  PROXYProtocolOff,
 		},
+		{
+			name:               "signed PROXY v2 header, downgrade mode",
+			proxyLine:          signedHeaderDowngrade,
+			expectedLocalAddr:  addr2.String(),
+			expectedRemoteAddr: addrV6.String(),
+			PROXYProtocolMode:  PROXYProtocolDowngrade,
+		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			proto := "tcp"
+			listenAddr := "127.0.0.1:0"
+			if tt.PROXYProtocolMode == PROXYProtocolDowngrade {
+				proto = "tcp6"
+				listenAddr = "[::1]:0"
+			}
+			listener, err := net.Listen(proto, listenAddr)
 			require.NoError(t, err)
 			t.Cleanup(func() { listener.Close() })
 
@@ -103,7 +134,7 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 				}
 				connChan <- conn
 			}()
-			conn, err := net.Dial("tcp", proxyListener.Addr().String())
+			conn, err := net.Dial(proto, proxyListener.Addr().String())
 			require.NoError(t, err)
 			defer conn.Close()
 
