@@ -108,6 +108,6 @@ func TestGenerateAzureOIDCToken(t *testing.T) {
 
 		// Verify the Azure token using the JWT
 		_, err = key.VerifyAzureToken(resp.Token)
-
+		require.NoError(t, err)
 	})
 }
