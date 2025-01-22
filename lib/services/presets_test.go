@@ -747,6 +747,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
 							types.NewRule(types.KindWorkloadIdentity, RW()),
+							types.NewRule(types.KindGitServer, RW()),
 						},
 					},
 				},
