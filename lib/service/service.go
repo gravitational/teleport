@@ -4331,6 +4331,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	proxySigner, err := process.getPROXYSigner(conn.ServerIdentity)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5383,7 +5384,27 @@ func (process *TeleportProcess) getPROXYSigner(ident *state.Identity) (multiplex
 		return nil, trace.Wrap(err, "could not create JWT signer")
 	}
 
-	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner)
+	var allowDowngrade bool
+	var proxyProtocolMode multiplexer.PROXYProtocolMode
+	var processKind string
+	if process.Config.Auth.Enabled {
+		allowDowngrade = process.Config.Auth.PROXYAllowDowngrade
+		proxyProtocolMode = process.Config.Auth.PROXYProtocolMode
+		processKind = "auth"
+	}
+
+	if process.Config.Proxy.Enabled {
+		allowDowngrade = process.Config.Proxy.PROXYAllowDowngrade
+		proxyProtocolMode = process.Config.Proxy.PROXYProtocolMode
+		if processKind == "auth" {
+			processKind = "single"
+		} else {
+			processKind = "proxy"
+		}
+	}
+
+	process.logger.DebugContext(context.Background(), "spawning proxy signer", "allow_downgrade", allowDowngrade, "proxy_protocol_mode", proxyProtocolMode, "process", processKind)
+	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner, allowDowngrade)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}

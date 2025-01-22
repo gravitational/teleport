@@ -36,8 +36,26 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 
 	addr1 := net.TCPAddr{IP: net.ParseIP("1.2.3.4"), Port: 444}
 	addr2 := net.TCPAddr{IP: net.ParseIP("5.4.3.2"), Port: 555}
+	addrV6 := net.TCPAddr{IP: net.ParseIP("::1"), Port: 999}
 
-	signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+	signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+		source:         &addr1,
+		destination:    &addr2,
+		clusterName:    clusterName,
+		signingCert:    tlsProxyCert,
+		signer:         jwtSigner,
+		allowDowngrade: false,
+	})
+	require.NoError(t, err)
+
+	signedHeaderDowngrade, err := signPROXYHeader(signPROXYHeaderInput{
+		source:         &addrV6,
+		destination:    &addr2,
+		clusterName:    clusterName,
+		signingCert:    tlsProxyCert,
+		signer:         jwtSigner,
+		allowDowngrade: true,
+	})
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -45,41 +63,68 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 		proxyLine          []byte
 		expectedRemoteAddr string
 		expectedLocalAddr  string
-		PROXYProtocolMode  PROXYProtocolMode
+		proxyMode          PROXYProtocolMode
+		allowDowngrade     bool
 	}{
 		{
 			name:               "PROXY v1 header",
 			proxyLine:          []byte(sampleProxyV1Line),
 			expectedLocalAddr:  "127.0.0.2:42",
 			expectedRemoteAddr: "127.0.0.1:12345",
-			PROXYProtocolMode:  PROXYProtocolOn,
+			proxyMode:          PROXYProtocolOn,
+			allowDowngrade:     false,
 		},
 		{
 			name:               "PROXY v1 header, unspecified mode",
 			proxyLine:          []byte(sampleProxyV1Line),
 			expectedLocalAddr:  "127.0.0.2:42",
 			expectedRemoteAddr: "127.0.0.1:0",
-			PROXYProtocolMode:  PROXYProtocolUnspecified,
+			proxyMode:          PROXYProtocolUnspecified,
+			allowDowngrade:     false,
 		},
 		{
 			name:               "unsigned PROXY v2 header",
 			proxyLine:          sampleProxyV2Line,
 			expectedLocalAddr:  "127.0.0.2:42",
 			expectedRemoteAddr: "127.0.0.1:12345",
-			PROXYProtocolMode:  PROXYProtocolOn,
+			proxyMode:          PROXYProtocolOn,
+			allowDowngrade:     false,
 		},
 		{
 			name:               "signed PROXY v2 header",
 			proxyLine:          signedHeader,
 			expectedLocalAddr:  addr2.String(),
 			expectedRemoteAddr: addr1.String(),
-			PROXYProtocolMode:  PROXYProtocolOff,
+			proxyMode:          PROXYProtocolOff,
+			allowDowngrade:     false,
+		},
+		{
+			name:               "signed PROXY v2 header on, mixed version in downgrade mode",
+			proxyLine:          signedHeaderDowngrade,
+			expectedLocalAddr:  addr2.String(),
+			expectedRemoteAddr: addrV6.String(),
+			proxyMode:          PROXYProtocolOn,
+			allowDowngrade:     true,
+		},
+		{
+			name:               "signed PROXY v2 header unspecified, mixed version in downgrade mode",
+			proxyLine:          signedHeaderDowngrade,
+			expectedLocalAddr:  addr2.String(),
+			expectedRemoteAddr: addrV6.String(),
+			proxyMode:          PROXYProtocolUnspecified,
+			allowDowngrade:     true,
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			proto := "tcp"
+			listenAddr := "127.0.0.1:0"
+			if tt.allowDowngrade {
+				proto = "tcp6"
+				listenAddr = "[::1]:0"
+			}
+			listener, err := net.Listen(proto, listenAddr)
 			require.NoError(t, err)
 			t.Cleanup(func() { listener.Close() })
 
@@ -87,7 +132,8 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 				Listener:            listener,
 				Context:             context.Background(),
 				ID:                  "test",
-				PROXYProtocolMode:   tt.PROXYProtocolMode,
+				PROXYProtocolMode:   tt.proxyMode,
+				PROXYAllowDowngrade: tt.allowDowngrade,
 				CertAuthorityGetter: casGetter,
 				LocalClusterName:    clusterName,
 			})
@@ -103,7 +149,7 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 				}
 				connChan <- conn
 			}()
-			conn, err := net.Dial("tcp", proxyListener.Addr().String())
+			conn, err := net.Dial(proto, proxyListener.Addr().String())
 			require.NoError(t, err)
 			defer conn.Close()
 
