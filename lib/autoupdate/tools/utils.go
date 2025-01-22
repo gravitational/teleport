@@ -126,32 +126,23 @@ type packageURL struct {
 	Optional bool
 }
 
-// teleportPackageURLs returns the URL for the Teleport archive to download. The format is:
-// https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
+// teleportPackageURLs returns the URL for the Teleport archive to download.
 func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
-	var flags autoupdate.InstallFlags
+	rev := autoupdate.Revision{Version: version}
 	m := modules.GetModules()
 	if m.IsBoringBinary() {
-		flags |= autoupdate.FlagFIPS
+		rev.Flags |= autoupdate.FlagFIPS
 	}
 	if m.IsEnterpriseBuild() || m.IsBoringBinary() {
-		flags |= autoupdate.FlagEnterprise
+		rev.Flags |= autoupdate.FlagEnterprise
 	}
 
-	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "teleport", autoupdate.Revision{
-		Version: version,
-		Flags:   flags,
-	})
+	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, autoupdate.DefaultPackage, rev)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch runtime.GOOS {
-	case constants.DarwinOS:
-		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", autoupdate.Revision{
-			Version: version,
-			Flags:   flags,
-		})
+	if runtime.GOOS == constants.DarwinOS {
+		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", rev)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -160,11 +151,11 @@ func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL,
 			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
 			{Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
 		}, nil
-	default:
-		return []packageURL{
-			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
-		}, nil
 	}
+
+	return []packageURL{
+		{Archive: teleportURL, Hash: teleportURL + ".sha256"},
+	}, nil
 }
 
 // toolName returns the path to {tsh, tctl} for the executable that started
