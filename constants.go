@@ -285,7 +285,6 @@ const (
 	// ComponentUpdater represents the agent updater.
 	ComponentUpdater = "updater"
 
-
 	// ComponentGit represents git proxy related services.
 	ComponentGit = "git"
 
