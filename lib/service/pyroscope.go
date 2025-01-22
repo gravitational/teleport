@@ -30,7 +30,7 @@ import (
 )
 
 // TODO: Replace logger when pyroscope uses slog
-type logger struct {
+type pyroscopeLogger struct {
 	l *slog.Logger
 }
 
