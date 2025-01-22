@@ -43,6 +43,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1690,6 +1691,8 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 	return upgradeRequestToRemoteCommandProxy(request,
 		func(proxy *remoteCommandProxy) error {
+			sess.sendErrStatus = proxy.writeStatus
+
 			if !sess.isLocalKubernetesCluster {
 				// We're forwarding this to another kubernetes_service instance or Teleport proxy, let it handle session recording.
 				return f.remoteExec(req, sess, proxy)
@@ -2362,6 +2365,8 @@ type clusterSession struct {
 	connCtx context.Context
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
 	connMonitorCancel context.CancelCauseFunc
+	// sendErrStatus is a function that sends an error status to the client.
+	sendErrStatus func(status *apierrors.StatusError) error
 }
 
 // close cancels the connection monitor context if available.
@@ -2409,6 +2414,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Logger:                s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,
 		EmitterContext:        s.parent.ctx,
+		MessageWriter:         formatForwardResponseError(s.sendErrStatus),
 	})
 	if err != nil {
 		tc.CloseWithCause(err)
@@ -2769,4 +2775,26 @@ func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 	default:
 		return metav1.StatusReasonUnknown
 	}
+}
+
+// formatForwardResponseError formats the error response from the connection
+// monitor to a Kubernetes API error response.
+type formatForwardResponseError func(status *apierrors.StatusError) error
+
+func (f formatForwardResponseError) WriteString(s string) (n int, err error) {
+	if f == nil {
+		return len(s), nil
+	}
+	_ = f(
+		&apierrors.StatusError{
+			ErrStatus: metav1.Status{
+				Status:  metav1.StatusFailure,
+				Code:    http.StatusInternalServerError,
+				Reason:  metav1.StatusReasonInternalError,
+				Message: s,
+			},
+		},
+	)
+
+	return len(s), nil
 }

@@ -19,6 +19,8 @@ limitations under the License.
 package proxy
 
 import (
+	"time"
+
 	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
@@ -110,7 +112,7 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 		},
 	})
 
-	conn.SetIdleTimeout(req.idleTimeout)
+	conn.SetIdleTimeout(adjustIddleTimeoutForConn(req.idleTimeout))
 
 	negotiatedProtocol, streams, err := conn.Open(
 		responsewriter.GetOriginal(req.httpResponseWriter),
@@ -162,4 +164,16 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 	}
 
 	return proxy, nil
+}
+
+// adjustIddleTimeoutForConn adjusts the idle timeout for the connection
+// to be 5 seconds longer than the requested idle timeout.
+// This is done to prevent the connection from being closed by the server
+// before the connection monitor has a chance to close it and write the
+// status code.
+func adjustIddleTimeoutForConn(iddleTimeout time.Duration) time.Duration {
+	if iddleTimeout != 0 {
+		iddleTimeout += 5 * time.Second
+	}
+	return iddleTimeout
 }
