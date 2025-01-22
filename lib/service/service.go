@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -1246,18 +1247,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	upgraderKind := os.Getenv(automaticupgrades.EnvUpgrader)
-	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
-	if upgraderVersion == "" {
-		upgraderKind = ""
-	}
-
-	// Instances deployed using the AWS OIDC integration are automatically updated
-	// by the proxy. The instance heartbeat should properly reflect that.
-	externalUpgrader := upgraderKind
-	if externalUpgrader == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
-		externalUpgrader = types.OriginIntegrationAWSOIDC
-	}
+	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
@@ -1286,7 +1276,25 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
 		}
 
-		if upgraderKind == "unit" {
+		switch upgraderKind {
+		case types.UpgraderKindTeleportUpdate:
+			isDefault, err := autoupdate.IsManagedAndDefault()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !isDefault {
+				// Only write the nop schedule for the default updater.
+				// Suffixed installations of Teleport can coexist with the old upgrader system.
+				break
+			}
+			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := driver.ForceNop(process.ExitContext()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
 				if err != nil {
@@ -1314,28 +1322,14 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
 				return nil
 			})
+			if err := process.configureUpgraderExporter(upgraderKind); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		default:
+			if err := process.configureUpgraderExporter(upgraderKind); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
-
-		driver, err := uw.NewDriver(upgraderKind)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
-			Driver:                   driver,
-			ExportFunc:               process.exportUpgradeWindows,
-			AuthConnectivitySentinel: process.inventoryHandle.Sender(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
-		process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
-			exporter.Close()
-		})
-
-		process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", upgraderKind)
 	}
 
 	serviceStarted := false
@@ -1547,6 +1541,63 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	go process.notifyParent()
 
 	return process, nil
+}
+
+// detectUpgrader returns metadata about auto-upgraders that may be active.
+// Note that kind and externalName are usually the same.
+// However, some unregistered upgraders like the AWS ODIC upgrader are not valid kinds.
+// For these upgraders, kind is empty and externalName is set to a non-kind value.
+func (process *TeleportProcess) detectUpgrader() (kind, externalName, version string) {
+	// Check if the deprecated teleport-upgrader script is being used.
+	kind = os.Getenv(automaticupgrades.EnvUpgrader)
+	version = automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
+	if version == "" {
+		kind = ""
+	}
+
+	// If the installation is managed by teleport-update, it supersedes the teleport-upgrader script.
+	ok, err := autoupdate.IsManagedByUpdater()
+	if err != nil {
+		process.logger.WarnContext(process.ExitContext(), "Failed to determine if auto-updates are enabled.", "error", err)
+	} else if ok {
+		// If this is a teleport-update managed installation, the version
+		// managed by the timer will always match the installed version of teleport.
+		kind = types.UpgraderKindTeleportUpdate
+		version = "v" + teleport.Version
+	}
+
+	// Instances deployed using the AWS OIDC integration are automatically updated
+	// by the proxy. The instance heartbeat should properly reflect that.
+	externalName = kind
+	if externalName == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
+		externalName = types.OriginIntegrationAWSOIDC
+	}
+	return kind, externalName, version
+}
+
+// configureUpgraderExporter configures the window exporter for upgraders that export windows.
+func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
+	driver, err := uw.NewDriver(kind)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
+		Driver:                   driver,
+		ExportFunc:               process.exportUpgradeWindows,
+		AuthConnectivitySentinel: process.inventoryHandle.Sender(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
+	process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
+		exporter.Close()
+	})
+
+	process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", kind)
+	return nil
 }
 
 // enterpriseServicesEnabled will return true if any enterprise services are enabled.
