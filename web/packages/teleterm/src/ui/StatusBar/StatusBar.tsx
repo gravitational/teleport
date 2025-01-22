@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Fragment } from 'react';
+
 import { Flex, Text } from 'design';
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
@@ -23,7 +25,7 @@ import { ShareFeedback } from './ShareFeedback';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
 export function StatusBar() {
-  const clusterBreadcrumbs = useActiveDocumentClusterBreadcrumbs();
+  const breadcrumbs = useActiveDocumentClusterBreadcrumbs();
 
   return (
     <Flex
@@ -35,18 +37,46 @@ export function StatusBar() {
       alignItems="center"
       justifyContent="space-between"
       px={2}
+      gap={2}
+      color="text.slightlyMuted"
       overflow="hidden"
     >
-      <Text
-        color="text.slightlyMuted"
-        fontSize="14px"
+      <Flex
         css={`
-          white-space: nowrap;
+          // If the breadcrumbs are wider than the available space,
+          // allow scrolling them horizontally, but do not show the scrollbar.
+          width: 100%;
+          overflow: scroll;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
         `}
-        title={clusterBreadcrumbs && `Current cluster: ${clusterBreadcrumbs}`}
       >
-        {clusterBreadcrumbs}
-      </Text>
+        {breadcrumbs && (
+          <Flex
+            gap={2}
+            css={`
+              flex-shrink: 0;
+              font-size: 13px;
+            `}
+            title={breadcrumbs.map(({ name }) => name).join(' → ')}
+          >
+            {breadcrumbs.map((breadcrumb, index) => (
+              <Fragment key={`${index}-${breadcrumb.name}`}>
+                {breadcrumb.Icon && (
+                  <breadcrumb.Icon color="text.muted" size="small" mr={-1} />
+                )}
+                <Text>{breadcrumb.name}</Text>
+                {index !== breadcrumbs.length - 1 && (
+                  <Text color="text.disabled">→</Text>
+                )}
+              </Fragment>
+            ))}
+          </Flex>
+        )}
+      </Flex>
+
       <Flex gap={2} alignItems="center">
         <AccessRequestCheckoutButton />
         <ShareFeedback />
