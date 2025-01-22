@@ -18,10 +18,11 @@ package storage
 
 import (
 	"context"
+	"testing"
+
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestRDPLicense(t *testing.T) {
