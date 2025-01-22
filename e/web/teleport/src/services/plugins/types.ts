@@ -153,6 +153,8 @@ export function pluginTypeToIntegrationEnrollKind(
       return IntegrationEnrollKind.EntraId;
     case 'datadog':
       return IntegrationEnrollKind.DatadogIncidentManagement;
+    case 'aws-identity-center':
+      return IntegrationEnrollKind.AwsIdentityCenter;
     default:
       return IntegrationEnrollKind.Unspecified;
   }

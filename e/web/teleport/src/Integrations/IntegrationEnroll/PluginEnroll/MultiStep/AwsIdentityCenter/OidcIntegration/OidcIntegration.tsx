@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useHistory } from 'react-router';
 
 import {
   Box,
@@ -34,8 +34,13 @@ import {
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
+import { emitEvent } from '../events';
 import {
   requiredAwsIdentityCenterInstanceArn,
   requiredAwsIdentityCenterRegion,
@@ -46,9 +51,10 @@ import { UserAccountWarning } from '../shared/UserAccountWarning';
 
 export function AwsIcOidcIntegration() {
   const { storeUser } = useTeleport();
+  const history = useHistory();
   const integrationAccess = storeUser.getIntegrationsAccess();
   const hasAccess = integrationAccess.list && integrationAccess.read;
-  const { formData, nextStep, setFormData } = usePlugin();
+  const { formData, nextStep, setFormData, eventId } = usePlugin();
   if (!formData) {
     setFormData(new FormData());
   }
@@ -116,11 +122,22 @@ export function AwsIcOidcIntegration() {
         },
       });
       if (err) {
+        emitEvent(eventId, IntegrationEnrollStep.ConnectOidc, {
+          code: IntegrationEnrollStatusCode.Error,
+          error: err.message,
+        });
         return;
       }
     }
 
     nextStep();
+  }
+
+  function handleBack() {
+    emitEvent(eventId, IntegrationEnrollStep.ConnectOidc, {
+      code: IntegrationEnrollStatusCode.Aborted,
+    });
+    history.push(ecfg.oss.getIntegrationEnrollRoute());
   }
 
   // AWS IAM Identity Center plugin creates AWS OIDC integration with the
@@ -160,8 +177,6 @@ export function AwsIcOidcIntegration() {
       <Box mt={3}>
         <UserAccountWarning />
       </Box>
-
-      {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for Identity Center */}
       <Box>
         {fetchIntegrationAttempt.status === 'error' && (
           <Danger>{fetchIntegrationAttempt.statusText}</Danger>
@@ -288,12 +303,7 @@ export function AwsIcOidcIntegration() {
                     {nextButtonText}
                   </ButtonPrimary>
 
-                  <ButtonSecondary
-                    as={Link}
-                    to={ecfg.oss.getIntegrationEnrollRoute()}
-                  >
-                    Back
-                  </ButtonSecondary>
+                  <ButtonSecondary onClick={handleBack}>Back</ButtonSecondary>
                 </Flex>
               </>
             )}

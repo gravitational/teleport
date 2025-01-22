@@ -29,8 +29,13 @@ import {
 } from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
 import userService, { User } from 'teleport/services/user';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
+import { emitEvent } from '../events';
 import {
   AccountsTable,
   GroupsWithAssignmentTable,
@@ -41,7 +46,7 @@ export function AwsIcImportResources() {
   const ctx = useTeleport();
   const userAccess = ctx.storeUser.getUserAccess();
   const canReadListUsers = userAccess.list && userAccess.read;
-  const { formData, nextStep, prevStep } = usePlugin();
+  const { formData, nextStep, prevStep, eventId } = usePlugin();
   const integrationName = formData
     .get(PluginConfigAwsIc.OidcIntegrationName)
     ?.toString();
@@ -79,6 +84,9 @@ export function AwsIcImportResources() {
       PluginConfigAwsIc.AccessListDefaultOwners,
       JSON.stringify(defaultOwners)
     );
+    emitEvent(eventId, IntegrationEnrollStep.ImportResourceSetDefaultOwner, {
+      code: IntegrationEnrollStatusCode.Success,
+    });
     nextStep();
   }
 

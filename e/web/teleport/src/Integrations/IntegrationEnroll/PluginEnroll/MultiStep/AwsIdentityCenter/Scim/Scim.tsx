@@ -24,12 +24,23 @@ import {
 } from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
 import { getXCSRFToken } from 'teleport/services/api';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 
+import { emitEvent } from '../events';
 import { requiredHttpsUrl } from '../rules';
 
 export function AwsIcConfigureScim() {
-  const { nextStep, prevStep, formData, selectedPlugin, setInstalledPlugin } =
-    usePlugin();
+  const {
+    nextStep,
+    prevStep,
+    formData,
+    selectedPlugin,
+    setInstalledPlugin,
+    eventId,
+  } = usePlugin();
   const [baseUrl, setBaseUrl] = useState('');
   const [accessToken, setAccessToken] = useState('');
 
@@ -55,14 +66,23 @@ export function AwsIcConfigureScim() {
     if (!v.validate()) {
       return;
     }
-    runScimValidation();
+    const [, validationErr] = await runScimValidation();
+    if (validationErr) {
+      emitEvent(eventId, IntegrationEnrollStep.ScimTestConnection, {
+        code: IntegrationEnrollStatusCode.Error,
+        error: validationErr.message,
+      });
+    }
   };
 
   const handleFinish = async (v: Validator) => {
     if (!v.validate()) {
       return;
     }
-    runScimValidation();
+    validateScimCredential(v);
+    emitEvent(eventId, IntegrationEnrollStep.ScimTestConnection, {
+      code: IntegrationEnrollStatusCode.Success,
+    });
     formData.set(PluginConfigAwsIc.ScimBaseURL, baseUrl.trim());
     formData.set(PluginConfigAwsIc.ScimAccessToken, accessToken.trim());
     formData.set(PluginConfigBase.CSRFToken, getXCSRFToken());

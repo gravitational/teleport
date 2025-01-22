@@ -14,7 +14,12 @@ import { ButtonDownloadMetadataFile } from 'e-teleport/SamlApplication/component
 import { pluginsService } from 'e-teleport/services/plugins';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 
+import { emitEvent } from '../events';
 import { UserAccountWarning } from '../shared/UserAccountWarning';
 
 export function AwsIcConfigureIdentitySource() {
@@ -28,7 +33,7 @@ export function AwsIcConfigureIdentitySource() {
     setSelectedFileContent(fileData);
   }
 
-  const { formData, nextStep, prevStep, selectedPlugin } = usePlugin();
+  const { formData, nextStep, prevStep, selectedPlugin, eventId } = usePlugin();
 
   const [samlServiceProviderName, setSAMLServiceProviderName] =
     useState<string>(PluginConfigAwsIc.PluginName);
@@ -57,6 +62,14 @@ export function AwsIcConfigureIdentitySource() {
 
     const [, err] = await validateSAMLIdPServiceProvider();
     if (err) {
+      emitEvent(
+        eventId,
+        IntegrationEnrollStep.IdentitySourceUploadSamlMetadata,
+        {
+          code: IntegrationEnrollStatusCode.Error,
+          error: err.message,
+        }
+      );
       return;
     }
     formData.set(
@@ -68,6 +81,9 @@ export function AwsIcConfigureIdentitySource() {
       samlServiceProviderName
     );
 
+    emitEvent(eventId, IntegrationEnrollStep.IdentitySourceUploadSamlMetadata, {
+      code: IntegrationEnrollStatusCode.Success,
+    });
     nextStep();
   }
 
