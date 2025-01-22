@@ -289,6 +289,9 @@ func verifyVMIdentity(
 	// from the VM resource.
 	vmSubscription, vmResourceGroup, err := claimsToIdentifiers(tokenClaims)
 	if err == nil {
+		if subscriptionID != vmSubscription {
+			return nil, trace.AccessDenied("subscription ID mismatch between attested data and access token")
+		}
 		return azureJoinToAttrs(vmSubscription, vmResourceGroup), nil
 	}
 	log.WithError(err).Warn("Failed to parse VM identifiers from claims. Retrying with Azure VM API.")
