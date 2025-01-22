@@ -147,10 +147,8 @@ test('activating a workspace via deep link overrides the previously active works
   await userEvent.click(dialogSuccessButton);
 
   // Check if the first activated workspace is the one from the deep link.
-  expect(await screen.findByTitle(/Current cluster:/)).toBeVisible();
-  expect(
-    screen.queryByTitle(`Current cluster: ${deepLinkCluster.name}`)
-  ).toBeVisible();
+  const el = await screen.findByTitle(/Open Profiles/);
+  expect(el.title).toContain(deepLinkCluster.name);
 });
 
 test.each<{
