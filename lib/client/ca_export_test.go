@@ -353,9 +353,6 @@ func TestExportAuthorities(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/ExportAllAuthoritiesSecrets", tt.name), func(t *testing.T) {
 				runTest(t, ExportAllAuthoritiesSecrets, tt.assertSecrets)
 			})
-			t.Run(fmt.Sprintf("%s/ExportAuthoritiesSecrets", tt.name), func(t *testing.T) {
-				runUnaryTest(t, ExportAuthoritiesSecrets, tt.assertSecrets)
-			})
 		})
 	}
 }
