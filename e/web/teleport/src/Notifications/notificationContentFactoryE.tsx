@@ -1,3 +1,4 @@
+import { isAfter } from 'date-fns';
 import React from 'react';
 
 import { ButtonSecondary } from 'design/Button';
@@ -22,6 +23,7 @@ import {
   NotificationSubKind,
   Notification as NotificationType,
 } from 'teleport/services/notifications';
+import { storageService } from 'teleport/services/storageService';
 import session from 'teleport/services/websession';
 
 const logger = Logger.create('Notifications');
@@ -126,15 +128,10 @@ export function notificationContentFactoryE(
         icon: Icons.ArrowFatLinesUp,
         redirectRoute: cfg.getAccessRequestRoute(requestId),
         QuickAction: ({ markAsClicked }) => (
-          <ButtonSecondary
-            onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-              event.stopPropagation();
-              markAsClicked();
-              session.logout();
-            }}
-          >
-            Log in again to gain access
-          </ButtonSecondary>
+          <AccessRequestPromotedButton
+            markAsClicked={markAsClicked}
+            createdDate={notification.createdDate}
+          />
         ),
       };
       break;
@@ -149,6 +146,31 @@ export function notificationContentFactoryE(
   }
 
   return notificationContent;
+}
+
+function AccessRequestPromotedButton({
+  markAsClicked,
+  createdDate,
+}: QuickActionProps & { createdDate: Date }) {
+  const loginTime = storageService.getLoginTime();
+
+  // Don't render the "log in again to access" button if the user logged in after the notification was generated, meaning they would
+  // already have the access applied.
+  if (isAfter(loginTime, createdDate)) {
+    return null;
+  }
+
+  return (
+    <ButtonSecondary
+      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        markAsClicked();
+        session.logout();
+      }}
+    >
+      Log in Again to Gain Access
+    </ButtonSecondary>
+  );
 }
 
 function AccessRequestAssumeButton({
