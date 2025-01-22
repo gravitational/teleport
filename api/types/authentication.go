@@ -880,18 +880,26 @@ func (c *AuthPreferenceV2) Validate() error {
 		return nil
 	}
 
-	cfg := c.Spec.StableUnixUserConfig
-	if cfg == nil || !cfg.Enabled {
+	if err := c.Spec.StableUnixUserConfig.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// Validate checks if the configuration is suitable for storage and use.
+func (c *StableUNIXUserConfig) Validate() error {
+	if c == nil || !c.Enabled {
 		return nil
 	}
 
-	if cfg.FirstUid > cfg.LastUid {
+	if c.FirstUid > c.LastUid {
 		return trace.BadParameter("stable UNIX user is enabled but UID range is empty")
 	}
 
 	// see https://github.com/systemd/systemd/blob/cc7300fc5868f6d47f3f47076100b574bf54e58d/docs/UIDS-GIDS.md
 	const firstUserUID = 1000
-	if cfg.FirstUid < firstUserUID {
+	if c.FirstUid < firstUserUID {
 		return trace.BadParameter("stable UNIX user UID range includes negative or system UIDs; the configured range should be contained between 1000 and 2147483647")
 	}
 

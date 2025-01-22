@@ -328,6 +328,7 @@ func TestAuthPreferenceValidate(t *testing.T) {
 					},
 				}
 				tc.check(t, authPref.Validate())
+				tc.check(t, authPref.Spec.StableUnixUserConfig.Validate())
 			})
 		}
 	})

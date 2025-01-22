@@ -249,6 +249,14 @@ func (s *server) createNewStableUNIXUser(ctx context.Context, username string, a
 		return 0, trace.LimitExceeded("stable UNIX users are not enabled")
 	}
 
+	// the configuration might have been written by a different version of the
+	// auth server, so just in case we don't consider it valid we will reject it
+	// here (which will fail the API call, but it's better than potentially
+	// trashing the storage)
+	if err := cfg.Validate(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
 	select {
 	case s.writerSem <- struct{}{}:
 		defer func() { <-s.writerSem }()
