@@ -21,7 +21,6 @@ package azuresync
 import (
 	"fmt"
 
-
 	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
