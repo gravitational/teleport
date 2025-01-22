@@ -1,5 +1,6 @@
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
+import auth from 'teleport/services/auth/auth';
 import ResourceService, {
   DefaultAuthConnector,
   KindAuthConnectors,
@@ -9,17 +10,24 @@ import ResourceService, {
 } from 'teleport/services/resources';
 
 class ResourceServiceE extends ResourceService {
-  fetchAuthConnectors(): Promise<{
+  // TODO(rudream): Look into combining this method with the one from the OSS ResourceService and adding support for generics.
+  async fetchAuthConnectors(): Promise<{
     defaultConnector: DefaultAuthConnector;
     connectors: Resource<KindAuthConnectors>[];
   }> {
-    return api.get(cfg.getAuthConnectorsListUrl()).then(res => ({
-      defaultConnector: {
-        name: res.defaultConnectorName,
-        type: res.defaultConnectorType,
-      },
-      connectors: makeResourceList<KindAuthConnectors>(res.connectors),
-    }));
+    // MFA reuse needs to be allowed in case we need to fallback to another default connector
+    const challengeResponse =
+      await await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return api
+      .get(cfg.getAuthConnectorsListUrl(), undefined, challengeResponse)
+      .then(res => ({
+        defaultConnector: {
+          name: res.defaultConnectorName,
+          type: res.defaultConnectorType,
+        },
+        connectors: makeResourceList<KindAuthConnectors>(res.connectors),
+      }));
   }
 
   fetchSamlConnector(name: string) {
