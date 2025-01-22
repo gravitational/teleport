@@ -19,15 +19,17 @@
 package integrationv1
 
 import (
+	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestGenerateAzureOIDCToken(t *testing.T) {

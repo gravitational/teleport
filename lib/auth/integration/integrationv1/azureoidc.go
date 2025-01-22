@@ -20,11 +20,13 @@ package integrationv1
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
-	"github.com/gravitational/trace"
 )
 
 // GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
