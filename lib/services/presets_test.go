@@ -139,6 +139,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 NewPresetAccessRole().GetRules(types.Allow),
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -171,6 +174,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -186,6 +192,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -202,6 +211,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -735,6 +747,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
 							types.NewRule(types.KindWorkloadIdentity, RW()),
+							types.NewRule(types.KindGitServer, RW()),
 						},
 					},
 				},
