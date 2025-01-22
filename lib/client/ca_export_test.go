@@ -99,179 +99,176 @@ func TestExportAuthorities(t *testing.T) {
 		require.NotNil(t, privKey, "x509.ParsePKCS1PrivateKey returned a nil certificate")
 	}
 
-	for _, exportSecrets := range []bool{false, true} {
-		for _, tt := range []struct {
-			name            string
-			req             ExportAuthoritiesRequest
-			errorCheck      require.ErrorAssertionFunc
-			assertNoSecrets func(t *testing.T, output string)
-			assertSecrets   func(t *testing.T, output string)
-		}{
-			{
-				name: "ssh host and user ca",
-				req: ExportAuthoritiesRequest{
-					AuthType: "",
-				},
-				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
-					require.Contains(t, output, "cert-authority ssh-rsa")
-				},
-				assertSecrets: func(t *testing.T, output string) {},
+	for _, tt := range []struct {
+		name            string
+		req             ExportAuthoritiesRequest
+		errorCheck      require.ErrorAssertionFunc
+		assertNoSecrets func(t *testing.T, output string)
+		assertSecrets   func(t *testing.T, output string)
+	}{
+		{
+			name: "ssh host and user ca",
+			req: ExportAuthoritiesRequest{
+				AuthType: "",
 			},
-			{
-				name: "user",
-				req: ExportAuthoritiesRequest{
-					AuthType: "user",
-				},
-				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Contains(t, output, "cert-authority ssh-rsa")
-				},
-				assertSecrets: validatePrivateKeyPEMFunc,
+			errorCheck: require.NoError,
+			assertNoSecrets: func(t *testing.T, output string) {
+				require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
+				require.Contains(t, output, "cert-authority ssh-rsa")
 			},
-			{
-				name: "host",
-				req: ExportAuthoritiesRequest{
-					AuthType: "host",
-				},
-				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
-				},
-				assertSecrets: validatePrivateKeyPEMFunc,
+			assertSecrets: func(t *testing.T, output string) {},
+		},
+		{
+			name: "user",
+			req: ExportAuthoritiesRequest{
+				AuthType: "user",
 			},
-			{
-				name: "tls",
-				req: ExportAuthoritiesRequest{
-					AuthType: "tls",
-				},
-				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificatePEMFunc,
-				assertSecrets:   validatePrivateKeyPEMFunc,
+			errorCheck: require.NoError,
+			assertNoSecrets: func(t *testing.T, output string) {
+				require.Contains(t, output, "cert-authority ssh-rsa")
 			},
-			{
-				name: "windows",
-				req: ExportAuthoritiesRequest{
-					AuthType: "windows",
-				},
-				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificateDERFunc,
-				assertSecrets:   validatePrivateKeyDERFunc,
+			assertSecrets: validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "host",
+			req: ExportAuthoritiesRequest{
+				AuthType: "host",
 			},
-			{
-				name: "invalid",
-				req: ExportAuthoritiesRequest{
-					AuthType: "invalid",
-				},
-				errorCheck: func(tt require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(tt, err, `"invalid" authority type is not supported`)
-				},
+			errorCheck: require.NoError,
+			assertNoSecrets: func(t *testing.T, output string) {
+				require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
 			},
-			{
-				name: "fingerprint not found",
-				req: ExportAuthoritiesRequest{
-					AuthType:                   "user",
-					ExportAuthorityFingerprint: "not found fingerprint",
-				},
-				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Empty(t, output)
-				},
-				assertSecrets: func(t *testing.T, output string) {
-					require.Empty(t, output)
-				},
+			assertSecrets: validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "tls",
+			req: ExportAuthoritiesRequest{
+				AuthType: "tls",
 			},
-			{
-				name: "fingerprint not found",
-				req: ExportAuthoritiesRequest{
-					AuthType:                   "user",
-					ExportAuthorityFingerprint: "fake fingerprint",
-				},
-				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Empty(t, output)
-				},
-				assertSecrets: func(t *testing.T, output string) {
-					require.Empty(t, output)
-				},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificatePEMFunc,
+			assertSecrets:   validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "windows",
+			req: ExportAuthoritiesRequest{
+				AuthType: "windows",
 			},
-			{
-				name: "using compat version",
-				req: ExportAuthoritiesRequest{
-					AuthType:         "user",
-					UseCompatVersion: true,
-				},
-				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					// compat version (using 1.0) returns cert-authority to be used in the server
-					// even when asking for ssh authorized hosts / known hosts
-					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
-				},
-				assertSecrets: validatePrivateKeyPEMFunc,
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificateDERFunc,
+			assertSecrets:   validatePrivateKeyDERFunc,
+		},
+		{
+			name: "invalid",
+			req: ExportAuthoritiesRequest{
+				AuthType: "invalid",
 			},
-			{
-				name: "db",
-				req: ExportAuthoritiesRequest{
-					AuthType: "db",
-				},
-				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificatePEMFunc,
-				assertSecrets:   validatePrivateKeyPEMFunc,
+			errorCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, `"invalid" authority type is not supported`)
 			},
-			{
-				name: "db-der",
-				req: ExportAuthoritiesRequest{
-					AuthType: "db-der",
-				},
-				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificateDERFunc,
-				assertSecrets:   validatePrivateKeyDERFunc,
+		},
+		{
+			name: "fingerprint not found",
+			req: ExportAuthoritiesRequest{
+				AuthType:                   "user",
+				ExportAuthorityFingerprint: "not found fingerprint",
 			},
-			{
-				name: "db-client",
-				req: ExportAuthoritiesRequest{
-					AuthType: "db-client",
-				},
-				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificatePEMFunc,
-				assertSecrets:   validatePrivateKeyPEMFunc,
+			errorCheck: require.NoError,
+			assertNoSecrets: func(t *testing.T, output string) {
+				require.Empty(t, output)
 			},
-			{
-				name: "db-client-der",
-				req: ExportAuthoritiesRequest{
-					AuthType: "db-client-der",
-				},
-				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificateDERFunc,
-				assertSecrets:   validatePrivateKeyDERFunc,
+			assertSecrets: func(t *testing.T, output string) {
+				require.Empty(t, output)
 			},
-		} {
-			t.Run(fmt.Sprintf("%s_exportSecrets_%v", tt.name, exportSecrets), func(t *testing.T) {
-				mockedClient := &mockAuthClient{
-					server: testAuth.AuthServer,
-				}
-				var (
-					err      error
-					exported string
-				)
-				exportFunc := ExportAuthorities
-				checkFunc := tt.assertNoSecrets
+		},
+		{
+			name: "fingerprint not found",
+			req: ExportAuthoritiesRequest{
+				AuthType:                   "user",
+				ExportAuthorityFingerprint: "fake fingerprint",
+			},
+			errorCheck: require.NoError,
+			assertNoSecrets: func(t *testing.T, output string) {
+				require.Empty(t, output)
+			},
+			assertSecrets: func(t *testing.T, output string) {
+				require.Empty(t, output)
+			},
+		},
+		{
+			name: "using compat version",
+			req: ExportAuthoritiesRequest{
+				AuthType:         "user",
+				UseCompatVersion: true,
+			},
+			errorCheck: require.NoError,
+			assertNoSecrets: func(t *testing.T, output string) {
+				// compat version (using 1.0) returns cert-authority to be used in the server
+				// even when asking for ssh authorized hosts / known hosts
+				require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
+			},
+			assertSecrets: validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "db",
+			req: ExportAuthoritiesRequest{
+				AuthType: "db",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificatePEMFunc,
+			assertSecrets:   validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "db-der",
+			req: ExportAuthoritiesRequest{
+				AuthType: "db-der",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificateDERFunc,
+			assertSecrets:   validatePrivateKeyDERFunc,
+		},
+		{
+			name: "db-client",
+			req: ExportAuthoritiesRequest{
+				AuthType: "db-client",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificatePEMFunc,
+			assertSecrets:   validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "db-client-der",
+			req: ExportAuthoritiesRequest{
+				AuthType: "db-client-der",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificateDERFunc,
+			assertSecrets:   validatePrivateKeyDERFunc,
+		},
+	} {
+		runTest := func(
+			t *testing.T,
+			exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) (string, error),
+			assertFunc func(t *testing.T, output string),
+		) {
+			mockedClient := &mockAuthClient{
+				server: testAuth.AuthServer,
+			}
 
-				if exportSecrets {
-					exportFunc = ExportAuthoritiesSecrets
-					checkFunc = tt.assertSecrets
-				}
+			exported, err := exportFunc(ctx, mockedClient, tt.req)
+			tt.errorCheck(t, err)
+			if err != nil {
+				return
+			}
 
-				exported, err = exportFunc(ctx, mockedClient, tt.req)
-				tt.errorCheck(t, err)
-
-				if err != nil {
-					return
-				}
-
-				checkFunc(t, exported)
-			})
+			assertFunc(t, exported)
 		}
+
+		t.Run(fmt.Sprintf("%s/ExportAuthorities", tt.name), func(t *testing.T) {
+			runTest(t, ExportAuthorities, tt.assertNoSecrets)
+		})
+		t.Run(fmt.Sprintf("%s/ExportAuthoritiesSecrets", tt.name), func(t *testing.T) {
+			runTest(t, ExportAuthoritiesSecrets, tt.assertSecrets)
+		})
 	}
 }
