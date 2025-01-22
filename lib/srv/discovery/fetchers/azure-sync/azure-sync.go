@@ -20,7 +20,7 @@ package azuresync
 
 import (
 	"context"
-	"sync"
+	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
@@ -29,7 +29,6 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/msgraph"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // fetcherConcurrency is an arbitrary per-resource type concurrency to ensure significant throughput. As we increase
@@ -160,10 +159,10 @@ func (f *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) 
 	if res == nil {
 		return nil, trace.Wrap(err)
 	}
-	res.Principals = utils.DeduplicateKey(res.Principals, azurePrincipalsKey)
-	res.RoleAssignments = utils.DeduplicateKey(res.RoleAssignments, azureRoleAssignKey)
-	res.RoleDefinitions = utils.DeduplicateKey(res.RoleDefinitions, azureRoleDefKey)
-	res.VirtualMachines = utils.DeduplicateKey(res.VirtualMachines, azureVmKey)
+	res.Principals = slices.DeduplicateKey(res.Principals, azurePrincipalsKey)
+	res.RoleAssignments = slices.DeduplicateKey(res.RoleAssignments, azureRoleAssignKey)
+	res.RoleDefinitions = slices.DeduplicateKey(res.RoleDefinitions, azureRoleDefKey)
+	res.VirtualMachines = slices.DeduplicateKey(res.VirtualMachines, azureVmKey)
 	return res, trace.Wrap(err)
 }
 
@@ -173,8 +172,8 @@ func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(fetcherConcurrency)
 	var result = &Resources{}
-        // we use a larger value (50) here so there is always room for any returned error to be sent to errsCh without blocking.
-	errsCh := make(chan error,50)
+	// we use a larger value (50) here so there is always room for any returned error to be sent to errsCh without blocking.
+	errsCh := make(chan error, 50)
 	if feats.Principals {
 		eg.Go(func() error {
 			principals, err := fetchPrincipals(ctx, f.SubscriptionID, f.graphClient)
@@ -225,11 +224,10 @@ func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 		})
 	}
 
-
 	// Return the result along with any errors collected
 	_ = eg.Wait()
 	close(errsCh)
-	return result, trace.NewAggregateFromChannel(errsCh)
+	return result, trace.NewAggregateFromChannel(errsCh, ctx)
 }
 
 // Status returns the number of resources last fetched and/or the last fetching/reconciling error

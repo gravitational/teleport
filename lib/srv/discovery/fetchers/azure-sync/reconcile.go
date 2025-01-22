@@ -20,11 +20,11 @@ package azuresync
 
 import (
 	"fmt"
+	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // MergeResources merges Azure resources fetched from multiple configured Azure fetchers
@@ -42,10 +42,10 @@ func MergeResources(results ...*Resources) *Resources {
 		result.RoleDefinitions = append(result.RoleDefinitions, r.RoleDefinitions...)
 		result.VirtualMachines = append(result.VirtualMachines, r.VirtualMachines...)
 	}
-	result.Principals = utils.DeduplicateKey(result.Principals, azurePrincipalsKey)
-	result.RoleAssignments = utils.DeduplicateKey(result.RoleAssignments, azureRoleAssignKey)
-	result.RoleDefinitions = utils.DeduplicateKey(result.RoleDefinitions, azureRoleDefKey)
-	result.VirtualMachines = utils.DeduplicateKey(result.VirtualMachines, azureVmKey)
+	result.Principals = slices.DeduplicateKey(result.Principals, azurePrincipalsKey)
+	result.RoleAssignments = slices.DeduplicateKey(result.RoleAssignments, azureRoleAssignKey)
+	result.RoleDefinitions = slices.DeduplicateKey(result.RoleDefinitions, azureRoleDefKey)
+	result.VirtualMachines = slices.DeduplicateKey(result.VirtualMachines, azureVmKey)
 	return result
 }
 
@@ -86,7 +86,7 @@ func reconcile[T proto.Message](
 	wrapFn func(T) *accessgraphv1alpha.AzureResource,
 ) *reconcilePair {
 	// Remove duplicates from the new items
-	newItems = utils.DeduplicateKey(newItems, keyFn)
+	newItems = slices.DeduplicateKey(newItems, keyFn)
 	upsertRes := newResourceList()
 	deleteRes := newResourceList()
 
