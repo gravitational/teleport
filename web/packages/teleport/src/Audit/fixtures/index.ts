@@ -3868,7 +3868,7 @@ export const events = [
   },
   {
     code: 'TAIC005I',
-    event: 'aws_identity_center.principal_assignment.create',
+    event: 'aws_identity_center.permission_assignment.create',
     external_id: '7c0d5548-f011-70a6-e781-0fa9c3217213',
     principal_id: 'alice@example.com',
     principal_type: 'PRINCIPAL_TYPE_USER',
@@ -3884,7 +3884,7 @@ export const events = [
   },
   {
     code: 'TAIC006I',
-    event: 'aws_identity_center.principal_assignment.delete',
+    event: 'aws_identity_center.permission_assignment.delete',
     external_id: '7c0d5548-f011-70a6-e781-0fa9c3217213',
     principal_id: 'dev-team',
     principal_type: 'PRINCIPAL_TYPE_ACCESS_LIST',

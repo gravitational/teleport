@@ -2032,16 +2032,16 @@ export const formatters: Formatters = {
       return 'Periodic upstream account, account assignment, permission set sync';
     },
   },
-  [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE]: {
-    type: 'aws_identity_center.principal_assignment.create',
-    desc: 'Principal Assignment Created',
+  [eventCodes.AWSIC_PERMISSION_ASSIGNMENT_CREATE]: {
+    type: 'aws_identity_center.permission_assignment.create',
+    desc: 'Permission Assignment Created',
     format: ({ principal_id, principal_type }) => {
       return `Account assignment for ${deduceAwsIcPrincipal(principal_type).toLowerCase()} [${principal_id}] has been created`;
     },
   },
-  [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_DELETE]: {
-    type: 'aws_identity_center.principal_assignment.delete',
-    desc: 'Principal Assignment Deleted',
+  [eventCodes.AWSIC_PERMISSION_ASSIGNMENT_DELETE]: {
+    type: 'aws_identity_center.permission_assignment.delete',
+    desc: 'Permission Assignment Deleted',
     format: ({ principal_id, principal_type }) => {
       return `Account assignment for ${deduceAwsIcPrincipal(principal_type).toLowerCase()} [${principal_id}] has been deleted`;
     },
