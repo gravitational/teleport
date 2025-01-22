@@ -492,9 +492,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		AWSICPrincipalProvisioningUpdate,
 		AWSICPrincipalProvisioningDelete:
 		e = &events.AWSICPrincipalProvisioning{}
-	case AWSICPrincipalAssignmentCreate,
-		AWSICPrincipalAssignmentDelete:
-		e = &events.AWSICPrincipalAssignment{}
+	case AWSICPermissionAssignmentCreate,
+		AWSICPermissionAssignmentDelete:
+		e = &events.AWSICPermissionAssignment{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)

@@ -695,10 +695,10 @@ const (
 
 	// AWSICAccountSyncCode is the AWS Identity Center account sync event code.
 	AWSICResourceSyncCode = "TAIC001I"
-	// AWSICPrincipalAssignmentCreateCode is the AWS Identity Center principal assignment create event code.
-	AWSICPrincipalAssignmentCreateCode = "TAIC002I"
-	// AWSICPrincipalAssignmentDeleteCode is the AWS Identity Center principal assignment delete event code.
-	AWSICPrincipalAssignmentDeleteCode = "TAIC003I"
+	// AWSICPermissionAssignmentCreateCode is the AWS Identity Center permission assignment create event code.
+	AWSICPermissionAssignmentCreateCode = "TAIC002I"
+	// AWSICPermissionAssignmentDeleteCode is the AWS Identity Center permission assignment delete event code.
+	AWSICPermissionAssignmentDeleteCode = "TAIC003I"
 	// AWSICPrincipalProvisioningCreateCode is the AWS Identity Center principal provisioning create event code.
 	AWSICPrincipalProvisioningCreateCode = "TAIC004I"
 	// AWSICPrincipalProvisioningDeleteCode is the AWS Identity Center principal provisioning delete event code.

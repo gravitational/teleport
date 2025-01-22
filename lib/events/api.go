@@ -864,12 +864,12 @@ const (
 
 	// AWSICAccountSync is emitted when AWS Identity Center accounts are synced.
 	AWSICResourceSync = "aws_identity_center.resource.sync"
-	// AWSICPrincipalAssignmentCreate is emitted when a principal account assignment is
+	// AWSICPermissionAssignmentCreate is emitted when a permission assignment is
 	// created in the AWS Identity Center.
-	AWSICPrincipalAssignmentCreate = "aws_identity_center.principal_assignment.create"
-	// AWSICPrincipalAssignmentDelete is emitted when a principal account assignment is
+	AWSICPermissionAssignmentCreate = "aws_identity_center.permission_assignment.create"
+	// AWSICPermissionAssignmentDelete is emitted when a permission assignment is
 	// deleted in the AWS Identity Center.
-	AWSICPrincipalAssignmentDelete = "aws_identity_center.principal_assignment.delete"
+	AWSICPermissionAssignmentDelete = "aws_identity_center.permission_assignment.delete"
 	// AWSICPrincipalProvisioningCreate is emitted when a principal is created in the AWS Identity Center.
 	AWSICPrincipalProvisioningCreate = "aws_identity_center.principal_provisioning.create"
 	// AWSICPrincipalProvisioningDelete is emitted when a principal is deleted in the AWS Identity Center.

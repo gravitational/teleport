@@ -4751,7 +4751,7 @@ message OneOf {
     events.AccessRequestExpire AccessRequestExpire = 199;
     events.AWSICResourceSync AWSICResourceSync = 200;
     events.AWSICPrincipalProvisioning AWSICPrincipalProvisioning = 201;
-    events.AWSICPrincipalAssignment AWSICPrincipalAssignment = 202;
+    events.AWSICPermissionAssignment AWSICPermissionAssignment = 202;
   }
 }
 
@@ -8020,11 +8020,11 @@ message AWSICPrincipalProvisioning {
   string principal_type = 4 [(gogoproto.jsontag) = "principal_type,omitempty"];
 }
 
-// AWSICPrincipalAssignment is emitted when a user or an Access List
+// AWSICPermissionAssignment is emitted when a user or an Access List
 // is assigned to an AWS account with a permission set. The assignment
 // provisioning happens right after when a user or an Access List is assigned
 // with a role that references AWS account and permissions set.
-message AWSICPrincipalAssignment {
+message AWSICPermissionAssignment {
   // Assignment is a principal assignment record.
   message Assignment {
     // Account ID of the AWS account.
