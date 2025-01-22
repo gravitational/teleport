@@ -2014,7 +2014,7 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
 export type Formatters = {
   [key in EventCode]: {
     type: string;
-    desc: string;
+    desc: string | ((json: RawEvents[key]) => string);
     format: (json: RawEvents[key]) => string;
   };
 };
