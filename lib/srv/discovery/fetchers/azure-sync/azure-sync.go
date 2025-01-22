@@ -20,7 +20,7 @@ package azuresync
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/utils/slices"
+
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
@@ -29,6 +29,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // fetcherConcurrency is an arbitrary per-resource type concurrency to ensure significant throughput. As we increase

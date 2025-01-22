@@ -20,11 +20,12 @@ package azuresync
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/lib/utils/slices"
+
 
 	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // MergeResources merges Azure resources fetched from multiple configured Azure fetchers
