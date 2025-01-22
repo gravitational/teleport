@@ -40,7 +40,7 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 		return
 	}
 
-	// Success output handled by authExportPublicInternal.
+	// Success output handled by authExportPublicError.
 }
 
 // authExportPublicError implements authExportPublic, except it returns an error
