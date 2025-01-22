@@ -59,7 +59,7 @@ func (process *TeleportProcess) initPyroscope() {
 
 	// Build pyroscope config
 	config := pyroscope.Config{
-		ApplicationName: "teleport",
+		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
 		Logger:          pyroscope.Logger(logger{l: slog.Default()}),
 		Tags: map[string]string{
