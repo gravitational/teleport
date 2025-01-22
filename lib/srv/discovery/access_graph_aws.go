@@ -438,8 +438,8 @@ func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate,
 	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 }
 
-func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error {
-	fetchers, err := s.accessGraphFetchersFromMatchers(ctx, cfg.Matchers, "" /* discoveryConfigName */)
+func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
+	fetchers, err := s.accessGraphAWSFetchersFromMatchers(ctx, cfg.Matchers, "" /* discoveryConfigName */)
 	if err != nil {
 		s.Log.ErrorContext(ctx, "Error initializing access graph fetchers", "error", err)
 	}
@@ -482,8 +482,8 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 	return nil
 }
 
-// accessGraphFetchersFromMatchers converts Matchers into a set of AWS Sync Fetchers.
-func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers Matchers, discoveryConfigName string) ([]aws_sync.AWSSync, error) {
+// accessGraphAWSFetchersFromMatchers converts Matchers into a set of AWS Sync Fetchers.
+func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matchers Matchers, discoveryConfigName string) ([]aws_sync.AWSSync, error) {
 	var fetchers []aws_sync.AWSSync
 	var errs []error
 	if matchers.AccessGraph == nil {

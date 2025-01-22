@@ -142,17 +142,3 @@ func FromSlice[T any](r []T, key func(T) string) map[string]T {
 
 	return out
 }
-
-// DeduplicateKey returns a deduplicated slice by comparing key values from the key function
-func DeduplicateKey[T any](s []T, key func(T) string) []T {
-	out := make([]T, 0, len(s))
-	seen := make(map[string]struct{})
-	for _, v := range s {
-		if _, ok := seen[key(v)]; ok {
-			continue
-		}
-		seen[key(v)] = struct{}{}
-		out = append(out, v)
-	}
-	return out
-}
