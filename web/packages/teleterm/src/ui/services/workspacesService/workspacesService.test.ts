@@ -31,14 +31,14 @@ import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/docu
 import { ClustersService } from '../clusters';
 import { ModalsService } from '../modals';
 import { NotificationsService } from '../notifications';
-import { StatePersistenceService } from '../statePersistence';
+import {
+  PersistedWorkspace,
+  StatePersistenceService,
+  WorkspacesPersistedState,
+} from '../statePersistence';
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
 import { DocumentCluster, DocumentsService } from './documentsService';
-import {
-  Workspace,
-  WorkspacesService,
-  WorkspacesState,
-} from './workspacesService';
+import { WorkspacesService, WorkspacesState } from './workspacesService';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -51,11 +51,7 @@ beforeEach(() => {
 describe('restoring workspace', () => {
   it('restores the workspace if there is a persisted state for given clusterUri', () => {
     const cluster = makeRootCluster();
-    const testWorkspace: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
+    const testWorkspace: PersistedWorkspace = {
       localClusterUri: cluster.uri,
       documents: [
         {
@@ -309,11 +305,7 @@ describe('setActiveWorkspace', () => {
 
   it('sets location to first document if location points to non-existing document when reopening documents', async () => {
     const cluster = makeRootCluster();
-    const testWorkspace: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
+    const testWorkspace: PersistedWorkspace = {
       localClusterUri: cluster.uri,
       documents: [
         {
@@ -374,11 +366,7 @@ describe('setActiveWorkspace', () => {
   it('ongoing setActive call is canceled when the method is called again', async () => {
     const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
     const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
-    const workspace1: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
+    const workspace1: PersistedWorkspace = {
       localClusterUri: clusterFoo.uri,
       documents: [
         {
@@ -410,7 +398,7 @@ describe('setActiveWorkspace', () => {
 
 function getTestSetup(options: {
   cluster: tshd.Cluster | tshd.Cluster[] | undefined;
-  persistedWorkspaces: Record<string, Workspace>;
+  persistedWorkspaces: WorkspacesPersistedState['workspaces'];
 }) {
   const { cluster } = options;
 
