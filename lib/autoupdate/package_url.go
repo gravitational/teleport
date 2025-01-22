@@ -39,6 +39,8 @@ const (
 const (
 	// DefaultBaseURL is CDN URL for downloading official Teleport packages.
 	DefaultBaseURL = "https://cdn.teleport.dev"
+	// DefaultPackage is the name of Teleport package.
+	DefaultPackage = "teleport"
 	// DefaultCDNURITemplate is the default template for the Teleport CDN download URL.
 	DefaultCDNURITemplate = `{{ .BaseURL }}/
 	{{- if eq .OS "darwin" }}
@@ -58,6 +60,7 @@ type Revision struct {
 	Flags InstallFlags `yaml:"flags,flow,omitempty" json:"flags,omitempty"`
 }
 
+// MakeURL constructs the package download URL from template, base URL and revision.
 func MakeURL(uriTmpl string, baseURL string, pkg string, rev Revision) (string, error) {
 	tmpl, err := template.New("uri").Parse(uriTmpl)
 	if err != nil {
