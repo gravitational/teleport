@@ -337,9 +337,12 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	nextHostID := hostID[:]
 	cHostID := [4]C.uint32_t{}
-	for i := 0; i < 4; i++ {
-		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(hostID[i : i+4]))
+	for i := 0; i < len(cHostID); i++ {
+		const uint32Len = 4
+		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
+		nextHostID = nextHostID[uint32Len:]
 	}
 
 	res := C.client_run(
@@ -842,20 +845,25 @@ func (c *Client) readRDPLicense(version uint32, issuer, company, productID strin
 }
 
 func (c *Client) writeRDPLicense(version uint32, issuer, company, productID string, license []byte) error {
-	c.cfg.Logger.InfoContext(context.Background(), "writing RDP license to storage",
+	log := c.cfg.Logger.With(
 		"issuer", issuer,
 		"company", company,
 		"version", fmt.Sprintf("%d", version),
 		"product", productID,
 	)
-	return trace.Wrap(c.cfg.LicenseStore.WriteRDPLicense(
+	log.InfoContext(context.Background(), "writing RDP license to storage")
+	err := c.cfg.LicenseStore.WriteRDPLicense(
 		context.Background(),
 		version,
 		issuer,
 		company,
 		productID,
 		license,
-	))
+	)
+	if err != nil {
+		log.ErrorContext(context.Background(), "could not write RDP license", "error", err)
+	}
+	return trace.Wrap(err)
 }
 
 //export cgo_handle_fastpath_pdu
