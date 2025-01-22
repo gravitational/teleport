@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,25 +14,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-// +build !darwin,!windows
-
 package vnet
 
 import (
 	"context"
-	"runtime"
 
 	"github.com/gravitational/trace"
 )
 
-// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-func runPlatformUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, error) {
-	return nil, trace.Wrap(ErrVnetNotImplemented)
-}
-
+// platformConfigureOS configures the host OS according to cfg. It is safe to
+// call repeatedly, and it is meant to be called with an empty osConfig to
+// deconfigure anything necessary before exiting.
 func platformConfigureOS(ctx context.Context, cfg *osConfig) error {
-	return trace.Wrap(ErrVnetNotImplemented)
+	// TODO(nklaassen): implement platformConfigureOS for Windows.
+	return trace.NotImplemented("platformConfigureOS is not implemented on Windows")
 }
