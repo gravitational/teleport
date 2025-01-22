@@ -19,6 +19,7 @@
 import { FileStorage } from 'teleterm/types';
 import { ConnectionTrackerState } from 'teleterm/ui/services/connectionTracker';
 import {
+  ProfileColor,
   Workspace,
   WorkspacesState,
 } from 'teleterm/ui/services/workspacesService';
@@ -31,14 +32,20 @@ interface UsageReportingState {
   askedForUserJobRole: boolean;
 }
 
+/**
+ * Expected shape of the persisted workspaces.
+ * In the future, it should come from zod.
+ */
+export type PersistedWorkspace = Omit<
+  Workspace,
+  'accessRequests' | 'documentsRestoredOrDiscarded' | 'color'
+> & { color?: ProfileColor };
+
 export type WorkspacesPersistedState = Omit<
   WorkspacesState,
   'workspaces' | 'isInitialized'
 > & {
-  workspaces: Record<
-    string,
-    Omit<Workspace, 'accessRequests' | 'documentsRestoredOrDiscarded'>
-  >;
+  workspaces: Record<string, PersistedWorkspace>;
 };
 
 export interface StatePersistenceState {
