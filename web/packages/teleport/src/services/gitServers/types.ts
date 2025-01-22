@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ClusterSelector from './ClusterSelector';
+import { ResourceLabel } from 'teleport/services/agents';
 
-export default ClusterSelector;
+export interface GitServer {
+  kind: 'git_server';
+  id: string;
+  clusterId: string;
+  hostname: string;
+  labels: ResourceLabel[];
+  subKind: 'github';
+  github: GitHubMetadata;
+  requiresRequest?: boolean;
+}
+
+export type GitHubMetadata = {
+  integration: string;
+  organization: string;
+};

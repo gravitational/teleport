@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
@@ -111,6 +112,8 @@ type awsClientProvider interface {
 	getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient
 	// getRDSClient provides an [rdsClient].
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
+	// getS3Client provides an [s3Client].
+	getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client
 }
 
 type defaultAWSClients struct{}
@@ -121,6 +124,10 @@ func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Option
 
 func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
 	return rds.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
+	return s3.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
