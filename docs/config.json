@@ -220,6 +220,11 @@
       "permanent": true
     },
     {
+      "source": "/admin-guides/deploy-a-cluster/deployments/ibm/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
+      "permanent": true
+    },
+    {
       "source": "/reference/operator-resources/resources.teleport.dev_githubconnectors/",
       "destination": "/reference/operator-resources/resources-teleport-dev-githubconnectors/",
       "permanent": true
@@ -277,6 +282,11 @@
     {
       "source": "/reference/operator-resources/resources.teleport.dev_users/",
       "destination": "/reference/operator-resources/resources-teleport-dev-users/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/role-templates/",
+      "destination": "/admin-guides/access-controls/guides/role-templates/",
       "permanent": true
     }
   ]
