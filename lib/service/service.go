@@ -305,6 +305,26 @@ const (
 	TeleportOKEvent = "TeleportOKEvent"
 )
 
+// TODO: Replace logger when pyroscope uses slog
+type logger struct {
+	l *slog.Logger
+}
+
+func (l logger) Infof(format string, args ...interface{}) {
+	//nolint:sloglint // msg cannot be constant
+	l.l.Info(fmt.Sprintf(format, args...))
+}
+
+func (l logger) Debugf(format string, args ...interface{}) {
+	//nolint:sloglint // msg cannot be constant
+	l.l.Debug(fmt.Sprintf(format, args...))
+}
+
+func (l logger) Errorf(format string, args ...interface{}) {
+	//nolint:sloglint // msg cannot be constant
+	l.l.Error(fmt.Sprintf(format, args...))
+}
+
 func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, error) {
 	clientState, err := newConnectorState(clientIdentity)
 	if err != nil {
@@ -1352,6 +1372,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if address := os.Getenv("TELEPORT_PYROSCOPE_SERVER_ADDRESS"); address != "" {
+
 		hostname, err := os.Hostname()
 		if err != nil {
 			hostname = "unknown"
@@ -1394,11 +1415,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			slog.InfoContext(process.ExitContext(), "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
 		}
 
+		//slogAdapter := logger{l: cfg.Log.WithGroup("pyroscope")}
+
 		// Build pyroscope config
 		config := pyroscope.Config{
 			ApplicationName: "teleport",
 			ServerAddress:   address,
-			Logger:          pyroscope.StandardLogger,
+			Logger:          pyroscope.Logger(logger{l: slog.Default()}),
 			Tags: map[string]string{
 				"host":    hostname,
 				"version": teleport.Version,
