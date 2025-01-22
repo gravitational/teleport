@@ -19,7 +19,10 @@ import (
 
 // ClientApplication is the common interface implemented by each VNet client
 // application: Connect and tsh. It provides methods to list user profiles, get
-// cluster clients, issue app certificates, and report metrics and errors.
+// cluster clients, issue app certificates, and report metrics and errors -
+// anything that uses the user's credentials or a Teleport client.
+// The name "client application" refers to a user-facing client application, in
+// constrast to the MacOS daemon or Windows service.
 type ClientApplication interface {
 	// ListProfiles lists the names of all profiles saved for the user.
 	ListProfiles() ([]string, error)
