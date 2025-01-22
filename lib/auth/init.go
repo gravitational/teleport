@@ -989,6 +989,7 @@ func GetPresetRoles() []types.Role {
 		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
 		services.NewPresetTerraformProviderRole(),
+		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
