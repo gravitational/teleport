@@ -206,5 +206,11 @@
       }
     }
   },
-  "redirects": []
+  "redirects": [
+    {
+      "source": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "permanent": true
+    }
+  ]
 }
