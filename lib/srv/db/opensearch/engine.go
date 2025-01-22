@@ -233,12 +233,13 @@ func (e *Engine) getSignedRequest(signer *libaws.SigningService, reqCopy *http.R
 	}
 
 	signCtx := &libaws.SigningCtx{
-		SigningName:   opensearchservice.EndpointsID,
-		SigningRegion: e.sessionCtx.Database.GetAWS().Region,
-		Expiry:        e.sessionCtx.Identity.Expires,
-		SessionName:   e.sessionCtx.Identity.Username,
-		AWSRoleArn:    roleArn,
-		AWSExternalID: e.sessionCtx.Database.GetAWS().ExternalID,
+		SigningName:    opensearchservice.EndpointsID,
+		SigningRegion:  e.sessionCtx.Database.GetAWS().Region,
+		Expiry:         e.sessionCtx.Identity.Expires,
+		SessionName:    e.sessionCtx.Identity.Username,
+		BaseAWSRoleARN: e.sessionCtx.Database.GetAWS().AssumeRoleARN,
+		AWSRoleArn:     roleArn,
+		AWSExternalID:  e.sessionCtx.Database.GetAWS().ExternalID,
 	}
 
 	signedReq, err := signer.SignRequest(e.Context, reqCopy, signCtx)
