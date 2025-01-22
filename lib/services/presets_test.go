@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -557,6 +558,114 @@ func TestAddRoleDefaults(t *testing.T) {
 			},
 			enterprise:  true,
 			expectedErr: noChange,
+		},
+		{
+			// This test is here to validate that we properly fix a bug previously introduced in the TF role preset.
+			// All the new resources got added into the same rule, but the preset defaults system only supports adding
+			// new rules, not editing existing ones. The resources got removed from the main rule and put into
+			// smaller individual rules.
+			name: "terraform provider (bugfix of the missing resources)",
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetTerraformProviderRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default Terraform provider role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						Rules: []types.Rule{
+							{
+								Resources: []string{
+									types.KindAccessList,
+									types.KindApp,
+									types.KindClusterAuthPreference,
+									types.KindClusterMaintenanceConfig,
+									types.KindClusterNetworkingConfig,
+									types.KindDatabase,
+									types.KindDevice,
+									types.KindGithub,
+									types.KindLoginRule,
+									types.KindNode,
+									types.KindOIDC,
+									types.KindOktaImportRule,
+									types.KindRole,
+									types.KindSAML,
+									types.KindSessionRecordingConfig,
+									types.KindToken,
+									types.KindTrustedCluster,
+									types.KindUser,
+									// Some of the new resources got introduced, but not all
+									types.KindBot,
+									types.KindInstaller,
+								},
+								Verbs: RW(),
+							},
+						},
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetTerraformProviderRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default Terraform provider role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						Rules: []types.Rule{
+							{
+								Resources: []string{
+									types.KindAccessList,
+									types.KindApp,
+									types.KindClusterAuthPreference,
+									types.KindClusterMaintenanceConfig,
+									types.KindClusterNetworkingConfig,
+									types.KindDatabase,
+									types.KindDevice,
+									types.KindGithub,
+									types.KindLoginRule,
+									types.KindNode,
+									types.KindOIDC,
+									types.KindOktaImportRule,
+									types.KindRole,
+									types.KindSAML,
+									types.KindSessionRecordingConfig,
+									types.KindToken,
+									types.KindTrustedCluster,
+									types.KindUser,
+									// The resources that already got into the main rule are still present.
+									types.KindBot,
+									types.KindInstaller,
+								},
+								Verbs: RW(),
+							},
+							// The missing resources got added as individual rules
+							types.NewRule(types.KindAccessMonitoringRule, RW()),
+							types.NewRule(types.KindStaticHostUser, RW()),
+							types.NewRule(types.KindWorkloadIdentity, RW()),
+						},
+					},
+				},
+			},
 		},
 	}
 
