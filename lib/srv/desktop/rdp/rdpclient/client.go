@@ -781,9 +781,7 @@ func cgo_read_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data_out
 	company := C.GoString(req.company)
 	productID := C.GoString(req.product_id)
 
-	license, err := client.readRDPLicense(
-		uint32(req.version),
-		issuer, company, productID)
+	license, err := client.readRDPLicense(context.Background(), uint32(req.version), issuer, company, productID)
 	if trace.IsNotFound(err) {
 		return C.ErrCodeNotFound
 	} else if err != nil {
@@ -815,7 +813,7 @@ func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C
 
 	licenseData := C.GoBytes(unsafe.Pointer(data), C.int(length))
 
-	err = client.writeRDPLicense(uint32(req.version), issuer, company, productID, licenseData)
+	err = client.writeRDPLicense(context.Background(), uint32(req.version), issuer, company, productID, licenseData)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
@@ -823,37 +821,37 @@ func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C
 	return C.ErrCodeSuccess
 }
 
-func (c *Client) readRDPLicense(version uint32, issuer, company, productID string) ([]byte, error) {
+func (c *Client) readRDPLicense(ctx context.Context, version uint32, issuer, company, productID string) ([]byte, error) {
 	log := c.cfg.Logger.With(
 		"issuer", issuer,
 		"company", company,
-		"version", fmt.Sprintf("%d", version),
+		"version", version,
 		"product", productID,
 	)
 
-	license, err := c.cfg.LicenseStore.ReadRDPLicense(context.Background(), version, issuer, company, productID)
+	license, err := c.cfg.LicenseStore.ReadRDPLicense(ctx, version, issuer, company, productID)
 	switch {
 	case trace.IsNotFound(err):
-		log.InfoContext(context.Background(), "existing RDP license not found")
+		log.InfoContext(ctx, "existing RDP license not found")
 	case err != nil:
-		log.ErrorContext(context.Background(), "could not look up existing RDP license", "error", err)
+		log.ErrorContext(ctx, "could not look up existing RDP license", "error", err)
 	case len(license) > 0:
-		log.InfoContext(context.Background(), "found existing RDP license")
+		log.InfoContext(ctx, "found existing RDP license")
 	}
 
 	return license, trace.Wrap(err)
 }
 
-func (c *Client) writeRDPLicense(version uint32, issuer, company, productID string, license []byte) error {
+func (c *Client) writeRDPLicense(ctx context.Context, version uint32, issuer, company, productID string, license []byte) error {
 	log := c.cfg.Logger.With(
 		"issuer", issuer,
 		"company", company,
-		"version", fmt.Sprintf("%d", version),
+		"version", version,
 		"product", productID,
 	)
-	log.InfoContext(context.Background(), "writing RDP license to storage")
+	log.InfoContext(ctx, "writing RDP license to storage")
 	err := c.cfg.LicenseStore.WriteRDPLicense(
-		context.Background(),
+		ctx,
 		version,
 		issuer,
 		company,
@@ -861,7 +859,7 @@ func (c *Client) writeRDPLicense(version uint32, issuer, company, productID stri
 		license,
 	)
 	if err != nil {
-		log.ErrorContext(context.Background(), "could not write RDP license", "error", err)
+		log.ErrorContext(ctx, "could not write RDP license", "error", err)
 	}
 	return trace.Wrap(err)
 }
