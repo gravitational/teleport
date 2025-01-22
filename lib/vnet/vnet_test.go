@@ -918,7 +918,7 @@ func TestRemoteAppProvider(t *testing.T) {
 		require.NoError(t, err)
 		testEchoConnection(t, conn)
 	}
-	_, err = p.dialHost(dialCtx, "badapp.root.example.com", 123)
+	_, err = p.dialHost(dialCtx, "badapp.root.example.com.", 123)
 	require.Error(t, err)
 }
 
