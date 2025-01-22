@@ -137,7 +137,7 @@ func (p *localAppProvider) clusterClientForAppFQDN(ctx context.Context, profileN
 
 		clusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 		if err != nil {
-			log.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			log.ErrorContext(ctx, "Failed to get VNet config, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
 		for _, zone := range clusterConfig.DNSZones {
