@@ -3606,6 +3606,8 @@ func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
 	res, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "token"), types.ProvisionTokenSpecV2{
 		Roles: types.SystemRoles{types.RoleNode},
 	})
+	require.NoError(t, err)
+
 	var responseToken nodeJoinToken
 	err = json.Unmarshal(res.Bytes(), &responseToken)
 	require.NoError(t, err)
