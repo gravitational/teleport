@@ -35,7 +35,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
 )
 
 // reconcileAccessGraphAzure fetches Azure resources, creates a set of resources to delete and upsert based on
@@ -394,7 +394,6 @@ func (s *Server) accessGraphAzureFetchersFromMatchers(
 	}
 	for _, matcher := range matchers.AccessGraph.Azure {
 		fetcherCfg := azuresync.Config{
-			CloudClients:        s.CloudClients,
 			SubscriptionID:      matcher.SubscriptionID,
 			Integration:         matcher.Integration,
 			DiscoveryConfigName: discoveryConfigName,
