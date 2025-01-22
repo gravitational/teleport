@@ -269,6 +269,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 
 	res, err := c.client.SearchWithPaging(req, searchPageSize)
 	referrals := extractReferrals(err)
+	var referralErrors []string
 	if len(referrals) > 0 {
 		for i := 0; i < len(referrals); i++ {
 			if conn, err2 := c.connectionCreator(referrals[i]); err2 == nil {
@@ -278,10 +279,15 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 				} else if len(referrals) < 10 {
 					newReferrals := extractReferrals(err3)
 					referrals = append(referrals, newReferrals...)
+					if len(newReferrals) == 0 {
+						referralErrors = append(referralErrors, fmt.Sprintf("%s (%s)", referrals[i], err3))
+					}
 				}
+			} else {
+				referralErrors = append(referralErrors, fmt.Sprintf("%s (%s)", referrals[i], err2))
 			}
 		}
-		return nil, trace.Wrap(fmt.Errorf("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ",")))
+		return nil, trace.Wrap(fmt.Errorf("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referralErrors, ",")))
 	} else if err != nil {
 		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
