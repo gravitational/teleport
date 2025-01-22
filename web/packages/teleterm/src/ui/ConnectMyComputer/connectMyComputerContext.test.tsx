@@ -65,19 +65,7 @@ function getMocks() {
   const appContext = new MockAppContext({
     appVersion: rootCluster.proxyVersion,
   });
-
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, rootCluster);
-  });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      documents: [],
-      location: undefined,
-      localClusterUri: rootCluster.uri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootCluster(rootCluster);
 
   return { appContext, rootCluster };
 }

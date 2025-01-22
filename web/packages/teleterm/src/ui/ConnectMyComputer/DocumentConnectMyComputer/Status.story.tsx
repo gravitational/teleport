@@ -236,7 +236,7 @@ export function UpgradeAgentSuggestion() {
 
 function ShowState(props: {
   agentProcessState: AgentProcessState;
-  appContext?: AppContext;
+  appContext?: MockAppContext;
   proxyVersion?: string;
   autoStart?: boolean;
 }) {
@@ -248,18 +248,7 @@ function ShowState(props: {
     new MockAppContext({ appVersion: cluster.proxyVersion });
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
-  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces = {
-      [cluster.uri]: {
-        localClusterUri: cluster.uri,
-        documents: [],
-        location: '/docs/1234',
-        accessRequests: undefined,
-      },
-    };
-  });
+  appContext.addRootCluster(cluster);
 
   if (props.autoStart) {
     appContext.workspacesService.setConnectMyComputerAutoStart(

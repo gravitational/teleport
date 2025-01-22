@@ -29,6 +29,7 @@ import {
   screen,
 } from '@testing-library/react';
 
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { IAppContext } from 'teleterm/ui/types';
@@ -233,17 +234,10 @@ describe('closeWithoutRestoringFocus', () => {
 });
 
 test('search bar state is adjusted to the active document', () => {
-  const rootClusterUri = '/clusters/localhost';
+  const rootCluster = makeRootCluster({ uri: '/clusters/localhost' });
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootCluster(rootCluster);
+
   const docService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
   const { result } = renderHook(() => useSearchContext(), {
@@ -260,7 +254,7 @@ test('search bar state is adjusted to the active document', () => {
   // document changes to the cluster document
   act(() => {
     const clusterDoc = docService.createClusterDocument({
-      clusterUri: rootClusterUri,
+      clusterUri: rootCluster.uri,
       queryParams: {
         search: 'foo',
         resourceKinds: ['db'],
@@ -281,7 +275,7 @@ test('search bar state is adjusted to the active document', () => {
   // document changes to another cluster document
   act(() => {
     const clusterDoc = docService.createClusterDocument({
-      clusterUri: rootClusterUri,
+      clusterUri: rootCluster.uri,
       queryParams: {
         search: 'bar',
         resourceKinds: ['kube_cluster'],
@@ -316,7 +310,7 @@ test('search bar state is adjusted to the active document', () => {
   // document changes to a cluster document
   act(() => {
     const clusterDoc = docService.createClusterDocument({
-      clusterUri: rootClusterUri,
+      clusterUri: rootCluster.uri,
       queryParams: {
         search: 'bar',
         resourceKinds: ['kube_cluster'],

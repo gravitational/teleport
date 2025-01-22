@@ -27,7 +27,6 @@ import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesC
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 const rootCluster = makeRootCluster();
 
@@ -89,18 +88,7 @@ export function Browsing() {
       startKey: '',
       requests: [mockedAccessRequest],
     });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, [doc]);
 
   return (
     <AppContextProvider value={appContext}>
@@ -117,21 +105,7 @@ export function BrowsingError() {
   const appContext = new MockAppContext();
   appContext.tshd.getAccessRequests = () =>
     new MockedUnaryCall(null, new Error('network error'));
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, rootCluster);
-  });
+  appContext.addRootClusterWithDoc(rootCluster, [doc]);
 
   return (
     <AppContextProvider value={appContext}>
@@ -156,24 +130,13 @@ export function CreatingWhenUnifiedResourcesShowOnlyAccessibleResources() {
       startKey: '',
       requests: [mockedAccessRequest],
     });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: docCreating.clusterUri,
-      documents: [docCreating],
-      location: docCreating.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, {
+  appContext.addRootClusterWithDoc(
+    {
       ...rootCluster,
       showResources: ShowResources.ACCESSIBLE_ONLY,
-    });
-  });
+    },
+    [doc]
+  );
 
   return (
     <AppContextProvider value={appContext}>
@@ -198,24 +161,13 @@ export function CreatingWhenUnifiedResourcesShowRequestableAndAccessibleResource
       startKey: '',
       requests: [mockedAccessRequest],
     });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: docCreating.clusterUri,
-      documents: [docCreating],
-      location: docCreating.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, {
+  appContext.addRootClusterWithDoc(
+    {
       ...rootCluster,
       showResources: ShowResources.REQUESTABLE,
-    });
-  });
+    },
+    [doc]
+  );
 
   return (
     <AppContextProvider value={appContext}>

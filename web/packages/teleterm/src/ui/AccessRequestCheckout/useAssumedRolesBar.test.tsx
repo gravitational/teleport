@@ -33,15 +33,7 @@ import { useAssumedRolesBar } from './useAssumedRolesBar';
 test('dropping a request refreshes resources', async () => {
   const appContext = new MockAppContext();
   const cluster = makeRootCluster();
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootCluster(cluster);
   jest.spyOn(appContext.clustersService, 'dropRoles');
   const refreshListener = jest.fn();
 

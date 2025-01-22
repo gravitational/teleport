@@ -54,27 +54,7 @@ async function getTestSetup({ documents }: { documents: Document[] }) {
   const appContext = new MockAppContext();
   jest.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
 
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      rootClusterUri,
-      makeRootCluster({
-        uri: rootClusterUri,
-      })
-    );
-  });
-
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = rootClusterUri;
-    draft.workspaces[rootClusterUri] = {
-      documents,
-      location: documents[0]?.uri,
-      localClusterUri: rootClusterUri,
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: { kind: 'resource', resources: new Map() },
-      },
-    };
-  });
+  appContext.addRootClusterWithDoc(makeRootCluster(), documents);
 
   const docsService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
