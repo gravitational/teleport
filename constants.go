@@ -703,6 +703,12 @@ const (
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
 	SystemOktaAccessRoleName = "okta-access"
+
+	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
+	// that includes the permissions necessary to issue workload identity
+	// credentials using any workload_identity resource. This exists to simplify
+	// Day 0 UX experience with workload identity.
+	PresetWildcardWorkloadIdentityIssuerRoleName = "wildcard-workload-identity-issuer"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

@@ -501,6 +501,34 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 	}
 }
 
+// NewPresetWildcardWorkloadIdentityIssuerRole returns a new pre-defined role
+// for issuing workload identities.
+func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Issue workload identities",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				WorkloadIdentityLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindWorkloadIdentity, RO()),
+				},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
