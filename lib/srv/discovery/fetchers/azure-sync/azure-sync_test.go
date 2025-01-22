@@ -65,7 +65,7 @@ func (t testVmCli) ListVirtualMachines(ctx context.Context, resourceGroup string
 }
 
 func newRoleDef(id string, name string) *armauthorization.RoleDefinition {
-	role_name := "test_role_name"
+	roleName := "test_role_name"
 	action1 := "Microsoft.Compute/virtualMachines/read"
 	action2 := "Microsoft.Compute/virtualMachines/*"
 	action3 := "Microsoft.Compute/*"
@@ -81,7 +81,7 @@ func newRoleDef(id string, name string) *armauthorization.RoleDefinition {
 					Actions: []*string{&action3},
 				},
 			},
-			RoleName: &role_name,
+			RoleName: &roleName,
 		},
 	}
 }

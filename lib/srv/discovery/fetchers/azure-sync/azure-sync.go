@@ -227,7 +227,7 @@ func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	// Return the result along with any errors collected
 	_ = eg.Wait()
 	close(errsCh)
-	return result, trace.NewAggregateFromChannel(errsCh, ctx)
+	return result, trace.NewAggregateFromChannel(errsCh, context.WithoutCancel(ctx))
 }
 
 // Status returns the number of resources last fetched and/or the last fetching/reconciling error
