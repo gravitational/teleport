@@ -38,12 +38,15 @@ export default function useReAuthenticate({
   const [mfaOptions, setMfaOptions] = useState<MfaOption[]>();
   const [challengeState, setChallengeState] = useState<challengeState>();
 
+  function setMfaChallenge(challenge: MfaAuthenticateChallenge) {
+    setChallengeState({ challenge, deviceUsage: 'mfa' });
+  }
+
   const [initAttempt, init] = useAsync(async () => {
     const challenge = await auth.getMfaChallenge({
       scope: challengeScope,
     });
-
-    setChallengeState({ challenge, deviceUsage: 'mfa' });
+    setMfaChallenge(challenge);
     setMfaOptions(getMfaChallengeOptions(challenge));
   });
 
@@ -112,6 +115,7 @@ export default function useReAuthenticate({
   return {
     initAttempt,
     mfaOptions,
+    setMfaChallenge,
     submitWithMfa,
     submitAttempt,
     clearSubmitAttempt,
@@ -126,6 +130,7 @@ export type ReauthProps = {
 export type ReauthState = {
   initAttempt: Attempt<any>;
   mfaOptions: MfaOption[];
+  setMfaChallenge: (challenge: MfaAuthenticateChallenge) => void;
   submitWithMfa: (
     mfaType?: DeviceType,
     deviceUsage?: DeviceUsage,

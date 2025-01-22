@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MfaChallengeResponse } from '../mfa';
 import api, {
   defaultRequestOptions,
   getAuthHeaders,
@@ -27,7 +26,7 @@ import api, {
 describe('api.fetch', () => {
   const mockedFetch = jest.spyOn(global, 'fetch').mockResolvedValue({} as any); // we don't care about response
 
-  const mfaResp: MfaChallengeResponse = {
+  const mfaResp = {
     webauthn_response: {
       id: 'some-id',
       type: 'some-type',
@@ -103,6 +102,7 @@ describe('api.fetch', () => {
         ...defaultRequestOptions.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
+          ...mfaResp,
           webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },
@@ -123,6 +123,7 @@ describe('api.fetch', () => {
         ...customOpts.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
+          ...mfaResp,
           webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },

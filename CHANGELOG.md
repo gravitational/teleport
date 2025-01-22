@@ -1,5 +1,48 @@
 # Changelog
 
+## 17.2.0 (01/21/2025)
+
+### Per-session MFA via IdP
+
+Teleport users can now satisfy per-session MFA checks by authenticating with an
+external identity provider as an alternative to using second factors registered
+with Teleport.
+
+### GitHub access
+
+Teleport now natively supports GitHub access allowing users to transparently
+interact with Github with RBAC and audit logging support.
+
+### Oracle Toad client support
+
+Oracle Database Access users can now use Toad GUI client.
+
+### Trusted clusters support for Kubernetes operator
+
+Kubernetes operator users can now create trusted clusters using Kubernetes
+custom resources.
+
+### Other improvements and fixes
+
+* Fixed WebAuthn attestation for Windows Hello. [#51247](https://github.com/gravitational/teleport/pull/51247)
+* Include invited and reason fields in SessionStartEvents. [#51175](https://github.com/gravitational/teleport/pull/51175)
+* Updated Go to 1.23.5. [#51172](https://github.com/gravitational/teleport/pull/51172)
+* Fixed client tools auto-updates executed by aliases (causes recursive alias error). [#51154](https://github.com/gravitational/teleport/pull/51154)
+* Support proxying Git commands for github.com. [#51086](https://github.com/gravitational/teleport/pull/51086)
+* Assuming an Access Request in Teleport Connect now propagates elevated permissions to already opened Kubernetes tabs. [#51055](https://github.com/gravitational/teleport/pull/51055)
+* Fixed AWS SigV4 parse errors in app access when the application omits the optional spaces between the SigV4 components. [#51043](https://github.com/gravitational/teleport/pull/51043)
+* Fixed a Database Service bug where `db_service.resources.aws.assume_role_arn` settings could affect non-AWS dynamic databases or incorrectly override `db_service.aws.assume_role_arn` settings. [#51039](https://github.com/gravitational/teleport/pull/51039)
+* Adds support for defining labels in the web UI Discover flows for single resource enroll (server, AWS and web applications, Kubernetes, EKS, RDS). [#51038](https://github.com/gravitational/teleport/pull/51038)
+* Added support for using multi-port TCP apps in Teleport Connect without VNet. [#51014](https://github.com/gravitational/teleport/pull/51014)
+* Fix naming conflict of DynamoDB audit event auto scaling policy. [#50990](https://github.com/gravitational/teleport/pull/50990)
+* Prevent routing issues for agentless nodes that are created with non-UUID `metadata.name` fields. [#50924](https://github.com/gravitational/teleport/pull/50924)
+* Honor the cluster routing strategy when client initiated host resolution via proxy templates or label matching is ambiguous. [#50799](https://github.com/gravitational/teleport/pull/50799)
+* Emit audit events on access request expiry. [#50775](https://github.com/gravitational/teleport/pull/50775)
+* Add full SSO MFA support for the WebUI. [#50529](https://github.com/gravitational/teleport/pull/50529)
+
+Enterprise:
+* Oracle: accept database certificates configuration used by Teleport Connect.
+
 ## 17.1.6 (1/13/25)
 
 * Fix panic in EKS Auto Discovery. [#50998](https://github.com/gravitational/teleport/pull/50998)
