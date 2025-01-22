@@ -151,13 +151,18 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 		Protocols:               []alpncommon.Protocol{alpncommon.ProtocolTCP},
 		ParentContext:           ctx,
 		SNI:                     dialOptions.GetSni(),
-		RootCAs:                 x509.NewCertPool(),
 		ALPNConnUpgradeRequired: dialOptions.GetAlpnConnUpgradeRequired(),
 		Middleware:              middleware,
 		InsecureSkipVerify:      dialOptions.GetInsecureSkipVerify(),
 		Clock:                   h.clock,
 	}
-	_ = localProxyConfig.RootCAs.AppendCertsFromPEM(dialOptions.GetRootClusterCaCertPool())
+	if certPoolPEM := dialOptions.GetRootClusterCaCertPool(); len(certPoolPEM) > 0 {
+		caPool := x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(dialOptions.GetRootClusterCaCertPool()) {
+			return nil, trace.Errorf("failed to parse root cluster CA certs")
+		}
+		localProxyConfig.RootCAs = caPool
+	}
 	h.log.DebugContext(ctx, "Creating local proxy", "target_port", localPort)
 	newLP, err := alpnproxy.NewLocalProxy(localProxyConfig)
 	if err != nil {
