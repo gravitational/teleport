@@ -262,10 +262,13 @@ const (
 	X11ForwardErr     = "error"
 
 	// Port forwarding event
-	PortForwardEvent   = "port"
-	PortForwardAddr    = "addr"
-	PortForwardSuccess = "success"
-	PortForwardErr     = "error"
+	PortForwardEvent           = "port"
+	PortForwardLocalEvent      = "port.local"
+	PortForwardRemoteEvent     = "port.remote"
+	PortForwardRemoteConnEvent = "port.remote_conn"
+	PortForwardAddr            = "addr"
+	PortForwardSuccess         = "success"
+	PortForwardErr             = "error"
 
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status

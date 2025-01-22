@@ -1395,19 +1395,19 @@ func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 	}
 }
 
-func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
+func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents.PortForward {
 	sconn := c.ConnectionContext.ServerConn
 	return apievents.PortForward{
 		Metadata: apievents.Metadata{
-			Type: events.PortForwardEvent,
-			Code: events.PortForwardCode,
+			Type: evType,
+			Code: code,
 		},
 		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  sconn.LocalAddr().String(),
 			RemoteAddr: sconn.RemoteAddr().String(),
 		},
-		Addr: c.DstAddr,
+		Addr: addr,
 		Status: apievents.Status{
 			Success: true,
 		},

@@ -21,8 +21,6 @@ package sshutils
 import (
 	"errors"
 	"io"
-
-	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -58,12 +56,4 @@ func (mc *mockChannel) SendRequest(name string, wantReply bool, payload []byte) 
 
 func (mc *mockChannel) Stderr() io.ReadWriter {
 	return fakeReaderWriter{}
-}
-
-type mockSSHConn struct {
-	mockChan *mockChannel
-}
-
-func (mc *mockSSHConn) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
-	return mc.mockChan, make(<-chan *ssh.Request), nil
 }
