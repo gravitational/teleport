@@ -239,14 +239,22 @@ func rdpLicenseKey(version uint32, issuer, company, productID string) backend.Ke
 	return backend.NewKey("rdplicense", issuer, strconv.Itoa(int(version)), company, productID)
 }
 
+type RDPLicense struct {
+	LicenseData []byte `json:"license_data"`
+}
+
 // WriteRDPLicense writes an RDP license to local storage.
 func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, version uint32, issuer, company, productID string, license []byte) error {
+	value, err := json.Marshal(RDPLicense{LicenseData: license})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	item := backend.Item{
 		Key:     rdpLicenseKey(version, issuer, company, productID),
-		Value:   license,
+		Value:   value,
 		Expires: p.BackendStorage.Clock().Now().Add(28 * 24 * time.Hour),
 	}
-	_, err := p.stateStorage.Put(ctx, item)
+	_, err = p.stateStorage.Put(ctx, item)
 	return trace.Wrap(err)
 }
 
