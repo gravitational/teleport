@@ -1964,6 +1964,54 @@ export interface UIIntegrationEnrollCompleteEvent {
     metadata?: IntegrationEnrollMetadata;
 }
 /**
+ * IntegrationEnrollStepStatus defines fields that track a particular step outcome,
+ * for example connection test failed or succeeded, or user aborted the step.
+ *
+ * @generated from protobuf message prehog.v1alpha.IntegrationEnrollStepStatus
+ */
+export interface IntegrationEnrollStepStatus {
+    /**
+     * Code indicates the step outcome.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStatusCode code = 1;
+     */
+    code: IntegrationEnrollStatusCode;
+    /**
+     * Error contains error details in case of an error status code.
+     * Error message should not include any identifiable information
+     * like server address.
+     *
+     * @generated from protobuf field: string error = 2;
+     */
+    error: string;
+}
+/**
+ * UIIntegrationEnrollStepEvent defines configuration step event
+ * with a status for a specific integration enroll kind.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollStepEvent
+ */
+export interface UIIntegrationEnrollStepEvent {
+    /**
+     * Metadata is the metadata of an event.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
+     */
+    metadata?: IntegrationEnrollMetadata;
+    /**
+     * Step is the name of the step for a given integration kind.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
+     */
+    step: IntegrationEnrollStep;
+    /**
+     * Status is the status of the step outcome.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStepStatus status = 3;
+     */
+    status?: IntegrationEnrollStepStatus;
+}
+/**
  * EditorChangeEvent is an event that is emitted when a user role set changes resulting in
  * a editor role being added on removed
  *
@@ -3253,6 +3301,14 @@ export interface SubmitEventRequest {
          */
         userTaskState: UserTaskStateEvent;
     } | {
+        oneofKind: "uiIntegrationEnrollStepEvent";
+        // note that 95 is used for "teleport_version" above.
+
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96;
+         */
+        uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -3775,7 +3831,79 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
      */
-    SERVICENOW = 25
+    SERVICENOW = 25,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
+     */
+    AWS_IDENTITY_CENTER = 26
+}
+/**
+ * IntegrationEnrollStep defines inner configuration steps
+ * for a given integration type.
+ *
+ * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollStep
+ */
+export enum IntegrationEnrollStep {
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * AWSIC denotes AWS Identity Center integration.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC = 1;
+     */
+    AWSIC_CONNECT_OIDC = 1,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2;
+     */
+    AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3;
+     */
+    AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
+     */
+    AWSIC_TEST_SCIM_CONNECTION = 4
+}
+/**
+ * IntegrationEnrollStatusCode defines status code for an integration enroll step.
+ *
+ * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollStatusCode
+ */
+export enum IntegrationEnrollStatusCode {
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STATUS_CODE_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * The user tried to complete the action and it succeeded.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STATUS_CODE_SUCCESS = 1;
+     */
+    SUCCESS = 1,
+    /**
+     * The user or system skipped the step.
+     * For example:
+     * When setting up an AWS IAM Identity Center integration, we allow reusing
+     * OIDC integrationn if it was previously created for the Identity Center.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STATUS_CODE_SKIPPED = 2;
+     */
+    SKIPPED = 2,
+    /**
+     * The user tried to complete the action and it failed.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STATUS_CODE_ERROR = 3;
+     */
+    ERROR = 3,
+    /**
+     * The user did not complete the action and left the wizard.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;
+     */
+    ABORTED = 4
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status
@@ -8523,6 +8651,122 @@ class UIIntegrationEnrollCompleteEvent$Type extends MessageType<UIIntegrationEnr
  */
 export const UIIntegrationEnrollCompleteEvent = new UIIntegrationEnrollCompleteEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class IntegrationEnrollStepStatus$Type extends MessageType<IntegrationEnrollStepStatus> {
+    constructor() {
+        super("prehog.v1alpha.IntegrationEnrollStepStatus", [
+            { no: 1, name: "code", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStatusCode", IntegrationEnrollStatusCode, "INTEGRATION_ENROLL_STATUS_CODE_"] },
+            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IntegrationEnrollStepStatus>): IntegrationEnrollStepStatus {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.code = 0;
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<IntegrationEnrollStepStatus>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IntegrationEnrollStepStatus): IntegrationEnrollStepStatus {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.IntegrationEnrollStatusCode code */ 1:
+                    message.code = reader.int32();
+                    break;
+                case /* string error */ 2:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IntegrationEnrollStepStatus, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.IntegrationEnrollStatusCode code = 1; */
+        if (message.code !== 0)
+            writer.tag(1, WireType.Varint).int32(message.code);
+        /* string error = 2; */
+        if (message.error !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.IntegrationEnrollStepStatus
+ */
+export const IntegrationEnrollStepStatus = new IntegrationEnrollStepStatus$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIIntegrationEnrollStepEvent$Type extends MessageType<UIIntegrationEnrollStepEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIIntegrationEnrollStepEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
+            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
+            { no: 3, name: "status", kind: "message", T: () => IntegrationEnrollStepStatus }
+        ]);
+    }
+    create(value?: PartialMessage<UIIntegrationEnrollStepEvent>): UIIntegrationEnrollStepEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.step = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UIIntegrationEnrollStepEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollStepEvent): UIIntegrationEnrollStepEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
+                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
+                    message.step = reader.int32();
+                    break;
+                case /* prehog.v1alpha.IntegrationEnrollStepStatus status */ 3:
+                    message.status = IntegrationEnrollStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIIntegrationEnrollStepEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
+        if (message.metadata)
+            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
+        if (message.step !== 0)
+            writer.tag(2, WireType.Varint).int32(message.step);
+        /* prehog.v1alpha.IntegrationEnrollStepStatus status = 3; */
+        if (message.status)
+            IntegrationEnrollStepStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollStepEvent
+ */
+export const UIIntegrationEnrollStepEvent = new UIIntegrationEnrollStepEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class EditorChangeEvent$Type extends MessageType<EditorChangeEvent> {
     constructor() {
         super("prehog.v1alpha.EditorChangeEvent", [
@@ -10117,7 +10361,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 91, name: "access_graph_crown_jewel_create", kind: "message", oneof: "event", T: () => AccessGraphCrownJewelCreateEvent },
             { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent },
             { no: 93, name: "session_recording_access", kind: "message", oneof: "event", T: () => SessionRecordingAccessEvent },
-            { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent }
+            { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent },
+            { no: 96, name: "ui_integration_enroll_step_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollStepEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -10689,6 +10934,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         userTaskState: UserTaskStateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).userTaskState)
                     };
                     break;
+                case /* prehog.v1alpha.UIIntegrationEnrollStepEvent ui_integration_enroll_step_event */ 96:
+                    message.event = {
+                        oneofKind: "uiIntegrationEnrollStepEvent",
+                        uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollStepEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -10983,6 +11234,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UserTaskStateEvent user_task_state = 94; */
         if (message.event.oneofKind === "userTaskState")
             UserTaskStateEvent.internalBinaryWrite(message.event.userTaskState, writer.tag(94, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96; */
+        if (message.event.oneofKind === "uiIntegrationEnrollStepEvent")
+            UIIntegrationEnrollStepEvent.internalBinaryWrite(message.event.uiIntegrationEnrollStepEvent, writer.tag(96, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
