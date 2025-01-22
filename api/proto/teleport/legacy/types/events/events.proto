@@ -8004,18 +8004,12 @@ message AWSICPrincipalProvisioning {
 // provisioning happens right after when a user or an Access List is assigned
 // with a role that references AWS account and permissions set.
 message AWSICPrincipalAssignment {
-  // PrincipalAssignment defines an assignment record.
-  message PrincipalAssignment {
-    // External ID of the principal, i.e. AWS resource ID.
-    string external_id = 1 [(gogoproto.jsontag) = "external_id,omitempty"];
+  // Assignment is a principal assignment record.
+  message Assignment {
     // Account ID of the AWS account.
-    string account_id = 2 [(gogoproto.jsontag) = "account_id,omitempty"];
+    string account_id = 1 [(gogoproto.jsontag) = "account_id,omitempty"];
     // ARN value of the permission set assigned to this account.
-    string permission_set_arn = 3 [(gogoproto.jsontag) = "permission_set_arn,omitempty"];
-    // Principal ID is a Teleport resource metadata name of the principal (User or an Access List).
-    string principal_id = 4 [(gogoproto.jsontag) = "principal_id,omitempty"];
-    // Identifies user or user group.
-    string principal_type = 5 [(gogoproto.jsontag) = "principal_type,omitempty"];
+    string permission_set_arn = 2 [(gogoproto.jsontag) = "permission_set_arn,omitempty"];
   }
   // Metadata is an event metadata.
   Metadata metadata = 1 [
@@ -8023,6 +8017,12 @@ message AWSICPrincipalAssignment {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Principal ID is a Teleport resource metadata name of the principal (User or an Access List).
+  string principal_id = 2 [(gogoproto.jsontag) = "principal_id,omitempty"];
+  // Identifies a principal (User or an Access List).
+  string principal_type = 3 [(gogoproto.jsontag) = "principal_type,omitempty"];
+  // External ID of the principal, i.e. AWS resource ID.
+  string external_id = 4 [(gogoproto.jsontag) = "external_id,omitempty"];
   // Array of principal assignment object.
-  repeated PrincipalAssignment principal_assignments = 2 [(gogoproto.jsontag) = "principal_assignments,omitempty"];
+  repeated Assignment assignments = 5 [(gogoproto.jsontag) = "assignments,omitempty"];
 }
