@@ -102,6 +102,34 @@ func NewDiscoverEKSUserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTaskOpti
 	return ut, nil
 }
 
+// NewDiscoverRDSUserTask creates a new DiscoverRDS User Task Type.
+func NewDiscoverRDSUserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTaskOption) (*usertasksv1.UserTask, error) {
+	taskName := TaskNameForDiscoverRDS(TaskNameForDiscoverRDSParts{
+		Integration: spec.GetIntegration(),
+		IssueType:   spec.GetIssueType(),
+		AccountID:   spec.GetDiscoverRds().GetAccountId(),
+		Region:      spec.GetDiscoverRds().GetRegion(),
+	})
+
+	ut := &usertasksv1.UserTask{
+		Kind:    types.KindUserTask,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: taskName,
+		},
+		Spec: spec,
+	}
+	for _, o := range opts {
+		o(ut)
+	}
+
+	if err := ValidateUserTask(ut); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ut, nil
+}
+
 const (
 	// TaskStateOpen identifies an issue with an instance that is not yet resolved.
 	TaskStateOpen = "OPEN"
@@ -121,6 +149,11 @@ const (
 	// when an auto-enrollment of an EKS cluster fails.
 	// UserTasks that have this Task Type must include the DiscoverEKS field.
 	TaskTypeDiscoverEKS = "discover-eks"
+
+	// TaskTypeDiscoverRDS identifies a User Tasks that is created
+	// when an auto-enrollment of an RDS database fails or needs attention.
+	// UserTasks that have this Task Type must include the DiscoverRDS field.
+	TaskTypeDiscoverRDS = "discover-rds"
 )
 
 // List of Auto Discover EC2 issues identifiers.
@@ -197,6 +230,19 @@ var DiscoverEKSIssueTypes = []string{
 	AutoDiscoverEKSIssueAgentNotConnecting,
 }
 
+// List of Auto Discover RDS issues identifiers.
+// This value is used to populate the UserTasks.Spec.IssueType for Discover RDS tasks.
+const (
+	// AutoDiscoverRDSIssueIAMAuthenticationDisabled is used to identify databases that won't be
+	// accessible because IAM Authentication is not enabled.
+	AutoDiscoverRDSIssueIAMAuthenticationDisabled = "rds-iam-auth-disabled"
+)
+
+// DiscoverRDSIssueTypes is a list of issue types that can occur when trying to auto enroll RDS databases.
+var DiscoverRDSIssueTypes = []string{
+	AutoDiscoverRDSIssueIAMAuthenticationDisabled,
+}
+
 // ValidateUserTask validates the UserTask object without modifying it.
 func ValidateUserTask(ut *usertasksv1.UserTask) error {
 	switch {
@@ -223,6 +269,10 @@ func ValidateUserTask(ut *usertasksv1.UserTask) error {
 		}
 	case TaskTypeDiscoverEKS:
 		if err := validateDiscoverEKSTaskType(ut); err != nil {
+			return trace.Wrap(err)
+		}
+	case TaskTypeDiscoverRDS:
+		if err := validateDiscoverRDSTaskType(ut); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -345,6 +395,61 @@ func validateDiscoverEKSTaskType(ut *usertasksv1.UserTask) error {
 	return nil
 }
 
+func validateDiscoverRDSTaskType(ut *usertasksv1.UserTask) error {
+	if ut.GetSpec().Integration == "" {
+		return trace.BadParameter("integration is required")
+	}
+	if ut.GetSpec().GetDiscoverRds() == nil {
+		return trace.BadParameter("%s requires the discover_rds field", TaskTypeDiscoverRDS)
+	}
+	if ut.GetSpec().GetDiscoverRds().AccountId == "" {
+		return trace.BadParameter("%s requires the discover_rds.account_id field", TaskTypeDiscoverRDS)
+	}
+	if ut.GetSpec().GetDiscoverRds().Region == "" {
+		return trace.BadParameter("%s requires the discover_rds.region field", TaskTypeDiscoverRDS)
+	}
+
+	expectedTaskName := TaskNameForDiscoverRDS(TaskNameForDiscoverRDSParts{
+		Integration: ut.GetSpec().Integration,
+		IssueType:   ut.GetSpec().IssueType,
+		AccountID:   ut.GetSpec().GetDiscoverRds().AccountId,
+		Region:      ut.GetSpec().GetDiscoverRds().Region,
+	})
+	if ut.GetMetadata().GetName() != expectedTaskName {
+		return trace.BadParameter("task name is pre-defined for discover-rds types, expected %s, got %s",
+			expectedTaskName,
+			ut.Metadata.GetName(),
+		)
+	}
+
+	if !slices.Contains(DiscoverRDSIssueTypes, ut.GetSpec().GetIssueType()) {
+		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverRDSIssueTypes)
+	}
+
+	if len(ut.GetSpec().GetDiscoverRds().GetDatabases()) == 0 {
+		return trace.BadParameter("at least one database is required")
+	}
+	for databaseIdentifier, databaseIssue := range ut.GetSpec().GetDiscoverRds().GetDatabases() {
+		if databaseIdentifier == "" {
+			return trace.BadParameter("database identifier in discover_rds.databases map is required")
+		}
+		if databaseIssue.Name == "" {
+			return trace.BadParameter("database identifier in discover_rds.databases field is required")
+		}
+		if databaseIdentifier != databaseIssue.Name {
+			return trace.BadParameter("database identifier in discover_rds.databases map and field are different")
+		}
+		if databaseIssue.DiscoveryConfig == "" {
+			return trace.BadParameter("discovery config in discover_rds.databases field is required")
+		}
+		if databaseIssue.DiscoveryGroup == "" {
+			return trace.BadParameter("discovery group in discover_rds.databases field is required")
+		}
+	}
+
+	return nil
+}
+
 // TaskNameForDiscoverEC2Parts are the fields that deterministically compute a Discover EC2 task name.
 // To be used with TaskNameForDiscoverEC2 function.
 type TaskNameForDiscoverEC2Parts struct {
@@ -408,3 +513,30 @@ func TaskNameForDiscoverEKS(parts TaskNameForDiscoverEKSParts) string {
 
 // discoverEKSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEKS User Task names.
 var discoverEKSNamespace = uuid.NewSHA1(uuid.Nil, []byte("discover-eks"))
+
+// TaskNameForDiscoverRDSParts are the fields that deterministically compute a Discover RDS task name.
+// To be used with TaskNameForDiscoverRDS function.
+type TaskNameForDiscoverRDSParts struct {
+	Integration string
+	IssueType   string
+	AccountID   string
+	Region      string
+}
+
+// TaskNameForDiscoverRDS returns a deterministic name for the DiscoverRDS task type.
+// This method is used to ensure a single UserTask is created to report issues in enrolling RDS databases for a given integration, issue type, account id and region.
+func TaskNameForDiscoverRDS(parts TaskNameForDiscoverRDSParts) string {
+	var bs []byte
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
+	bs = append(bs, []byte(parts.Integration)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
+	bs = append(bs, []byte(parts.IssueType)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
+	bs = append(bs, []byte(parts.AccountID)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
+	bs = append(bs, []byte(parts.Region)...)
+	return uuid.NewSHA1(discoverRDSNamespace, bs).String()
+}
+
+// discoverRDSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverRDS User Task names.
+var discoverRDSNamespace = uuid.NewSHA1(uuid.Nil, []byte("discover-rds"))

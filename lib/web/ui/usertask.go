@@ -55,6 +55,8 @@ type UserTaskDetail struct {
 	DiscoverEC2 *usertasks.UserTaskDiscoverEC2WithURLs `json:"discoverEc2,omitempty"`
 	// DiscoverEKS contains the task details for the DiscoverEKS tasks.
 	DiscoverEKS *usertasks.UserTaskDiscoverEKSWithURLs `json:"discoverEks,omitempty"`
+	// DiscoverRDS contains the task details for the DiscoverRDS tasks.
+	DiscoverRDS *usertasks.UserTaskDiscoverRDSWithURLs `json:"discoverRds,omitempty"`
 }
 
 // UpdateUserTaskStateRequest is a request to update a UserTask
@@ -96,16 +98,23 @@ func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 // MakeDetailedUserTask creates a UI UserTask representation containing all the details.
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 	var description string
-	var discoverEKS *usertasks.UserTaskDiscoverEKSWithURLs
+
 	var discoverEC2 *usertasks.UserTaskDiscoverEC2WithURLs
+	var discoverEKS *usertasks.UserTaskDiscoverEKSWithURLs
+	var discoverRDS *usertasks.UserTaskDiscoverRDSWithURLs
 
 	switch ut.GetSpec().GetTaskType() {
 	case apiusertasks.TaskTypeDiscoverEC2:
 		description = usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
 		discoverEC2 = usertasks.EC2InstancesWithURLs(ut)
+
 	case apiusertasks.TaskTypeDiscoverEKS:
 		description = usertasks.DescriptionForDiscoverEKSIssue(ut.GetSpec().GetIssueType())
 		discoverEKS = usertasks.EKSClustersWithURLs(ut)
+
+	case apiusertasks.TaskTypeDiscoverRDS:
+		description = usertasks.DescriptionForDiscoverRDSIssue(ut.GetSpec().GetIssueType())
+		discoverRDS = usertasks.RDSDatabasesWithURLs(ut)
 	}
 
 	return UserTaskDetail{
@@ -113,6 +122,7 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 		Description: description,
 		DiscoverEC2: discoverEC2,
 		DiscoverEKS: discoverEKS,
+		DiscoverRDS: discoverRDS,
 	}
 }
 

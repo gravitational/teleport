@@ -21,6 +21,10 @@ package git
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +37,7 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 type fakeAuthPreferenceGetter struct {
@@ -141,5 +146,94 @@ func TestMakeGitHubSigner(t *testing.T) {
 			_, err := MakeGitHubSigner(context.Background(), test.config)
 			test.checkError(t, err)
 		})
+	}
+}
+
+type mockGitHubMetaAPIServer struct {
+	*httptest.Server
+
+	metaResponse []byte
+}
+
+func newMockGitHubMetaAPIServer(t *testing.T, keys ...ssh.PublicKey) *mockGitHubMetaAPIServer {
+	t.Helper()
+
+	marshaledKeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		marshaledKeys = append(marshaledKeys, strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key))))
+	}
+	metaResponse, err := json.Marshal(map[string][]string{
+		"ssh_keys": marshaledKeys,
+	})
+	require.NoError(t, err)
+
+	m := &mockGitHubMetaAPIServer{
+		metaResponse: metaResponse,
+	}
+	m.Server = httptest.NewServer(m)
+	t.Cleanup(m.Server.Close)
+	return m
+}
+
+func (m *mockGitHubMetaAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write(m.metaResponse)
+}
+
+func Test_githubKeyDownloader(t *testing.T) {
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fixtures.SSHCAPublicKey))
+	require.NoError(t, err)
+
+	mockSuccessServer := newMockGitHubMetaAPIServer(t, publicKey)
+	mockFailureServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(mockFailureServer.Close)
+
+	tests := []struct {
+		name              string
+		setup             func(d *githubKeyDownloader)
+		checkRefreshError require.ErrorAssertionFunc
+		expectGetCount    int
+	}{
+		{
+			name: "success first fetch",
+			setup: func(d *githubKeyDownloader) {
+				d.apiEndpoint = mockSuccessServer.URL
+			},
+			checkRefreshError: require.NoError,
+			expectGetCount:    1,
+		},
+		{
+			name: "success update",
+			setup: func(d *githubKeyDownloader) {
+				d.apiEndpoint = mockSuccessServer.URL
+				d.keys.Store(&[]ssh.PublicKey{publicKey, publicKey})
+			},
+			checkRefreshError: require.NoError,
+			expectGetCount:    1,
+		},
+		{
+			name: "failure should not override existing keys",
+			setup: func(d *githubKeyDownloader) {
+				d.apiEndpoint = mockFailureServer.URL
+				d.keys.Store(&[]ssh.PublicKey{publicKey, publicKey})
+			},
+			checkRefreshError: require.Error,
+			expectGetCount:    2,
+		},
+	}
+
+	for _, test := range tests {
+		d := newGitHubKeyDownloader()
+		if test.setup != nil {
+			test.setup(d)
+		}
+
+		test.checkRefreshError(t, d.refresh(context.Background()))
+
+		keys, err := d.GetKnownKeys()
+		require.NoError(t, err)
+		require.Len(t, keys, test.expectGetCount)
 	}
 }

@@ -122,7 +122,7 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	memorydb, err := types.NewDatabaseV3(types.Metadata{
+	memDB, err := types.NewDatabaseV3(types.Metadata{
 		Name: "aws-memorydb",
 	}, types.DatabaseSpecV3{
 		Protocol: "redis",
@@ -223,8 +223,8 @@ func TestAWSIAM(t *testing.T) {
 			},
 		},
 		"MemoryDB": {
-			database:           memorydb,
-			wantPolicyContains: memorydb.GetAWS().MemoryDB.ClusterName,
+			database:           memDB,
+			wantPolicyContains: memDB.GetAWS().MemoryDB.ClusterName,
 			getIAMAuthEnabled: func() bool {
 				return true // it always is for MemoryDB.
 			},

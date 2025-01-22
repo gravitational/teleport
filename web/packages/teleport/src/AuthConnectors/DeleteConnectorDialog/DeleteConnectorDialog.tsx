@@ -39,7 +39,7 @@ import { KindAuthConnectors } from 'teleport/services/resources';
 import getSsoIcon from '../ssoIcons/getSsoIcon';
 
 export default function DeleteConnectorDialog(props: Props) {
-  const { name, kind, onClose, onDelete } = props;
+  const { name, kind, onClose, onDelete, isDefault, nextDefault } = props;
   const { attempt, run } = useAttempt();
   const isDisabled = attempt.status === 'processing';
 
@@ -59,7 +59,7 @@ export default function DeleteConnectorDialog(props: Props) {
       <DialogHeader>
         <DialogTitle>Remove Connector?</DialogTitle>
       </DialogHeader>
-      <DialogContent>
+      <DialogContent mb={4}>
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         <Flex gap={3} width="100%">
           <Box>
@@ -73,10 +73,22 @@ export default function DeleteConnectorDialog(props: Props) {
             ?
           </P1>
         </Flex>
+        {isDefault && (
+          <Alert kind="outline-warn" m={0} mt={3}>
+            <P1>
+              This is currently the default auth connector. Deleting this will
+              cause{' '}
+              <Text as="span" bold color="text.main">
+                {nextDefault}
+              </Text>{' '}
+              to become the new default.
+            </P1>
+          </Alert>
+        )}
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>
-          Yes, Remove Connector
+          Delete Connector
         </ButtonWarning>
         <ButtonSecondary disabled={isDisabled} onClick={onClose}>
           Cancel
@@ -91,4 +103,6 @@ type Props = {
   kind: KindAuthConnectors;
   onClose: ResourceState['disregard'];
   onDelete(): Promise<any>;
+  isDefault: boolean;
+  nextDefault: string;
 };
