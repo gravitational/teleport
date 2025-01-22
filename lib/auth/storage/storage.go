@@ -264,8 +264,11 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, version uint32, iss
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return item.Value, nil
+	license := RDPLicense{}
+	if err := json.Unmarshal(item.Value, &license); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return license.LicenseData, nil
 }
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
