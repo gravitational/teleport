@@ -20,6 +20,8 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -34,8 +36,12 @@ type osConfig struct {
 	dnsZones   []string
 }
 
-func configureOS(ctx context.Context, osConfig *osConfig) error {
-	return trace.Wrap(platformConfigureOS(ctx, osConfig))
+type osConfigState struct {
+	platformOSConfigState platformOSConfigState
+}
+
+func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfigState) error {
+	return trace.Wrap(platformConfigureOS(ctx, osConfig, &osConfigState.platformOSConfigState))
 }
 
 type targetOSConfigProvider interface {
@@ -44,6 +50,7 @@ type targetOSConfigProvider interface {
 
 type osConfigurator struct {
 	targetOSConfigProvider targetOSConfigProvider
+	osConfigState          osConfigState
 }
 
 func newOSConfigurator(targetOSConfigProvider targetOSConfigProvider) *osConfigurator {
@@ -57,7 +64,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := configureOS(ctx, desiredOSConfig); err != nil {
+	if err := configureOS(ctx, desiredOSConfig, &c.osConfigState); err != nil {
 		return trace.Wrap(err, "configuring OS")
 	}
 	return nil
@@ -65,7 +72,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 
 func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
 	// configureOS is meant to be called with an empty config to deconfigure anything necessary.
-	return trace.Wrap(configureOS(ctx, &osConfig{}))
+	return trace.Wrap(configureOS(ctx, &osConfig{}, &c.osConfigState))
 }
 
 // runOSConfigurationLoop will keep running until ctx is canceled or an
@@ -134,4 +141,17 @@ func tunIPv4ForCIDR(cidrRange string) (string, error) {
 	tunAddress := ipnet.IP
 	tunAddress[len(tunAddress)-1]++
 	return tunAddress.String(), nil
+}
+
+func runCommand(ctx context.Context, path string, args ...string) error {
+	cmdString := strings.Join(append([]string{path}, args...), " ")
+	log.DebugContext(ctx, "Running command", "cmd", cmdString)
+	cmd := exec.CommandContext(ctx, path, args...)
+	var output strings.Builder
+	cmd.Stderr = &output
+	cmd.Stdout = &output
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, `running "%s" output: %s`, cmdString, output.String())
+	}
+	return nil
 }
