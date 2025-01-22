@@ -22,7 +22,10 @@ import { Box } from 'design';
 import { typography } from 'design/system';
 import { TypographyProps } from 'design/system/typography';
 
-import { Document } from 'teleterm/ui/services/workspacesService';
+import {
+  Document,
+  getStaticNameAndIcon,
+} from 'teleterm/ui/services/workspacesService';
 
 import { NewTabItem, TabItem } from './TabItem';
 
@@ -50,6 +53,7 @@ export function Tabs(props: Props) {
           index={index}
           name={item.title}
           active={active}
+          Icon={getStaticNameAndIcon(item)?.Icon}
           nextActive={nextActive}
           onClick={() => onSelect(item)}
           onClose={() => onClose(item)}

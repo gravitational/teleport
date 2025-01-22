@@ -45,17 +45,24 @@ export class MockAppContext extends AppContext {
     });
   }
 
-  addRootClusterWithDoc(cluster: Cluster, doc: Document | undefined) {
+  addRootClusterWithDoc(
+    cluster: Cluster,
+    doc: Document[] | Document | undefined
+  ) {
     this.clustersService.setState(draftState => {
       draftState.clusters.set(cluster.uri, cluster);
     });
+    const docs = Array.isArray(doc) ? doc : [doc];
     this.workspacesService.setState(draftState => {
       draftState.rootClusterUri = cluster.uri;
       draftState.workspaces[cluster.uri] = {
-        documents: [doc].filter(Boolean),
-        location: doc?.uri,
+        documents: docs.filter(Boolean),
+        location: docs[0]?.uri,
         localClusterUri: cluster.uri,
-        accessRequests: undefined,
+        accessRequests: {
+          isBarCollapsed: true,
+          pending: { kind: 'role', roles: new Set<string>() },
+        },
       };
     });
   }
