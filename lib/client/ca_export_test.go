@@ -20,6 +20,9 @@ package client
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -32,14 +35,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	clientpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type mockAuthClient struct {
@@ -327,12 +329,10 @@ func TestExportAuthorities(t *testing.T) {
 func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 	t.Parallel()
 
-	softwareKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err, "GeneratePrivateKeyWithAlgorithm errored")
-	// Typically the HSM key would be RSA2048, but this is fine for testing
-	// purposes.
-	hsmKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err, "GeneratePrivateKeyWithAlgorithm errored")
+	softwarePrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err, "GenerateKey errored")
+	hsmPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err, "GenerateKey errored")
 
 	makeSerialNumber := func() func() *big.Int {
 		lastSerialNumber := int64(0)
@@ -343,12 +343,15 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 	}()
 
 	const clusterName = "zarq" // fake, doesn't matter for this test.
-	makeKeyPairs := func(t *testing.T, key *keys.PrivateKey, keyType types.PrivateKeyType) (sshKP *types.SSHKeyPair, tlsPEM, tlsDER *types.TLSKeyPair) {
-		sshPriv, err := key.MarshalSSHPrivateKey()
-		require.NoError(t, err, "MarshalSSHPrivateKey errored")
+	makeKeyPairs := func(t *testing.T, key crypto.Signer, keyType types.PrivateKeyType) (sshKP *types.SSHKeyPair, tlsPEM, tlsDER *types.TLSKeyPair) {
+		sshPub, err := ssh.NewPublicKey(key.Public())
+		require.NoError(t, err, "NewPublicKey errored")
+
+		sshPrivBlock, err := ssh.MarshalPrivateKey(key, "" /* comment */)
+		require.NoError(t, err, "MarshalPrivateKey errored")
 		sshKP = &types.SSHKeyPair{
-			PublicKey:      key.MarshalSSHPublicKey(),
-			PrivateKey:     sshPriv,
+			PublicKey:      ssh.MarshalAuthorizedKey(sshPub),
+			PrivateKey:     pem.EncodeToMemory(sshPrivBlock),
 			PrivateKeyType: keyType,
 		}
 
@@ -370,15 +373,23 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 			BasicConstraintsValid: true,
 			IsCA:                  true,
 		}
-		x509CertDER, err := x509.CreateCertificate(rand.Reader, template, template /* parent */, key.Public(), key.Signer)
+		x509CertDER, err := x509.CreateCertificate(rand.Reader, template, template /* parent */, key.Public(), key)
 		require.NoError(t, err, "CreateCertificate errored")
 		x509CertPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: x509CertDER,
 		})
+
+		keyRaw, err := x509.MarshalPKCS8PrivateKey(key)
+		require.NoError(t, err, "MarshalPKCS8PrivateKey errored")
+		keyPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: keyRaw,
+		})
+
 		tlsPEM = &types.TLSKeyPair{
 			Cert:    x509CertPEM,
-			Key:     key.PrivateKeyPEM(),
+			Key:     keyPEM,
 			KeyType: keyType,
 		}
 
@@ -395,8 +406,8 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 		return sshKP, tlsPEM, tlsDER
 	}
 
-	softKeySSH, softKeyPEM, softKeyDER := makeKeyPairs(t, softwareKey, types.PrivateKeyType_RAW)
-	hsmKeySSH, hsmKeyPEM, hsmKeyDER := makeKeyPairs(t, hsmKey, types.PrivateKeyType_PKCS11)
+	softKeySSH, softKeyPEM, softKeyDER := makeKeyPairs(t, softwarePrivateKey, types.PrivateKeyType_RAW)
+	hsmKeySSH, hsmKeyPEM, hsmKeyDER := makeKeyPairs(t, hsmPrivateKey, types.PrivateKeyType_PKCS11)
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        "user",
 		ClusterName: clusterName,
