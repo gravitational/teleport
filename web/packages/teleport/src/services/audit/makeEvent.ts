@@ -2024,7 +2024,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.AWS_IC_ACCOUNT_SYNC]: {
     type: 'aws_identity_center.account.sync',
-    desc: 'AWS IAM Identity Center Account Sync',
+    desc: 'Account Sync',
     format: ({ imported_resources }) => {
       const names = imported_resources.map(m => m.name);
       const namesJoined = names.join(', ');
@@ -2033,7 +2033,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_SYNC]: {
     type: 'aws_identity_center.account_assignment.sync',
-    desc: 'AWS IAM Identity Center Account Assignment Sync',
+    desc: 'Account Assignment Sync',
     format: ({ imported_resources }) => {
       const names = imported_resources.map(m => m.name);
       const namesJoined = names.join(', ');
@@ -2042,7 +2042,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.AWS_IC_USER_GROUP_SYNC]: {
     type: 'aws_identity_center.user_group.sync',
-    desc: 'AWS IAM Identity Center User Group Sync',
+    desc: 'User Group Sync',
     // format: ({ imported_resources }) => `principal created`,
     format: ({ imported_resources }) => {
       const names = imported_resources.map(m => m.name);
@@ -2052,7 +2052,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.AWSIC_PERMISSION_SET_SYNC]: {
     type: 'aws_identity_center.permission_set.sync',
-    desc: 'AWS IAM Identity Center Permission Set Sync',
+    desc: 'Permission Set Sync',
     format: ({ imported_resources }) => {
       const names = imported_resources.map(m => m.name);
       const namesJoined = names.join(', ');
@@ -2061,35 +2061,35 @@ export const formatters: Formatters = {
   },
   [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_CREATE]: {
     type: 'aws_identity_center.principal_assignment.create',
-    desc: 'AWS IAM Identity Center Principal Assignment Created',
+    desc: 'Principal Assignment Created',
     format: ({ principal_id, principal_type }) => {
-      return `Account assignment created for principal [${principal_id}] of type [${principal_type}]`;
+      return `Account assignment for ${deduceAwsIcPrincipal(principal_type).toLowerCase()} [${principal_id}] has been created`;
     },
   },
   [eventCodes.AWSIC_PRINCIPAL_ASSIGNMENT_DELETE]: {
     type: 'aws_identity_center.principal_assignment.delete',
-    desc: 'AWS IAM Identity Center Principal Assignment Deleted',
+    desc: 'Principal Assignment Deleted',
     format: ({ principal_id, principal_type }) => {
-      return `Account assignment deleted for principal [${principal_id}] of type [${principal_type}]`;
+      return `Account assignment for ${deduceAwsIcPrincipal(principal_type).toLowerCase()} [${principal_id}] has been deleted`;
     },
   },
   [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_CREATE]: {
     type: 'aws_identity_center.principal_provisioning.create',
-    desc: 'AWS IAM Identity Center Principal Created',
+    desc: 'Principal Created',
     format: ({ principal_id, principal_type }) =>
-      `Principal [${principal_id}] of type [${principal_type}] created`,
+      `${deduceAwsIcPrincipal(principal_type)} [${principal_id}] has been created`,
   },
   [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_DELETE]: {
     type: 'aws_identity_center.principal_provisioning.delete',
-    desc: 'AWS IAM Identity Center Principal Deleted',
+    desc: 'Principal Deleted',
     format: ({ principal_id, principal_type }) =>
-      `Principal [${principal_id}] of type [${principal_type}] deleted`,
+      `${deduceAwsIcPrincipal(principal_type)} [${principal_id}] has been deleted`,
   },
   [eventCodes.AWSIC_PRINCIPAL_PROVISIONING_UPDATE]: {
     type: 'aws_identity_center.principal_provisioning.update',
-    desc: 'AWS IAM Identity Center Principal Updated',
+    desc: 'Principal Updated',
     format: ({ principal_id, principal_type }) =>
-      `Principal [${principal_id}] of type [${principal_type}] updated`,
+      `${deduceAwsIcPrincipal(principal_type)} [${principal_id}] has been updated`,
   },
 };
 
@@ -2149,4 +2149,8 @@ function contactTypeStr(type: number): string {
     default:
       return `Unknown type: ${type}`;
   }
+}
+
+function deduceAwsIcPrincipal(principalType: string): string {
+  return principalType === 'PRINCIPAL_TYPE_USER' ? 'User' : 'User group';
 }

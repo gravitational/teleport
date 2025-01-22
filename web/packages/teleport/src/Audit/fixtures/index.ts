@@ -3777,6 +3777,124 @@ export const events = [
       },
     ],
   },
+  {
+    code: 'TAIC001I',
+    event: 'aws_identity_center.account.sync',
+    import_count: 2,
+    time: '2025-01-22T02:23:25.736Z',
+    uid: '7c51636a-a907-496c-ba52-0e1e62d3f74f',
+    imported_resources: [
+      {
+        arn: 'arn:aws:organizations::026090554232:account/o-u0gc7iutph/253490786533',
+        assigned_permission_set_arn: '',
+        id: '253490786533',
+        name: 'account1',
+      },
+      {
+        arn: 'arn:aws:organizations::026090554232:account/o-u0gc7iutph/711387105216',
+        assigned_permission_set_arn: '',
+        id: '711387105216',
+        name: 'account2',
+      },
+    ],
+  },
+  {
+    code: 'TAIC002I',
+    event: 'aws_identity_center.account_assignment.sync',
+    time: '2025-01-22T02:23:25.736Z',
+    uid: '11c323fa-bd55-4beb-b1d2-f77cf8d5f85c',
+    import_count: 2,
+    imported_resources: [
+      {
+        assigned_permission_set_arn:
+          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-25beafadd65e32d5',
+        id: '711387105216',
+        name: 'account1',
+      },
+      {
+        assigned_permission_set_arn:
+          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
+        id: '116981771655',
+        name: 'account2',
+      },
+    ],
+  },
+  {
+    code: 'TAIC003I',
+    event: 'aws_identity_center.permission_set.sync',
+    time: '2025-01-22T02:23:25.736Z',
+    uid: 'd0e749e6-6e3b-495d-9ec1-2f25f1d07620',
+    import_count: 2,
+    imported_resources: [
+      {
+        arn: 'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
+        name: 'DataScientist',
+      },
+      {
+        arn: 'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-e644c1c111dc9656',
+        name: 'NetworkAdministrator',
+      },
+    ],
+  },
+  {
+    code: 'TAIC005I',
+    event: 'aws_identity_center.principal_assignment.create',
+    external_id: '7c0d5548-f011-70a6-e781-0fa9c3217213',
+    principal_id: 'alice@example.com',
+    principal_type: 'PRINCIPAL_TYPE_USER',
+    time: '2025-01-22T02:42:05.256Z',
+    uid: '7f9c7da8-27c9-4182-8918-5cf675755dc5',
+    assignments: [
+      {
+        account_id: 'account2',
+        permission_set_arn:
+          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
+      },
+    ],
+  },
+  {
+    code: 'TAIC006I',
+    event: 'aws_identity_center.principal_assignment.delete',
+    external_id: '7c0d5548-f011-70a6-e781-0fa9c3217213',
+    principal_id: 'dev-team',
+    principal_type: 'PRINCIPAL_TYPE_ACCESS_LIST',
+    time: '2025-01-22T02:42:05.256Z',
+    uid: '7f9c7da8-27c9-4182-8918-5cf675755dc5',
+    assignments: [
+      {
+        account_id: 'account1',
+        permission_set_arn:
+          'arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-93cddc3f6dae4744',
+      },
+    ],
+  },
+  {
+    code: 'TAIC007I',
+    event: 'aws_identity_center.principal_provisioning.create',
+    external_id: '1c3d3598-5001-70c0-2b89-f66af9f92cf3',
+    principal_id: 'alice@example.com',
+    principal_type: 'PRINCIPAL_TYPE_USER',
+    time: '2025-01-22T03:22:26.261Z',
+    uid: '74d634e0-5a1c-4605-b58c-d6ccf8719bd2',
+  },
+  {
+    code: 'TAIC008I',
+    event: 'aws_identity_center.principal_provisioning.delete',
+    external_id: '1c3d3598-5001-70c0-2b89-f66af9f92cf3',
+    principal_id: 'dev-team',
+    principal_type: 'PRINCIPAL_TYPE_ACCESS_LIST',
+    time: '2025-01-22T03:22:26.261Z',
+    uid: '74d634e0-5a1c-4605-b58c-d6ccf8719bd2',
+  },
+  {
+    code: 'TAIC009I',
+    event: 'aws_identity_center.principal_provisioning.update',
+    external_id: '1c3d3598-5001-70c0-2b89-f66af9f92cf3',
+    principal_id: 'alice@example.com',
+    principal_type: 'PRINCIPAL_TYPE_USER',
+    time: '2025-01-22T03:22:26.261Z',
+    uid: '74d634e0-5a1c-4605-b58c-d6ccf8719bd2',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
