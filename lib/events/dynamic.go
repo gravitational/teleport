@@ -486,10 +486,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WorkloadIdentityUpdate{}
 	case WorkloadIdentityDeleteEvent:
 		e = &events.WorkloadIdentityDelete{}
-	case AWSICUserGroupSync,
-		AWSICAccountSync,
-		AWSICPermissionSetSync,
-		AWSICAccountAssignmentSync:
+	case AWSICResourceSync:
 		e = &events.AWSICResourceSync{}
 	case AWSICPrincipalProvisioningCreate,
 		AWSICPrincipalProvisioningUpdate,

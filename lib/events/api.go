@@ -863,14 +863,7 @@ const (
 	GitCommandEvent = "git.command"
 
 	// AWSICAccountSync is emitted when AWS Identity Center accounts are synced.
-	AWSICAccountSync = "aws_identity_center.account.sync"
-	// AWSICAccountAssignmentSync is emitted when AWS Identity Center account assignments are synced.
-	AWSICAccountAssignmentSync = "aws_identity_center.account_assignment.sync"
-	// AWSICPermissionSetSync is emitted when AWS Identity Center permission sets are synced.
-	AWSICPermissionSetSync = "aws_identity_center.permission_set.sync"
-	// AWSICUserGroupSync is emitted when AWS Identity Center user groups are synced.
-	// Emitted only once per a new successful integration installation.
-	AWSICUserGroupSync = "aws_identity_center.user_group.sync"
+	AWSICResourceSync = "aws_identity_center.resource.sync"
 	// AWSICPrincipalAssignmentCreate is emitted when a principal account assignment is
 	// created in the AWS Identity Center.
 	AWSICPrincipalAssignmentCreate = "aws_identity_center.principal_assignment.create"

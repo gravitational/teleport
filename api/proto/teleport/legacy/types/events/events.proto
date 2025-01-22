@@ -7954,10 +7954,10 @@ message UserLoginAccessListInvalid {
   ];
 }
 
-// AWSICResourceImport is emitted when the AWS Identity Center integration
-// imports resource from Identity Center and syncs them with Teleport.
-message AWSICResourceSync {
-  // Resource can be user group, account, permission set, account assignment etc.
+// AWSICResourceSyncEvent defines import and reconciliation event data for a
+// account, account assignment, permission set or user group type.
+message AWSICResourceSyncEvent {
+  //  Resource represents a single user group, account, account assignment or permission set.
   message Resource {
     // ID is an ID of the resource.
     string id = 1 [(gogoproto.jsontag) = "id, omitempty"];
@@ -7970,16 +7970,37 @@ message AWSICResourceSync {
     string assignedPermissionSetARN = 4 [(gogoproto.jsontag) = "assigned_permission_set_arn, omitempty"];
   }
 
+  // Array of imported resource object.
+  repeated Resource items = 2 [(gogoproto.jsontag) = "items,omitempty"];
+  // TotalItems records total number of imported resources.
+  int32 total_items = 3 [(gogoproto.jsontag) = "total_items,omitempty"];
+  // Status is a resource sync status.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AWSICResourceSync is emitted when the AWS Identity Center integration
+// imports resource from Identity Center and reconcile them in Teleport. The reconciliation
+// happens individually but we batch them and submit the event at once.
+message AWSICResourceSync {
   // Metadata is the event metadata.
   Metadata metadata = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-  // Array of imported resource object.
-  repeated Resource imported_resources = 2 [(gogoproto.jsontag) = "imported_resources,omitempty"];
-  // ImportCount records total number of imported resources.
-  int32 import_count = 3 [(gogoproto.jsontag) = "import_count,omitempty"];
+
+  //  Account is the AWS account.
+  AWSICResourceSyncEvent account = 2 [(gogoproto.jsontag) = "account,omitempty"];
+  //  AccountAssignment is a permission assignment record bound to AWS account and permission set.
+  AWSICResourceSyncEvent account_assignment = 3 [(gogoproto.jsontag) = "account_assignment,omitempty"];
+  //  UserGroup is a user group available in the AWS IAM Identity Center instance.
+  AWSICResourceSyncEvent user_group = 4 [(gogoproto.jsontag) = "user_group,omitempty"];
+  //  PermissionSet is the permission set configured in the AWS IAM Identity Center instance.
+  AWSICResourceSyncEvent permission_set = 5 [(gogoproto.jsontag) = "permission_set,omitempty"];
 }
 
 // AWSICPrincipalProvisioning is emitted when a user or an Access List
