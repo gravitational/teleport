@@ -320,6 +320,11 @@ export class FeatureRoles implements TeleportFeature {
   };
 
   showInDashboard = true;
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureAuthConnectors implements TeleportFeature {
