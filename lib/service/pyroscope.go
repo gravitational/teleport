@@ -34,24 +34,23 @@ type pyroscopeLogger struct {
 	l *slog.Logger
 }
 
-func (l logger) Infof(format string, args ...interface{}) {
+func (l pyroscopeLogger) Infof(format string, args ...interface{}) {
 	//nolint:sloglint // msg cannot be constant
 	l.l.Info(fmt.Sprintf(format, args...))
 }
 
-func (l logger) Debugf(format string, args ...interface{}) {
+func (l pyroscopeLogger) Debugf(format string, args ...interface{}) {
 	//nolint:sloglint // msg cannot be constant
 	l.l.Debug(fmt.Sprintf(format, args...))
 }
 
-func (l logger) Errorf(format string, args ...interface{}) {
+func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
 	//nolint:sloglint // msg cannot be constant
 	l.l.Error(fmt.Sprintf(format, args...))
 }
 
 // initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
-func (process *TeleportProcess) initPyroscope() {
-	address := os.Getenv("TELEPORT_PYROSCOPE_SERVER_ADDRESS")
+func (process *TeleportProcess) initPyroscope(address string) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
@@ -61,7 +60,7 @@ func (process *TeleportProcess) initPyroscope() {
 	config := pyroscope.Config{
 		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
-		Logger:          pyroscope.Logger(logger{l: slog.Default()}),
+		Logger:          pyroscope.Logger(pyroscopeLogger{l: slog.Default()}),
 		Tags: map[string]string{
 			"host":    hostname,
 			"version": teleport.Version,
