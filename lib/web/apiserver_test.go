@@ -3565,6 +3565,89 @@ func TestEndpointNotFoundHandling(t *testing.T) {
 	}
 }
 
+func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
+	t.Parallel()
+	const username = "test-user@example.com"
+	// Allow user to create tokens.
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindToken,
+					[]string{types.VerbCreate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+
+	res, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "token"), types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(res.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	tt := []struct {
+		name     string
+		endpoint string
+	}{
+		{
+			name:     "web path with prefix",
+			endpoint: "v1/web/config.js",
+		},
+		{
+			name:     "web path without prefix",
+			endpoint: "web/config.js",
+		},
+		{
+			name:     "webapi path with prefix",
+			endpoint: "v1/webapi/spiffe/bundle.json",
+		},
+		{
+			name:     "webapi path without prefix",
+			endpoint: "webapi/spiffe/bundle.json",
+		},
+		{
+			name:     ".well-known path with prefix",
+			endpoint: "v1/.well-known/jwks.json",
+		},
+		{
+			name:     ".well-known path without prefix",
+			endpoint: ".well-known/jwks.json",
+		},
+		{
+			name:     "workload-identity path with prefix",
+			endpoint: "v1/workload-identity/jwt-jwks.json",
+		},
+		{
+			name:     "workload-identity path without prefix",
+			endpoint: "workload-identity/jwt-jwks.json",
+		},
+		{
+			name:     "scripts path with prefix",
+			endpoint: fmt.Sprintf("v1/scripts/%s/install-node.sh", responseToken.ID),
+		},
+		{
+			name:     "scripts path without prefix",
+			endpoint: fmt.Sprintf("scripts/%s/install-node.sh", responseToken.ID),
+		},
+	}
+
+	for _, tc := range tt {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := pack.clt.Get(context.Background(), fmt.Sprintf("%s/%s", proxy.web.URL, tc.endpoint), url.Values{})
+
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
 
