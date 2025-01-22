@@ -79,6 +79,9 @@ func (p *localAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vn
 	for _, profileName := range profileNames {
 		if fqdn == fullyQualify(profileName) {
 			// This is a query for the proxy address, which we'll never want to handle.
+			// The DNS request must be forwarded upstream so that the VNet
+			// process can always dial the proxy address without recursively
+			// querying the VNet DNS nameserver.
 			return nil, errNoTCPHandler
 		}
 
@@ -192,15 +195,22 @@ func (p *localAppProvider) resolveAppInfoForCluster(
 		// Didn't find any matching app, forward the request upstream.
 		return nil, errNoTCPHandler
 	}
+	// At this point we have found a matching app in the cluster, any error is
+	// unexpected and is preventing access to the app and should be returned to
+	// the user.
+	app, ok := resp.Resources[0].GetApp().(*types.AppV3)
+	if !ok {
+		return nil, trace.BadParameter("expected *types.AppV3, got %T", resp.Resources[0].GetApp())
+	}
 	clusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 	if err != nil {
-		log.InfoContext(ctx, "Failed to get cluster VNet config", "error", err)
-		return nil, errNoTCPHandler
+		log.ErrorContext(ctx, "Failed to get cluster VNet config for matching app", "error", err)
+		return nil, trace.Wrap(err, "getting cached cluster VNet config for matching app")
 	}
 	dialOpts, err := p.ClientApplication.GetDialOptions(ctx, profileName)
 	if err != nil {
-		log.InfoContext(ctx, "Failed to get cluster dial options", "error", err)
-		return nil, errNoTCPHandler
+		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
+		return nil, trace.Wrap(err, "getting dial options for matching app")
 	}
 	appInfo := &vnetv1.AppInfo{
 		AppKey: &vnetv1.AppKey{
@@ -208,7 +218,7 @@ func (p *localAppProvider) resolveAppInfoForCluster(
 			LeafCluster: leafClusterName,
 		},
 		Cluster:       clusterClient.ClusterName(),
-		App:           resp.Resources[0].GetApp().(*types.AppV3),
+		App:           app,
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
 	}
