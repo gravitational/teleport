@@ -173,7 +173,8 @@ func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(fetcherConcurrency)
 	var result = &Resources{}
-	errsCh := make(chan error)
+        // we use a larger value (50) here so there is always room for any returned error to be sent to errsCh without blocking.
+	errsCh := make(chan error,50)
 	if feats.Principals {
 		eg.Go(func() error {
 			principals, err := fetchPrincipals(ctx, f.SubscriptionID, f.graphClient)
@@ -224,26 +225,11 @@ func (f *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 		})
 	}
 
-	// Receive errors from the error channel until it's closed
-	var errs []error
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			err, ok := <-errsCh
-			if !ok {
-				return
-			}
-			errs = append(errs, err)
-		}
-	}()
 
 	// Return the result along with any errors collected
 	_ = eg.Wait()
 	close(errsCh)
-	wg.Wait()
-	return result, trace.NewAggregate(errs...)
+	return result, trace.NewAggregateFromChannel(errsCh)
 }
 
 // Status returns the number of resources last fetched and/or the last fetching/reconciling error
