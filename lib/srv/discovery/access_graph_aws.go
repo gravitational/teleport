@@ -50,6 +50,15 @@ const (
 	batchSize = 500
 	// defaultPollInterval is the default interval between polling for access graph resources
 	defaultPollInterval = 15 * time.Minute
+	// Configure health check service to monitor access graph service and
+	// automatically reconnect if the connection is lost without
+	// relying on new events from the auth server to trigger a reconnect.
+	serviceConfig = `{
+		 "loadBalancingPolicy": "round_robin",
+		 "healthCheckConfig": {
+			 "serviceName": ""
+		 }
+	 }`
 )
 
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
@@ -257,15 +266,6 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	const (
 		// aws discovery semaphore lock.
 		semaphoreName = "access_graph_aws_sync"
-		// Configure health check service to monitor access graph service and
-		// automatically reconnect if the connection is lost without
-		// relying on new events from the auth server to trigger a reconnect.
-		serviceConfig = `{
-		 "loadBalancingPolicy": "round_robin",
-		 "healthCheckConfig": {
-			 "serviceName": ""
-		 }
-	 }`
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()

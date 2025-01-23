@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -66,6 +66,7 @@ func (s *Server) reconcileAccessGraphAzure(
 
 	// Fetch results concurrently
 	resultsC := make(chan fetcherResult, len(allFetchers))
+	// Restricts concurrently running fetchers to 3
 	tokens := make(chan struct{}, 3)
 	accountIds := map[string]struct{}{}
 	for _, fetcher := range allFetchers {
@@ -217,12 +218,6 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	const (
 		semaphoreExpiration = time.Minute
 		semaphoreName       = "access_graph_azure_sync"
-		serviceConfig       = `{
-		 "loadBalancingPolicy": "round_robin",
-		 "healthCheckConfig": {
-			 "serviceName": ""
-		 }
-	 }`
 	)
 	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
@@ -255,7 +250,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
-			s.Log.WarnContext(ctx, "error cleaning up semaphore", "error", err)
+			s.Log.WarnContext(ctx, "error cleaning up semaphore", "error", err, "semaphore", semaphoreName)
 		}
 	}()
 
