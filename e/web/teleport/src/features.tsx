@@ -51,6 +51,8 @@ import {
   type TeleportFeatureRoute,
 } from 'teleport/types';
 
+import { RolesE } from './Roles/RolesE';
+
 // ****************************
 // Resource Features
 // ****************************
@@ -63,6 +65,13 @@ class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {
     // Enterprise Unified Resources can display requestable resources
     // and allows the creation of access requests
     component: UnifiedResourcesE,
+  };
+}
+
+class FeatureRoles extends OSS.FeatureRoles {
+  route = {
+    ...super.getRoute(),
+    component: RolesE,
   };
 }
 
@@ -603,7 +612,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
 
     // - Access
     new FeatureUsersE(),
-    new OSS.FeatureRoles(),
+    new FeatureRoles(),
     new OSS.FeatureBots(),
     new OSS.FeatureJoinTokens(),
     new FeatureAuthConnectors(),
