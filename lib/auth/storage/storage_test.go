@@ -18,9 +18,9 @@ package storage
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
