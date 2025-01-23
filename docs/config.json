@@ -2987,6 +2987,101 @@
       "source": "/reference/operator-resources/resources.teleport.dev_users/",
       "destination": "/reference/operator-resources/resources-teleport-dev-users/",
       "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/open-source/",
+      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/",
+      "destination": "/admin-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/scaling/",
+      "destination": "/admin-guides/management/operations/scaling/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/introduction/",
+      "destination": "/admin-guides/deploy-a-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/authentication/",
+      "destination": "/reference/access-controls/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/aws-console/",
+      "destination": "/enroll-resources/application-access/cloud-apis/aws-console/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/getting-started/agent/",
+      "destination": "/enroll-resources/kubernetes-access/register-clusters/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/getting-started/cluster/",
+      "destination": "/enroll-resources/kubernetes-access/register-clusters/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/manage-access/rbac/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/github-actions/",
+      "destination": "/enroll-resources/machine-id/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/docker/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/linux-server/",
+      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/local-kubernetes/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-self-hosted/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/install/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/aws/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/introduction/",
+      "destination": "/reference/",
+      "permanent": true
     }
   ]
 }
