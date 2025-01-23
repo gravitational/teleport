@@ -235,6 +235,7 @@ $ tsh login --proxy=mytenant.teleport.sh
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
+
 ## U2F
 
 WebAuthn has replaced U2F in Teleport from previous versions. If you haven't configured U2F
@@ -252,9 +253,6 @@ re-registered.
 For example, consider the U2F configuration below:
 
 ```yaml
-# snippet from /etc/teleport.yaml showing a U2F configuration:
-auth_service:
-  authentication:
     type: local
     second_factor: u2f
     u2f:
@@ -304,13 +302,10 @@ auth_service:
       # rp_id is the public domain of the Teleport Proxy Service.
       # It's similar to the U2F app_id, but without "https://" or port number.
       rp_id: example.com
-      attestation_allowed_cas:
-      - "/path/to/u2f_attestation_ca.pem"
-```
+  ```
 
 ## Next steps
 
 - [Passwordless](./passwordless.mdx)
 - [Set up per-session MFA checks](./per-session-mfa.mdx)
 - [Require MFA for administrative actions](./mfa-for-admin-actions.mdx)
-
