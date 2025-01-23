@@ -77,6 +77,14 @@ runs:
               return "publish-prod"
             }
 
+            if (workflowEnvironment == "stage/publish") {
+              return "publish-stage";
+            }
+
+            if (workflowEnvironment == "prod/publish") {
+              return "publish-prod";
+            }
+
             // Input logic for actual environments
             const validWorkflowEnvironments = ["publish-stage", "publish-prod"];
             if (!validWorkflowEnvironments.includes(workflowEnvironment)) {
