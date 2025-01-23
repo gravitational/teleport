@@ -26,7 +26,7 @@ import (
 )
 
 // PackageManagerForSystem returns the PackageManager for the current detected linux distro.
-func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, binariesLocation BinariesLocation, aptPubKeyEndpoint string) (PackageManager, error) {
+func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, binariesLocation BinariesLocation, aptRepoEndpointOverride string) (PackageManager, error) {
 	aptWellKnownIDs := []string{"debian", "ubuntu"}
 	legacyAPT := []string{"xenial", "trusty"}
 
@@ -38,9 +38,9 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 	case slices.Contains(aptWellKnownIDs, osRelease.ID):
 		if slices.Contains(legacyAPT, osRelease.VersionCodename) {
 			pm, err := NewAPTLegacy(&APTConfig{
-				fsRootPrefix:         fsRootPrefix,
-				bins:                 binariesLocation,
-				aptPublicKeyEndpoint: aptPubKeyEndpoint,
+				fsRootPrefix:               fsRootPrefix,
+				bins:                       binariesLocation,
+				aptRepoKeyEndpointOverride: aptRepoEndpointOverride,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -49,9 +49,9 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 		}
 
 		pm, err := NewAPT(&APTConfig{
-			fsRootPrefix:         fsRootPrefix,
-			bins:                 binariesLocation,
-			aptPublicKeyEndpoint: aptPubKeyEndpoint,
+			fsRootPrefix:               fsRootPrefix,
+			bins:                       binariesLocation,
+			aptRepoKeyEndpointOverride: aptRepoEndpointOverride,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -86,7 +86,7 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 // PackageManager describes the required methods to implement a package manager.
 type PackageManager interface {
 	// AddTeleportRepository adds the Teleport repository using a specific channel.
-	AddTeleportRepository(ctx context.Context, ldi *linux.OSRelease, repoChannel string) error
+	AddTeleportRepository(ctx context.Context, ldi *linux.OSRelease, repoChannel string, productionRepo bool) error
 	// InstallPackages installs a list of packages.
 	// If a PackageVersion does not contain the version, then it will install the latest available.
 	InstallPackages(context.Context, []PackageVersion) error

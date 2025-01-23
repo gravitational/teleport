@@ -16,9 +16,44 @@
 
 package packagemanager
 
+import (
+	"fmt"
+	"slices"
+
+	"github.com/gravitational/trace"
+)
+
 // PackageVersion contains the package name and its version.
 // Version can be empty.
 type PackageVersion struct {
 	Name    string
 	Version string
+}
+
+const (
+	apt    = "apt"
+	yum    = "yum"
+	zypper = "zypper"
+)
+
+var (
+	supportedPackageManagers = []string{apt, yum, zypper}
+)
+
+// repositoryEndpoint returns the Teleport repository and public key endpoints for the package manager.
+// The URL has a trailing slash.
+// An error is returned when the package manager is not supported.
+func repositoryEndpoint(productionRepo bool, packageManager string) (string, string, error) {
+	if !slices.Contains(supportedPackageManagers, packageManager) {
+		return "", "", trace.BadParameter("invalid package manager, only %v are supported", supportedPackageManagers)
+	}
+
+	releasesPath := "releases"
+	if !productionRepo {
+		releasesPath = "releases.development"
+	}
+
+	repositoryEndpoint := fmt.Sprintf("https://%s.%s.teleport.dev/", packageManager, releasesPath)
+
+	return repositoryEndpoint, repositoryEndpoint + "gpg", nil
 }

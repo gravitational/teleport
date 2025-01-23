@@ -29,8 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/linux"
 )
 
-const yumRepoEndpoint = "https://yum.releases.teleport.dev/"
-
 var (
 	// yumDistroMap maps distro IDs that teleport doesn't officially support but are known to work.
 	// The key is the not-officially-supported distro ID and the value is the most similar distro.
@@ -81,7 +79,12 @@ func NewYUM(cfg *YUMConfig) (*YUM, error) {
 }
 
 // AddTeleportRepository adds the Teleport repository to the current system.
-func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
+func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string, productionRepo bool) error {
+	yumRepoEndpoint, _, err := repositoryEndpoint(productionRepo, yum)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	distroID := cmp.Or(yumDistroMap[linuxInfo.ID], linuxInfo.ID)
 
 	// Teleport repo only targets the major version of the target distros.
