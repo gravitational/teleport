@@ -299,6 +299,9 @@ install_teleport() {
     # shellcheck source=/dev/null
     . $OS_RELEASE
   fi
+  # Some $ID_LIKE values include multiple distro names in an arbitrary order, so
+  # evaluate the first one.
+  ID_LIKE="${ID_LIKE%% *}"
 
   # detect architecture
   ARCH=""
@@ -338,10 +341,8 @@ install_teleport() {
     ;;
   *)
     # before downloading manually, double check if we didn't miss any debian or
-    # rh/fedora derived distros using the ID_LIKE var. Some $ID_LIKE values
-    # include multiple distro names in an arbitrary order, so evaluate the first
-    # one.
-    case "$(echo "$ID_LIKE" | awk '{print $1}')" in
+    # rh/fedora derived distros using the ID_LIKE var.
+    case "${ID_LIKE}" in
     ubuntu | debian)
       install_via_apt_get
       ;;

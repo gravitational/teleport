@@ -16,25 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Property } from 'csstype';
 import {
   alignItems,
   AlignItemsProps,
   alignSelf,
   AlignSelfProps,
   border,
-  BorderProps,
   borderColor,
   BorderColorProps,
+  BorderProps,
   borders,
   BordersProps,
   color,
   ColorProps,
   flex,
-  FlexProps,
   flexBasis,
-  type FlexBasisProps,
   flexDirection,
   FlexDirectionProps,
+  FlexProps,
   flexWrap,
   FlexWrapProps,
   fontSize,
@@ -59,23 +59,22 @@ import {
   MinWidthProps,
   overflow,
   OverflowProps,
+  ResponsiveValue,
   size,
   SizeProps,
   space,
   SpaceProps,
+  style,
   textAlign,
   TextAlignProps,
+  TLengthStyledSystem,
   width,
   WidthProps,
-  style,
-  ResponsiveValue,
-  TLengthStyledSystem,
+  type FlexBasisProps,
 } from 'styled-system';
 
-import { Property } from 'csstype';
-
-import typography, { TypographyProps } from './typography';
 import borderRadius, { BorderRadiusProps } from './borderRadius';
+import typography, { TypographyProps } from './typography';
 
 const gap = style({
   prop: 'gap',

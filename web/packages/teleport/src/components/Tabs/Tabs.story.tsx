@@ -19,7 +19,6 @@
 import React from 'react';
 
 import { TextSelectCopyMulti } from '../TextSelectCopy';
-
 import { Tabs } from './Tabs';
 
 export default {

@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { LoggedInUser } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { LoggedInUser } from 'teleterm/services/tshd/types';
 
 /**
  * useLoggedInUser returns the user logged into the root cluster of the active workspace. The return

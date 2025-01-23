@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useMemo } from 'react';
-import { Flex, ButtonPrimary, Box } from 'design';
+import React, { useMemo, useState } from 'react';
 
-import Validation, { Validator } from 'shared/components/Validation';
+import { Box, ButtonPrimary, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
+import Validation, { Validator } from 'shared/components/Validation';
 import {
-  requiredToken,
   requiredField,
+  requiredToken,
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';

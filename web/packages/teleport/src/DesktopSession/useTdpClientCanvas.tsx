@@ -17,34 +17,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { useEffect, useRef, useState } from 'react';
+
 import { NotificationItem } from 'shared/components/Notification';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { debounce } from 'shared/utils/highbar';
 
-import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
+import cfg from 'teleport/config';
+import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
+import type { BitmapFrame } from 'teleport/lib/tdp/client';
 import {
   ClientScreenSpec,
   ClipboardData,
   PngFrame,
 } from 'teleport/lib/tdp/codec';
-import { getHostName } from 'teleport/services/api';
-import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
+import { getHostName } from 'teleport/services/api';
 
+import { KeyboardHandler } from './KeyboardHandler';
 import { TopBarHeight } from './TopBar';
 import {
-  ClipboardSharingState,
-  DirectorySharingState,
-  Setter,
   clipboardSharingPossible,
+  ClipboardSharingState,
   defaultClipboardSharingState,
   defaultDirectorySharingState,
+  DirectorySharingState,
   isSharingClipboard,
+  Setter,
 } from './useDesktopSession';
-import { KeyboardHandler } from './KeyboardHandler';
-
-import type { BitmapFrame } from 'teleport/lib/tdp/client';
 
 declare global {
   interface Navigator {

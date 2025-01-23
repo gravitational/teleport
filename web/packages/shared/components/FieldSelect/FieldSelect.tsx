@@ -17,17 +17,15 @@
  */
 
 import { Box, LabelInput } from 'design';
-
 import { useRule } from 'shared/components/Validation';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import Select, {
-  Props as SelectProps,
-  SelectAsync,
   AsyncProps as AsyncSelectProps,
+  SelectAsync,
+  Props as SelectProps,
 } from '../Select';
-
-import { LabelTip, defaultRule } from './shared';
+import { defaultRule, LabelTip } from './shared';
 
 export function FieldSelect({
   components,

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import PropTypes from 'prop-types';
+import React from 'react';
 import styled from 'styled-components';
 
-import { Text, Alert, Card } from 'design';
+import { Alert, Card, Text } from 'design';
 
 export default function CardError(props) {
   return (

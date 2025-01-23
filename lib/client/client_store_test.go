@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -90,14 +91,16 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
 	require.NoError(t, err)
 
-	cert, err := s.keygen.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
-		Username:              idx.Username,
-		AllowedLogins:         allowedLogins,
-		TTL:                   ttl,
-		PermitAgentForwarding: false,
-		PermitPortForwarding:  true,
+	cert, err := s.keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      caSigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
+		TTL:           ttl,
+		Identity: sshca.Identity{
+			Username:              idx.Username,
+			AllowedLogins:         allowedLogins,
+			PermitAgentForwarding: false,
+			PermitPortForwarding:  true,
+		},
 	})
 	require.NoError(t, err)
 

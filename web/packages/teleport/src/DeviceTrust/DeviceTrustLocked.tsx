@@ -19,26 +19,22 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, Text, Flex, Link } from 'design';
-
+import { Box, Flex, Link, Text } from 'design';
+import Table, { Cell } from 'design/DataTable';
+import { Apple, Linux, Lock, Windows } from 'design/Icon';
 import { IconCircle } from 'design/Icon/IconCircle';
 
-import { Windows, Linux, Apple, Lock } from 'design/Icon';
-
-import Table, { Cell } from 'design/DataTable';
-
-import {
-  DeviceListProps,
-  TrustedDeviceOSType,
-} from 'teleport/DeviceTrust/types';
-
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import {
+  DeviceListProps,
+  TrustedDeviceOSType,
+} from 'teleport/DeviceTrust/types';
 import { CtaEvent } from 'teleport/services/userEvent';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 export function DeviceTrustLocked() {
   return (

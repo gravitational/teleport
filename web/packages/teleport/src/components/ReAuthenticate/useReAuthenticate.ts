@@ -21,7 +21,6 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 // useReAuthenticate will have different "submit" behaviors depending on:

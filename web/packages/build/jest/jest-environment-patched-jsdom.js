@@ -1,4 +1,4 @@
-import { TextEncoder, TextDecoder } from 'node:util';
+import { TextDecoder, TextEncoder } from 'node:util';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 
@@ -47,6 +47,14 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
         removeEventListener: () => {},
         dispatchEvent: () => {},
       });
+    }
+
+    // TODO(gzdunek): JSDOM doesn't support AbortSignal.any().
+    // Overwriting only this function doesn't help much, something between
+    // AbortSignal and AbortController is missing.
+    if (!global.AbortSignal.any) {
+      global.AbortSignal = AbortSignal;
+      global.AbortController = AbortController;
     }
   }
 }

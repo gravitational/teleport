@@ -17,8 +17,8 @@
  */
 
 import React, { forwardRef } from 'react';
-import { Box, Input, LabelInput, Text } from 'design';
 
+import { Box, Input, LabelInput, Text } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useRule } from 'shared/components/Validation';
 

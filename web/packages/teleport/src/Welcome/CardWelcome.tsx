@@ -17,8 +17,8 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, Text } from 'design';
 
+import { ButtonPrimary, Text } from 'design';
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {

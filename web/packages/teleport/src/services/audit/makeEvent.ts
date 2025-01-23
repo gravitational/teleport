@@ -17,9 +17,10 @@
  */
 
 import { formatDistanceStrict } from 'date-fns';
+
 import { pluralize } from 'shared/utils/text';
 
-import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
+import { Event, eventCodes, Formatters, RawEvent, RawEvents } from './types';
 
 const formatElasticsearchEvent: (
   json:
@@ -1805,6 +1806,12 @@ export const formatters: Formatters = {
     format: ({ access_list_name, updated_by }) =>
       `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
   },
+  [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: {
+    type: 'user_login.invalid_access_list',
+    desc: 'Access list skipped.',
+    format: ({ access_list_name, user, missing_roles }) =>
+      `Access list [${access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
+  },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
     type: 'secreports.audit.query.run"',
     desc: 'Access Monitoring Query Executed',
@@ -2031,6 +2038,20 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a plugin [${name}]`;
     },
   },
+  [eventCodes.CONTACT_CREATE]: {
+    type: 'contact.create',
+    desc: 'Contact Created',
+    format: ({ user, email, contact_type }) => {
+      return `User [${user}] created a [${contactTypeStr(contact_type)}] contact [${email}]`;
+    },
+  },
+  [eventCodes.CONTACT_DELETE]: {
+    type: 'contact.delete',
+    desc: 'Contact Deleted',
+    format: ({ user, email, contact_type }) => {
+      return `User [${user}] deleted a [${contactTypeStr(contact_type)}] contact [${email}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
@@ -2083,4 +2104,15 @@ function formatMembers(members: { member_name: string }[]) {
   const memberNamesJoined = memberNames.join(', ');
 
   return `${pluralize(memberNames.length, 'member')} [${memberNamesJoined}]`;
+}
+
+function contactTypeStr(type: number): string {
+  switch (type) {
+    case 1:
+      return 'Business';
+    case 2:
+      return 'Security';
+    default:
+      return `Unknown type: ${type}`;
+  }
 }

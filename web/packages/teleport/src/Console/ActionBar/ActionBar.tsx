@@ -18,9 +18,8 @@
 
 import React from 'react';
 
-import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
-
 import { Flex } from 'design';
+import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
 import { DocumentSsh } from 'teleport/Console/stores';
 

@@ -32,11 +32,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -308,7 +310,7 @@ func (a *Server) updateBotInstance(
 	if templateAuthRecord != nil {
 		authRecord.JoinToken = templateAuthRecord.JoinToken
 		authRecord.JoinMethod = templateAuthRecord.JoinMethod
-		authRecord.Metadata = templateAuthRecord.Metadata
+		authRecord.JoinAttrs = templateAuthRecord.JoinAttrs
 	}
 
 	// An empty bot instance most likely means a bot is rejoining after an
@@ -484,6 +486,7 @@ func (a *Server) generateInitialBotCerts(
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	existingInstanceID string, currentIdentityGeneration int32,
+	joinAttrs *workloadidentityv1pb.JoinAttrs,
 ) (*proto.Certs, string, error) {
 	var err error
 
@@ -532,6 +535,11 @@ func (a *Server) generateInitialBotCerts(
 		includeHostCA: true,
 		loginIP:       loginIP,
 		botName:       botName,
+	}
+	// Feature flag with workload id experiment env var to allow us to test this
+	// in master/v18 without enabling it for everyone.
+	if experiment.Enabled() {
+		certReq.joinAttributes = joinAttrs
 	}
 
 	if existingInstanceID == "" {

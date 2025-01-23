@@ -17,8 +17,8 @@
  */
 
 import {
-  makeRootCluster,
   makeLeafCluster,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 

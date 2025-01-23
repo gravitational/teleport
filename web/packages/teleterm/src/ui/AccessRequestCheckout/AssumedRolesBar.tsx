@@ -18,6 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { Box, Flex, Text } from 'design';
 import { pluralize } from 'shared/utils/text';
 

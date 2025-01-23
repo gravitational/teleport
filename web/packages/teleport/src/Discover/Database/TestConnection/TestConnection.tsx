@@ -17,31 +17,30 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, LabelInput } from 'design';
 
+import { Box, LabelInput, Text } from 'design';
 import Select, { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { generateTshLoginCommand } from 'teleport/lib/util';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
-import { CustomInputFieldForAsterisks } from 'teleport/Discover/Shared/CustomInputFieldForAsterisks';
-
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import { MfaAuthnResponse } from 'teleport/services/mfa';
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { WILD_CARD } from 'teleport/Discover/Shared/const';
+import { CustomInputFieldForAsterisks } from 'teleport/Discover/Shared/CustomInputFieldForAsterisks';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { generateTshLoginCommand } from 'teleport/lib/util';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { MfaAuthnResponse } from 'teleport/services/mfa';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { DatabaseEngine, getDatabaseProtocol } from '../../SelectResource';
 import {
   ActionButtons,
-  HeaderSubtitle,
-  Header,
   ConnectionDiagnosticResult,
+  Header,
+  HeaderSubtitle,
   StyledBox,
   useConnectionDiagnostic,
 } from '../../Shared';
-import { DatabaseEngine, getDatabaseProtocol } from '../../SelectResource';
 
 export function TestConnection() {
   const { resourceSpec, agentMeta } = useDiscover();

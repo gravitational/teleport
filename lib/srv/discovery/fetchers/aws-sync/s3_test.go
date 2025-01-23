@@ -55,6 +55,10 @@ func TestPollAWSS3(t *testing.T) {
 		mockedClients = &cloud.TestCloudClients{
 			S3: &mocks.S3Mock{
 				Buckets: s3Buckets(bucketName, otherBucketName),
+				BucketLocations: map[string]string{
+					bucketName:      "eu-west-1",
+					otherBucketName: "eu-west-1",
+				},
 				BucketPolicy: map[string]string{
 					bucketName:      "policy",
 					otherBucketName: "otherPolicy",

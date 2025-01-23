@@ -18,8 +18,8 @@
 
 import styled from 'styled-components';
 
-import { borderColor } from './../system';
 import Flex from './../Flex';
+import { borderColor } from './../system';
 
 const fromTheme = ({ theme }) => {
   return {

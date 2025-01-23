@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { setupServer } from 'msw/node';
-import { rest } from 'msw';
-import { render, fireEvent, screen } from 'design/utils/testing';
+
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Locks } from './Locks';
 

@@ -293,6 +293,7 @@ export const eventCodes = {
   ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
+  USER_LOGIN_INVALID_ACCESS_LIST: 'TAL009W',
   SECURITY_REPORT_AUDIT_QUERY_RUN: 'SRE001I',
   SECURITY_REPORT_RUN: 'SRE002I',
   EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
@@ -324,6 +325,8 @@ export const eventCodes = {
   PLUGIN_CREATE: 'PG001I',
   PLUGIN_UPDATE: 'PG002I',
   PLUGIN_DELETE: 'PG003I',
+  CONTACT_CREATE: 'TCTC001I',
+  CONTACT_DELETE: 'TCTC002I',
 } as const;
 
 /**
@@ -1619,6 +1622,14 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
+  [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: RawEvent<
+    typeof eventCodes.USER_LOGIN_INVALID_ACCESS_LIST,
+    {
+      access_list_name: string;
+      user: string;
+      missing_roles: string[];
+    }
+  >;
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: RawEvent<
     typeof eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN,
     {
@@ -1782,6 +1793,20 @@ export type RawEvents = {
   [eventCodes.PLUGIN_DELETE]: RawEvent<
     typeof eventCodes.PLUGIN_DELETE,
     Merge<HasName, { user: string }>
+  >;
+  [eventCodes.CONTACT_CREATE]: RawEvent<
+    typeof eventCodes.CONTACT_CREATE,
+    {
+      email: string;
+      contact_type: number;
+    }
+  >;
+  [eventCodes.CONTACT_DELETE]: RawEvent<
+    typeof eventCodes.CONTACT_DELETE,
+    {
+      email: string;
+      contact_type: number;
+    }
   >;
 };
 

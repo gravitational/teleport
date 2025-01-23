@@ -17,15 +17,13 @@
  */
 
 import React from 'react';
-
 import { useTheme } from 'styled-components';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
+import * as SvgIcons from '.';
 import Flex from '../Flex';
 import Text from '../Text';
-
-import * as SvgIcons from '.';
 
 export default {
   title: 'Design/Icon',
@@ -36,7 +34,6 @@ export const CustomIcons = () => {
   return (
     <Flex flexWrap="wrap">
       {icons.map(icon => {
-        // eslint-disable-next-line import/namespace
         const S = SvgIcons[icon];
         const size = 64;
 

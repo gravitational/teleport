@@ -21,7 +21,10 @@ import React, { PropsWithChildren } from 'react';
 import { Box, Flex, Indicator, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { StyledTable, StyledPanel } from './StyledTable';
+import { SortHeaderCell, TextCell } from './Cells';
+import InputSearch from './InputSearch';
+import { ClientSidePager, ServerSidePager } from './Pager';
+import { StyledPanel, StyledTable } from './StyledTable';
 import {
   BasicTableProps,
   PagedTableProps,
@@ -30,9 +33,6 @@ import {
   ServersideTableProps,
   TableProps,
 } from './types';
-import { SortHeaderCell, TextCell } from './Cells';
-import { ClientSidePager, ServerSidePager } from './Pager';
-import InputSearch from './InputSearch';
 import useTable, { State } from './useTable';
 
 export default function Container<T>(props: TableProps<T>) {

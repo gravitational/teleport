@@ -17,17 +17,18 @@
  */
 
 import React from 'react';
-import { render } from 'design/utils/testing';
-import { UserAgent } from 'design/platform';
 
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { UserAgent } from 'design/platform';
+import { render } from 'design/utils/testing';
+
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import {
   AllAccess,
+  InitRouteEntryServer,
   NoAccess,
   PartialAccess,
-  InitRouteEntryServer,
 } from './SelectResource.story';
 
 beforeEach(() => {

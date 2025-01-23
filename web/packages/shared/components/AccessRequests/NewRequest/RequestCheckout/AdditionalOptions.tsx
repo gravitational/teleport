@@ -17,12 +17,11 @@
  */
 
 import React, { useState } from 'react';
-import { Flex, Text, ButtonIcon, Box, LabelInput } from 'design';
-import * as Icon from 'design/Icon';
 
+import { Box, ButtonIcon, Flex, LabelInput, Text } from 'design';
+import * as Icon from 'design/Icon';
 import Select, { Option } from 'shared/components/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
-
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getFormattedDurationTxt } from '../../Shared/utils';

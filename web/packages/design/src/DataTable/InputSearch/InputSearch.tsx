@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { JSX, SetStateAction, FormEvent } from 'react';
+import React, { FormEvent, JSX, SetStateAction } from 'react';
 import styled from 'styled-components';
 
 import {
+  color,
+  ColorProps,
   height,
   HeightProps,
   space,
   SpaceProps,
-  color,
-  ColorProps,
 } from 'design/system';
 
 const searchInputName = 'searchValue';

@@ -17,37 +17,37 @@
  */
 
 import React from 'react';
-import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
+
+import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
+import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 
 import {
-  connectToServer,
-  connectToDatabase,
-  connectToKube,
-  connectToAppWithVnet,
-  captureAppLaunchInBrowser,
-  setUpAppGateway,
-} from 'teleterm/ui/services/workspacesService';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import {
-  Server,
-  Kube,
-  GatewayProtocol,
-  Database,
-  App,
-  Cluster,
-} from 'teleterm/services/tshd/types';
-
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import {
-  getWebAppLaunchUrl,
-  isWebApp,
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
+  getWebAppLaunchUrl,
+  isWebApp,
 } from 'teleterm/services/tshd/app';
+import {
+  App,
+  Cluster,
+  Database,
+  GatewayProtocol,
+  Kube,
+  Server,
+} from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import {
+  captureAppLaunchInBrowser,
+  connectToAppWithVnet,
+  connectToDatabase,
+  connectToKube,
+  connectToServer,
+  setUpAppGateway,
+} from 'teleterm/ui/services/workspacesService';
+import { IAppContext } from 'teleterm/ui/types';
+import { DatabaseUri, routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {

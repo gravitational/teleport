@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatCmd, formatNetwork, formatFile } from './formatters';
+import { formatCmd, formatFile, formatNetwork } from './formatters';
 
 export default function flatFormatter(events, buffer) {
   for (var i = 0; i < events.length; i++) {

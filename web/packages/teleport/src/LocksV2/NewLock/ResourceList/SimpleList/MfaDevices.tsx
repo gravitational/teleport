@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { dateMatcher } from 'design/utils/match';

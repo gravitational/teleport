@@ -55,6 +55,11 @@ exports[`render Apps 1`] = `
   justify-content: center;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c6 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -70,9 +75,12 @@ exports[`render Apps 1`] = `
   margin-right: 4px;
 }
 
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
+.c7 {
+  cursor: pointer;
+}
+
+.c7:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 {
@@ -163,14 +171,6 @@ exports[`render Apps 1`] = `
 
 .c2 tbody tr:hover + tr {
   border-top: 2px solid rgba(0,0,0,0);
-}
-
-.c7 {
-  cursor: pointer;
-}
-
-.c7:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 > tbody > tr > td {
@@ -352,6 +352,11 @@ exports[`render Databases 1`] = `
   justify-content: center;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c6 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -367,9 +372,12 @@ exports[`render Databases 1`] = `
   margin-right: 4px;
 }
 
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
+.c7 {
+  cursor: pointer;
+}
+
+.c7:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 {
@@ -460,14 +468,6 @@ exports[`render Databases 1`] = `
 
 .c2 tbody tr:hover + tr {
   border-top: 2px solid rgba(0,0,0,0);
-}
-
-.c7 {
-  cursor: pointer;
-}
-
-.c7:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 > tbody > tr > td {
@@ -669,6 +669,11 @@ exports[`render Desktops 1`] = `
   justify-content: center;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c6 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -684,9 +689,12 @@ exports[`render Desktops 1`] = `
   margin-right: 4px;
 }
 
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
+.c7 {
+  cursor: pointer;
+}
+
+.c7:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 {
@@ -777,14 +785,6 @@ exports[`render Desktops 1`] = `
 
 .c2 tbody tr:hover + tr {
   border-top: 2px solid rgba(0,0,0,0);
-}
-
-.c7 {
-  cursor: pointer;
-}
-
-.c7:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 > tbody > tr > td {
@@ -938,6 +938,11 @@ exports[`render Kubes 1`] = `
   justify-content: center;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c6 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -953,9 +958,12 @@ exports[`render Kubes 1`] = `
   margin-right: 4px;
 }
 
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
+.c7 {
+  cursor: pointer;
+}
+
+.c7:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 {
@@ -1046,14 +1054,6 @@ exports[`render Kubes 1`] = `
 
 .c2 tbody tr:hover + tr {
   border-top: 2px solid rgba(0,0,0,0);
-}
-
-.c7 {
-  cursor: pointer;
-}
-
-.c7:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 > tbody > tr > td {
@@ -1199,6 +1199,11 @@ exports[`render Nodes 1`] = `
   justify-content: center;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c6 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -1214,9 +1219,12 @@ exports[`render Nodes 1`] = `
   margin-right: 4px;
 }
 
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
+.c7 {
+  cursor: pointer;
+}
+
+.c7:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 {
@@ -1307,14 +1315,6 @@ exports[`render Nodes 1`] = `
 
 .c2 tbody tr:hover + tr {
   border-top: 2px solid rgba(0,0,0,0);
-}
-
-.c7 {
-  cursor: pointer;
-}
-
-.c7:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 > tbody > tr > td {
@@ -1671,14 +1671,6 @@ exports[`render Roles 1`] = `
   margin-top: 4px;
 }
 
-.c14 svg {
-  font-size: 20px;
-}
-
-.c14 svg:before {
-  padding-left: 1px;
-}
-
 .c7 {
   position: relative;
   height: 100%;
@@ -1729,6 +1721,14 @@ exports[`render Roles 1`] = `
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
   padding-left: 24px;
+}
+
+.c14 svg {
+  font-size: 20px;
+}
+
+.c14 svg:before {
+  padding-left: 1px;
 }
 
 .c18 > tbody > tr > td {
@@ -1976,6 +1976,11 @@ exports[`render UserGroups 1`] = `
   justify-content: center;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c6 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -1991,9 +1996,12 @@ exports[`render UserGroups 1`] = `
   margin-right: 4px;
 }
 
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
+.c7 {
+  cursor: pointer;
+}
+
+.c7:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 {
@@ -2084,14 +2092,6 @@ exports[`render UserGroups 1`] = `
 
 .c2 tbody tr:hover + tr {
   border-top: 2px solid rgba(0,0,0,0);
-}
-
-.c7 {
-  cursor: pointer;
-}
-
-.c7:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 > tbody > tr > td {

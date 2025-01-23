@@ -17,16 +17,15 @@
  */
 
 import React from 'react';
-
 import { createRoot } from 'react-dom/client';
 
 import history from 'teleport/services/history';
 
 import 'teleport/lib/polyfillRandomUuid';
 
+import cfg from './config';
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';
-import cfg from './config';
 
 // apply configuration received from the server
 cfg.init(window['GRV_CONFIG']);

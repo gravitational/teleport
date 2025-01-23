@@ -18,8 +18,8 @@
 
 import { format } from 'date-fns';
 
-import Logger from 'shared/libs/logger';
 import cfg from 'shared/config';
+import Logger from 'shared/libs/logger';
 
 const DEFAULT_LOCALE = 'en-US';
 const isTest = process.env.NODE_ENV === 'test';

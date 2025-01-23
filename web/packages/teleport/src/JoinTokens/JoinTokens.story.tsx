@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { rest } from 'msw';
 import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { JoinToken } from 'teleport/services/joinToken';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { JoinToken } from 'teleport/services/joinToken';
 
 import { JoinTokens } from './JoinTokens';
 

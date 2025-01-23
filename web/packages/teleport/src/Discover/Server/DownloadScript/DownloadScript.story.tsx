@@ -19,13 +19,12 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { Context as TeleportContext, ContextProvider } from 'teleport';
+import { ContextProvider, Context as TeleportContext } from 'teleport';
 import cfg from 'teleport/config';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { userContext } from 'teleport/Main/fixtures';
 import { ResourceKind } from 'teleport/Discover/Shared';
-
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { userContext } from 'teleport/Main/fixtures';
 import { UserContextProvider } from 'teleport/User';
 
 import DownloadScript from './DownloadScript';

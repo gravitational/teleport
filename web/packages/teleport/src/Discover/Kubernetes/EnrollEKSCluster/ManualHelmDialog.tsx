@@ -16,29 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
-import {
-  Box,
-  Flex,
-  ButtonPrimary,
-  ButtonSecondary,
-  Text,
-  Indicator,
-} from 'design';
-
-import React, { Suspense, useState, useEffect } from 'react';
-
+import React, { Suspense, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Indicator,
+  Text,
+} from 'design';
+import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
 
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
-
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
-import { JoinToken } from 'teleport/services/joinToken';
 import { CatchError } from 'teleport/components/CatchError';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { JoinToken } from 'teleport/services/joinToken';
 
 type ManualHelmDialogProps = {
   setJoinTokenAndGetCommand(token: JoinToken): string;

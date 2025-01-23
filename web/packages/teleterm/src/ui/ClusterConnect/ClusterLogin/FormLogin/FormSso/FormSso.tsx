@@ -17,11 +17,11 @@
  */
 
 import React from 'react';
+
 import { Box } from 'design';
 
-import SSOButtonList from './SsoButtons';
-
 import type { Props } from '../FormLogin';
+import SSOButtonList from './SsoButtons';
 
 export const FormSso = ({
   loginAttempt,

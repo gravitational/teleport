@@ -18,6 +18,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
+
 import { ButtonIcon, Flex, Link, Text } from 'design';
 import { Cross } from 'design/Icon';
 

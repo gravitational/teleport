@@ -18,13 +18,13 @@
 
 import { useMemo } from 'react';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
+  DisplayResults,
   isClusterSearchFilter,
   isResourceTypeSearchFilter,
   SearchFilter,
-  DisplayResults,
 } from 'teleterm/ui/Search/searchResult';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function useDisplayResults(args: {
   filters: SearchFilter[];

@@ -23,15 +23,15 @@ import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
 import {
   Route,
   Switch,
-  useParams,
   useLocation,
+  useParams,
 } from 'teleport/components/Router';
-import history from 'teleport/services/history';
 import cfg from 'teleport/config';
+import history from 'teleport/services/history';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
-import { CLOUD_INVITE_URL_PARAM } from './const';
 import { CardWelcome } from './CardWelcome';
+import { CLOUD_INVITE_URL_PARAM } from './const';
 
 type WelcomeProps = {
   NewCredentials: (props: NewCredentialsContainerProps) => JSX.Element;

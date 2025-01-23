@@ -20,7 +20,7 @@ import React from 'react';
 
 import { render, screen } from 'design/utils/testing';
 
-import { Story, createContext } from './Clusters.story';
+import { createContext, Story } from './Clusters.story';
 
 test('render clusters', async () => {
   const ctx = createContext();

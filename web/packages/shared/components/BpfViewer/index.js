@@ -17,5 +17,6 @@
  */
 
 import BpfViewer, { formatEvents } from './BpfViewer';
+
 export default BpfViewer;
 export { formatEvents };

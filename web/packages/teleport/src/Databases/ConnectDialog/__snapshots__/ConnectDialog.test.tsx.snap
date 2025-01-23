@@ -142,13 +142,6 @@ exports[`render dialog with instructions to connect to database 1`] = `
   margin: 0px;
 }
 
-.c18 {
-  color: #009EFF;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -167,6 +160,13 @@ exports[`render dialog with instructions to connect to database 1`] = `
 
 .c14 {
   display: flex;
+}
+
+.c18 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c1 {
@@ -325,7 +325,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
           * Note: To connect with a GUI database client, see our 
           <a
             class="c18"
-            href="https://goteleport.com/docs/database-access/guides/gui-clients/"
+            href="https://goteleport.com/docs/connect-your-client/gui-clients/"
             rel="noreferrer"
             target="_blank"
           >
@@ -491,13 +491,6 @@ exports[`render dialog with instructions to connect to database with requestId 1
   margin: 0px;
 }
 
-.c18 {
-  color: #009EFF;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c5 {
   display: flex;
   align-items: center;
@@ -516,6 +509,13 @@ exports[`render dialog with instructions to connect to database with requestId 1
 
 .c14 {
   display: flex;
+}
+
+.c18 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c1 {
@@ -712,7 +712,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
             * Note: To connect with a GUI database client, see our 
             <a
               class="c18"
-              href="https://goteleport.com/docs/database-access/guides/gui-clients/"
+              href="https://goteleport.com/docs/connect-your-client/gui-clients/"
               rel="noreferrer"
               target="_blank"
             >

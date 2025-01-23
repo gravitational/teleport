@@ -17,16 +17,16 @@
  */
 
 import React from 'react';
-import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
-import { Cross } from 'design/Icon';
 
-import { Attempt } from 'shared/hooks/useAsync';
+import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
 import * as Alerts from 'design/Alert';
+import { Cross } from 'design/Icon';
+import Validation from 'shared/components/Validation';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import { ShareFeedbackFormFields } from './ShareFeedbackFormFields';
-import { FEEDBACK_TOO_LONG_ERROR } from './useShareFeedback';
 import { ShareFeedbackFormValues } from './types';
+import { FEEDBACK_TOO_LONG_ERROR } from './useShareFeedback';
 
 interface ShareFeedbackProps {
   submitFeedbackAttempt: Attempt<string>;

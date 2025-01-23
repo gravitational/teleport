@@ -18,22 +18,21 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Flex, ButtonText, Box } from 'design';
+
+import { Box, ButtonText, Flex, Text } from 'design';
 import * as Alerts from 'design/Alert';
-import { StepSlider } from 'design/StepSlider';
+import { StepSlider, type StepComponentProps } from 'design/StepSlider';
 import { Attempt } from 'shared/hooks/useAsync';
+import type { PrimaryAuthType } from 'shared/services';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
-import { PromptWebauthn } from './PromptWebauthn';
-import PromptSsoStatus from './PromptSsoStatus';
+import type { WebauthnLogin } from '../useClusterLogin';
+import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
 import { FormSso } from './FormSso';
-import { FormLocal } from './FormLocal';
-
-import type { WebauthnLogin } from '../useClusterLogin';
-import type { PrimaryAuthType } from 'shared/services';
-import type { StepComponentProps } from 'design/StepSlider';
+import PromptSsoStatus from './PromptSsoStatus';
+import { PromptWebauthn } from './PromptWebauthn';
 
 export default function LoginForm(props: Props) {
   const {

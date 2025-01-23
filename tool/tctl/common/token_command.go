@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -139,6 +140,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
+	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -275,6 +277,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
 				"set_roles":   setRoles,
+				"version":     proxies[0].GetTeleportVersion(),
 			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
@@ -375,10 +378,26 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
+	labels, err := libclient.ParseLabelSpec(c.labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	tokens, err := client.GetTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	tokens = slices.DeleteFunc(tokens, func(token types.ProvisionToken) bool {
+		tokenLabels := token.GetMetadata().Labels
+		for k, v := range labels {
+			if tokenLabels[k] != v {
+				return true
+			}
+		}
+		return false
+	})
+
 	if len(tokens) == 0 && c.format == teleport.Text {
 		fmt.Fprintln(c.stdout, "No active tokens found.")
 		return nil

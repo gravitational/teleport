@@ -17,6 +17,7 @@
  */
 
 import 'styled-components';
+
 import { Theme } from 'design/theme/themes/types';
 
 declare module 'styled-components' {

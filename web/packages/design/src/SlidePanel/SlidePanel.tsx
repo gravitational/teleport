@@ -19,9 +19,8 @@
 import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
-import { useEscape } from 'shared/hooks/useEscape';
-
 import { Box } from 'design';
+import { useEscape } from 'shared/hooks/useEscape';
 
 export type Positions = 'open' | 'closed';
 

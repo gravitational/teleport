@@ -19,12 +19,13 @@
 import React from 'react';
 import ReactSelect from 'react-select';
 import ReactSelectAsync from 'react-select/async';
-import CreatableSelect from 'react-select/creatable';
 import ReactSelectCreatableAsync from 'react-select/async-creatable';
+import CreatableSelect from 'react-select/creatable';
 import styled from 'styled-components';
-import { width, WidthProps, space, SpaceProps } from 'design/system';
 
-import { Props, AsyncProps, CreatableProps } from './types';
+import { space, SpaceProps, width, WidthProps } from 'design/system';
+
+import { AsyncProps, CreatableProps, Props } from './types';
 
 export default function Select(props: Props) {
   const {

@@ -20,8 +20,8 @@ import React from 'react';
 
 import {
   makeEmptyAttempt,
-  makeProcessingAttempt,
   makeErrorAttemptWithStatusText,
+  makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 

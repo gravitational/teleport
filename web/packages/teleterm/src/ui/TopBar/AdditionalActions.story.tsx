@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import * as icons from 'design/Icon';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';

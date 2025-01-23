@@ -68,6 +68,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -612,6 +613,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:      &as,
 		UsageEvents: &as,
 		Clock:       cfg.Clock,
+		Emitter:     as.emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2178,6 +2180,9 @@ type certRequest struct {
 	// botInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any
 	botInstanceID string
+	// joinAttributes holds attributes derived from attested metadata from the
+	// join process, should any exist.
+	joinAttributes *workloadidentityv1pb.JoinAttrs
 }
 
 // check verifies the cert request is valid.
@@ -2852,7 +2857,7 @@ func (a *Server) augmentUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.UserCertParams) {
+func (a *Server) submitCertificateIssuedEvent(req *certRequest, params sshca.UserCertificateRequest) {
 	var database, app, kubernetes, desktop bool
 
 	if req.dbService != "" {
@@ -2895,7 +2900,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.
 		UsageApp:         app,
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
-		PrivateKeyPolicy: string(params.PrivateKeyPolicy),
+		PrivateKeyPolicy: string(params.Identity.PrivateKeyPolicy),
 	})
 }
 
@@ -3098,37 +3103,39 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	params := services.UserCertParams{
-		CASigner:                sshSigner,
-		PublicUserKey:           req.publicKey,
-		Username:                req.user.GetName(),
-		Impersonator:            req.impersonator,
-		AllowedLogins:           allowedLogins,
-		TTL:                     sessionTTL,
-		Roles:                   req.checker.RoleNames(),
-		CertificateFormat:       certificateFormat,
-		PermitPortForwarding:    req.checker.CanPortForward(),
-		PermitAgentForwarding:   req.checker.CanForwardAgents(),
-		PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
-		RouteToCluster:          req.routeToCluster,
-		Traits:                  req.traits,
-		ActiveRequests:          req.activeRequests,
-		MFAVerified:             req.mfaVerified,
-		PreviousIdentityExpires: req.previousIdentityExpires,
-		LoginIP:                 req.loginIP,
-		PinnedIP:                pinnedIP,
-		DisallowReissue:         req.disallowReissue,
-		Renewable:               req.renewable,
-		Generation:              req.generation,
-		BotName:                 req.botName,
-		BotInstanceID:           req.botInstanceID,
-		CertificateExtensions:   req.checker.CertificateExtensions(),
-		AllowedResourceIDs:      requestedResourcesStr,
-		ConnectionDiagnosticID:  req.connectionDiagnosticID,
-		PrivateKeyPolicy:        attestedKeyPolicy,
-		DeviceID:                req.deviceExtensions.DeviceID,
-		DeviceAssetTag:          req.deviceExtensions.AssetTag,
-		DeviceCredentialID:      req.deviceExtensions.CredentialID,
+	params := sshca.UserCertificateRequest{
+		CASigner:          sshSigner,
+		PublicUserKey:     req.publicKey,
+		TTL:               sessionTTL,
+		CertificateFormat: certificateFormat,
+		Identity: sshca.Identity{
+			Username:                req.user.GetName(),
+			Impersonator:            req.impersonator,
+			AllowedLogins:           allowedLogins,
+			Roles:                   req.checker.RoleNames(),
+			PermitPortForwarding:    req.checker.CanPortForward(),
+			PermitAgentForwarding:   req.checker.CanForwardAgents(),
+			PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
+			RouteToCluster:          req.routeToCluster,
+			Traits:                  req.traits,
+			ActiveRequests:          req.activeRequests,
+			MFAVerified:             req.mfaVerified,
+			PreviousIdentityExpires: req.previousIdentityExpires,
+			LoginIP:                 req.loginIP,
+			PinnedIP:                pinnedIP,
+			DisallowReissue:         req.disallowReissue,
+			Renewable:               req.renewable,
+			Generation:              req.generation,
+			BotName:                 req.botName,
+			BotInstanceID:           req.botInstanceID,
+			CertificateExtensions:   req.checker.CertificateExtensions(),
+			AllowedResourceIDs:      requestedResourcesStr,
+			ConnectionDiagnosticID:  req.connectionDiagnosticID,
+			PrivateKeyPolicy:        attestedKeyPolicy,
+			DeviceID:                req.deviceExtensions.DeviceID,
+			DeviceAssetTag:          req.deviceExtensions.AssetTag,
+			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+		},
 	}
 	signedSSHCert, err := a.GenerateUserCert(params)
 	if err != nil {
@@ -3227,7 +3234,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
-		UserType: req.user.GetUserType(),
+		UserType:       req.user.GetUserType(),
+		JoinAttributes: req.joinAttributes,
 	}
 
 	var signedTLSCert []byte

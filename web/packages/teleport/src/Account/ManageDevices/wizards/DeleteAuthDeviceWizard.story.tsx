@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import React from 'react';
 
 import Dialog from 'design/Dialog';
 
-import { initialize, mswLoader } from 'msw-storybook-addon';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { MfaDevice } from 'teleport/services/mfa';
 
 import {

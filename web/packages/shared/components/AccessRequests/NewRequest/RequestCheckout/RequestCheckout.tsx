@@ -17,7 +17,9 @@
  */
 
 import React, { useRef, useState } from 'react';
+import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
+
 import {
   Alert,
   Box,
@@ -25,47 +27,41 @@ import {
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
+  Link as ExternalLink,
   Flex,
   H2,
   Image,
   Indicator,
   LabelInput,
-  Link as ExternalLink,
   Subtitle2,
   Text,
 } from 'design';
-import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
-import Table, { Cell } from 'design/DataTable';
-import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import { Danger } from 'design/Alert';
-
-import Validation, { useRule, Validator } from 'shared/components/Validation';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-import { pluralize } from 'shared/utils/text';
+import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
+import Table, { Cell } from 'design/DataTable';
+import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 import { Option } from 'shared/components/Select';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 import { HoverTooltip } from 'shared/components/ToolTip';
+import Validation, { useRule, Validator } from 'shared/components/Validation';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import type { AccessRequest } from 'shared/services/accessRequests';
+import { pluralize } from 'shared/utils/text';
 
-import { CreateRequest } from '../../Shared/types';
-import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
+import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
+import { CreateRequest } from '../../Shared/types';
 import {
   checkSupportForKubeResources,
   isKubeClusterWithNamespaces,
 } from '../kube';
-
-import { ReviewerOption } from './types';
-
-import shieldCheck from './shield-check.png';
-import { SelectReviewers } from './SelectReviewers';
 import { AdditionalOptions } from './AdditionalOptions';
-import { KubeNamespaceSelector } from './KubeNamespaceSelector';
 import { CrossIcon } from './CrossIcon';
-
-import type { TransitionStatus } from 'react-transition-group';
-
-import type { AccessRequest } from 'shared/services/accessRequests';
+import { KubeNamespaceSelector } from './KubeNamespaceSelector';
+import { SelectReviewers } from './SelectReviewers';
+import shieldCheck from './shield-check.png';
+import { ReviewerOption } from './types';
 
 export function RequestCheckoutWithSlider<
   T extends PendingListItem = PendingListItem,

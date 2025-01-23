@@ -17,21 +17,18 @@
  */
 
 import { Platform } from 'design/platform';
-
+import type { ResourceIconName } from 'design/ResourceIcon';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import { AuthType } from 'teleport/services/user';
 import { RdsEngineIdentifier } from 'teleport/services/integrations';
-
-import { ResourceKind } from '../Shared/ResourceKind';
-
+import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import { AuthType } from 'teleport/services/user';
 import type {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
 
-import type { ResourceIconName } from 'design/ResourceIcon';
-import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import { ResourceKind } from '../Shared/ResourceKind';
 
 export enum DatabaseLocation {
   Aws,

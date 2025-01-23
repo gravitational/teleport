@@ -21,7 +21,6 @@ import { useState } from 'react';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { staticConfig } from 'teleterm/staticConfig';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { ShareFeedbackFormValues } from './types';

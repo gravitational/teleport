@@ -251,21 +251,6 @@ exports[`render DocumentNodes 1`] = `
   font-weight: 500;
 }
 
-.c38 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
-}
-
 .c1 {
   display: flex;
 }
@@ -296,6 +281,21 @@ exports[`render DocumentNodes 1`] = `
 .c37 {
   display: flex;
   flex-wrap: wrap;
+}
+
+.c38 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
 }
 
 .c21 {
@@ -396,6 +396,14 @@ exports[`render DocumentNodes 1`] = `
   border-color: rgba(255,255,255,0.07);
 }
 
+.c39 {
+  cursor: pointer;
+}
+
+.c39:hover {
+  background-color: rgba(255,255,255,0.13);
+}
+
 .c36 {
   border-collapse: collapse;
   border-spacing: 0;
@@ -494,14 +502,6 @@ exports[`render DocumentNodes 1`] = `
   padding: 0 0 16px 0;
   max-height: 40px;
   margin-top: 4px;
-}
-
-.c39 {
-  cursor: pointer;
-}
-
-.c39:hover {
-  background-color: rgba(255,255,255,0.13);
 }
 
 .c34 svg {

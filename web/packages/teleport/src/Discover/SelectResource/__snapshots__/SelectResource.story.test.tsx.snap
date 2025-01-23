@@ -104,6 +104,23 @@ exports[`render with URL loc state set to "server" 1`] = `
   margin-top: 40px;
 }
 
+.c7 {
+  display: flex;
+  align-items: center;
+}
+
+.c18 {
+  display: flex;
+  justify-content: center;
+}
+
+.c19 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
 .c23 {
   color: #009EFF;
   background: none;
@@ -117,23 +134,6 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-decoration: underline;
   text-transform: none;
   margin-left: 8px;
-}
-
-.c19 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-}
-
-.c18 {
-  display: flex;
-  justify-content: center;
 }
 
 .c13 {
@@ -826,6 +826,23 @@ exports[`render with all access 1`] = `
   margin-top: 40px;
 }
 
+.c10 {
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  display: flex;
+  justify-content: center;
+}
+
+.c13 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
 .c17 {
   color: #009EFF;
   background: none;
@@ -839,23 +856,6 @@ exports[`render with all access 1`] = `
   text-decoration: underline;
   text-transform: none;
   margin-left: 8px;
-}
-
-.c13 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c10 {
-  display: flex;
-  align-items: center;
-}
-
-.c12 {
-  display: flex;
-  justify-content: center;
 }
 
 .c6 {
@@ -1650,7 +1650,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/active-directory/"
+      href="https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2154,7 +2154,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/getting-started/"
+      href="https://goteleport.com/docs/enroll-resources/desktop-access/getting-started/"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2869,6 +2869,23 @@ exports[`render with no access 1`] = `
   margin-top: 40px;
 }
 
+.c12 {
+  display: flex;
+  align-items: center;
+}
+
+.c14 {
+  display: flex;
+  justify-content: center;
+}
+
+.c15 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
 .c7 {
   color: #009EFF;
   background: none;
@@ -2882,23 +2899,6 @@ exports[`render with no access 1`] = `
   text-decoration: underline;
   text-transform: none;
   margin-left: 8px;
-}
-
-.c15 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c12 {
-  display: flex;
-  align-items: center;
-}
-
-.c14 {
-  display: flex;
-  justify-content: center;
 }
 
 .c10 {
@@ -5060,6 +5060,23 @@ exports[`render with partial access 1`] = `
   margin-top: 40px;
 }
 
+.c10 {
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  display: flex;
+  justify-content: center;
+}
+
+.c13 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
 .c17 {
   color: #009EFF;
   background: none;
@@ -5073,23 +5090,6 @@ exports[`render with partial access 1`] = `
   text-decoration: underline;
   text-transform: none;
   margin-left: 8px;
-}
-
-.c13 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c10 {
-  display: flex;
-  align-items: center;
-}
-
-.c12 {
-  display: flex;
-  justify-content: center;
 }
 
 .c21 {
@@ -5658,7 +5658,7 @@ exports[`render with partial access 1`] = `
     <a
       class="c17 c7"
       data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/active-directory/"
+      href="https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -5700,7 +5700,7 @@ exports[`render with partial access 1`] = `
     <a
       class="c17 c7"
       data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/getting-started/"
+      href="https://goteleport.com/docs/enroll-resources/desktop-access/getting-started/"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"

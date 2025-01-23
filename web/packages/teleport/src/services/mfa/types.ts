@@ -17,8 +17,7 @@
  */
 
 import { WebauthnAssertionResponse } from '../auth';
-import { DeviceUsage } from '../auth/types';
-import { CreateNewHardwareDeviceRequest } from '../auth/types';
+import { CreateNewHardwareDeviceRequest, DeviceUsage } from '../auth/types';
 
 export interface MfaDevice {
   id: string;

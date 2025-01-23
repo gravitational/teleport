@@ -19,9 +19,10 @@
 import React, { useEffect, useState } from 'react';
 
 import { Alert, Box, ButtonPrimary, Flex, Link, Text } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
@@ -29,16 +30,13 @@ import {
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
-import useTeleport from 'teleport/useTeleport';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
-import { useServerSidePagination } from 'teleport/components/hooks';
-
-import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
-import { useRoles, State } from './useRoles';
-
+import { RoleList } from './RoleList';
 import templates from './templates';
+import { State, useRoles } from './useRoles';
 
 export function RolesContainer() {
   const ctx = useTeleport();
@@ -175,7 +173,7 @@ export function Roles(props: State) {
             <Link
               color="text.main"
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
+              href="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             >
               the cluster management (RBAC)
             </Link>{' '}
@@ -185,7 +183,7 @@ export function Roles(props: State) {
       </Flex>
       {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
-          docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+          docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
           title={title}
           text={resources.item.content}
           name={resources.item.name}

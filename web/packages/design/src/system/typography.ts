@@ -17,7 +17,6 @@
  */
 
 import PropTypes from 'prop-types';
-
 import { ResponsiveValue } from 'styled-system';
 
 import { SharedStyles, Theme } from 'design/theme/themes/types';

@@ -18,29 +18,31 @@
 
 import React, { Suspense, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text, Mark } from 'design';
+
+import { Box, ButtonSecondary, Link, Mark, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { ResourceLabel } from 'teleport/services/agents';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CatchError } from 'teleport/components/CatchError';
-import {
-  clearCachedJoinTokenResult,
-  useJoinTokenSuspender,
-} from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import useTeleport from 'teleport/useTeleport';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import {
   HintBox,
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
-
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import {
+  clearCachedJoinTokenResult,
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
+import { ResourceLabel } from 'teleport/services/agents';
+import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
+import type { Kube } from 'teleport/services/kube';
+import useTeleport from 'teleport/useTeleport';
 
 import {
   ActionButtons,
@@ -50,11 +52,7 @@ import {
   TextIcon,
   useShowHint,
 } from '../../Shared';
-
 import type { AgentStepProps } from '../../types';
-import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
-import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
-import type { Kube } from 'teleport/services/kube';
 
 export default function Container(props: AgentStepProps) {
   const [namespace, setNamespace] = useState('');
@@ -196,7 +194,7 @@ const Heading = () => {
         <br />
         For all the available values of the helm chart see the{' '}
         <Link
-          href="https://goteleport.com/docs/kubernetes-access/helm/reference/teleport-kube-agent/"
+          href="https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/"
           target="_blank"
         >
           the documentation

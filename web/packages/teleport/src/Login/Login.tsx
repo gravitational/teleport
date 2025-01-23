@@ -19,15 +19,15 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Text, Link, Flex, ButtonPrimary } from 'design';
+import { Box, ButtonPrimary, Flex, Link, Text } from 'design';
 import { StyledCheckbox } from 'design/Checkbox';
 
 import FormLogin from 'teleport/components/FormLogin';
 import { LogoHero } from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 
-import useLogin, { State } from './useLogin';
 import Motd from './Motd';
+import useLogin, { State } from './useLogin';
 
 export function Login() {
   const state = useLogin();

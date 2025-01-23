@@ -17,9 +17,10 @@
  */
 
 import React from 'react';
-import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
-import * as Icons from 'design/Icon';
+
 import { Flex } from 'design';
+import * as Icons from 'design/Icon';
+import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 
 export default function ActionMenu(props: Props) {
   const { showShareDirectory, onShareDirectory, onDisconnect, onCtrlAltDel } =

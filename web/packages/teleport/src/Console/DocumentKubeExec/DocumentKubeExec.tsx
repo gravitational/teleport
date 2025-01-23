@@ -15,18 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { useRef, useEffect } from 'react';
-
+import React, { useEffect, useRef } from 'react';
 import { useTheme } from 'styled-components';
+
 import { Box, Indicator } from 'design';
 
-import * as stores from 'teleport/Console/stores/types';
-import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
-import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
-
-import Document from 'teleport/Console/Document';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+import Document from 'teleport/Console/Document';
+import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
+import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
+import * as stores from 'teleport/Console/stores/types';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
 
 import KubeExecData from './KubeExecDataDialog';
 

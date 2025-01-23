@@ -19,10 +19,9 @@
 import React from 'react';
 
 import { Box, Flex, LabelInput } from 'design';
-
-import { useAsync } from 'shared/hooks/useAsync';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useRule } from 'shared/components/Validation';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import {
   AsyncProps,
@@ -30,8 +29,7 @@ import {
   CreatableProps as SelectCreatableProps,
 } from '../Select';
 import { SelectCreatableAsync } from '../Select/Select';
-
-import { LabelTip, defaultRule } from './shared';
+import { defaultRule, LabelTip } from './shared';
 
 /**
  * Returns a styled SelectCreatable with label, input validation rule and error handling.

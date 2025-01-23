@@ -18,32 +18,31 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
+
+import { Flex, Text, Toggle } from 'design';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
-import { SortDir } from 'design/DataTable/types';
-import { Text, Flex, Toggle } from 'design';
-import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
+import { SortDir } from 'design/DataTable/types';
 import {
-  ArrowUp,
   ArrowDown,
-  ChevronDown,
-  SquaresFour,
-  Rows,
   ArrowsIn,
   ArrowsOut,
+  ArrowUp,
+  ChevronDown,
   Refresh,
+  Rows,
+  SquaresFour,
 } from 'design/Icon';
-
+import Menu, { MenuItem } from 'design/Menu';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
 import { HoverTooltip } from 'shared/components/ToolTip';
 
-import { ResourceAvailabilityFilter, FilterKind } from './UnifiedResources';
 import {
   IncludedResourceMode,
   SharedUnifiedResource,
   UnifiedResourcesQueryParams,
 } from './types';
+import { FilterKind, ResourceAvailabilityFilter } from './UnifiedResources';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
   app: 'Application',

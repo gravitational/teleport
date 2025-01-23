@@ -17,20 +17,20 @@
  */
 
 import React, { useState } from 'react';
+
+import { Box, ButtonIcon, ButtonSecondary, Flex, Image, Text } from 'design';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, ButtonSecondary, Image, Flex, Box } from 'design';
 import DialogConfirmation, {
   DialogContent,
-  DialogHeader,
   DialogFooter,
+  DialogHeader,
 } from 'design/DialogConfirmation';
-import { Attempt } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
-
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import type * as tsh from 'teleterm/services/tshd/types';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 export type HeadlessPromptProps = {
   cluster: tsh.Cluster;

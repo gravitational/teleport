@@ -20,7 +20,6 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { TransferredFile } from '../types';
-
 import { FileListItem } from './FileListItem';
 
 interface FileListProps {

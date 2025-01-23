@@ -17,11 +17,12 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Box, ButtonSecondary, ButtonIcon } from 'design';
-import FieldInput from 'shared/components/FieldInput';
-import { Validator, useValidation } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+
+import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
 import * as Icons from 'design/Icon';
+import FieldInput from 'shared/components/FieldInput';
+import { useValidation, Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 
 export type Label = {
   name: string;

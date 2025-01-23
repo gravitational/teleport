@@ -18,9 +18,10 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+
 import { Button } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import cfg from 'teleport/config';
 

@@ -18,21 +18,21 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Text, Flex, Link, Mark } from 'design';
-import TextEditor from 'shared/components/TextEditor';
+
+import { Box, Flex, Link, Mark, Text } from 'design';
 import { Danger } from 'design/Alert';
+import TextEditor from 'shared/components/TextEditor';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import { integrationService } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 import { Container } from 'teleport/Discover/Shared/CommandBox';
+import { useDiscover } from 'teleport/Discover/useDiscover';
+import { integrationService } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { ActionButtons, Header } from '../../Shared';
-
 import { AppCreatedDialog } from './AppCreatedDialog';
 
 const IAM_POLICY_NAME = 'AWSAppAccess';

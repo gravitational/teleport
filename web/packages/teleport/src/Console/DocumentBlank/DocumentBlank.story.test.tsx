@@ -17,7 +17,9 @@
  */
 
 import React from 'react';
+
 import 'jest-canvas-mock';
+
 import { render } from 'design/utils/testing';
 
 import { Blank } from './DocumentBlank.story';

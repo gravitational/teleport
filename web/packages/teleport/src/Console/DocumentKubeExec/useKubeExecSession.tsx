@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { context, trace } from '@opentelemetry/api';
 import React from 'react';
 
-import { context, trace } from '@opentelemetry/api';
-
 import cfg from 'teleport/config';
-import { TermEvent } from 'teleport/lib/term/enums';
-import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentKubeExec } from 'teleport/Console/stores';
-
+import { TermEvent } from 'teleport/lib/term/enums';
+import Tty from 'teleport/lib/term/tty';
 import type {
   ParticipantMode,
   Session,

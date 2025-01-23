@@ -17,8 +17,9 @@
  */
 
 import React from 'react';
-import { Box, Flex, Text } from 'design';
 import styled from 'styled-components';
+
+import { Box, Flex, Text } from 'design';
 
 export const IntegrationTile = styled(Flex)<{
   disabled?: boolean;

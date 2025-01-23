@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Text, Flex } from 'design';
+
+import { Flex, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 

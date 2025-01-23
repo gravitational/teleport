@@ -735,6 +735,9 @@ const (
 	// AccessListMemberDeleteAllForAccessListEvent is emitted when all members are deleted from an access list.
 	AccessListMemberDeleteAllForAccessListEvent = "access_list.member.delete_all_for_access_list"
 
+	// UserLoginAccessListInvalidEvent is emitted when a user logs in as a member of an invalid access list, causing the access list to be skipped.
+	UserLoginAccessListInvalidEvent = "user_login.invalid_access_list"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 
@@ -843,6 +846,11 @@ const (
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

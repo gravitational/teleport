@@ -35,6 +35,7 @@ type S3Mock struct {
 	BucketPolicyStatus map[string]*s3.PolicyStatus
 	BucketACL          map[string][]*s3.Grant
 	BucketTags         map[string][]*s3.Tag
+	BucketLocations    map[string]string
 }
 
 func (m *S3Mock) ListBucketsWithContext(_ aws.Context, _ *s3.ListBucketsInput, _ ...request.Option) (*s3.ListBucketsOutput, error) {
@@ -92,5 +93,18 @@ func (m *S3Mock) GetBucketTaggingWithContext(_ aws.Context, input *s3.GetBucketT
 	}
 	return &s3.GetBucketTaggingOutput{
 		TagSet: tags,
+	}, nil
+}
+
+func (m *S3Mock) GetBucketLocationWithContext(_ aws.Context, input *s3.GetBucketLocationInput, _ ...request.Option) (*s3.GetBucketLocationOutput, error) {
+	if aws.StringValue(input.Bucket) == "" {
+		return nil, trace.BadParameter("incorrect bucket name")
+	}
+	location, ok := m.BucketLocations[aws.StringValue(input.Bucket)]
+	if !ok {
+		return nil, trace.NotFound("bucket %v not found", aws.StringValue(input.Bucket))
+	}
+	return &s3.GetBucketLocationOutput{
+		LocationConstraint: aws.String(location),
 	}, nil
 }

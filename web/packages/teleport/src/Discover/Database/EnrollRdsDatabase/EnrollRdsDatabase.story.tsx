@@ -16,27 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import React, { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+
 import { Info } from 'design/Alert';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
-import {
-  IntegrationKind,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import {
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 

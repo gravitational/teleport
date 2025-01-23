@@ -16,24 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { useCallback, useEffect, useState } from 'react';
 
-import { AccessRequest } from 'shared/services/accessRequests';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  RequestFlags,
   SubmitReview,
   SuggestedAccessList,
-  RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
-
 import { useAsync } from 'shared/hooks/useAsync';
+import { AccessRequest } from 'shared/services/accessRequests';
 
+import { isUnimplementedError } from 'teleterm/services/tshd/errors';
 import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-import { isUnimplementedError } from 'teleterm/services/tshd/errors';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { makeUiAccessRequest } from '../useAccessRequests';
 

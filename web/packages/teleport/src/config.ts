@@ -17,29 +17,29 @@
  */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
+
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
-import generateResourcePath from './generateResourcePath';
-
-import { defaultEntitlements } from './entitlement';
-
-import type {
+import {
   Auth2faType,
   AuthProvider,
   AuthType,
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import type { SortType } from 'teleport/services/agents';
+import type { WebauthnAssertionResponse } from 'teleport/services/auth';
+import type { PluginKind, Regions } from 'teleport/services/integrations';
+import { KubeResourceKind } from 'teleport/services/kube/types';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
-import type { PluginKind, Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
-import type { YamlSupportedResourceKind } from './services/yaml/types';
-import type { KubeResourceKind } from './services/kube/types';
+import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
+import { defaultEntitlements } from './entitlement';
+import generateResourcePath from './generateResourcePath';
+
+export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
@@ -152,6 +152,8 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
+    manageCluster: '/web/clusters/:clusterId/manage',
+
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
     unifiedResources: '/web/cluster/:clusterId/resources',
@@ -199,6 +201,9 @@ const cfg = {
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
+
+    /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
+    samlIdpSso: '/enterprise/saml-idp/sso',
   },
 
   api: {
@@ -207,6 +212,7 @@ const cfg = {
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
+    clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
@@ -247,6 +253,7 @@ const cfg = {
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sessionDurationPath: '/v1/webapi/sites/:clusterId/sessionlength/:sid',
 
     // TODO(zmb3): remove this when Assist is no longer using it
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
@@ -407,6 +414,12 @@ const cfg = {
     return cfg.playable_db_protocols;
   },
 
+  getClusterInfoPath(clusterId: string) {
+    return generatePath(cfg.api.clusterInfoPath, {
+      clusterId,
+    });
+  },
+
   getUserClusterPreferencesUrl(clusterId: string) {
     return generatePath(cfg.api.userClusterPreferencesPath, {
       clusterId,
@@ -516,6 +529,10 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getManageClusterRoute(clusterId: string) {
+    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
@@ -732,6 +749,10 @@ const cfg = {
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
+  },
+
+  getSessionDurationUrl(clusterId: string, sid: string) {
+    return generatePath(cfg.api.sessionDurationPath, { clusterId, sid });
   },
 
   getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {

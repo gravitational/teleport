@@ -16,27 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { Location } from 'history';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
-
-import { NavLink } from 'react-router-dom';
-
 import { matchPath, useHistory } from 'react-router';
+import { NavLink } from 'react-router-dom';
+import styled from 'styled-components';
 
 import { ChevronRight } from 'design/Icon';
 
+import { useTeleport } from 'teleport';
+import { useFeatures } from 'teleport/FeaturesContext';
 import {
   commonNavigationItemStyles,
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
-import { useFeatures } from 'teleport/FeaturesContext';
 import { getIcon } from 'teleport/Navigation/utils';
-
-import { useTeleport } from 'teleport';
-
-import type { Location } from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
 
 interface NavigationDropdownProps {

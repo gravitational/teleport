@@ -17,13 +17,13 @@
  */
 
 import React, { useMemo, useRef } from 'react';
-import { debounce } from 'shared/utils/highbar';
+
 import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
+import Validation from 'shared/components/Validation';
+import { debounce } from 'shared/utils/highbar';
 
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
-
 import { CliCommand } from './CliCommand';
 import { DocumentGatewayProps } from './DocumentGateway';
 
@@ -131,7 +131,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
         <Link
-          href="https://goteleport.com/docs/database-access/guides/gui-clients/"
+          href="https://goteleport.com/docs/connect-your-client/gui-clients/"
           target="_blank"
         >
           the documentation
