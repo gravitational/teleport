@@ -543,3 +543,10 @@ func checkNameAndScreenSize(name string, screenSize *Resolution) error {
 	}
 	return nil
 }
+
+type RDPLicenseKey struct {
+	Version   uint32
+	Issuer    string
+	Company   string
+	ProductID string
+}
