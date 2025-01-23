@@ -32,7 +32,7 @@ import { lighten } from '../utils/colorManipulator';
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
-const dataVisualisationColors: DataVisualisationColors = {
+export const dataVisualisationColors: DataVisualisationColors = {
   primary: {
     purple: '#9F85FF',
     wednesdays: '#F74DFF',

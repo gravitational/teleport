@@ -18,6 +18,8 @@
 
 import { z } from 'zod';
 
+import { dataVisualisationColors } from 'design/theme/themes/darkTheme';
+
 import Logger from 'teleterm/logger';
 
 export type WorkspaceColor = z.infer<typeof workspaceColors>;
@@ -67,3 +69,19 @@ function getNextWorkspaceColor(
   const unusedColors = allColors.difference(takenColors);
   return unusedColors.size > 0 ? [...unusedColors][0] : 'purple';
 }
+
+/**
+ * Maps profile color code to the theme color.
+ * We always use dark theme colors.
+ * They look good in both light and dark modes,
+ * and we avoid confusing users with different shades of the same color.
+ */
+export const profileColorMapping: Record<ProfileColor, string> = {
+  purple: dataVisualisationColors.primary.purple,
+  red: dataVisualisationColors.primary.abbey,
+  green: dataVisualisationColors.primary.caribbean,
+  yellow: dataVisualisationColors.primary.sunflower,
+  blue: dataVisualisationColors.primary.picton,
+  cyan: dataVisualisationColors.primary.cyan,
+  pink: dataVisualisationColors.primary.wednesdays,
+};
