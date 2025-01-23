@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -180,6 +181,8 @@ type createAuthenticateChallengeRequest struct {
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	ctx := r.Context()
+
 	var req createAuthenticateChallengeRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -190,11 +193,39 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
+	var mfaRequiredCheck *proto.IsMFARequiredRequest
 	if req.IsMFARequiredRequest != nil {
-		mfaRequiredCheckProto, err = h.checkAndGetProtoRequest(r.Context(), c, req.IsMFARequiredRequest)
+		mfaRequiredCheckProto, err := h.checkAndGetProtoRequest(ctx, c, req.IsMFARequiredRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// If this is an app session request, check if mfa is required through the app's parent cluster.
+		// Otherwise, check within the challenge request.
+		if appParams := mfaRequiredCheckProto.GetApp(); appParams != nil {
+			if appParams.ClusterName != c.cfg.RootClusterName {
+				fmt.Printf("clusterName: %v\n", appParams.ClusterName)
+				site, err := h.getSiteByClusterName(ctx, c, appParams.ClusterName)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				clusterClient, err := c.GetUserClient(ctx, site)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+
+				res, err := clusterClient.IsMFARequired(ctx, mfaRequiredCheckProto)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+
+				if !res.Required {
+					return &client.MFAAuthenticateChallenge{}, nil
+				}
+			}
+		} else {
+			mfaRequiredCheck = mfaRequiredCheckProto
 		}
 	}
 
@@ -219,11 +250,11 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 	query.Set("channel_id", channelID)
 	ssoClientRedirectURL.RawQuery = query.Encode()
 
-	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+	chal, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		MFARequiredCheck: mfaRequiredCheckProto,
+		MFARequiredCheck: mfaRequiredCheck,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
 			AllowReuse:                  allowReuse,
@@ -533,7 +564,9 @@ func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionConte
 		protoReq = &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_App{
 				App: &proto.RouteToApp{
-					Name: resolvedApp.App.GetName(),
+					Name:        resolvedApp.App.GetName(),
+					PublicAddr:  resolvedApp.App.GetPublicAddr(),
+					ClusterName: resolvedApp.ClusterName,
 				},
 			},
 		}
