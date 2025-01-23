@@ -406,8 +406,6 @@ type ExportIntegrationAuthoritiesRequest struct {
 	// MatchFingerprint filters authorities using provided fingerprint if
 	// specified.
 	MatchFingerprint string
-	// UseCompatVersion enables old 1.0 format.
-	UseCompatVersion bool
 	// Integration is the name of the integration.
 	Integration string
 }

@@ -241,7 +241,6 @@ func (a *AuthCommand) fetchAuthorities(ctx context.Context, clt authCommandClien
 		return client.ExportIntegrationAuthorities(ctx, clt, client.ExportIntegrationAuthoritiesRequest{
 			Type:             a.authType,
 			MatchFingerprint: a.exportAuthorityFingerprint,
-			UseCompatVersion: a.compatVersion == "1.0",
 			Integration:      a.integration,
 		})
 
