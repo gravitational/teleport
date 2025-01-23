@@ -68,6 +68,7 @@ use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
+use crate::license::GoLicenseCache;
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
@@ -143,7 +144,7 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let connector_config = create_config(&params, pin.clone());
+        let connector_config = create_config(&params, pin.clone(), cgo_handle);
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
@@ -1384,7 +1385,7 @@ impl FunctionReceiver {
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(params: &ConnectParams, pin: String) -> Config {
+fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
     Config {
         desktop_size: ironrdp_connector::DesktopSize {
             width: params.screen_width,
@@ -1424,6 +1425,8 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
                 PerformanceFlags::empty()
             },
         desktop_scale_factor: 0,
+        license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
+        hardware_id: Some(params.client_id),
     }
 }
 
@@ -1437,6 +1440,7 @@ pub struct ConnectParams {
     pub allow_clipboard: bool,
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
+    pub client_id: [u32; 4],
 }
 
 #[derive(Debug)]
