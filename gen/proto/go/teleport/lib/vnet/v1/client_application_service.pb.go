@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -42,8 +42,13 @@ type Hash int32
 
 const (
 	Hash_HASH_UNSPECIFIED Hash = 0
-	Hash_HASH_NONE        Hash = 1
-	Hash_HASH_SHA256      Hash = 2
+	// HASH_NONE is used for Ed25519 signatures, which do no pre-hash.
+	// Currently app access always uses ECDSA or RSA signatures, except for some
+	// tests that use Ed25519. This is unlikely to be used in product code unless
+	// and until that changes.
+	Hash_HASH_NONE Hash = 1
+	// HASH_SHA256 is used with ECDSA P-256 and RSA 2048 signatures.
+	Hash_HASH_SHA256 Hash = 2
 )
 
 // Enum value maps for Hash.
