@@ -49,6 +49,10 @@ export type RoleEditorModelValidationResult = {
   metadata: MetadataValidationResult;
   resources: ResourceAccessValidationResult[];
   rules: AccessRuleValidationResult[];
+  /**
+   * isValid is true if all the fields in the validation result are valid.
+   */
+  isValid: boolean;
 };
 
 /**
@@ -72,22 +76,32 @@ export function validateRoleEditorModel(
   previousModel: RoleEditorModel | undefined,
   previousResult: RoleEditorModelValidationResult | undefined
 ): RoleEditorModelValidationResult {
+  const metadataResult = validateMetadata(
+    model.metadata,
+    previousModel?.metadata,
+    previousResult?.metadata
+  );
+
+  const resourcesResult = validateResourceAccessList(
+    model.resources,
+    previousModel?.resources,
+    previousResult?.resources
+  );
+
+  const rulesResult = validateAccessRuleList(
+    model.rules,
+    previousModel?.rules,
+    previousResult?.rules
+  );
+
   return {
-    metadata: validateMetadata(
-      model.metadata,
-      previousModel?.metadata,
-      previousResult?.metadata
-    ),
-    resources: validateResourceAccessList(
-      model.resources,
-      previousModel?.resources,
-      previousResult?.resources
-    ),
-    rules: validateAccessRuleList(
-      model.rules,
-      previousModel?.rules,
-      previousResult?.rules
-    ),
+    isValid:
+      metadataResult.valid &&
+      resourcesResult.every(r => r.valid) &&
+      rulesResult.every(r => r.valid),
+    metadata: metadataResult,
+    resources: resourcesResult,
+    rules: rulesResult,
   };
 }
 
