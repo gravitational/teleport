@@ -47,6 +47,7 @@ describe('validateRoleEditorModel', () => {
     expect(result.metadata.valid).toBe(true);
     expect(result.resources).toEqual([]);
     expect(result.rules).toEqual([]);
+    expect(result.isValid).toBe(true);
   });
 
   test('valid complex model', () => {
@@ -103,6 +104,7 @@ describe('validateRoleEditorModel', () => {
     expect(result.metadata.valid).toBe(true);
     expect(validity(result.resources)).toEqual([true, true, true, true, true]);
     expect(validity(result.rules)).toEqual([true]);
+    expect(result.isValid).toBe(true);
   });
 
   test('invalid metadata', () => {
@@ -110,6 +112,7 @@ describe('validateRoleEditorModel', () => {
     model.metadata.name = '';
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(result.metadata.valid).toBe(false);
+    expect(result.isValid).toBe(false);
   });
 
   test('invalid resource', () => {
@@ -123,6 +126,7 @@ describe('validateRoleEditorModel', () => {
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(validity(result.resources)).toEqual([false]);
+    expect(result.isValid).toBe(false);
   });
 
   test('invalid access rule', () => {
@@ -136,6 +140,7 @@ describe('validateRoleEditorModel', () => {
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(validity(result.rules)).toEqual([false]);
+    expect(result.isValid).toBe(false);
   });
 
   it('reuses previously computed section results', () => {
@@ -145,6 +150,7 @@ describe('validateRoleEditorModel', () => {
     expect(result2.metadata).toBe(result1.metadata);
     expect(result2.resources).toBe(result1.resources);
     expect(result2.rules).toBe(result1.rules);
+    expect(result2.isValid).toBe(result1.isValid);
   });
 });
 

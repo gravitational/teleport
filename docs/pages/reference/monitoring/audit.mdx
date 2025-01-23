@@ -58,17 +58,19 @@ more information on how to configure the audit log, refer to the `storage`
 section of the example configuration file in the
 [Teleport Configuration Reference](../config.mdx).
 
-Let's examine the Teleport audit log using the `dir` backend. The event log is
-stored in Teleport's data dir under the `log` directory. This is usually
-`/var/lib/teleport/log`. Each day is represented as a file:
+Let's examine the Teleport audit log using the `dir` backend. Teleport Auth
+Service instances write their logs to a subdirectory of Teleport's configured
+data directory that is named based on the service's UUID.
+
+Each day is represented as a file:
 
 ```code
-$ ls -l /var/lib/teleport/log/
+$ ls -l /var/lib/teleport/log/bbdfe5be-fb97-43af-bf3b-29ef2e302941
 
 # total 104
-# -rw-r----- 1 root root  31638 Jan 22 20:00 2017-01-23.00:00:00.log
-# -rw-r----- 1 root root  91256 Jan 31 21:00 2017-02-01.00:00:00.log
-# -rw-r----- 1 root root  15815 Feb 32 22:54 2017-02-03.00:00:00.log
+# -rw-r----- 1 root root  31638 Jan 22 20:00 2022-01-23.00:00:00.log
+# -rw-r----- 1 root root  91256 Jan 31 21:00 2022-02-01.00:00:00.log
+# -rw-r----- 1 root root  15815 Feb 32 22:54 2022-02-03.00:00:00.log
 ```
 
 </TabItem>
@@ -77,7 +79,7 @@ $ ls -l /var/lib/teleport/log/
 Teleport Enterprise Cloud manages the storage of audit logs for you. You can
 access your audit logs via the Teleport Web UI by clicking:
 
-**Activity** > **Audit Log**
+**Audit** > **Audit Log**
 
 </TabItem>
 </Tabs>
