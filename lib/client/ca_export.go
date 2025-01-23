@@ -23,7 +23,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -52,23 +51,6 @@ type ExportAuthoritiesRequest struct {
 	AuthType                   string
 	ExportAuthorityFingerprint string
 	UseCompatVersion           bool
-	Integration                string
-}
-
-func (r *ExportAuthoritiesRequest) shouldExportIntegration(ctx context.Context) (bool, error) {
-	switch r.AuthType {
-	case "github":
-		if r.Integration == "" {
-			return false, trace.BadParameter("integration name must be provided for %q CAs", r.AuthType)
-		}
-		return true, nil
-	default:
-		if r.Integration != "" {
-			r.Integration = ""
-			slog.DebugContext(ctx, "Integration name is ignored for non-integration CAs")
-		}
-		return false, nil
-	}
 }
 
 // ExportedAuthority represents an exported authority certificate, as returned
@@ -130,22 +112,9 @@ func exportAllAuthorities(
 	req ExportAuthoritiesRequest,
 	exportSecrets bool,
 ) ([]*ExportedAuthority, error) {
-	var authorities []*ExportedAuthority
-	switch isIntegration, err := req.shouldExportIntegration(ctx); {
-	case err != nil:
+	authorities, err := exportAuth(ctx, client, req, exportSecrets)
+	if err != nil {
 		return nil, trace.Wrap(err)
-	case isIntegration && exportSecrets:
-		return nil, trace.NotImplemented("export with secrets is not supported for %q CAs", req.AuthType)
-	case isIntegration:
-		authorities, err = exportAuthForIntegration(ctx, client, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		authorities, err = exportAuth(ctx, client, req, exportSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Sanity check that we have at least one authority.
@@ -423,9 +392,35 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client authclient.Cli
 	})
 }
 
-func exportAuthForIntegration(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) ([]*ExportedAuthority, error) {
-	switch req.AuthType {
-	case "github":
+// IsIntegrationAuthorityType returns true if provided type is an integration CA
+// type.
+func IsIntegrationAuthorityType(exportType string) bool {
+	return exportType == types.IntegrationSubKindGitHub
+}
+
+// ExportIntegrationAuthoritiesRequest has the required fields to create an
+// export authorities request for integrations.
+type ExportIntegrationAuthoritiesRequest struct {
+	// Type is the integration type.
+	Type string
+	// MatchFingerprint filters authorities using provided fingerprint if
+	// specified.
+	MatchFingerprint string
+	// UseCompatVersion enables old 1.0 format.
+	UseCompatVersion bool
+	// Integration is the name of the integration.
+	Integration string
+}
+
+// ExportIntegrationAuthorities exports public keys of all authorities of an
+// integration.
+func ExportIntegrationAuthorities(ctx context.Context, client authclient.ClientI, req ExportIntegrationAuthoritiesRequest) ([]*ExportedAuthority, error) {
+	if req.Integration == "" {
+		return nil, trace.BadParameter("integration name is required when exporting integration authorities")
+	}
+
+	switch req.Type {
+	case types.IntegrationSubKindGitHub:
 		keySet, err := fetchIntegrationCAKeySet(ctx, client, req.Integration)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -439,7 +434,7 @@ func exportAuthForIntegration(ctx context.Context, client authclient.ClientI, re
 		}, nil
 
 	default:
-		return nil, trace.BadParameter("unknown integration CA type %q", req.AuthType)
+		return nil, trace.BadParameter("unknown integration CA type %q", req.Type)
 	}
 }
 
@@ -453,13 +448,13 @@ func fetchIntegrationCAKeySet(ctx context.Context, client authclient.ClientI, in
 	return resp.CertAuthorities, nil
 }
 
-func exportGitHubCAs(keySet *types.CAKeySet, req ExportAuthoritiesRequest) (string, error) {
+func exportGitHubCAs(keySet *types.CAKeySet, req ExportIntegrationAuthoritiesRequest) (string, error) {
 	ret := strings.Builder{}
 	for _, key := range keySet.SSH {
-		if req.ExportAuthorityFingerprint != "" {
+		if req.MatchFingerprint != "" {
 			if fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey); err != nil {
 				return "", trace.Wrap(err)
-			} else if !sshutils.EqualFingerprints(req.ExportAuthorityFingerprint, fingerprint) {
+			} else if !sshutils.EqualFingerprints(req.MatchFingerprint, fingerprint) {
 				continue
 			}
 		}
