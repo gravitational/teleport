@@ -143,7 +143,7 @@ const api = {
     mfaResponse?: MfaChallengeResponse
   ): Promise<any> {
     try {
-      return api.fetch(url, customOptions, mfaResponse);
+      return await api.fetch(url, customOptions, mfaResponse);
     } catch (err) {
       // Retry with MFA if we get an admin action MFA error.
       if (!mfaResponse && isAdminActionRequiresMfaError(err)) {
