@@ -528,7 +528,7 @@ command supports these additional flags:
 | `--reader-user`                          | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
 | `--reader-group`                         | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
 | `--[no-]include-federated-trust-bundles` | If set, include federated trust bundles in the output |
-| `--name-selector` | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusiv with `--label-selector`. |
+| `--name-selector` | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`. |
 | `--label-selector` | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
 
 ## tbot start workload-identity-api
@@ -550,7 +550,7 @@ command supports these additional flags:
 | Flag                 | Description |
 |----------------------|-------------|
 | `--listen` | A socket URI to listen on, e.g. `tcp://localhost:1234` or `unix:///opt/workload-identity.sock`. Required. |
-| `--name-selector` | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusiv with `--label-selector`. |
+| `--name-selector` | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`. |
 | `--label-selector` | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
 
 ## tbot start spiffe-svid
