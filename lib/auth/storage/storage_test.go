@@ -18,6 +18,7 @@ package storage
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/types"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -34,17 +35,37 @@ func TestRDPLicense(t *testing.T) {
 		stateStorage:   mem,
 	}
 
-	_, err = storage.ReadRDPLicense(ctx, 1, "issuer", "company", "productID")
+	_, err = storage.ReadRDPLicense(ctx, types.RDPLicenseKey{
+		Version:   1,
+		Issuer:    "issuer",
+		Company:   "company",
+		ProductID: "productID",
+	})
 	require.True(t, trace.IsNotFound(err))
 
 	licenseData := []byte{1, 2, 3}
-	err = storage.WriteRDPLicense(ctx, 1, "issuer", "company", "productID", licenseData)
+	err = storage.WriteRDPLicense(ctx, types.RDPLicenseKey{
+		Version:   1,
+		Issuer:    "issuer",
+		Company:   "company",
+		ProductID: "productID",
+	}, licenseData)
 	require.NoError(t, err)
 
-	_, err = storage.ReadRDPLicense(ctx, 2, "issuer", "company", "productID")
+	_, err = storage.ReadRDPLicense(ctx, types.RDPLicenseKey{
+		Version:   2,
+		Issuer:    "issuer",
+		Company:   "company",
+		ProductID: "productID",
+	})
 	require.True(t, trace.IsNotFound(err))
 
-	license, err := storage.ReadRDPLicense(ctx, 1, "issuer", "company", "productID")
+	license, err := storage.ReadRDPLicense(ctx, types.RDPLicenseKey{
+		Version:   1,
+		Issuer:    "issuer",
+		Company:   "company",
+		ProductID: "productID",
+	})
 	require.NoError(t, err)
 	require.Equal(t, licenseData, license)
 }
