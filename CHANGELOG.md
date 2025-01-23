@@ -1,5 +1,22 @@
 # Changelog
 
+## 17.2.1 (01/22/2025)
+
+### Security Fixes
+
+* Improve Azure join validation by verifying subscription ID. [#51328](https://github.com/gravitational/teleport/pull/51328)
+
+### Other Improvements and Fixes
+
+* Added support for multiple active CAs in `tctl auth export`. [#51375](https://github.com/gravitational/teleport/pull/51375)
+* Teleport Connect now shows a resource name in the status bar. [#51374](https://github.com/gravitational/teleport/pull/51374)
+* Role presets now include default values for `github_permissions` and the `git_server` resource kind. `github_permissions` now supports traits. [#51369](https://github.com/gravitational/teleport/pull/51369)
+* Fix backwards compatibility error where users were unable to login with Teleport Connect if Connect version is below v17.2.0 with Teleport cluster version v17.2.0. [#51368](https://github.com/gravitational/teleport/pull/51368)
+* Added `wildcard-workload-identity-issuer` preset role to improve Day 0 experience with configuring Teleport Workload Identity. [#51341](https://github.com/gravitational/teleport/pull/51341)
+* Added more granular audit logging surrounding SSH port forwarding. [#51325](https://github.com/gravitational/teleport/pull/51325)
+* FIxes a bug causing the `terraform-provider` preset role to not automatically allow newly supported resources. [#51320](https://github.com/gravitational/teleport/pull/51320)
+* GitHub server resource now shows in Web UI. [#51303](https://github.com/gravitational/teleport/pull/51303)
+
 ## 17.2.0 (01/21/2025)
 
 ### Per-session MFA via IdP
