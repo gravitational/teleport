@@ -31,29 +31,31 @@ export const SummaryLoader = (): React.ReactElement => {
   }, [run, ctx.cloudService]);
 
   return (
-    <StyledContainer>
-      <FeatureBox>
-        <Box>
-          <FeatureHeader alignItems="center">
-            <FeatureHeaderTitle mr="8">Billing Summary</FeatureHeaderTitle>
-          </FeatureHeader>
+    <Box>
+      <StyledContainer>
+        <FeatureBox>
+          <Box>
+            <FeatureHeader alignItems="center">
+              <FeatureHeaderTitle mr="8">Billing Summary</FeatureHeaderTitle>
+            </FeatureHeader>
 
-          {attempt.status === 'failed' && (
-            <Alert children={attempt.statusText} />
-          )}
-          {attempt.status === 'processing' && (
-            <Box textAlign="center" m={10}>
-              <Indicator />
-            </Box>
-          )}
+            {attempt.status === 'failed' && (
+              <Alert children={attempt.statusText} />
+            )}
+            {attempt.status === 'processing' && (
+              <Box textAlign="center" m={10}>
+                <Indicator />
+              </Box>
+            )}
 
-          {attempt.status === 'success' && (
-            <SummaryPage summary={usageSummary} />
-          )}
-        </Box>
-      </FeatureBox>
-      <InfoGuide />
-    </StyledContainer>
+            {attempt.status === 'success' && (
+              <SummaryPage summary={usageSummary} />
+            )}
+          </Box>
+        </FeatureBox>
+        <InfoGuide />
+      </StyledContainer>
+    </Box>
   );
 };
 
