@@ -358,7 +358,8 @@ export type RoleOptions = {
   };
   max_session_ttl: string;
   pin_source_ip: boolean;
-  ssh_port_forwarding: SSHPortForwarding;
+  ssh_port_forwarding?: SSHPortForwarding;
+  port_forwarding?: boolean;
   record_session: {
     default: SessionRecordingMode;
     ssh?: SessionRecordingMode;
@@ -373,11 +374,11 @@ export type RoleOptions = {
 };
 
 export type SSHPortForwarding = {
-  local: {
-    enabled: boolean;
+  local?: {
+    enabled?: boolean;
   };
-  remote: {
-    enabled: boolean;
+  remote?: {
+    enabled?: boolean;
   };
 };
 

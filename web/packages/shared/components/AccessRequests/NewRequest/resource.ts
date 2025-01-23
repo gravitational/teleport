@@ -46,5 +46,6 @@ export function getEmptyResourceState(): ResourceMap {
     saml_idp_service_provider: {},
     namespace: {},
     aws_ic_account_assignment: {},
+    git_server: {},
   };
 }

@@ -242,6 +242,33 @@ func (u *UIIntegrationEnrollCompleteEvent) Anonymize(a utils.Anonymizer) prehogv
 	}
 }
 
+// UIIntegrationEnrollStepEvent is a UI event sent for the specified configuration step in a
+// given integration enrollment flow.
+type UIIntegrationEnrollStepEvent prehogv1a.UIIntegrationEnrollStepEvent
+
+func (u *UIIntegrationEnrollStepEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollStepEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStepEvent{
+			UiIntegrationEnrollStepEvent: &prehogv1a.UIIntegrationEnrollStepEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step: u.Step,
+				Status: &prehogv1a.IntegrationEnrollStepStatus{
+					Code:  u.Status.GetCode(),
+					Error: u.Status.GetError(),
+				},
+			},
+		},
+	}
+}
+
 // UIBannerClickEvent is a UI event sent when a banner is clicked.
 type UIBannerClickEvent prehogv1a.UIBannerClickEvent
 
@@ -1277,6 +1304,22 @@ func (u *UserTaskStateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 	}
 }
 
+// SessionRecordingAccessEvent is an event that is emitted after an user access
+// a session recording.
+type SessionRecordingAccessEvent prehogv1a.SessionRecordingAccessEvent
+
+func (s *SessionRecordingAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionRecordingAccess{
+			SessionRecordingAccess: &prehogv1a.SessionRecordingAccessEvent{
+				SessionType: s.SessionType,
+				UserName:    a.AnonymizeString(s.UserName),
+				Format:      s.Format,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1358,6 +1401,20 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCompleteEvent:
 		ret := &UIIntegrationEnrollCompleteEvent{
 			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollCompleteEvent.Metadata, userMD),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent:
+		ret := &UIIntegrationEnrollStepEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollStepEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollStepEvent.Step),
+			Status: &prehogv1a.IntegrationEnrollStepStatus{
+				Code:  prehogv1a.IntegrationEnrollStatusCode(e.UiIntegrationEnrollStepEvent.GetStatus().GetCode()),
+				Error: e.UiIntegrationEnrollStepEvent.GetStatus().GetError(),
+			},
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

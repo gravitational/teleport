@@ -41,21 +41,13 @@ type gitCommands struct {
 
 func newGitCommands(app *kingpin.Application) gitCommands {
 	git := app.Command("git", "Git server commands.")
-	cmds := gitCommands{
+	return gitCommands{
 		login:  newGitLoginCommand(git),
 		list:   newGitListCommand(git),
 		ssh:    newGitSSHCommand(git),
 		config: newGitConfigCommand(git),
 		clone:  newGitCloneCommand(git),
 	}
-
-	// TODO(greedy52) hide the commands until all basic features are implemented.
-	git.Hidden()
-	cmds.login.Hidden()
-	cmds.list.Hidden()
-	cmds.config.Hidden()
-	cmds.clone.Hidden()
-	return cmds
 }
 
 type gitSSHURL transport.Endpoint

@@ -22,7 +22,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"sort"
 
@@ -33,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -191,7 +190,10 @@ type CreateAppSessionRequest struct {
 	// AWSRole is the AWS role ARN when accessing AWS management console.
 	AWSRole string `json:"arn,omitempty"`
 	// MFAResponse is an optional MFA response used to create an MFA verified app session.
-	MFAResponse string `json:"mfa_response"`
+	MFAResponse client.MFAChallengeResponse `json:"mfaResponse"`
+	// TODO(Joerger): DELETE IN v19.0.0
+	// Backwards compatible version of MFAResponse
+	MFAResponseJSON string `json:"mfa_response"`
 }
 
 // CreateAppSessionResponse is a response to POST /v1/webapi/sessions/app
@@ -230,17 +232,16 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		}
 	}
 
-	var mfaProtoResponse *proto.MFAAuthenticateResponse
-	if req.MFAResponse != "" {
-		var resp mfaResponse
-		if err := json.Unmarshal([]byte(req.MFAResponse), &resp); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		mfaProtoResponse = &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
-			},
+	// Fallback to backwards compatible mfa response.
+	if mfaResponse == nil && req.MFAResponseJSON != "" {
+		mfaResponse, err = client.ParseMFAChallengeResponse([]byte(req.MFAResponseJSON))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -263,7 +264,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		PublicAddr:  result.App.GetPublicAddr(),
 		ClusterName: result.ClusterName,
 		AWSRoleARN:  req.AWSRole,
-		MFAResponse: mfaProtoResponse,
+		MFAResponse: mfaResponse,
 		AppName:     result.App.GetName(),
 		URI:         result.App.GetURI(),
 		ClientAddr:  r.RemoteAddr,

@@ -25,7 +25,7 @@ import init, {
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
-import type { WebauthnAssertionResponse } from 'teleport/services/mfa';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import Codec, {
   FileType,
@@ -620,7 +620,7 @@ export default class Client extends EventEmitterMfaSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
+  sendChallengeResponse(data: MfaChallengeResponse) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),
