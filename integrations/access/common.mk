@@ -24,13 +24,14 @@ DOCKER_IMAGE = $(DOCKER_IMAGE_BASE)/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)"
+KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
 # In staging
 # DOCKER_PRIVATE_REGISTRY = 603330915152.dkr.ecr.us-west-2.amazonaws.com
 # DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational-staging
 
 .PHONY: $(BINARY)
 $(BINARY):
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BINARY) $(BUILDFLAGS) github.com/gravitational/teleport/integrations/access/$(ACCESS_PLUGIN)/cmd/teleport-$(ACCESS_PLUGIN)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BINARY) -tags "$(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" $(BUILDFLAGS)  github.com/gravitational/teleport/integrations/access/$(ACCESS_PLUGIN)/cmd/teleport-$(ACCESS_PLUGIN)
 
 .PHONY: test
 test: FLAGS ?= '-race'

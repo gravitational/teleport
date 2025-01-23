@@ -33,6 +33,7 @@ ARCH ?= $(shell go env GOARCH)
 # architecture of the current machine. Accepted values are: amd64, arm, arm64 and 386.
 # For native builds ARCH == TARGETARCH.
 TARGETARCH ?= $(ARCH)
+KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
 
 ifeq ("$(OS)","linux")
 ifeq ("$(TARGETARCH)","amd64")
@@ -154,7 +155,7 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -trimpath -o bin/manager main.go namespace.go config.go
+	go build -trimpath -tags "$(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o bin/manager main.go namespace.go config.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

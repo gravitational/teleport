@@ -38,13 +38,14 @@ DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)"
 RELEASE_NAME = teleport-event-handler
 RELEASE = $(RELEASE_NAME)-v$(VERSION)-$(OS)-$(ARCH)-bin
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
+KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
 # In staging
 # DOCKER_PRIVATE_REGISTRY = 603330915152.dkr.ecr.us-west-2.amazonaws.com
 # DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational-staging
 
 .PHONY: build
 build:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
 
 # darwin-signed-build is a wrapper around the build target that ensures it is codesigned
 include ../../darwin-signing.mk
