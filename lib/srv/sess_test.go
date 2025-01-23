@@ -52,49 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestParseAccessRequestIDs(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		input     string
-		comment   string
-		result    []string
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			input:     `{"access_requests":["1a7483e0-575a-4bd1-9faa-022500a49325","30b344f5-d1ba-49fc-b2aa-b04234d0a4ec"]}`,
-			comment:   "complete valid input",
-			assertErr: require.NoError,
-			result:    []string{"1a7483e0-575a-4bd1-9faa-022500a49325", "30b344f5-d1ba-49fc-b2aa-b04234d0a4ec"},
-		},
-		{
-			input:     `{"access_requests":["1a7483e0-575a-4bd1-9faa-022500a49325","30b344f5-d1ba-49fc-b2aa"]}`,
-			comment:   "invalid uuid",
-			assertErr: require.Error,
-			result:    nil,
-		},
-		{
-			input:     `{"access_requests":[nil,"30b344f5-d1ba-49fc-b2aa-b04234d0a4ec"]}`,
-			comment:   "invalid value, value in slice is nil",
-			assertErr: require.Error,
-			result:    nil,
-		},
-		{
-			input:     `{"access_requests":nil}`,
-			comment:   "invalid value, whole value is nil",
-			assertErr: require.Error,
-			result:    nil,
-		},
-	}
-	for _, tt := range testCases {
-		t.Run(tt.comment, func(t *testing.T) {
-			out, err := ParseAccessRequestIDs(tt.input)
-			tt.assertErr(t, err)
-			require.Equal(t, out, tt.result)
-		})
-	}
-}
-
 func TestIsApprovedFileTransfer(t *testing.T) {
 	// set enterprise for tests
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})

@@ -2762,7 +2762,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalIdentity(*x509Identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity, a)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4368,7 +4368,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

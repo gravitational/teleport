@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -259,7 +260,13 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	if !ok {
 		return nil, trace.BadParameter("unsupported key type")
 	}
-	if len(cert.Extensions[teleport.CertExtensionGitHubUserID]) == 0 {
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ident.GitHubUserID == "" {
 		return nil, trace.BadParameter("missing GitHub user ID")
 	}
 
@@ -268,8 +275,8 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	if conn.User() != gitUser {
 		return nil, trace.BadParameter("only git is expected as user for git connections")
 	}
-	if len(cert.ValidPrincipals) > 0 {
-		conn = sshutils.NewSSHConnMetadataWithUser(conn, cert.ValidPrincipals[0])
+	if len(ident.Principals) > 0 {
+		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
 	// Use auth.UserKeyAuth to verify user cert is signed by UserCA.
@@ -279,7 +286,7 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	}
 
 	// Check RBAC on the git server resource (aka s.cfg.TargetServer).
-	if err := s.checkUserAccess(cert); err != nil {
+	if err := s.checkUserAccess(ident); err != nil {
 		s.logger.ErrorContext(s.Context(), "Permission denied",
 			"error", err,
 			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
@@ -293,20 +300,17 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	return permissions, nil
 }
 
-func (s *ForwardServer) checkUserAccess(cert *ssh.Certificate) error {
+func (s *ForwardServer) checkUserAccess(ident *sshca.Identity) error {
 	clusterName, err := s.cfg.AccessPoint.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s.cfg.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	state, err := services.AccessStateFromSSHCertificate(s.Context(), cert, accessChecker, s.cfg.AccessPoint)
+	state, err := services.AccessStateFromSSHIdentity(s.Context(), ident, accessChecker, s.cfg.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -588,7 +592,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 			Server:                  cfg.TargetServer,
 			TeleportUser:            identityCtx.TeleportUser,
 			IdentityExpires:         identityCtx.CertValidBefore,
-			GitHubUserID:            identityCtx.Certificate.Extensions[teleport.CertExtensionGitHubUserID],
+			GitHubUserID:            identityCtx.UnmappedIdentity.GitHubUserID,
 			AuthPreferenceGetter:    cfg.AccessPoint,
 			GitHubUserCertGenerator: cfg.AuthClient.IntegrationsClient(),
 			Clock:                   cfg.Clock,
