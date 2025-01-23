@@ -219,6 +219,11 @@
       "permanent": true
     },
     {
+      "source": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
       "source": "/setup/admin/github-sso/",
       "destination": "/admin-guides/access-controls/sso/github-sso/",
       "permanent": true
@@ -1645,7 +1650,7 @@
     },
     {
       "source": "/access-controls/guides/moderated-sessions/",
-      "destination": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
       "permanent": true
     },
     {
