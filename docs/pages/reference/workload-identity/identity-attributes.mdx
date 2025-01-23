@@ -3,7 +3,15 @@ title: Identity Attributes
 description: Information about the identity attributes that can be used in WorkloadIdentity templates and rules.
 ---
 
-## Join Attributes
+Attributes are features of an identity which you can use with the
+[WorkloadIdentity](./workload-identity-resource.mdx) resource to create rules
+and template values.
+
+These attributes come from a variety of sources, such as workload attestations
+performed by `tbot` or the attestation performed by the control plane when
+`tbot` joins.
+
+## Join attributes
 
 Join attributes are sourced from the join process that the Bot underwent. These
 typically allow you to identify the machine that the `tbot` agent is running on.
@@ -193,7 +201,13 @@ These attributes are present if the Bot joined using the TPM join method.
 | `join.tpm.ek_cert_serial`   | The serial number of the EK certificate, if present.                                                             |
 | `join.tpm.ek_cert_verified` | Whether or not the EK certificate was verified against a certificate authority.                                  |
 
-## Workload Attributes
+## Workload attributes
+
+Workload attributes are sourced from workload attestations performed by `tbot`
+when a workload requests an identity via the workload API. They may not be
+present depending on your configuration of `tbot`. See the
+[Workload Attestation reference](./workload-identity-api-service.mdx) for more
+information.
 
 ### `workload.unix`
 
@@ -227,9 +241,9 @@ for more information.
 | `workload.kubernetes.pod_uid`         | The UID of the workload pod.                        |
 | `workload.kubernetes.labels`          | The labels of the workload pod.                     |
 
-## User Attributes
+## User attributes
 
-These attributes are sourced from the Bot or User that is requesting the
+User attributes are sourced from the Bot or User that is requesting the
 issuance of the workload identity credential.
 
 | Attribute              | Description                                       |
