@@ -37,7 +37,8 @@ func TestRDPLicense(t *testing.T) {
 	_, err = storage.ReadRDPLicense(ctx, 1, "issuer", "company", "productID")
 	require.True(t, trace.IsNotFound(err))
 
-	err = storage.WriteRDPLicense(ctx, 1, "issuer", "company", "productID", []byte{1, 2, 3})
+	licenseData := []byte{1, 2, 3}
+	err = storage.WriteRDPLicense(ctx, 1, "issuer", "company", "productID", licenseData)
 	require.NoError(t, err)
 
 	_, err = storage.ReadRDPLicense(ctx, 2, "issuer", "company", "productID")
@@ -45,5 +46,5 @@ func TestRDPLicense(t *testing.T) {
 
 	license, err := storage.ReadRDPLicense(ctx, 1, "issuer", "company", "productID")
 	require.NoError(t, err)
-	require.Equal(t, []byte{1, 2, 3}, license)
+	require.Equal(t, licenseData, license)
 }
