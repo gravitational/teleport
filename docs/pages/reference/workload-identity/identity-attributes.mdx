@@ -102,26 +102,96 @@ available at https://docs.github.com/en/actions/security-for-github-actions/secu
 
 These attributes are present if the Bot joined using the GitLab join method.
 
+They are mapped from the JWT issued by GitLab, for which further documentation is
+available at https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#token-payload
+
+| Field                               | Description                                                                                                                       |
+|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `join.gitlab.sub`                   | The `sub` claim of the GitLab JWT that was used to join.  For example: `project_path:mygroup/my-project:ref_type:branch:ref:main` |
+| `join.gitlab.ref`                   | The ref that the pipeline is running against. For example: `main`                                                                 |
+| `join.gitlab.ref_type`              | The type of ref that the pipeline is running against. This is typically `branch` or `tag`.                                        |
+| `join.gitlab.ref_protected`         | Whether or not the ref that the pipeline is running against is protected.                                                         |
+| `join.gitlab.namespace_path`        | The path of the namespace of the project that the pipeline is running within.                                                     |
+| `join.gitlab.project_path`          | The full qualified path of the project that the pipeline is running within. For example: `mygroup/my-project`                     |
+| `join.gitlab.user_login`            | The name of the user that triggered the pipeline run.                                                                             |
+| `join.gitlab.user_email`            | The email of the user that triggered the pipeline run.                                                                            |
+| `join.gitlab.pipeline_id`           | The ID of the pipeline.                                                                                                           |
+| `join.gitlab.pipeline_source`       | The source of the pipeline. For example: `push` or `web`                                                                          |
+| `join.gitlab.environment`           | The environment the pipeline is running against, if any.                                                                          |
+| `join.gitlab.environment_protected` | Whether or not the pipeline is running against a protected environment.                                                           |
+| `join.gitlab.runner_id`             | The ID of the runner that this pipeline is running on.                                                                            |
+| `join.gitlab.runner_environment`    | The type of runner that is processing the pipeline.  Either `gitlab-hosted` or `self-hosted`.                                     |
+| `join.gitlab.sha`                   | The SHA of the commit that triggered the pipeline run.                                                                            |
+| `join.gitlab.ci_config_ref_uri`     | The ref URI of the CI config configuring the pipeline.                                                                            |
+| `join.gitlab.ci_config_sha`         | The Git SHA of the CI config ref configuring the pipeline.                                                                        |
+
 ### `join.iam`
 
 These attributes are present if the Bot joined using the AWS IAM join method.
+
+| Field              | Description                                                                                                                 |
+|--------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `join.iam.account` | The identifier of the account that the joining entity is a part of. For example: `123456789012`.                            |
+| `join.iam.arn`     | The AWS ARN of the joining entity. For example: `arn:aws:sts::123456789012:assumed-role/my-role-name/my-role-session-name`. |
 
 ### `join.kubernetes`
 
 These attributes are present if the Bot joined using the Kubernetes join method.
 
+The attributes under `join.kubernetes.pod` are only present if the bot is
+running in a Kubernetes cluster with Projected Service Account Token support.
+
+| Field                                       | Description                                                                                                                                                                           |
+|---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `join.kubernetes.subject`                   | The fully qualified identifier of the entity based on the Kubernetes token. For a service account, this takes the form of `system:serviceaccount:<namespace>:<service-account-name>`. |
+| `join.kubernetes.service_account.name`      | The name of the service account that the joining entity is running as.                                                                                                                |
+| `join.kubernetes.service_account.namespace` | The namespace of the service account that the joining entity is running as.                                                                                                           |
+| `join.kubernetes.pod.name`                  | The name of the pod that the joining entity is running in.                                                                                                                            |
+
 ### `join.spacelift`
 
 These attributes are present if the Bot joined using the Spacelift join method.
+
+They are mapped from the JWT issued by Spacelift, for which further documentation
+is available at https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
+
+| Field                        | Description                                                                        |
+|------------------------------|------------------------------------------------------------------------------------|
+| `join.spacelift.sub`         | The `sub` claim of the Spacelift JWT that was used to join..                       |
+| `join.spacelift.space_id`    | The ID of the space in which the run is executing.                                 |
+| `join.spacelift.caller_type` | The type of the caller that owns the run, either `stack` or `module`.              |
+| `join.spacelift.caller_id`   | The ID of the caller that generated the run.                                       |
+| `join.spacelift.run_type`    | The type of the run, either `PROPOSED`, `TRACKED`, `TASK`, `TESTING` or `DESTROY`. |
+| `join.spacelift.run_id`      | The ID of the run.                                                                 |
+| `join.spacelift.scope`       | The configured scope of the token, either `read` or `write`.                       |
 
 ### `join.terraform_cloud`
 
 These attributes are present if the Bot joined using the Terraform Cloud join
 method.
 
+They are mapped from the JWT issued by Terraform Cloud, for which further
+documentation is available at https://developer.hashicorp.com/terraform/enterprise/workspaces/dynamic-provider-credentials/workload-identity-tokens
+
+| Field                                    | Description                                                                                                                                         |
+|------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `join.terraform_cloud.sub`               | The `sub` claim of the Terraform Cloud JWT that was used to join.                                                                                   |
+| `join.terraform_cloud.organization_name` | The name of the organization the project and workspace belong to.                                                                                   |
+| `join.terraform_cloud.project_name`      | The name of the project the workspace belongs to.                                                                                                   |
+| `join.terraform_cloud.workspace_name`    | The name of the workspace that the plan/apply is running within.                                                                                    |
+| `join.terraform_cloud.full_workspace`    | The fully qualified workspace path, including the organization and project name. For example: `organization:<name>:project:<name>:workspace:<name>` |
+| `join.terraform_cloud.run_id`            | The ID of the run that is being executed..                                                                                                          |
+| `join.terraform_cloud.run_phase`         | The phase of the run that is being executed, either `plan` or `apply`.                                                                              |
+
 ### `join.tpm`
 
 These attributes are present if the Bot joined using the TPM join method.
+
+| Field                       | Description                                                                                                      |
+|-----------------------------|------------------------------------------------------------------------------------------------------------------|
+| `join.tpm.ek_pub_hash`      | The SHA256 hash of the PKIX formatted EK public key, encoded in hex. This effectively identifies a specific TPM. |
+| `join.tpm.ek_cert_serial`   | The serial number of the EK certificate, if present.                                                             |
+| `join.tpm.ek_cert_verified` | Whether or not the EK certificate was verified against a certificate authority.                                  |
 
 ## Workload Attributes
 
