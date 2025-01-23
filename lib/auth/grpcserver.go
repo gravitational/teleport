@@ -5282,7 +5282,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
 
-	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Params{
+	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: cfg.Authorizer,
 
 		Backend:       cfg.AuthServer.bk,

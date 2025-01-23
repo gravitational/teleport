@@ -34,8 +34,8 @@ import (
 
 const uidCacheTTL = 30 * time.Second
 
-// Params contains the parameters for [New].
-type Params struct {
+// Config contains the parameters for [New].
+type Config struct {
 	Authorizer authz.Authorizer
 
 	Backend       backend.Backend
@@ -53,7 +53,7 @@ type Params struct {
 
 // New returns the auth server implementation for the stable UNIX users service,
 // including the gRPC interface, authz enforcement, and business logic.
-func New(params Params) (stableunixusersv1.StableUNIXUsersServiceServer, error) {
+func New(params Config) (stableunixusersv1.StableUNIXUsersServiceServer, error) {
 	uidCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:         uidCacheTTL,
 		Clock:       params.CacheClock,
