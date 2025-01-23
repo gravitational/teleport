@@ -90,6 +90,11 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		config.UploadRate = *uploadRate
 	}
 
+	// If set, check for Kubernetes enrichment from downward API
+	if os.Getenv("TELEPORT_PYROSCOPE_KUBE_ENV") == "true" {
+		config.Tags = addKubeTagsFromEnv(config.Tags)
+	}
+
 	profiler, err := pyroscope.Start(config)
 	if err != nil {
 		slog.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "error", err)
@@ -124,4 +129,24 @@ func getPyroscopeProfileTypesFromEnv() []pyroscope.ProfileType {
 	}
 
 	return profileTypes
+}
+
+// getTagsFromKubeEnv extracts Kubernetes metadata passed from downward API.
+func addKubeTagsFromEnv(tags map[string]string) map[string]string {
+
+	env := map[string]string{
+		"name":              "TELEPORT_PYROSCOPE_KUBE_NAME",
+		"instance":          "TELEPORT_PYROSCOPE_KUBE_INSTANCE",
+		"component":         "TELEPORT_PYROSCOPE_KUBE_COMPONENT",
+		"region":            "TELEPORT_PYROSCOPE_KUBE_REGION",
+		"pod_template_hash": "TELEPORT_PYROSCOPE_KUBE_POD_TEMPLATE_HASH",
+	}
+
+	for k, v := range env {
+		if value, isSet := os.LookupEnv(v); isSet {
+			tags[k] = value
+		}
+	}
+
+	return tags
 }
