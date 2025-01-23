@@ -57,7 +57,7 @@ export function createViteConfig(
     const config: UserConfig = {
       clearScreen: false,
       server: {
-        allowedHosts: resolveAllowedHost(target),
+        allowedHosts: resolveAllowedHosts(target),
         fs: {
           allow: [rootDirectory, '.'],
         },
@@ -196,18 +196,22 @@ export function createViteConfig(
   });
 }
 
-function resolveAllowedHost(target: string) {
+function resolveAllowedHosts(target: string) {
+  const allowedHosts = new Set<string>();
+
   if (process.env.VITE_HOST) {
-    return [process.env.VITE_HOST];
+    const { hostname } = new URL(`https://${process.env.VITE_HOST}`);
+
+    allowedHosts.add(hostname);
   }
 
   if (target !== DEFAULT_PROXY_TARGET) {
-    const { hostname } = new URL(`http://${target}`);
+    const { hostname } = new URL(`https://${target}`);
 
-    return [hostname];
+    allowedHosts.add(hostname);
   }
 
-  return [];
+  return Array.from(allowedHosts);
 }
 
 function resolveTargetURL(url: string) {
