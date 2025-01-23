@@ -20,6 +20,7 @@ package azuresync
 
 import (
 	"context"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
@@ -63,6 +64,19 @@ type Resources struct {
 	RoleAssignments []*accessgraphv1alpha.AzureRoleAssignment
 	// VirtualMachines are Azure virtual machines
 	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
+}
+
+// UsageReport returns a usage report based on the resources.
+func (r *Resources) UsageReport() *usageeventsv1.AccessGraphAzureScanEvent {
+	if r == nil {
+		return &usageeventsv1.AccessGraphAzureScanEvent{}
+	}
+	return &usageeventsv1.AccessGraphAzureScanEvent{
+		TotalVms:             uint64(len(r.VirtualMachines)),
+		TotalPrincipals:      uint64(len(r.Principals)),
+		TotalRoleDefinitions: uint64(len(r.RoleDefinitions)),
+		TotalRoleAssignments: uint64(len(r.RoleAssignments)),
+	}
 }
 
 // Fetcher provides the functionality for fetching resources from Azure

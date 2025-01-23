@@ -21,6 +21,8 @@ package discovery
 import (
 	"context"
 	"errors"
+	"github.com/gravitational/teleport/api/client/proto"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"io"
 	"sync"
 	"time"
@@ -128,6 +130,17 @@ func (s *Server) reconcileAccessGraphAzure(
 
 	// Update the currentTAGResources with the result of the reconciliation.
 	*currentTAGResources = *result
+
+	if err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessGraphAzureScanEvent{
+				AccessGraphAzureScanEvent: result.UsageReport(),
+			},
+		},
+	}); err != nil {
+		s.Log.ErrorContext(ctx, "Error submitting usage event", "error", err)
+	}
+
 	return nil
 }
 
