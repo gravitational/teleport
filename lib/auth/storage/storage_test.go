@@ -35,7 +35,7 @@ func TestRDPLicense(t *testing.T) {
 		stateStorage:   mem,
 	}
 
-	_, err = storage.ReadRDPLicense(ctx, types.RDPLicenseKey{
+	_, err = storage.ReadRDPLicense(ctx, &types.RDPLicenseKey{
 		Version:   1,
 		Issuer:    "issuer",
 		Company:   "company",
@@ -44,7 +44,7 @@ func TestRDPLicense(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	licenseData := []byte{1, 2, 3}
-	err = storage.WriteRDPLicense(ctx, types.RDPLicenseKey{
+	err = storage.WriteRDPLicense(ctx, &types.RDPLicenseKey{
 		Version:   1,
 		Issuer:    "issuer",
 		Company:   "company",
@@ -52,7 +52,7 @@ func TestRDPLicense(t *testing.T) {
 	}, licenseData)
 	require.NoError(t, err)
 
-	_, err = storage.ReadRDPLicense(ctx, types.RDPLicenseKey{
+	_, err = storage.ReadRDPLicense(ctx, &types.RDPLicenseKey{
 		Version:   2,
 		Issuer:    "issuer",
 		Company:   "company",
@@ -60,7 +60,7 @@ func TestRDPLicense(t *testing.T) {
 	})
 	require.True(t, trace.IsNotFound(err))
 
-	license, err := storage.ReadRDPLicense(ctx, types.RDPLicenseKey{
+	license, err := storage.ReadRDPLicense(ctx, &types.RDPLicenseKey{
 		Version:   1,
 		Issuer:    "issuer",
 		Company:   "company",
