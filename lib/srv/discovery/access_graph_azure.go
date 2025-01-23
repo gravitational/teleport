@@ -21,8 +21,6 @@ package discovery
 import (
 	"context"
 	"errors"
-	"github.com/gravitational/teleport/api/client/proto"
-	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"io"
 	"sync"
 	"time"
@@ -31,6 +29,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
