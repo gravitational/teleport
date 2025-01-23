@@ -49,6 +49,10 @@ func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
 
 // initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
 func (process *TeleportProcess) initPyroscope(address string) {
+	if address == "" {
+		return
+	}
+	
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
