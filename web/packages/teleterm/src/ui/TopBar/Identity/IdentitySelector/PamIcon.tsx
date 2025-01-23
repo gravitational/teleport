@@ -31,8 +31,8 @@ export function PamIcon() {
 }
 
 const PamCircle = styled.div`
-  height: 24px;
-  width: 24px;
+  height: 30px;
+  width: 30px;
   display: flex;
   align-content: center;
   justify-content: center;

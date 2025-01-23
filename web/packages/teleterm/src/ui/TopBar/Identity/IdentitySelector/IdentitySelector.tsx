@@ -70,6 +70,8 @@ export const IdentitySelector = forwardRef<
           )}
         </Box>
       ) : (
+        // TODO(gzdunek): Replace this icon with something simpler.
+        // It is too detailed for its size and has no meaning.
         <PamIcon />
       )}
     </TopBarButton>

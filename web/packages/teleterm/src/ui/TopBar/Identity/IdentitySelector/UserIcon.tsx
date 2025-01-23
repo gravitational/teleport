@@ -16,25 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MouseEvent } from 'react';
 import styled from 'styled-components';
 
-interface UserIconProps {
+import {
+  ProfileColor,
+  profileColorMapping,
+} from 'teleterm/ui/services/workspacesService';
+
+export function UserIcon(props: {
   letter: string;
+  /** If not provided, a default neutral color is rendered. */
+  color?: ProfileColor;
+  className?: string;
+  onClick?(e: MouseEvent<HTMLSpanElement>): void;
+}) {
+  return (
+    <Circle
+      onClick={props.onClick}
+      className={props.className}
+      color={profileColorMapping[props.color]}
+    >
+      {props.letter.toLocaleUpperCase()}
+    </Circle>
+  );
 }
 
-export function UserIcon(props: UserIconProps) {
-  return <Circle>{props.letter.toLocaleUpperCase()}</Circle>;
-}
-
-const Circle = styled.span`
+const Circle = styled.span<{ color?: string }>`
   border-radius: 50%;
-  color: ${props => props.theme.colors.buttons.primary.text};
-  background: ${props => props.theme.colors.buttons.primary.default};
-  height: 24px;
-  width: 24px;
+  color: ${props =>
+    props.color ? 'white' : props.theme.colors.interactive.solid.primary};
+  background: ${props =>
+    props.color || props.theme.colors.interactive.tonal.neutral[1]};
+  height: 30px;
+  width: 30px;
   display: flex;
-  flex-shrink: 0;
+  font-weight: 500;
   justify-content: center;
   align-items: center;
-  overflow: hidden;
+  box-shadow: rgba(0, 0, 0, 0.15) 0 1px 3px;
 `;
