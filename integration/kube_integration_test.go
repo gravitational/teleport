@@ -1250,7 +1250,8 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	require.Eventually(t, func() bool {
 		// wait for the shell prompt
 		return strings.Contains(term.AllOutput(), "#")
-	}, 5*time.Second, 10*time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond, "Failed to get shell prompt. "+
+		"If this fails, the exec command is likely hanging and never reaching the kind cluster")
 
 	// lets type something followed by "enter" and then hang the session
 	require.NoError(t, enterInput(sessionCtx, term, "echo boring platypus\r\n", ".*boring platypus.*"))
