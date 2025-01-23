@@ -13,13 +13,17 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	common "github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 var apiCredentials = &oktav1.OktaAPICredentials{
@@ -380,4 +384,64 @@ func mustCreateOktaEveryoneGroupAndAssignOktaUsers(t *testing.T, oktaInfra *okta
 		_, err := oktaInfra.client.AddUserToGroup(context.Background(), everyoneGroup.Id, user.Id)
 		require.NoError(t, err)
 	}
+}
+
+// TestCreateOktaIntegrationFromLegacyConnector verifies the creation of an Okta integration
+// from a legacy SAML connector. This legacy connector is manually created by users
+// following the Okta SSO integration guide and lacks labels.
+//
+// The test focuses on extracting the organization URL from the SSO URL of the legacy
+// connector and using it to fetch metadata for the corresponding Okta SAML application.
+// This application is then associated with the integration, ensuring that only users
+// assigned to the specific Okta SAML application are synced, rather than all users
+// from the Okta organization
+func TestCreateOktaIntegrationFromLegacyConnector(t *testing.T) {
+	const (
+		legacyConnectorName = "connector1"
+	)
+
+	ctx := context.Background()
+	oktaApiClientMock := newMockOktaAPIClient()
+	sut := common.InitSUT(t,
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-4777663_ssotest")
+
+	// Create a legacy SAML connector that doesn't have any label
+	// The Legacy SAML connector is created manually by a user following
+	// the OKTA SSO integration guide.
+	connector := mustUnmarshalSAMLConnector(t, idp.SAMLConnector)
+	meta := connector.GetMetadata()
+	meta.Labels = map[string]string{}
+	meta.Name = legacyConnectorName
+	connector.SetMetadata(meta)
+
+	orgURL, err := sso.ExtractOktaOrganizationFromURL(connector.GetSSO())
+	require.NoError(t, err)
+	require.NotEmpty(t, orgURL)
+
+	_, err = sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(ctx, connector)
+	require.NoError(t, err)
+
+	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+	resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ApiCredentials:      &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "token"}},
+		OktaOrganizationUrl: orgURL,
+		EnableUserSync:      true,
+		ReuseConnector:      legacyConnectorName,
+	})
+	require.NoError(t, err)
+	require.Equal(t, resp.ConnectorInfo.OktaAppId, samlAPP.Id)
+}
+
+func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector {
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+	var raw services.UnknownResource
+	err := decoder.Decode(&raw)
+	require.NoError(t, err)
+
+	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
+	require.NoError(t, err)
+	return connector
 }

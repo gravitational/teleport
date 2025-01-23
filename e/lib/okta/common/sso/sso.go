@@ -396,13 +396,12 @@ func ValidateSAMLConnector(ctx context.Context, oktaClient api.Client, connector
 		}
 	}
 
-	connectorOrg := labels[eteleport.OktaOrgURLLabel]
-	if connectorOrg != oktaClient.OrgURL() {
-		return nil, trace.BadParameter("SAML connector bound to different Okta organization: %q", connectorOrg)
+	oktaOrg, err := getOktaOrgFromSAMLConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	if connector.Origin() != types.OriginOkta {
-		return nil, trace.BadParameter("invalid origin label: %q", connector.Origin())
+	if oktaOrg != oktaClient.OrgURL() {
+		return nil, trace.BadParameter("SAML connector %q bound to %q Okta organization but expected %q", connector.GetName(), oktaOrg, oktaClient.OrgURL())
 	}
 
 	app, err := oktaClient.GetApplication(ctx, api.OktaAppID(connectorAppID), &okta.SamlApplication{})
@@ -420,10 +419,22 @@ func ValidateSAMLConnector(ctx context.Context, oktaClient api.Client, connector
 		OktaAppID:    connectorAppID,
 		OktaAppName:  samlApp.Name,
 		OktaAppLabel: samlApp.Label,
-		OktaOrg:      connectorOrg,
+		OktaOrg:      oktaOrg,
 	}
 
 	return info, nil
+}
+
+func getOktaOrgFromSAMLConnector(connector types.SAMLConnector) (string, error) {
+	labels := connector.GetMetadata().Labels
+	if org, ok := labels[eteleport.OktaOrgURLLabel]; ok {
+		return org, nil
+	}
+	org, err := ExtractOktaOrganizationFromURL(connector.GetSSO())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return org, nil
 }
 
 // box creates a "boxed" (i.e. heap-allocated) copy of any value. Helpful when

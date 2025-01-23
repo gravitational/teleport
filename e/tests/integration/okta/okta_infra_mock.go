@@ -171,6 +171,24 @@ func createOktaApp(t *testing.T, ctx context.Context, client *mockOktaAPIClient,
 	return app
 }
 
+func createOktaSAMLAPP(t *testing.T, ctx context.Context, client *mockOktaAPIClient, name string) *okta.SamlApplication {
+	samlAPP := okta.NewSamlApplication()
+	samlAPP.Id = uuid.New().String()
+	samlAPP.Status = "ACTIVE"
+	samlAPP.Links = map[string]any{
+		"metadata": map[string]string{
+			"href": "https://12345.okta.com/api/v1/apps/12345/sso/saml/metadata",
+			"type": "application/xml",
+		},
+	}
+	samlAPP.Label = name
+	application, _, err := client.CreateApplication(ctx, samlAPP, nil)
+	require.NoError(t, err)
+	app, ok := application.(*okta.SamlApplication)
+	require.True(t, ok)
+	return app
+}
+
 func createOktaGroup(t *testing.T, ctx context.Context, client *mockOktaAPIClient, groupName string) *okta.Group {
 	g := okta.Group{
 		Profile: &okta.GroupProfile{

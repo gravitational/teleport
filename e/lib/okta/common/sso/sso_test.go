@@ -245,7 +245,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 			makeTestGroup("NOT A BUILTIN", "OKTA_GROUP", "Everyone"),
 			makeTestGroup("NOT EVERYONE", "BUILT_IN", "Bananas"),
 			// No build-in Everyone
-			//makeTestGroup(everyoneGroupId, "BUILT_IN", "Everyone"),
+			// makeTestGroup(everyoneGroupId, "BUILT_IN", "Everyone"),
 		}
 		oktaClient.MonkeyPatch.CreateApp =
 			func(ctx context.Context, app okta.App) (okta.App, error) {
