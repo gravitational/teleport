@@ -825,6 +825,26 @@ func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize
 	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
+// CreateUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) CreateUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) GetUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) DeleteUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUniqueNotificationIdentifiersForPrefix not implemented: can only be called locally.
+func (c *Client) ListUniqueNotificationIdentifiersForPrefix(ctx context.Context, prefix string, pageSize int, startKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // GetAccessGraphSettings gets the access graph settings from the backend.
 func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
