@@ -43,7 +43,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -2366,7 +2365,7 @@ type clusterSession struct {
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
 	connMonitorCancel context.CancelCauseFunc
 	// sendErrStatus is a function that sends an error status to the client.
-	sendErrStatus func(status *apierrors.StatusError) error
+	sendErrStatus func(status *kubeerrors.StatusError) error
 }
 
 // close cancels the connection monitor context if available.
@@ -2779,14 +2778,14 @@ func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 
 // formatForwardResponseError formats the error response from the connection
 // monitor to a Kubernetes API error response.
-type formatForwardResponseError func(status *apierrors.StatusError) error
+type formatForwardResponseError func(status *kubeerrors.StatusError) error
 
-func (f formatForwardResponseError) WriteString(s string) (n int, err error) {
+func (f formatForwardResponseError) WriteString(s string) (int, error) {
 	if f == nil {
 		return len(s), nil
 	}
-	_ = f(
-		&apierrors.StatusError{
+	err := f(
+		&kubeerrors.StatusError{
 			ErrStatus: metav1.Status{
 				Status:  metav1.StatusFailure,
 				Code:    http.StatusInternalServerError,
@@ -2795,6 +2794,8 @@ func (f formatForwardResponseError) WriteString(s string) (n int, err error) {
 			},
 		},
 	)
-
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
 	return len(s), nil
 }
