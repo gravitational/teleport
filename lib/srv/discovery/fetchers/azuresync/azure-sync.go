@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/msgraph"
@@ -35,6 +36,11 @@ import (
 // the number of resource types, we may increase this value or use some other approach to fetching concurrency.
 const fetcherConcurrency = 4
 
+type AzureOIDCCredentials interface {
+	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+}
+
 // Config defines parameters required for fetching resources from Azure
 type Config struct {
 	// SubscriptionID is the Azure subscriptipn ID
@@ -43,6 +49,8 @@ type Config struct {
 	Integration string
 	// DiscoveryConfigName is the name of this Discovery configuration
 	DiscoveryConfigName string
+	// OIDCCredentials provides methods for fetching OIDC credentials
+	OIDCCredentials AzureOIDCCredentials
 }
 
 // Resources represents the set of resources fetched from Azure
@@ -80,10 +88,27 @@ type Fetcher struct {
 
 // NewFetcher returns a new fetcher based on configuration parameters
 func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
-	// Establish the credential from the managed identity
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var cred msgraph.AzureTokenProvider
+	var err error
+	if cfg.Integration == "" {
+		// Establish the credential from the managed identity
+		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Establish the credential from OIDC credential assertion
+		integration, err := cfg.OIDCCredentials.GetIntegration(ctx, cfg.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		azureIntegration := integration.GetAzureOIDCIntegrationSpec()
+		cred, err = azidentity.NewClientAssertionCredential(azureIntegration.TenantID, azureIntegration.ClientID, func(ctx context.Context) (string, error) {
+			return cfg.OIDCCredentials.GenerateAzureOIDCToken(ctx, cfg.Integration)
+		}, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create the clients for the fetcher

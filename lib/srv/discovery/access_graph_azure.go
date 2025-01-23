@@ -392,6 +392,7 @@ func (s *Server) accessGraphAzureFetchersFromMatchers(
 			SubscriptionID:      matcher.SubscriptionID,
 			Integration:         matcher.Integration,
 			DiscoveryConfigName: discoveryConfigName,
+			OIDCCredentials:     s.AccessPoint,
 		}
 		fetcher, err := azuresync.NewFetcher(fetcherCfg, s.ctx)
 		if err != nil {
