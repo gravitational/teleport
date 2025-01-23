@@ -52,7 +52,7 @@ func (process *TeleportProcess) initPyroscope(address string) {
 	if address == "" {
 		return
 	}
-	
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
