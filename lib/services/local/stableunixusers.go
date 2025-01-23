@@ -104,7 +104,7 @@ func (s *StableUNIXUsersService) ListStableUNIXUsers(ctx context.Context, pageSi
 }
 
 // SearchFreeUID implements [services.StableUNIXUsersInternal].
-func (s *StableUNIXUsersService) SearchFreeUID(ctx context.Context, first int32, last int32) (int32, error) {
+func (s *StableUNIXUsersService) SearchFreeUID(ctx context.Context, first int32, last int32) (int32, bool, error) {
 	// uidToKey is monotonic decreasing, so by fetching the key range from last
 	// to first we will encounter UIDs in decreasing order
 	start := s.uidToKey(last)
@@ -120,28 +120,28 @@ func (s *StableUNIXUsersService) SearchFreeUID(ctx context.Context, first int32,
 
 	r, err := s.Backend.GetRange(ctx, start, end, 1)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, false, trace.Wrap(err)
 	}
 
 	if len(r.Items) < 1 {
-		return first, nil
+		return first, true, nil
 	}
 
 	m := new(stableunixusersv1.StableUNIXUser)
 	if err := proto.Unmarshal(r.Items[0].Value, m); err != nil {
-		return 0, trace.Wrap(err)
+		return 0, false, trace.Wrap(err)
 	}
 
 	uid := m.GetUid()
 	if uid < first || uid > last {
-		return 0, trace.Errorf("free UID search returned out of range value (this is a bug)")
+		return 0, false, trace.Errorf("free UID search returned out of range value (this is a bug)")
 	}
 
 	if uid == last {
-		return 0, trace.LimitExceeded("out of available UIDs")
+		return 0, false, nil
 	}
 
-	return uid + 1, nil
+	return uid + 1, true, nil
 }
 
 // AppendCreateUsernameUID implements [services.StableUNIXUsersInternal].

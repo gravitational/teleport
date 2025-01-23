@@ -35,9 +35,9 @@ type StableUNIXUsersInternal interface {
 	GetUIDForUsername(context.Context, string) (int32, error)
 	// SearchFreeUID returns the first available UID in the range between first
 	// and last (included). If no stored UIDs are within the range, it returns
-	// first. If no UIDs are available in the range, it returns a LimitExceeded
-	// error.
-	SearchFreeUID(ctx context.Context, first, last int32) (int32, error)
+	// first. If no UIDs are available in the range, the returned bool will be
+	// false.
+	SearchFreeUID(ctx context.Context, first, last int32) (int32, bool, error)
 
 	// AppendCreateStableUNIXUser appends some atomic write actions to the given
 	// slice that will create a username/UID pair for a stable UNIX user. The

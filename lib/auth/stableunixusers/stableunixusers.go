@@ -18,6 +18,7 @@ package stableunixusers
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -214,9 +215,9 @@ func (s *server) obtainUIDForUsernameUncached(ctx context.Context, username stri
 			authPref = ap
 		}
 
-		uid, err = s.createNewStableUNIXUser(ctx, username, authPref)
+		uid, maybeStale, err := s.createNewStableUNIXUser(ctx, username, authPref)
 		if err != nil {
-			if trace.IsCompareFailed(err) {
+			if errors.Is(err, backend.ErrConditionFailed) {
 				continue
 			}
 			// if the readOnlyCache is a bit stale we might end up not checking
@@ -226,7 +227,7 @@ func (s *server) obtainUIDForUsernameUncached(ctx context.Context, username stri
 			// potentially be stale for longer than the 1600ms of its internal
 			// FnCache, so we can't help but fall back to a backend fetch in
 			// that case
-			if attempt == 0 && trace.IsLimitExceeded(err) {
+			if attempt == 0 && maybeStale {
 				continue
 			}
 			return 0, trace.Wrap(err)
@@ -242,11 +243,13 @@ func (s *server) obtainUIDForUsernameUncached(ctx context.Context, username stri
 }
 
 // createNewStableUNIXUser will search the configured UID range for a free UID
-// and it will store an entry for the given username with that UID.
-func (s *server) createNewStableUNIXUser(ctx context.Context, username string, authPref readonly.AuthPreference) (int32, error) {
+// and it will store an entry for the given username with that UID. The returned
+// bool is true if the returned error is potentially a result of a stale cluster
+// auth preference value.
+func (s *server) createNewStableUNIXUser(ctx context.Context, username string, authPref readonly.AuthPreference) (uid int32, maybeStale bool, _ error) {
 	cfg := authPref.GetStableUNIXUserConfig()
 	if cfg == nil || !cfg.Enabled {
-		return 0, trace.LimitExceeded("stable UNIX users are not enabled")
+		return 0, true, trace.LimitExceeded("stable UNIX users are not enabled")
 	}
 
 	// the configuration might have been written by a different version of the
@@ -254,33 +257,36 @@ func (s *server) createNewStableUNIXUser(ctx context.Context, username string, a
 	// here (which will fail the API call, but it's better than potentially
 	// trashing the storage)
 	if err := cfg.Validate(); err != nil {
-		return 0, trace.Wrap(err)
+		return 0, true, trace.Wrap(err)
 	}
 
 	select {
 	case s.writerSem <- struct{}{}:
 		defer func() { <-s.writerSem }()
 	case <-ctx.Done():
-		return 0, trace.Wrap(context.Cause(ctx))
+		return 0, false, trace.Wrap(context.Cause(ctx))
 	}
 
-	uid, err := s.stableUNIXUsers.SearchFreeUID(ctx, cfg.FirstUid, cfg.LastUid)
+	uid, ok, err := s.stableUNIXUsers.SearchFreeUID(ctx, cfg.FirstUid, cfg.LastUid)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, false, trace.Wrap(err)
+	}
+	if !ok {
+		return 0, true, trace.LimitExceeded("out of available UIDs")
 	}
 
 	actions, err := s.stableUNIXUsers.AppendCreateStableUNIXUser(nil, username, uid)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, false, trace.Wrap(err)
 	}
 	actions, err = s.clusterConfiguration.AppendCheckAuthPreferenceActions(actions, authPref.GetRevision())
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, false, trace.Wrap(err)
 	}
 
 	if _, err := s.backend.AtomicWrite(ctx, actions); err != nil {
-		return 0, trace.Wrap(err)
+		return 0, false, trace.Wrap(err)
 	}
 
-	return uid, nil
+	return uid, false, nil
 }
