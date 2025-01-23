@@ -32,6 +32,7 @@ import {
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { RoleEditor, RoleEditorProps } from './RoleEditor';
+import { defaultRoleVersion } from './StandardEditor/standardmodel';
 import { defaultOptions, withDefaults } from './StandardEditor/withDefaults';
 
 // The Ace editor is very difficult to deal with in tests, especially that for
@@ -95,7 +96,7 @@ test('rendering and switching tabs for new role', async () => {
         deny: {},
         options: {},
       },
-      version: 'v7',
+      version: defaultRoleVersion,
     })
   );
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
