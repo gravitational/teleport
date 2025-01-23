@@ -25,9 +25,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/trace"
 )
 
 // Config for creating a new Client.
