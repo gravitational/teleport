@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
+	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -331,11 +332,17 @@ type Server struct {
 	muDynamicServerGCPFetchers sync.RWMutex
 	staticServerGCPFetchers    []server.Fetcher
 
-	// dynamicTAGSyncFetchers holds the current TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// dynamicTAGAWSFetchers holds the current TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
 	// The key is the DiscoveryConfig name.
-	dynamicTAGSyncFetchers   map[string][]aws_sync.AWSSync
-	muDynamicTAGSyncFetchers sync.RWMutex
-	staticTAGSyncFetchers    []aws_sync.AWSSync
+	dynamicTAGAWSFetchers   map[string][]aws_sync.AWSSync
+	muDynamicTAGAWSFetchers sync.RWMutex
+	staticTAGAWSFetchers    []aws_sync.AWSSync
+
+	// dynamicTAGAzureFetchers holds the current TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// The key is the DiscoveryConfig name.
+	dynamicTAGAzureFetchers   map[string][]*azure_sync.Fetcher
+	muDynamicTAGAzureFetchers sync.RWMutex
+	staticTAGAzureFetchers    []*azure_sync.Fetcher
 
 	// dynamicKubeFetchers holds the current kube fetchers that use integration as a source of credentials,
 	// for the Dynamic Matchers (those coming from DiscoveryConfig resource).
@@ -382,7 +389,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAWSFetchers:   make(map[string][]server.Fetcher),
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
-		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
+		dynamicTAGAWSFetchers:      make(map[string][]aws_sync.AWSSync),
+		dynamicTAGAzureFetchers:    make(map[string][]*azure_sync.Fetcher),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
 		awsSyncStatus:              awsSyncStatus{},
 		awsEC2ResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEC2),
@@ -423,7 +431,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAccessGraphWatchers(s.ctx, cfg); err != nil {
+	if err := s.initTAGAWSWatchers(s.ctx, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.initTAGAzureWatchers(s.ctx, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1653,9 +1665,13 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	delete(s.dynamicServerGCPFetchers, name)
 	s.muDynamicServerGCPFetchers.Unlock()
 
-	s.muDynamicTAGSyncFetchers.Lock()
-	delete(s.dynamicTAGSyncFetchers, name)
-	s.muDynamicTAGSyncFetchers.Unlock()
+	s.muDynamicTAGAWSFetchers.Lock()
+	delete(s.dynamicTAGAWSFetchers, name)
+	s.muDynamicTAGAWSFetchers.Unlock()
+
+	s.muDynamicTAGAzureFetchers.Lock()
+	delete(s.dynamicTAGAzureFetchers, name)
+	s.muDynamicTAGAzureFetchers.Unlock()
 
 	s.muDynamicKubeFetchers.Lock()
 	delete(s.dynamicKubeFetchers, name)
@@ -1703,15 +1719,23 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicDatabaseFetchers[dc.GetName()] = databaseFetchers
 	s.muDynamicDatabaseFetchers.Unlock()
 
-	awsSyncMatchers, err := s.accessGraphFetchersFromMatchers(
+	awsSyncMatchers, err := s.accessGraphAWSFetchersFromMatchers(
 		ctx, matchers, dc.GetName(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.muDynamicTAGSyncFetchers.Lock()
-	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
-	s.muDynamicTAGSyncFetchers.Unlock()
+	s.muDynamicTAGAWSFetchers.Lock()
+	s.dynamicTAGAWSFetchers[dc.GetName()] = awsSyncMatchers
+	s.muDynamicTAGAWSFetchers.Unlock()
+
+	azureSyncMatchers, err := s.accessGraphAzureFetchersFromMatchers(matchers, dc.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.muDynamicTAGAzureFetchers.Lock()
+	s.dynamicTAGAzureFetchers[dc.GetName()] = azureSyncMatchers
+	s.muDynamicTAGAzureFetchers.Unlock()
 
 	kubeFetchers, err := s.kubeFetchersFromMatchers(matchers, dc.GetName())
 	if err != nil {

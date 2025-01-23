@@ -50,6 +50,15 @@ const (
 	batchSize = 500
 	// defaultPollInterval is the default interval between polling for access graph resources
 	defaultPollInterval = 15 * time.Minute
+	// Configure health check service to monitor access graph service and
+	// automatically reconnect if the connection is lost without
+	// relying on new events from the auth server to trigger a reconnect.
+	serviceConfig = `{
+		 "loadBalancingPolicy": "round_robin",
+		 "healthCheckConfig": {
+			 "serviceName": ""
+		 }
+	 }`
 )
 
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
@@ -145,15 +154,15 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 
 // getAllAWSSyncFetchers returns all AWS sync fetchers.
 func (s *Server) getAllAWSSyncFetchers() []aws_sync.AWSSync {
-	allFetchers := make([]aws_sync.AWSSync, 0, len(s.dynamicTAGSyncFetchers))
+	allFetchers := make([]aws_sync.AWSSync, 0, len(s.dynamicTAGAWSFetchers))
 
-	s.muDynamicTAGSyncFetchers.RLock()
-	for _, fetcherSet := range s.dynamicTAGSyncFetchers {
+	s.muDynamicTAGAWSFetchers.RLock()
+	for _, fetcherSet := range s.dynamicTAGAWSFetchers {
 		allFetchers = append(allFetchers, fetcherSet...)
 	}
-	s.muDynamicTAGSyncFetchers.RUnlock()
+	s.muDynamicTAGAWSFetchers.RUnlock()
 
-	allFetchers = append(allFetchers, s.staticTAGSyncFetchers...)
+	allFetchers = append(allFetchers, s.staticTAGAWSFetchers...)
 	// TODO(tigrato): submit fetchers event
 	return allFetchers
 }
@@ -257,15 +266,6 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	const (
 		// aws discovery semaphore lock.
 		semaphoreName = "access_graph_aws_sync"
-		// Configure health check service to monitor access graph service and
-		// automatically reconnect if the connection is lost without
-		// relying on new events from the auth server to trigger a reconnect.
-		serviceConfig = `{
-		 "loadBalancingPolicy": "round_robin",
-		 "healthCheckConfig": {
-			 "serviceName": ""
-		 }
-	 }`
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()
@@ -438,12 +438,12 @@ func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate,
 	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 }
 
-func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error {
-	fetchers, err := s.accessGraphFetchersFromMatchers(ctx, cfg.Matchers, "" /* discoveryConfigName */)
+func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
+	fetchers, err := s.accessGraphAWSFetchersFromMatchers(ctx, cfg.Matchers, "" /* discoveryConfigName */)
 	if err != nil {
 		s.Log.ErrorContext(ctx, "Error initializing access graph fetchers", "error", err)
 	}
-	s.staticTAGSyncFetchers = fetchers
+	s.staticTAGAWSFetchers = fetchers
 
 	if cfg.AccessGraphConfig.Enabled {
 		go func() {
@@ -482,8 +482,8 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 	return nil
 }
 
-// accessGraphFetchersFromMatchers converts Matchers into a set of AWS Sync Fetchers.
-func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers Matchers, discoveryConfigName string) ([]aws_sync.AWSSync, error) {
+// accessGraphAWSFetchersFromMatchers converts Matchers into a set of AWS Sync Fetchers.
+func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matchers Matchers, discoveryConfigName string) ([]aws_sync.AWSSync, error) {
 	var fetchers []aws_sync.AWSSync
 	var errs []error
 	if matchers.AccessGraph == nil {
