@@ -107,7 +107,7 @@ describe('ServerAccessSection', () => {
 });
 
 describe('KubernetesAccessSection', () => {
-  const setup = (roleVersion: RoleVersion = 'v7') => {
+  const setup = (roleVersion: RoleVersion = defaultRoleVersion) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
@@ -236,7 +236,7 @@ describe('KubernetesAccessSection', () => {
   });
 
   test('validation', async () => {
-    const { user, validator } = setup('v6');
+    const { user, validator } = setup(RoleVersion.V6);
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
     await selectEvent.select(screen.getByLabelText('Kind'), 'Service');

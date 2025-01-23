@@ -380,12 +380,13 @@ export const sshPortForwardingModeOptionsMap = optionsToMap(
 );
 
 export type RoleVersionOption = Option<RoleVersion>;
-export const roleVersionOptions: RoleVersionOption[] = (
-  ['v7', 'v6', 'v5', 'v4', 'v3'] as const
-).map(stringToOption);
+export const roleVersionOptions = Object.values(RoleVersion)
+  .toSorted()
+  .toReversed()
+  .map(o => ({ value: o, label: o }));
 export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
 
-export const defaultRoleVersion = 'v7';
+export const defaultRoleVersion = RoleVersion.V7;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -534,7 +535,7 @@ export function roleToRoleEditorModel(
       description,
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
-      version: versionOption ?? roleVersionOptionsMap.get('v7'),
+      version: versionOption ?? roleVersionOptionsMap.get(RoleVersion.V7),
     },
     resources,
     rules,

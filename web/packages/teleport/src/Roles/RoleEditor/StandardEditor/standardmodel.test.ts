@@ -54,13 +54,13 @@ import {
 import { optionsWithDefaults, withDefaults } from './withDefaults';
 
 const minimalRole = () =>
-  withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });
+  withDefaults({ metadata: { name: 'foobar' }, version: defaultRoleVersion });
 
 const minimalRoleModel = (): RoleEditorModel => ({
   metadata: {
     name: 'foobar',
     labels: [],
-    version: roleVersionOptionsMap.get('v7'),
+    version: roleVersionOptionsMap.get(defaultRoleVersion),
   },
   resources: [],
   rules: [],
@@ -99,7 +99,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         description: 'role-description',
         labels: { foo: 'bar' },
       },
-      version: 'v6',
+      version: RoleVersion.V6,
     },
     model: {
       ...minimalRoleModel(),
@@ -107,7 +107,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         name: 'role-name',
         description: 'role-description',
         labels: [{ name: 'foo', value: 'bar' }],
-        version: roleVersionOptionsMap.get('v6'),
+        version: roleVersionOptionsMap.get(RoleVersion.V6),
       },
     },
   },
@@ -807,7 +807,7 @@ describe('roleToRoleEditorModel', () => {
         name: 'role-name',
         revision: originalRev,
         labels: [],
-        version: roleVersionOptionsMap.get('v7'),
+        version: roleVersionOptionsMap.get(defaultRoleVersion),
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -837,7 +837,7 @@ describe('roleToRoleEditorModel', () => {
         name: 'role-name',
         revision: 'e39ea9f1-79b7-4d28-8f0c-af6848f9e655',
         labels: [],
-        version: roleVersionOptionsMap.get('v7'),
+        version: roleVersionOptionsMap.get(defaultRoleVersion),
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -991,7 +991,7 @@ describe('roleEditorModelToRole', () => {
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
           labels: [{ name: 'kind', value: 'occupation' }],
-          version: roleVersionOptionsMap.get('v5'),
+          version: roleVersionOptionsMap.get(RoleVersion.V5),
         },
       })
     ).toEqual({

@@ -196,10 +196,10 @@ const validKubernetesKind = (
   ver: RoleVersion
 ): ValidationResult => {
   switch (ver) {
-    case 'v3':
-    case 'v4':
-    case 'v5':
-    case 'v6':
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
       const valid = kind === 'pod';
       return {
         valid,
@@ -208,7 +208,7 @@ const validKubernetesKind = (
           : `Only pods are allowed for role version ${ver}`,
       };
 
-    case 'v7':
+    case RoleVersion.V7:
       return { valid: true };
 
     default:

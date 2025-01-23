@@ -59,7 +59,13 @@ export type Role = {
   };
 };
 
-export type RoleVersion = 'v3' | 'v4' | 'v5' | 'v6' | 'v7';
+export enum RoleVersion {
+  V3 = 'v3',
+  V4 = 'v4',
+  V5 = 'v5',
+  V6 = 'v6',
+  V7 = 'v7',
+}
 
 /**
  * A set of conditions that must be matched to allow or deny access. Fields

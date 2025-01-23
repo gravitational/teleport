@@ -37,7 +37,10 @@ import { withDefaults } from './withDefaults';
 
 const minimalRoleModel = () =>
   roleToRoleEditorModel(
-    withDefaults({ metadata: { name: 'role-name' }, version: 'v7' })
+    withDefaults({
+      metadata: { name: 'role-name' },
+      version: defaultRoleVersion,
+    })
   );
 
 const validity = (arr: { valid: boolean }[]) => arr.map(it => it.valid);
