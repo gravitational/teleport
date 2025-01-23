@@ -4,9 +4,8 @@ description: Information about the WorkloadIdentity resource
 ---
 
 The WorkloadIdentity resource is used to define the structure of an identity
-that can be issued to workloads, the rules around what workloads it can be
-issued to, and the characteristics of the credentials that will be issued for
-that identity.
+credentials that can be issued to workloads and the rules around what workloads
+it can be issued to.
 
 It supports templating using attributes of the workload, such as the name of the
 Kubernetes namespace or service account, which allows the WorkloadIdentity
@@ -87,28 +86,16 @@ spec:
     # Each rule consists of a set of conditions. All conditions must pass in
     # order for the rule to be considered a match. This effectively creates an
     # AND relationship between the conditions.
+    #
+    # A more detailed explanation of the available operators can be found under
+    # the "Rules" section of this page.
     - conditions:
-      # Each rule condition specifies the identity attribute to test, an
-      # operator, and the values to test against.
       - attribute: join.kubernetes.pod.name
-        # eq - Equals. This checks for an exact match between the attribute
-        # and the specified value.
         eq:
           value: my-pod
       - attribute: join.kubernetes.namespace
-        # not_eq - Not Equals. This checks for an exact mismatch between the
-        # attribute and the specified value.
         not_eq:
           value: kube-system
-      - attribute: join.kubernetes.service_account.name
-        # in - In. This checks if the attribute is in the list of values.
-        in:
-          values: [my-service-account, my-other-service-account]
-      - attribute: join.kubernetes.service_account.name
-        # not_in - Not In. This checks if the attribute is not in the list of
-        # values.
-        not_in:
-          values: [not-this-sa, not-this-sa-either]
 ```
 
 ## Templating
@@ -188,6 +175,95 @@ spec:
           value: foo
 ```
 
+### Operators
+
+#### `eq`
+
+`eq` (equals) checks that the specified attribute equals the specified value:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        eq:
+          value: default
+```
+
+#### `not_eq`
+
+`not_eq` (not equals) checks that the specified attribute does not equal the
+specified value:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        not_eq:
+          value: default
+```
+
+#### `in`
+
+`in` (includes) checks that the specified attribute equals one of the specified
+values:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        in:
+          values: [default, kube-system]
+```
+
+#### `not_in`
+
+`not_in` (not includes) checks that the specified attribute does not equal any
+of the specified values:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        not_in:
+          values: [foo, bar]
+```
+
+### Casting
+
+When comparing attributes which are not a string (e.g a boolean or number),
+the value in the attribute will be transferred to a string representation.
 
 ## Infrastructure as Code
 
