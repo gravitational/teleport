@@ -4931,12 +4931,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
-				Handler: utils.ChainHTTPMiddlewares(
-					webHandler,
-					makeXForwardedForMiddleware(cfg),
-					limiter.MakeMiddleware(proxyLimiter),
-					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
-				),
+				Handler: wrapWebHandlerWithMiddlewares(webHandler, proxyLimiter, cfg),
 				// Note: read/write timeouts *should not* be set here because it
 				// will break some application access use-cases.
 				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
@@ -6901,6 +6896,20 @@ func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
 		return web.NewXForwardedForMiddleware
 	}
 	return utils.NoopHTTPMiddleware
+}
+
+func wrapWebHandlerWithMiddlewares(webHandler http.Handler, proxyLimiter *limiter.Limiter, cfg *servicecfg.Config) http.Handler {
+	// Handler wrapped with ChainHTTPMiddlewares will invoke the middlewares in
+	// the reverse order of their specification.
+	//
+	// X-Forwarded-For middleware must be applied before the limiter so that the
+	// limiter operates on the real client IP instead of the load balancer IP.
+	return utils.ChainHTTPMiddlewares(
+		webHandler,
+		limiter.MakeMiddleware(proxyLimiter),
+		makeXForwardedForMiddleware(cfg),
+		httplib.MakeTracingMiddleware(teleport.ComponentProxy),
+	)
 }
 
 // makeApplicationCORS converts a servicecfg.CORS to a types.CORS.

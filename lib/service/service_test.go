@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -2102,4 +2103,34 @@ func makeTempDir(t *testing.T) string {
 	require.NoError(t, err, "os.MkdirTemp() failed")
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 	return tempDir
+}
+
+// Test_wrapWebHandlerWithMiddlewares_ip tests that real IP from X-Forwarded-For
+// is used for limiter.
+func Test_wrapWebHandlerWithMiddlewares_ip(t *testing.T) {
+	proxyLimiter, err := limiter.NewLimiter(limiter.Config{
+		MaxConnections: 1,
+	})
+	require.NoError(t, err)
+
+	// Set the request from a local ip but also with a real IP in
+	// X-Forwarded-For.
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.10:100"
+	req.Header.Set("X-Forwarded-For", "22.22.22.22:222")
+	cfg := &servicecfg.Config{
+		Proxy: servicecfg.ProxyConfig{
+			TrustXForwardedFor: true,
+		},
+	}
+
+	// Register one token to let the limiter blocks the request. Note that token
+	// is counted without the port.
+	release, err := proxyLimiter.RegisterRequestAndConnection("22.22.22.22")
+	require.NoError(t, err)
+	t.Cleanup(release)
+
+	recorder := httptest.NewRecorder()
+	wrapWebHandlerWithMiddlewares(http.NotFoundHandler(), proxyLimiter, cfg).ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusTooManyRequests, recorder.Code)
 }
