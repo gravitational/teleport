@@ -839,7 +839,7 @@ func (c *Client) readRDPLicense(ctx context.Context, key types.RDPLicenseKey) ([
 		"product", key.ProductID,
 	)
 
-	license, err := c.cfg.LicenseStore.ReadRDPLicense(ctx, key)
+	license, err := c.cfg.LicenseStore.ReadRDPLicense(ctx, &key)
 	switch {
 	case trace.IsNotFound(err):
 		log.InfoContext(ctx, "existing RDP license not found")
@@ -860,7 +860,7 @@ func (c *Client) writeRDPLicense(ctx context.Context, key types.RDPLicenseKey, l
 		"product", key.ProductID,
 	)
 	log.InfoContext(ctx, "writing RDP license to storage")
-	err := c.cfg.LicenseStore.WriteRDPLicense(ctx, key, license)
+	err := c.cfg.LicenseStore.WriteRDPLicense(ctx, &key, license)
 	if err != nil {
 		log.ErrorContext(ctx, "could not write RDP license", "error", err)
 	}

@@ -34,8 +34,8 @@ import (
 // LicenseStore implements client-side license storage for Microsoft
 // Remote Desktop Services (RDS) licenses.
 type LicenseStore interface {
-	WriteRDPLicense(ctx context.Context, key types.RDPLicenseKey, license []byte) error
-	ReadRDPLicense(ctx context.Context, key types.RDPLicenseKey) ([]byte, error)
+	WriteRDPLicense(ctx context.Context, key *types.RDPLicenseKey, license []byte) error
+	ReadRDPLicense(ctx context.Context, key *types.RDPLicenseKey) ([]byte, error)
 }
 
 // Config for creating a new Client.

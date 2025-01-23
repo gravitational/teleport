@@ -235,7 +235,7 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semv
 	return nil
 }
 
-func rdpLicenseKey(key types.RDPLicenseKey) backend.Key {
+func rdpLicenseKey(key *types.RDPLicenseKey) backend.Key {
 	return backend.NewKey("rdplicense", key.Issuer, strconv.Itoa(int(key.Version)), key.Company, key.ProductID)
 }
 
@@ -244,7 +244,7 @@ type rdpLicense struct {
 }
 
 // WriteRDPLicense writes an RDP license to local storage.
-func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, key types.RDPLicenseKey, license []byte) error {
+func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, key *types.RDPLicenseKey, license []byte) error {
 	value, err := json.Marshal(rdpLicense{Data: license})
 	if err != nil {
 		return trace.Wrap(err)
@@ -259,7 +259,7 @@ func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, key types.RDPLicen
 }
 
 // ReadRDPLicense reads a previously obtained license from storage.
-func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key types.RDPLicenseKey) ([]byte, error) {
+func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicenseKey) ([]byte, error) {
 	item, err := p.stateStorage.Get(ctx, rdpLicenseKey(key))
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -544,6 +544,7 @@ func checkNameAndScreenSize(name string, screenSize *Resolution) error {
 	return nil
 }
 
+// RDPLicenseKey is struct for retrieving licenses from backend cache, used only internally
 type RDPLicenseKey struct {
 	Version   uint32
 	Issuer    string
