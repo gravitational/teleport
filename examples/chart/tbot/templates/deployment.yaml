@@ -106,6 +106,18 @@ spec:
             - containerPort: 3001
               name: diagnostics
               protocol: TCP
+          {{- if .Values.services }}
+            {{- range $service := .Values.services }}
+              {{- if hasKey $service "listen" -}}
+                {{- if (contains "tcp" (toString $service.listen)) -}}
+                  {{- $listenPort := last (splitList ":" $service.listen) }}
+            - containerPort: {{ $listenPort }}
+              name: tbot-service-{{ $listenPort }}
+              protocol: TCP
+                {{- end }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /livez
