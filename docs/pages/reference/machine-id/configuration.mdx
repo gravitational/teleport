@@ -313,10 +313,25 @@ principals:
 
 ### `workload-identity-x509`
 
+The `workload-identity-x509` output is used to issue an X509 workload identity
+credential and write this to a configured destination.
+
 The output generates the following artifacts:
+
+- `svid.pem`: the X509 SVID.
+- `svid.key`: the private key associated with the X509 SVID.
+- `bundle.pem`: the X509 bundle that contains the trust domain CAs.
 
 See [Workload Identity introduction](../../enroll-resources/workload-identity/introduction.mdx)
 for more information on Workload Identity functionality.
+
+```yaml
+# type specifies the type of the output. For the X509 Workload Identity output,
+# this will always be `workload-identity-x509`.
+type: workload-identity-x509
+(!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
+(!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
 
 ### `workload-identity-jwt`
 
