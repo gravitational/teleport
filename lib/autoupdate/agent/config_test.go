@@ -21,8 +21,9 @@ package agent
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
 )
 
 func TestNewRevisionFromDir(t *testing.T) {
