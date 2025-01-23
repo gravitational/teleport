@@ -195,6 +195,8 @@ type gatewayCertRenewalParams struct {
 	testGatewayConnectionFunc testGatewayConnectionFunc
 	webauthnLogin             libclient.WebauthnLoginFunc
 	generateAndSetupUserCreds generateAndSetupUserCredsFunc
+	customCertsExpireFunc     func(gateway.Gateway)
+	expectNoRelogin           bool
 }
 
 func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
@@ -275,11 +277,15 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 
 	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
-	// Advance the fake clock to simulate the db cert expiry inside the middleware.
-	fakeClock.Advance(time.Hour * 48)
+	if params.customCertsExpireFunc != nil {
+		params.customCertsExpireFunc(gateway)
+	} else {
+		// Advance the fake clock to simulate the db cert expiry inside the middleware.
+		fakeClock.Advance(time.Hour * 48)
 
-	// Overwrite user certs with expired ones to simulate the user cert expiry.
-	params.generateAndSetupUserCreds(t, tc, -time.Hour)
+		// Overwrite user certs with expired ones to simulate the user cert expiry.
+		params.generateAndSetupUserCreds(t, tc, -time.Hour)
+	}
 
 	// Open a new connection.
 	// This should trigger the relogin flow. The middleware will notice that the cert has expired
@@ -288,7 +294,11 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	// will let the connection through.
 	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
-	require.Equal(t, uint32(1), tshdEventsService.reloginCallCount.Load(),
+	expectedReloginCalls := uint32(1)
+	if params.expectNoRelogin {
+		expectedReloginCalls = uint32(0)
+	}
+	require.Equal(t, expectedReloginCalls, tshdEventsService.reloginCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
 	require.Equal(t, uint32(0), tshdEventsService.sendNotificationCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
@@ -495,13 +505,51 @@ func TestTeletermKubeGateway(t *testing.T) {
 			webauthnLogin: webauthnLogin,
 		})
 	})
+	t.Run("reissue cert after clearing it for root kube", func(t *testing.T) {
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:         suite,
+			kubeURI:       kubeURI,
+			webauthnLogin: webauthnLogin,
+			customCertsExpireFunc: func(gw gateway.Gateway) {
+				kubeGw, err := gateway.AsKube(gw)
+				require.NoError(t, err)
+				kubeGw.ClearCerts()
+			},
+			expectNoRelogin: true,
+		})
+	})
+	t.Run("reissue cert after clearing it for leaf kube", func(t *testing.T) {
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:         suite,
+			kubeURI:       kubeURI,
+			webauthnLogin: webauthnLogin,
+			customCertsExpireFunc: func(gw gateway.Gateway) {
+				kubeGw, err := gateway.AsKube(gw)
+				require.NoError(t, err)
+				kubeGw.ClearCerts()
+			},
+			expectNoRelogin: true,
+		})
+	})
 }
 
 type kubeGatewayCertRenewalParams struct {
-	suite         *Suite
-	kubeURI       uri.ResourceURI
-	albAddr       string
-	webauthnLogin libclient.WebauthnLoginFunc
+	suite                 *Suite
+	kubeURI               uri.ResourceURI
+	albAddr               string
+	webauthnLogin         libclient.WebauthnLoginFunc
+	customCertsExpireFunc func(gateway.Gateway)
+	expectNoRelogin       bool
 }
 
 func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGatewayCertRenewalParams) {
@@ -550,6 +598,8 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 			},
 			testGatewayConnectionFunc: testKubeConnection,
 			webauthnLogin:             params.webauthnLogin,
+			customCertsExpireFunc:     params.customCertsExpireFunc,
+			expectNoRelogin:           params.expectNoRelogin,
 			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.suite.root.Process,

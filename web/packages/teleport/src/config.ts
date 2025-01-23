@@ -39,6 +39,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
 
+export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,

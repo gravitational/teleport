@@ -1,5 +1,3 @@
-//go:build windows
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -18,24 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package workloadattest
+package main
 
 import (
 	"context"
-	"log/slog"
+	"os"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/integration/autoupdate/tools/updater"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
+	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )
 
-// WindowsKubernetesAttestor is the windows stub for KubernetesAttestor.
-type WindowsKubernetesAttestor struct {
-}
+func main() {
+	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
+	defer cancel()
 
-func (a WindowsKubernetesAttestor) Attest(_ context.Context, _ int) (KubernetesAttestation, error) {
-	return KubernetesAttestation{}, trace.NotImplemented("kubernetes attestation is not supported on windows")
-}
+	modules.SetInsecureTestMode(true)
+	modules.SetModules(&updater.TestModules{})
+	prompt.SetStdin(prompt.NewFakeReader().AddString(os.Getenv(updater.TestPassword)))
 
-// NewKubernetesAttestor creates a new KubernetesAttestor.
-func NewKubernetesAttestor(_ KubernetesAttestorConfig, _ *slog.Logger) *WindowsKubernetesAttestor {
-	return &WindowsKubernetesAttestor{}
+	err := tsh.Run(ctx, os.Args[1:])
+	if err != nil {
+		utils.FatalError(err)
+	}
 }

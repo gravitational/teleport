@@ -289,6 +289,9 @@ func verifyVMIdentity(
 	// from the VM resource.
 	vmSubscription, vmResourceGroup, err := claimsToIdentifiers(tokenClaims)
 	if err == nil {
+		if subscriptionID != vmSubscription {
+			return nil, trace.AccessDenied("subscription ID mismatch between attested data and access token")
+		}
 		return azureJoinToAttrs(vmSubscription, vmResourceGroup), nil
 	}
 	log.WithError(err).Warn("Failed to parse VM identifiers from claims. Retrying with Azure VM API.")
@@ -402,6 +405,10 @@ func (a *Server) checkAzureRequest(
 	if provisionToken.GetJoinMethod() != types.JoinMethodAzure {
 		return nil, trace.AccessDenied("this token does not support the Azure join method")
 	}
+	token, ok := provisionToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
+	}
 
 	subID, vmID, err := parseAndVerifyAttestedData(ctx, req.AttestedData, challenge, cfg.certificateAuthorities)
 	if err != nil {
@@ -411,11 +418,6 @@ func (a *Server) checkAzureRequest(
 	attrs, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	token, ok := provisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
 	}
 	if err := checkAzureAllowRules(vmID, attrs, token); err != nil {
 		return attrs, trace.Wrap(err)
@@ -478,7 +480,7 @@ func (a *Server) RegisterUsingAzureMethod(
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = a.checkAzureRequest(ctx, challenge, req, cfg)
+	joinAttrs, err := a.checkAzureRequest(ctx, challenge, req, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -489,6 +491,9 @@ func (a *Server) RegisterUsingAzureMethod(
 			provisionToken,
 			req.RegisterUsingTokenRequest,
 			nil,
+			&workloadidentityv1pb.JoinAttrs{
+				Azure: joinAttrs,
+			},
 		)
 		return certs, trace.Wrap(err)
 	}

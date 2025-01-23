@@ -31,12 +31,15 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -165,14 +168,14 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 
 	att, err := attestor.Attest(ctx, mockPID)
 	assert.NoError(t, err)
-	assert.Equal(t, KubernetesAttestation{
+	assert.Empty(t, cmp.Diff(&workloadidentityv1pb.WorkloadAttrsKubernetes{
 		Attested:       true,
 		ServiceAccount: "my-service-account",
 		Namespace:      "default",
 		PodName:        "my-pod",
-		PodUID:         mockPodID,
+		PodUid:         mockPodID,
 		Labels: map[string]string{
 			"my-label": "my-label-value",
 		},
-	}, att)
+	}, att, protocmp.Transform()))
 }

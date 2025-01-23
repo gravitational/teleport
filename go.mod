@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.22.10
+go 1.22.11
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.9.0
@@ -174,7 +174,7 @@ require (
 	github.com/snowflakedb/gosnowflake v1.9.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spiffe/go-spiffe/v2 v2.2.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
 	github.com/xanzy/go-gitlab v0.103.0

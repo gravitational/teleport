@@ -1,0 +1,8 @@
+type: workload-identity-jwt
+selector:
+  name: my-workload-identity
+destination:
+  type: memory
+audiences:
+  - audience1
+  - audience2

@@ -267,6 +267,21 @@ credential for per-session MFA.
 
 TOTP will continue to be accepted for the initial login.
 
+## 16.4.14 (01/21/2025)
+
+* Fixed WebAuthn attestation for Windows Hello. [#51248](https://github.com/gravitational/teleport/pull/51248)
+* Fixed client tools auto-updates executed by aliases (causes recursive alias error). [#51182](https://github.com/gravitational/teleport/pull/51182)
+* Include invited and reason fields in SessionStartEvents. [#51176](https://github.com/gravitational/teleport/pull/51176)
+* Updated Go to 1.22.11. [#51137](https://github.com/gravitational/teleport/pull/51137)
+* Assuming an Access Request in Teleport Connect now propagates elevated permissions to already opened Kubernetes tabs. [#51056](https://github.com/gravitational/teleport/pull/51056)
+* Fixed AWS SigV4 parse errors in app access when the application omits the optional spaces between the SigV4 components. [#51044](https://github.com/gravitational/teleport/pull/51044)
+* Fixed a Database Service bug where `db_service.resources.aws.assume_role_arn` settings could affect non-AWS dynamic databases or incorrectly override `db_service.aws.assume_role_arn settings`. [#51041](https://github.com/gravitational/teleport/pull/51041)
+* Prevent routing issues for agentless nodes that are created with non-UUID `metadata.name` fields. [#50925](https://github.com/gravitational/teleport/pull/50925)
+* Honor the cluster routing strategy when client initiated host resolution via proxy templates or label matching is ambiguous. [#50800](https://github.com/gravitational/teleport/pull/50800)
+
+Enterprise:
+* Okta: Fixed web UI status display for SSO-only integration.
+
 ## 16.4.13 (1/10/2025)
 
 * Fixes an issue causing Azure join method to fail due to throttling. [#50929](https://github.com/gravitational/teleport/pull/50929)
