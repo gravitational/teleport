@@ -20,6 +20,7 @@ package azuresync
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
