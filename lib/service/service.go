@@ -1240,6 +1240,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
+	if address := os.Getenv("TELEPORT_PYROSCOPE_SERVER_ADDRESS"); address != "" {
+		process.initPyroscope(address)
+	}
+
 	if cfg.DebugService.Enabled {
 		if err := process.initDebugService(); err != nil {
 			return nil, trace.Wrap(err)
