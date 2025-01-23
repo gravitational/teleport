@@ -624,8 +624,6 @@ class FeatureDeviceTrust implements TeleportFeature {
 }
 
 class FeatureIntegrationStatus implements TeleportFeature {
-  category = NavigationCategory.Access;
-
   parent = FeatureIntegrations;
 
   route = {

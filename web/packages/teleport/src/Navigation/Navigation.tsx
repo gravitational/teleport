@@ -197,7 +197,10 @@ function getNavSubsectionForRoute(
       })
     );
 
-  if (!feature || (!feature.category && !feature.topMenuItem)) {
+  if (
+    !feature ||
+    (!feature.category && !feature.topMenuItem && !feature.navigationItem)
+  ) {
     return;
   }
 
