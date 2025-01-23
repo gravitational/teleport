@@ -22,10 +22,10 @@ import { State as ResourceState } from 'teleport/components/useResources';
 import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
 import { AuthConnectorsGrid } from '../ConnectorList/ConnectorList';
 
-export default function EmptyList({ onCreate }: Props) {
+export default function EmptyList({ onCreate, isLocalDefault }: Props) {
   return (
     <AuthConnectorsGrid>
-      <LocalConnectorTile />
+      <LocalConnectorTile isDefault={isLocalDefault} />
       <AuthConnectorTile
         key="github-placeholder"
         kind="github"
@@ -42,4 +42,5 @@ export default function EmptyList({ onCreate }: Props) {
 
 type Props = {
   onCreate: ResourceState['create'];
+  isLocalDefault: boolean;
 };

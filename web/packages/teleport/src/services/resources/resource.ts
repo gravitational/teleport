@@ -20,7 +20,14 @@ import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { ResourcesResponse, UnifiedResource } from '../agents';
-import { makeResource, makeResourceList, RoleResource } from './';
+import auth, { MfaChallengeScope } from '../auth/auth';
+import {
+  DefaultAuthConnector,
+  makeResource,
+  makeResourceList,
+  Resource,
+  RoleResource,
+} from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
 
 class ResourceService {
@@ -48,10 +55,38 @@ class ResourceService {
       });
   }
 
-  fetchGithubConnectors() {
+  async fetchGithubConnectors(): Promise<{
+    defaultConnector: DefaultAuthConnector;
+    connectors: Resource<'github'>[];
+  }> {
+    // MFA reuse needs to be allowed in case we need to fallback to another default connector
+    const challengeResponse =
+      await await auth.getMfaChallengeResponseForAdminAction(true);
+
     return api
-      .get(cfg.getGithubConnectorsUrl())
-      .then(res => makeResourceList<'github'>(res));
+      .get(cfg.getGithubConnectorsUrl(), undefined, challengeResponse)
+      .then(res => ({
+        defaultConnector: {
+          name: res.defaultConnectorName,
+          type: res.defaultConnectorType,
+        },
+        connectors: makeResourceList<'github'>(res.connectors),
+      }));
+  }
+
+  async setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {
+    // This is an admin action that needs an mfa challenge with reuse allowed.
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const challengeResponse = await auth.getMfaChallengeResponse(challenge);
+
+    return api.put(cfg.api.defaultConnectorPath, req, challengeResponse);
   }
 
   async fetchRoles(params?: UrlListRolesParams): Promise<{

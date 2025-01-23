@@ -134,6 +134,7 @@ type PluginStatus interface {
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
+	GetNetIq() *PluginNetIQStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -564,6 +565,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEmail
 	case *PluginSpecV1_Msteams:
 		return PluginTypeMSTeams
+	case *PluginSpecV1_NetIq:
+		return PluginTypeNetIQ
 	default:
 		return PluginTypeUnknown
 	}

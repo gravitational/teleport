@@ -22,6 +22,8 @@ import selectEvent from 'react-select-event';
 import { render, screen, userEvent } from 'design/utils/testing';
 import { Validator } from 'shared/components/Validation';
 
+import { RoleVersion } from 'teleport/services/resources';
+
 import {
   AppAccessSection,
   DatabaseAccessSection,
@@ -32,6 +34,7 @@ import {
 import {
   AppAccess,
   DatabaseAccess,
+  defaultRoleVersion,
   KubernetesAccess,
   newResourceAccess,
   ServerAccess,
@@ -50,7 +53,7 @@ describe('ServerAccessSection', () => {
     render(
       <StatefulSection<ServerAccess, ResourceAccessValidationResult>
         component={ServerAccessSection}
-        defaultValue={newResourceAccess('node')}
+        defaultValue={newResourceAccess('node', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -104,13 +107,16 @@ describe('ServerAccessSection', () => {
 });
 
 describe('KubernetesAccessSection', () => {
-  const setup = () => {
+  const setup = (roleVersion: RoleVersion = defaultRoleVersion) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
       <StatefulSection<KubernetesAccess, ResourceAccessValidationResult>
         component={KubernetesAccessSection}
-        defaultValue={newResourceAccess('kube_cluster')}
+        defaultValue={{
+          ...newResourceAccess('kube_cluster', defaultRoleVersion),
+          roleVersion,
+        }}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -169,8 +175,10 @@ describe('KubernetesAccessSection', () => {
             expect.objectContaining({ value: 'create' }),
             expect.objectContaining({ value: 'delete' }),
           ],
+          roleVersion: 'v7',
         },
       ],
+      roleVersion: 'v7',
     } as KubernetesAccess);
   });
 
@@ -228,12 +236,20 @@ describe('KubernetesAccessSection', () => {
   });
 
   test('validation', async () => {
-    const { user, validator } = setup();
+    const { user, validator } = setup(RoleVersion.V6);
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
     await user.clear(screen.getByLabelText('Name'));
     await user.clear(screen.getByLabelText('Namespace'));
+    await selectEvent.select(screen.getByLabelText('Verbs'), [
+      'All verbs',
+      'create',
+    ]);
     act(() => validator.validate());
+    expect(
+      screen.getByText('Only pods are allowed for role version v6')
+    ).toBeVisible();
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
@@ -243,6 +259,9 @@ describe('KubernetesAccessSection', () => {
     expect(screen.getByLabelText('Namespace')).toHaveAccessibleDescription(
       'Namespace is required for resources of this kind'
     );
+    expect(
+      screen.getByText('Mixing "All verbs" with other options is not allowed')
+    ).toBeVisible();
   });
 });
 
@@ -253,7 +272,7 @@ describe('AppAccessSection', () => {
     render(
       <StatefulSection<AppAccess, ResourceAccessValidationResult>
         component={AppAccessSection}
-        defaultValue={newResourceAccess('app')}
+        defaultValue={newResourceAccess('app', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -359,7 +378,7 @@ describe('DatabaseAccessSection', () => {
     render(
       <StatefulSection<DatabaseAccess, ResourceAccessValidationResult>
         component={DatabaseAccessSection}
-        defaultValue={newResourceAccess('db')}
+        defaultValue={newResourceAccess('db', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -425,7 +444,7 @@ describe('WindowsDesktopAccessSection', () => {
     render(
       <StatefulSection<WindowsDesktopAccess, ResourceAccessValidationResult>
         component={WindowsDesktopAccessSection}
-        defaultValue={newResourceAccess('windows_desktop')}
+        defaultValue={newResourceAccess('windows_desktop', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;

@@ -26,7 +26,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
@@ -41,7 +43,7 @@ import (
 
 // pageSize is the default page size to use when fetching AWS resources
 // from the AWS API for endpoints that support pagination.
-const pageSize int64 = 500
+const pageSize int32 = 500
 
 // Config is the configuration for the AWS fetcher.
 type Config struct {
@@ -79,16 +81,53 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
+// iamClient defines a subset of the AWS IAM client API.
+type iamClient interface {
+	iam.ListAttachedGroupPoliciesAPIClient
+	iam.ListAttachedRolePoliciesAPIClient
+	iam.ListAttachedUserPoliciesAPIClient
+	iam.ListGroupPoliciesAPIClient
+	iam.ListGroupsAPIClient
+	iam.ListGroupsForUserAPIClient
+	iam.ListInstanceProfilesAPIClient
+	iam.ListPoliciesAPIClient
+	iam.ListRolePoliciesAPIClient
+	iam.ListRolesAPIClient
+	iam.ListUserPoliciesAPIClient
+	iam.ListUsersAPIClient
+
+	GetGroupPolicy(context.Context, *iam.GetGroupPolicyInput, ...func(*iam.Options)) (*iam.GetGroupPolicyOutput, error)
+	GetOpenIDConnectProvider(context.Context, *iam.GetOpenIDConnectProviderInput, ...func(*iam.Options)) (*iam.GetOpenIDConnectProviderOutput, error)
+	GetPolicyVersion(context.Context, *iam.GetPolicyVersionInput, ...func(*iam.Options)) (*iam.GetPolicyVersionOutput, error)
+	GetRolePolicy(context.Context, *iam.GetRolePolicyInput, ...func(*iam.Options)) (*iam.GetRolePolicyOutput, error)
+	GetSAMLProvider(context.Context, *iam.GetSAMLProviderInput, ...func(*iam.Options)) (*iam.GetSAMLProviderOutput, error)
+	GetUserPolicy(context.Context, *iam.GetUserPolicyInput, ...func(*iam.Options)) (*iam.GetUserPolicyOutput, error)
+	ListOpenIDConnectProviders(context.Context, *iam.ListOpenIDConnectProvidersInput, ...func(*iam.Options)) (*iam.ListOpenIDConnectProvidersOutput, error)
+	ListSAMLProviders(context.Context, *iam.ListSAMLProvidersInput, ...func(*iam.Options)) (*iam.ListSAMLProvidersOutput, error)
+}
+
 // awsClientProvider provides AWS service API clients.
 type awsClientProvider interface {
-	// getRDSClient provides an [RDSClient].
+	// getIAMClient provides an [iamClient].
+	getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient
+	// getRDSClient provides an [rdsClient].
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
+	// getS3Client provides an [s3Client].
+	getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client
 }
 
 type defaultAWSClients struct{}
 
+func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
+	return iam.NewFromConfig(cfg, optFns...)
+}
+
 func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
 	return rds.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
+	return s3.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.

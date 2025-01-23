@@ -25,13 +25,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -110,8 +112,8 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	// Configure MemoryDB API mock.
-	memorydb := &mocks.MemoryDBMock{
-		Clusters: []*memorydb.Cluster{
+	mdbClient := &mocks.MemoryDBClient{
+		Clusters: []memorydbtypes.Cluster{
 			{
 				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789012:cluster:my-cluster"),
 				Name:       aws.String("my-cluster"),
@@ -134,13 +136,13 @@ func TestAWSMetadata(t *testing.T) {
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
-			MemoryDB: memorydb,
-			STS:      &fakeSTS.STSClientV1,
+			STS: &fakeSTS.STSClientV1,
 		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
 		awsClients: fakeAWSClients{
+			mdbClient:      mdbClient,
 			ecClient:       ecClient,
 			rdsClient:      rdsClt,
 			redshiftClient: redshiftClt,
@@ -412,10 +414,6 @@ func TestAWSMetadata(t *testing.T) {
 // TestAWSMetadataNoPermissions verifies that lack of AWS permissions does not
 // cause an error.
 func TestAWSMetadataNoPermissions(t *testing.T) {
-	// Create unauthorized mocks.
-	rdsClt := &mocks.RDSClient{Unauth: true}
-	redshiftClt := &mocks.RedshiftClient{Unauth: true}
-
 	fakeSTS := &mocks.STSClient{}
 
 	// Create metadata fetcher.
@@ -427,8 +425,10 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			STSClient: fakeSTS,
 		},
 		awsClients: fakeAWSClients{
-			rdsClient:      rdsClt,
-			redshiftClient: redshiftClt,
+			ecClient:       &mocks.ElastiCacheClient{Unauth: true},
+			mdbClient:      &mocks.MemoryDBClient{Unauth: true},
+			rdsClient:      &mocks.RDSClient{Unauth: true},
+			redshiftClient: &mocks.RedshiftClient{Unauth: true},
 		},
 	})
 	require.NoError(t, err)
@@ -504,6 +504,8 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 type fakeAWSClients struct {
 	ecClient       elasticacheClient
+	iamClient      iamClient
+	mdbClient      memoryDBClient
 	rdsClient      rdsClient
 	redshiftClient redshiftClient
 	rssClient      rssClient
@@ -511,6 +513,14 @@ type fakeAWSClients struct {
 
 func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
 	return f.ecClient
+}
+
+func (f fakeAWSClients) getIAMClient(aws.Config, ...func(*iam.Options)) iamClient {
+	return f.iamClient
+}
+
+func (f fakeAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
+	return f.mdbClient
 }
 
 func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClient {

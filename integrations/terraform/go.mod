@@ -99,6 +99,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/memorydb v1.25.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.37.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.93.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.53.1 // indirect
@@ -412,7 +413,6 @@ replace (
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2
-	sigs.k8s.io/kustomize/api => github.com/gravitational/kustomize/api v0.16.0-teleport.1
 )
 
 // TODO(codingllama): Remove once no dependencies import stats/opentelemetry.
