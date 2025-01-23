@@ -21,7 +21,6 @@ package azuresync
 import (
 	"context"
 
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
