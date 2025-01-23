@@ -39,6 +39,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
 )
 
 func TestLocalInstaller_Install(t *testing.T) {
@@ -52,7 +54,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 		reservedTmp     uint64
 		reservedInstall uint64
 		existingSum     string
-		flags           InstallFlags
+		flags           autoupdate.InstallFlags
 
 		errMatch string
 	}{

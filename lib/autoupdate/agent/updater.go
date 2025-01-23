@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -51,8 +52,6 @@ const (
 const (
 	// defaultSystemDir is the location where packaged Teleport binaries and services are installed.
 	defaultSystemDir = "/opt/teleport/system"
-	// cdnURITemplate is the default template for the Teleport tgz download.
-	cdnURITemplate = "https://cdn.teleport.dev/teleport{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
@@ -262,7 +261,7 @@ type OverrideConfig struct {
 	// ForceVersion to the specified version.
 	ForceVersion string
 	// ForceFlags in installed Teleport.
-	ForceFlags InstallFlags
+	ForceFlags autoupdate.InstallFlags
 }
 
 func deref[T any](ptr *T) T {
@@ -604,16 +603,16 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to request version from proxy")
 	}
-	var flags InstallFlags
+	var flags autoupdate.InstallFlags
 	switch resp.Edition {
 	case modules.BuildEnterprise:
-		flags |= FlagEnterprise
+		flags |= autoupdate.FlagEnterprise
 	case modules.BuildOSS, modules.BuildCommunity:
 	default:
 		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
 	}
 	if resp.FIPS {
-		flags |= FlagFIPS
+		flags |= autoupdate.FlagFIPS
 	}
 	jitterSec := resp.AutoUpdate.AgentUpdateJitterSeconds
 	return FindResp{
@@ -644,7 +643,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 
 	template := cfg.Spec.URLTemplate
 	if template == "" {
-		template = cdnURITemplate
+		template = autoupdate.DefaultCDNURITemplate
 	}
 	err := u.Installer.Install(ctx, target, template)
 	if err != nil {

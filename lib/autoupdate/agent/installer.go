@@ -31,15 +31,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"syscall"
-	"text/template"
 	"time"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -135,7 +134,7 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template st
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// generate download URI from template
-	uri, err := makeURL(template, rev)
+	uri, err := autoupdate.MakeURL(template, autoupdate.DefaultBaseURL, autoupdate.DefaultPackage, rev.Version, rev.Flags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -227,30 +226,6 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template st
 		return trace.Wrap(err, "failed to write checksum")
 	}
 	return nil
-}
-
-// makeURL to download the Teleport tgz.
-func makeURL(uriTmpl string, rev Revision) (string, error) {
-	tmpl, err := template.New("uri").Parse(uriTmpl)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var uriBuf bytes.Buffer
-	params := struct {
-		OS, Version, Arch string
-		FIPS, Enterprise  bool
-	}{
-		OS:         runtime.GOOS,
-		Version:    rev.Version,
-		Arch:       runtime.GOARCH,
-		FIPS:       rev.Flags&FlagFIPS != 0,
-		Enterprise: rev.Flags&(FlagEnterprise|FlagFIPS) != 0,
-	}
-	err = tmpl.Execute(&uriBuf, params)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return uriBuf.String(), nil
 }
 
 // readChecksum from the version directory.
@@ -354,7 +329,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	return shaReader.Sum(nil), nil
 }
 
-func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64, flags InstallFlags) error {
+func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64, flags autoupdate.InstallFlags) error {
 	if err := os.MkdirAll(dstDir, systemDirMode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -372,7 +347,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
-	err = utils.Extract(zr, dstDir, tgzExtractPaths(flags&(FlagEnterprise|FlagFIPS) != 0)...)
+	err = utils.Extract(zr, dstDir, tgzExtractPaths(flags&(autoupdate.FlagEnterprise|autoupdate.FlagFIPS) != 0)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

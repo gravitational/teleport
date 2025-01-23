@@ -36,6 +36,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -221,7 +222,7 @@ func TestUpdater_Update(t *testing.T) {
 	tests := []struct {
 		name       string
 		cfg        *UpdateConfig // nil -> file not present
-		flags      InstallFlags
+		flags      autoupdate.InstallFlags
 		inWindow   bool
 		now        bool
 		installErr error
@@ -360,7 +361,7 @@ func TestUpdater_Update(t *testing.T) {
 			installErr: errors.New("install error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			errMatch:          "install error",
 		},
 		{
@@ -447,18 +448,18 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					Active: NewRevision("old-version", FlagEnterprise|FlagFIPS),
-					Backup: toPtr(NewRevision("backup-version", FlagEnterprise|FlagFIPS)),
+					Active: NewRevision("old-version", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
+					Backup: toPtr(NewRevision("backup-version", autoupdate.FlagEnterprise|autoupdate.FlagFIPS)),
 				},
 			},
 			inWindow: true,
-			flags:    FlagEnterprise | FlagFIPS,
+			flags:    autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 
-			installedRevision: NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
+			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedTemplate: "https://example.com",
-			linkedRevision:    NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
+			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			removedRevisions: []Revision{
-				NewRevision("backup-version", FlagEnterprise|FlagFIPS),
+				NewRevision("backup-version", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 				NewRevision("unknown-version", 0),
 			},
 			reloadCalls: 1,
@@ -572,10 +573,10 @@ func TestUpdater_Update(t *testing.T) {
 						AgentAutoUpdate: tt.inWindow,
 					},
 				}
-				if tt.flags&FlagEnterprise != 0 {
+				if tt.flags&autoupdate.FlagEnterprise != 0 {
 					config.Edition = "ent"
 				}
-				config.FIPS = tt.flags&FlagFIPS != 0
+				config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
 				err := json.NewEncoder(w).Encode(config)
 				require.NoError(t, err)
 			}))
@@ -1085,7 +1086,7 @@ func TestUpdater_Install(t *testing.T) {
 		name       string
 		cfg        *UpdateConfig // nil -> file not present
 		userCfg    OverrideConfig
-		flags      InstallFlags
+		flags      autoupdate.InstallFlags
 		installErr error
 		setupErr   error
 		reloadErr  error
@@ -1162,7 +1163,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1179,7 +1180,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1205,7 +1206,7 @@ func TestUpdater_Install(t *testing.T) {
 			installErr: errors.New("install error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			errMatch:          "install error",
 		},
 		{
@@ -1219,7 +1220,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			setupCalls:        1,
@@ -1236,7 +1237,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevision:   NewRevision("backup-version", 0),
 			reloadCalls:       1,
@@ -1254,7 +1255,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			setupCalls:        1,
@@ -1263,17 +1264,17 @@ func TestUpdater_Install(t *testing.T) {
 			name: "config does not exist",
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
 		{
 			name:              "FIPS and Enterprise flags",
-			flags:             FlagEnterprise | FlagFIPS,
-			installedRevision: NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
-			installedTemplate: cdnURITemplate,
-			linkedRevision:    NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
+			flags:             autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
+			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -1287,7 +1288,7 @@ func TestUpdater_Install(t *testing.T) {
 			setupErr: errors.New("setup error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			revertCalls:       1,
@@ -1299,7 +1300,7 @@ func TestUpdater_Install(t *testing.T) {
 			reloadErr: errors.New("reload error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       2,
 			revertCalls:       1,
@@ -1312,7 +1313,7 @@ func TestUpdater_Install(t *testing.T) {
 			setupErr:  ErrNotSupported,
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1322,7 +1323,7 @@ func TestUpdater_Install(t *testing.T) {
 			reloadErr: ErrNotNeeded,
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedTemplate: autoupdate.DefaultCDNURITemplate,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1358,10 +1359,10 @@ func TestUpdater_Install(t *testing.T) {
 						AgentVersion: "16.3.0",
 					},
 				}
-				if tt.flags&FlagEnterprise != 0 {
+				if tt.flags&autoupdate.FlagEnterprise != 0 {
 					config.Edition = "ent"
 				}
-				config.FIPS = tt.flags&FlagFIPS != 0
+				config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
 				err := json.NewEncoder(w).Encode(config)
 				require.NoError(t, err)
 			}))
