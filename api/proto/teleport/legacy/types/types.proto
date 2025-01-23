@@ -6803,6 +6803,30 @@ message PluginAWSICSettings {
   // CredentialsSource indicates how the Identity Center plugin should source
   // its AWS login credentials
   AWSICCredentialsSource credentials_source = 7;
+
+  // UserSyncLabelsFilter specifies a map of key-value pairs used to filter users
+  // based on their metadata labels. These filtered users will be provisioned
+  // from Teleport to AWS IC via SCIM provisioning.
+  // If multiple user_sync_filters are provided the match is combined with OR operator.
+  //
+  // Example:
+  // If Okta is used as the Identity Source and only users originating from Okta
+  // should be synced, set the filter to:
+  // [{
+  //   "okta/org": "https://trial-123456.okta.com",
+  //   "teleport.dev/origin": "okta"
+  // }]
+  //
+  // If AWS IC uses Teleport as the Identity Provider, the filter should remain empty.
+  //
+  // NOTE: System users are always filtered out by default and will not be provisioned to AWS IC.
+  repeated AWSICUserSyncFilter user_sync_filters = 8 [(gogoproto.jsontag) = "user_sync_filters,omitempty"];
+}
+
+// UserSyncFilter is a map of key-value pairs used to filter users based on their metadata labels.
+message AWSICUserSyncFilter {
+  option (gogoproto.equal) = true;
+  map<string, string> labels = 8 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
