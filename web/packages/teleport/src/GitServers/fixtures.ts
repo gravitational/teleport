@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,19 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  Icon,
-  NavigationItemSize,
-  SmallIcon,
-} from 'teleport/Navigation/common';
-import type { TeleportFeature } from 'teleport/types';
+import { GitServer } from 'web/packages/teleport/src/services/gitServers';
 
-export function getIcon(feature: TeleportFeature, size: NavigationItemSize) {
-  switch (size) {
-    case NavigationItemSize.Large:
-      return <Icon>{<feature.navigationItem.icon />}</Icon>;
-
-    case NavigationItemSize.Small:
-      return <SmallIcon>{<feature.navigationItem.icon />}</SmallIcon>;
-  }
-}
+export const gitServers: GitServer[] = [
+  {
+    kind: 'git_server',
+    id: '00000000-0000-0000-0000-000000000000',
+    clusterId: 'im-a-cluster',
+    hostname: 'my-org.github-org',
+    subKind: 'github',
+    labels: [],
+    github: {
+      organization: 'my-org',
+      integration: 'my-org',
+    },
+  },
+];

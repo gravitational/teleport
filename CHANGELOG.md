@@ -1,5 +1,65 @@
 # Changelog
 
+## 17.2.1 (01/22/2025)
+
+### Security Fixes
+
+* Improve Azure join validation by verifying subscription ID. [#51328](https://github.com/gravitational/teleport/pull/51328)
+
+### Other Improvements and Fixes
+
+* Added support for multiple active CAs in `tctl auth export`. [#51375](https://github.com/gravitational/teleport/pull/51375)
+* Teleport Connect now shows a resource name in the status bar. [#51374](https://github.com/gravitational/teleport/pull/51374)
+* Role presets now include default values for `github_permissions` and the `git_server` resource kind. `github_permissions` now supports traits. [#51369](https://github.com/gravitational/teleport/pull/51369)
+* Fix backwards compatibility error where users were unable to login with Teleport Connect if Connect version is below v17.2.0 with Teleport cluster version v17.2.0. [#51368](https://github.com/gravitational/teleport/pull/51368)
+* Added `wildcard-workload-identity-issuer` preset role to improve Day 0 experience with configuring Teleport Workload Identity. [#51341](https://github.com/gravitational/teleport/pull/51341)
+* Added more granular audit logging surrounding SSH port forwarding. [#51325](https://github.com/gravitational/teleport/pull/51325)
+* FIxes a bug causing the `terraform-provider` preset role to not automatically allow newly supported resources. [#51320](https://github.com/gravitational/teleport/pull/51320)
+* GitHub server resource now shows in Web UI. [#51303](https://github.com/gravitational/teleport/pull/51303)
+
+## 17.2.0 (01/21/2025)
+
+### Per-session MFA via IdP
+
+Teleport users can now satisfy per-session MFA checks by authenticating with an
+external identity provider as an alternative to using second factors registered
+with Teleport.
+
+### GitHub access
+
+Teleport now natively supports GitHub access allowing users to transparently
+interact with Github with RBAC and audit logging support.
+
+### Oracle Toad client support
+
+Oracle Database Access users can now use Toad GUI client.
+
+### Trusted clusters support for Kubernetes operator
+
+Kubernetes operator users can now create trusted clusters using Kubernetes
+custom resources.
+
+### Other improvements and fixes
+
+* Fixed WebAuthn attestation for Windows Hello. [#51247](https://github.com/gravitational/teleport/pull/51247)
+* Include invited and reason fields in SessionStartEvents. [#51175](https://github.com/gravitational/teleport/pull/51175)
+* Updated Go to 1.23.5. [#51172](https://github.com/gravitational/teleport/pull/51172)
+* Fixed client tools auto-updates executed by aliases (causes recursive alias error). [#51154](https://github.com/gravitational/teleport/pull/51154)
+* Support proxying Git commands for github.com. [#51086](https://github.com/gravitational/teleport/pull/51086)
+* Assuming an Access Request in Teleport Connect now propagates elevated permissions to already opened Kubernetes tabs. [#51055](https://github.com/gravitational/teleport/pull/51055)
+* Fixed AWS SigV4 parse errors in app access when the application omits the optional spaces between the SigV4 components. [#51043](https://github.com/gravitational/teleport/pull/51043)
+* Fixed a Database Service bug where `db_service.resources.aws.assume_role_arn` settings could affect non-AWS dynamic databases or incorrectly override `db_service.aws.assume_role_arn` settings. [#51039](https://github.com/gravitational/teleport/pull/51039)
+* Adds support for defining labels in the web UI Discover flows for single resource enroll (server, AWS and web applications, Kubernetes, EKS, RDS). [#51038](https://github.com/gravitational/teleport/pull/51038)
+* Added support for using multi-port TCP apps in Teleport Connect without VNet. [#51014](https://github.com/gravitational/teleport/pull/51014)
+* Fix naming conflict of DynamoDB audit event auto scaling policy. [#50990](https://github.com/gravitational/teleport/pull/50990)
+* Prevent routing issues for agentless nodes that are created with non-UUID `metadata.name` fields. [#50924](https://github.com/gravitational/teleport/pull/50924)
+* Honor the cluster routing strategy when client initiated host resolution via proxy templates or label matching is ambiguous. [#50799](https://github.com/gravitational/teleport/pull/50799)
+* Emit audit events on access request expiry. [#50775](https://github.com/gravitational/teleport/pull/50775)
+* Add full SSO MFA support for the WebUI. [#50529](https://github.com/gravitational/teleport/pull/50529)
+
+Enterprise:
+* Oracle: accept database certificates configuration used by Teleport Connect.
+
 ## 17.1.6 (1/13/25)
 
 * Fix panic in EKS Auto Discovery. [#50998](https://github.com/gravitational/teleport/pull/50998)
@@ -4492,7 +4552,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/admin-guides/access-controls/guides/moderated-sessions.mdx) for more
+guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -4951,7 +5011,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/moderated-sessions.mdx)
+[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx)
 
 ### Breaking Changes
 

@@ -64,6 +64,10 @@ Teleport v17.0.5 git:v17.0.5-0-g7cc4c2a go1.23.4
 
 ### Using `tctl`
 
+<Admonition type="note">
+    `tctl autoupdate` commands are available in versions: >=17.2.0
+</Admonition>
+
 To enable or disable client tools automatic updates in the cluster, use the following command:
 
 ```code
@@ -85,7 +89,7 @@ client tools auto update target version has been cleared
 ```
 
 If the target version is cleared, the cluster version will be used automatically, eliminating the need for manual
-updates each time the cluster version is upgraded."
+updates each time the cluster version is upgraded.
 
 The `status` command retrieves the target version and mode configured for the logged-in cluster.
 To use an unauthenticated endpoint for this configuration, include the `--proxy` flag.
