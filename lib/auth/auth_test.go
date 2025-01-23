@@ -1539,7 +1539,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devCred = "devicecred1"
 
 	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
+		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
 			fc.Advance(d)
 		}
 	}
