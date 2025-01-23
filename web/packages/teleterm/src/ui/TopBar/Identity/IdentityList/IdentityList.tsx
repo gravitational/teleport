@@ -81,6 +81,27 @@ export function IdentityList(props: {
         </Box>
       </KeyboardArrowsNavigation>
     </Box>
+export function ClusterList(props: {
+  clusters: Cluster[];
+  onSelect(clusterUri: RootClusterUri): void;
+  onLogout?(clusterUri: RootClusterUri): void;
+  onAdd(): void;
+}) {
+  return (
+    <>
+      {props.clusters.map((cluster, index) => (
+        <IdentityListItem
+          key={cluster.uri}
+          index={index}
+          cluster={cluster}
+          onSelect={() => props.onSelect(cluster.uri)}
+          onLogout={
+            props.onLogout ? () => props.onLogout(cluster.uri) : undefined
+          }
+        />
+      ))}
+      <AddClusterItem index={props.clusters.length + 1} onClick={props.onAdd} />
+    </>
   );
 }
 
