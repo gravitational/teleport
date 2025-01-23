@@ -239,13 +239,13 @@ func rdpLicenseKey(key types.RDPLicenseKey) backend.Key {
 	return backend.NewKey("rdplicense", key.Issuer, strconv.Itoa(int(key.Version)), key.Company, key.ProductID)
 }
 
-type RDPLicense struct {
-	LicenseData []byte `json:"license_data"`
+type rdpLicense struct {
+	Data []byte `json:"data"`
 }
 
 // WriteRDPLicense writes an RDP license to local storage.
 func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, key types.RDPLicenseKey, license []byte) error {
-	value, err := json.Marshal(RDPLicense{LicenseData: license})
+	value, err := json.Marshal(rdpLicense{Data: license})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -264,11 +264,11 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key types.RDPLicens
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	license := RDPLicense{}
+	license := rdpLicense{}
 	if err := json.Unmarshal(item.Value, &license); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return license.LicenseData, nil
+	return license.Data, nil
 }
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
