@@ -21,25 +21,107 @@ join.
 
 ### `join.azure`
 
+These attributes are present if the Bot joined using the Azure join method.
+
+| Field                       | Description                                                                    |
+|-----------------------------|--------------------------------------------------------------------------------|
+| `join.azure.subscription`   | The subscription ID of the Azure account that the joining entity is a part of. |
+| `join.azure.resource_group` | The resource group of the Azure account that the joining entity is a part of.  |
+
 ### `join.bitbucket`
+
+These attributes are present if the Bot joined using the BitBucket join method.
+
+They are mapped from the JWT issued by BitBucket, for which further
+documentation is available at https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/
+
+| Field                                        | Description                                                             |
+|----------------------------------------------|-------------------------------------------------------------------------|
+| `join.bitbucket.sub`                         | The `sub` claim of the Bitbucket JWT that was used to join.             |
+| `join.bitbucket.step_uuid`                   | The UUID of the pipeline step.                                          |
+| `join.bitbucket.repository_uuid`             | The UUID of the repository the pipeline step is running within.         |
+| `join.bitbucket.pipeline_uuid`               | The UUID of the pipeline the step is running within.                    |
+| `join.bitbucket.workspace_uuid`              | The UUID of the workspace the pipeline belongs to.                      |
+| `join.bitbucket.deployment_environment_uuid` | The UUID of the deployment environment the pipeline is running against. |
+| `join.bitbucket.branch_name`                 | The name of the branch the pipeline is running against.                 |
 
 ### `join.circleci`
 
+These attributes are present if the Bot joined using the CircleCI join method.
+
+They are mapped from the JWT issued by CircleCI, for which further documentation
+is available at https://circleci.com/docs/openid-connect-tokens/
+
+| Field                       | Description                                                |
+|-----------------------------|------------------------------------------------------------|
+| `join.circleci.sub`         | The `sub` claim of the CircleCI JWT that was used to join. |
+| `join.circleci.context_ids` | The UUIDs of the contexts used in the job.                 |
+| `join.circleci.project_id`  | The UUID of the project in which the job is running..      |
+
 ### `join.gcp`
+
+These attributes are present if the Bot joined using the Google Cloud Project
+(GCP) join method.
+
+They are mapped from the JWT issued by GCP, for which further documentation is
+available at https://cloud.google.com/compute/docs/instances/verifying-instance-identity#payload
+
+The attributes beneath `join.gcp.gce` are only present if the Bot is running on
+a Google Compute Engine (GCE) instance.
+
+| Field                       | Description                                                                       |
+|-----------------------------|-----------------------------------------------------------------------------------|
+| `join.gcp.service_account`  | The service account email of the service account that the instance is running as. |
+| `join.gcp.gce.name`         | The name of the GCE instance that the joining entity is running on.               |
+| `join.gcp.gce.zone`         | The zone of the GCE instance that the joining entity is running on.               |
+| `join.gcp.gce.zone.id`      | The ID of the GCE instance that the joining entity is running on.                 |
+| `join.gcp.gce.zone.project` | The project ID of the GCP project that the instance is running within.            |
 
 ### `join.github`
 
+These attributes are present if the Bot joined using the GitHub join method.
+
+They are mapped from the JWT issued by GitHub, for which further documentation is
+available at https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token
+
+| Field                          | Description                                                                  |
+|--------------------------------|------------------------------------------------------------------------------|
+| `join.github.sub`              | The `sub` claim of the GitHub JWT that was used to join.                     |
+| `join.github.actor`            | The username of the actor that initiated the workflow run.                   |
+| `join.github.environment`      | The name of the environment that the workflow is running against, if any.    |
+| `join.github.ref`              | The ref that the workflow is running against..                               |
+| `join.github.ref_type`         | The type of ref that the workflow is running against. For example, `branch`. |
+| `join.github.repository`       | The name of the repository that the workflow is running within.              |
+| `join.github.repository_owner` | The name of the owner of the repository that the workflow is running within. |
+| `join.github.workflow`         | The name of the workflow that is running.                                    |
+| `join.github.event_name`       | The name of the event that triggered the workflow run..                      |
+| `join.github.sha`              | The SHA of the commit that triggered the workflow run.                       |
+| `join.github.run_id`           | The ID of this GitHub actions workflow run.                                  |
+
 ### `join.gitlab`
+
+These attributes are present if the Bot joined using the GitLab join method.
 
 ### `join.iam`
 
+These attributes are present if the Bot joined using the AWS IAM join method.
+
 ### `join.kubernetes`
+
+These attributes are present if the Bot joined using the Kubernetes join method.
 
 ### `join.spacelift`
 
+These attributes are present if the Bot joined using the Spacelift join method.
+
 ### `join.terraform_cloud`
 
+These attributes are present if the Bot joined using the Terraform Cloud join
+method.
+
 ### `join.tpm`
+
+These attributes are present if the Bot joined using the TPM join method.
 
 ## Workload Attributes
 
@@ -76,6 +158,9 @@ for more information.
 | `workload.kubernetes.labels`          | The labels of the workload pod.                     |
 
 ## User Attributes
+
+These attributes are sourced from the Bot or User that is requesting the
+issuance of the workload identity credential.
 
 | Attribute              | Description                                       |
 |------------------------|---------------------------------------------------|
