@@ -36,9 +36,6 @@ import (
 )
 
 const (
-	productionAPTPublicKeyEndpoint = "https://apt.releases.teleport.dev/gpg"
-	aptRepoEndpoint                = "https://apt.releases.teleport.dev/"
-
 	aptTeleportSourceListFileRelative = "/etc/apt/sources.list.d/teleport.list"
 
 	aptKeyringsLocation      = "/etc/apt/keyrings"
@@ -62,20 +59,19 @@ type APT struct {
 
 // APTConfig contains the configurable fields for setting up the APT package manager.
 type APTConfig struct {
-	logger               *slog.Logger
-	aptPublicKeyEndpoint string
-	fsRootPrefix         string
-	bins                 BinariesLocation
+	logger       *slog.Logger
+	fsRootPrefix string
+	bins         BinariesLocation
+
+	// aptRepoKeyEndpointOverride is used to override the endpoint used to fetch the repository public key.
+	// Only for tests.
+	aptRepoKeyEndpointOverride string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
 func (p *APTConfig) CheckAndSetDefaults() error {
 	if p == nil {
 		return trace.BadParameter("config is required")
-	}
-
-	if p.aptPublicKeyEndpoint == "" {
-		p.aptPublicKeyEndpoint = productionAPTPublicKeyEndpoint
 	}
 
 	p.bins.CheckAndSetDefaults()
@@ -115,10 +111,18 @@ func NewAPTLegacy(cfg *APTConfig) (*APT, error) {
 }
 
 // AddTeleportRepository adds the Teleport repository to the current system.
-func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
-	pm.logger.InfoContext(ctx, "Fetching Teleport repository key", "endpoint", pm.aptPublicKeyEndpoint)
+func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string, productionRepo bool) error {
+	aptRepoEndpoint, aptRepoKeyEndpoint, err := repositoryEndpoint(productionRepo, apt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if pm.aptRepoKeyEndpointOverride != "" {
+		aptRepoKeyEndpoint = pm.aptRepoKeyEndpointOverride
+	}
 
-	resp, err := pm.httpClient.Get(pm.aptPublicKeyEndpoint)
+	pm.logger.InfoContext(ctx, "Fetching Teleport repository key", "endpoint", aptRepoKeyEndpoint)
+
+	resp, err := pm.httpClient.Get(aptRepoKeyEndpoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -146,7 +150,7 @@ func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 		if err != nil {
 			return trace.Wrap(err, string(aptKeyAddCMDOutput))
 		}
-		teleportRepoMetadata = fmt.Sprintf("deb %s %s %s", aptRepoEndpoint, linuxInfo.VersionCodename, repoChannel)
+		teleportRepoMetadata = fmt.Sprintf("deb %s %s %s\n", aptRepoEndpoint, linuxInfo.VersionCodename, repoChannel)
 
 	default:
 		pm.logger.InfoContext(ctx, "Writing Teleport repository key", "destination", aptTeleportPublicKeyFile)
