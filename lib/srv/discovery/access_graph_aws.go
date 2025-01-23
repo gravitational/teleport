@@ -82,7 +82,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 
-	s.awsSyncStatus.iterationStarted(allFetchers, s.clock.Now())
+	s.awsSyncStatus.awsIterationStarted(allFetchers, s.clock.Now())
 	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
@@ -127,7 +127,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
 	pushErr := push(stream, upsert, toDel)
 
-	s.awsSyncStatus.iterationFinished(allFetchers, pushErr, s.clock.Now())
+	s.awsSyncStatus.awsIterationFinished(allFetchers, pushErr, s.clock.Now())
 	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}

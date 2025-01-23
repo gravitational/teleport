@@ -775,6 +775,19 @@ message AccessGraphAWSScanEvent {
   uint64 total_accounts = 11;
 }
 
+// AccessGraphAzureScanEvent is emitted when the Access Graph
+// Azure scan is enabled.
+message AccessGraphAzureScanEvent {
+  // total_vms is the total amount of virtual machines found in the Azure scan.
+  uint64 total_vms = 1;
+  // total_principals is the total amount of users found in the Azure scan.
+  uint64 total_principals = 2;
+  // total_role_definitions is the total amount of roles definitions found in the Azure scan.
+  uint64 total_role_definitions = 3;
+  // total_role_assignments is the total amount of roles assignments found in the Azure scan.
+  uint64 total_role_assignments = 4;
+}
+
 // UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
 message UIAccessGraphCrownJewelDiffViewEvent {
   // affected_resource_source is the source of the affected resource.
@@ -899,6 +912,7 @@ message UsageEventOneOf {
     UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 59;
     UserTaskStateEvent user_task_state_event = 60;
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 61;
+    AccessGraphAzureScanEvent access_graph_azure_scan_event = 62;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

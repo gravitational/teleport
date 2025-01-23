@@ -247,13 +247,13 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 					AccessPoint: accessPoint,
 					clock:       clock,
 				},
-				awsSyncStatus: awsSyncStatus{},
+				awsSyncStatus: tagSyncStatus{},
 			}
 
 			if tt.args.preRun {
-				s.awsSyncStatus.iterationStarted(tt.args.fetchers, s.clock.Now())
+				s.awsSyncStatus.awsIterationStarted(tt.args.fetchers, s.clock.Now())
 			} else {
-				s.awsSyncStatus.iterationFinished(tt.args.fetchers, tt.args.pushErr, s.clock.Now())
+				s.awsSyncStatus.awsIterationFinished(tt.args.fetchers, tt.args.pushErr, s.clock.Now())
 			}
 
 			for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
