@@ -384,8 +384,6 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
 }
 
 class FeatureIntegrationStatus implements TeleportFeature {
-  category = NavigationCategory.Access;
-
   parent = FeatureIntegrations;
 
   route = {
