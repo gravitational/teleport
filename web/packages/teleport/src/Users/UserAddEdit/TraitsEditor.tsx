@@ -42,6 +42,7 @@ const traitsPreset = [
   'kubernetes_users',
   'logins',
   'windows_logins',
+  'github_orgs',
 ];
 
 /**
