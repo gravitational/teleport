@@ -20,7 +20,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -193,39 +192,37 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	var mfaRequiredCheck *proto.IsMFARequiredRequest
+	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
 	if req.IsMFARequiredRequest != nil {
-		mfaRequiredCheckProto, err := h.checkAndGetProtoRequest(ctx, c, req.IsMFARequiredRequest)
+		mfaRequiredCheckProto, err = h.checkAndGetProtoRequest(ctx, c, req.IsMFARequiredRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// If this is an app session request, check if mfa is required through the app's parent cluster.
-		// Otherwise, check within the challenge request.
-		if appParams := mfaRequiredCheckProto.GetApp(); appParams != nil {
-			if appParams.ClusterName != c.cfg.RootClusterName {
-				fmt.Printf("clusterName: %v\n", appParams.ClusterName)
-				site, err := h.getSiteByClusterName(ctx, c, appParams.ClusterName)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				clusterClient, err := c.GetUserClient(ctx, site)
-				if err != nil {
-					return false, trace.Wrap(err)
-				}
-
-				res, err := clusterClient.IsMFARequired(ctx, mfaRequiredCheckProto)
-				if err != nil {
-					return false, trace.Wrap(err)
-				}
-
-				if !res.Required {
-					return &client.MFAAuthenticateChallenge{}, nil
-				}
+		// If the MFA requirement check is being performed for a leaf host, we must check directly
+		// with the leaf cluster before the authentication challenge request through root.
+		if req.IsMFARequiredRequest.ClusterID != "" && req.IsMFARequiredRequest.ClusterID != c.cfg.RootClusterName {
+			site, err := h.getSiteByClusterName(ctx, c, req.IsMFARequiredRequest.ClusterID)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-		} else {
-			mfaRequiredCheck = mfaRequiredCheckProto
+
+			clusterClient, err := c.GetUserClient(ctx, site)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			res, err := clusterClient.IsMFARequired(ctx, mfaRequiredCheckProto)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			if !res.Required {
+				return &client.MFAAuthenticateChallenge{}, nil
+			}
+
+			// We don't want to check again through the root cluster below.
+			mfaRequiredCheckProto = nil
 		}
 	}
 
@@ -254,7 +251,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		MFARequiredCheck: mfaRequiredCheck,
+		MFARequiredCheck: mfaRequiredCheckProto,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
 			AllowReuse:                  allowReuse,
@@ -459,6 +456,9 @@ type isMFARequiredApp struct {
 type isMFARequiredAdminAction struct{}
 
 type isMFARequiredRequest struct {
+	// ClusterID is the ID of the cluster to check against for MFA requirements.
+	// If not set, MFA requirements will be checked against the root cluster.
+	ClusterID string `json:"clusterId,omitempty"`
 	// Database contains fields required to check if target database
 	// requires MFA check.
 	Database *isMFARequiredDatabase `json:"database,omitempty"`

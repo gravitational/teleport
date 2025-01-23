@@ -41,6 +41,7 @@ export function AppLauncher() {
     req: {
       scope: MfaChallengeScope.USER_SESSION,
       isMfaRequiredRequest: {
+        clusterId: pathParams.clusterId,
         app: {
           fqdn: pathParams.fqdn,
           cluster_name: pathParams.clusterId,
