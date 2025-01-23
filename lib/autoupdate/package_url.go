@@ -52,16 +52,8 @@ const (
 	{{- end }}`
 )
 
-// Revision is a version and edition of Teleport.
-type Revision struct {
-	// Version is the version of Teleport.
-	Version string `yaml:"version" json:"version"`
-	// Flags describe the edition of Teleport.
-	Flags InstallFlags `yaml:"flags,flow,omitempty" json:"flags,omitempty"`
-}
-
 // MakeURL constructs the package download URL from template, base URL and revision.
-func MakeURL(uriTmpl string, baseURL string, pkg string, rev Revision) (string, error) {
+func MakeURL(uriTmpl string, baseURL string, pkg string, version string, flags InstallFlags) (string, error) {
 	tmpl, err := template.New("uri").Parse(uriTmpl)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -73,10 +65,10 @@ func MakeURL(uriTmpl string, baseURL string, pkg string, rev Revision) (string, 
 	}{
 		BaseURL:    baseURL,
 		OS:         runtime.GOOS,
-		Version:    rev.Version,
+		Version:    version,
 		Arch:       runtime.GOARCH,
-		FIPS:       rev.Flags&FlagFIPS != 0,
-		Enterprise: rev.Flags&(FlagEnterprise|FlagFIPS) != 0,
+		FIPS:       flags&FlagFIPS != 0,
+		Enterprise: flags&(FlagEnterprise|FlagFIPS) != 0,
 		Package:    pkg,
 	}
 	err = tmpl.Execute(&uriBuf, params)

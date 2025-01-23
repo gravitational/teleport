@@ -128,21 +128,21 @@ type packageURL struct {
 
 // teleportPackageURLs returns the URL for the Teleport archive to download.
 func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
-	rev := autoupdate.Revision{Version: version}
+	var flags autoupdate.InstallFlags
 	m := modules.GetModules()
 	if m.IsBoringBinary() {
-		rev.Flags |= autoupdate.FlagFIPS
+		flags |= autoupdate.FlagFIPS
 	}
 	if m.IsEnterpriseBuild() || m.IsBoringBinary() {
-		rev.Flags |= autoupdate.FlagEnterprise
+		flags |= autoupdate.FlagEnterprise
 	}
 
-	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, autoupdate.DefaultPackage, rev)
+	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, autoupdate.DefaultPackage, version, flags)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if runtime.GOOS == constants.DarwinOS {
-		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", rev)
+		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", version, flags)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
