@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 const (
@@ -822,7 +823,7 @@ type testSvcComponents struct {
 	userDenyAllCtx   context.Context
 	ownerCtx         context.Context
 	svc              *Service
-	clock            clockwork.FakeClock
+	clock            clocki.FakeClock
 	emitter          *eventstest.ChannelEmitter
 	usageEvents      *usageEventsClient
 	usageReporter    *usageReporter

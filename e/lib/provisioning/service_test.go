@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestUpstreamProvisioning(t *testing.T) {
@@ -254,7 +255,7 @@ func newDepsMock(t *testing.T, clock clockwork.Clock) *mockDeps {
 type testPack struct {
 	depsMock *mockDeps
 	scimMock *scimsdk.ClientMock
-	clock    clockwork.FakeClock
+	clock    clocki.FakeClock
 }
 
 type sutOptions struct {

@@ -55,13 +55,14 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 type OIDCSuite struct {
 	a       *auth.Server
 	b       backend.Backend
-	c       clockwork.FakeClock
+	c       clocki.FakeClock
 	oas     *OIDCAuthService
 	emitter *eventstest.MockRecorderEmitter
 }

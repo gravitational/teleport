@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestService(t *testing.T) {
@@ -579,7 +580,7 @@ type suite struct {
 	sched             *scheduler.Scheduler
 	runQueryCallCount *atomic.Int64
 	lim               *limiter.Limiter
-	clock             clockwork.FakeClock
+	clock             clocki.FakeClock
 	costLimiterStore  services.CostLimiter
 }
 

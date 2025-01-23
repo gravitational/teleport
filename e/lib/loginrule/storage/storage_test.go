@@ -19,10 +19,11 @@ import (
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 type testPack struct {
-	clock clockwork.FakeClock
+	clock clocki.FakeClock
 	mem   *memory.Memory
 	s     *storage.S
 }

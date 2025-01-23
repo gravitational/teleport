@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 type mockTagEventWatcher struct {
@@ -310,7 +311,7 @@ func (a *accessGraphService) EventsStreamV2(stream accessgraphv1alpha.AccessGrap
 }
 
 type testServiceComponents struct {
-	clock               clockwork.FakeClock
+	clock               clocki.FakeClock
 	authServer          *auth.Server
 	bk                  backend.Backend
 	accessGraphListener net.Listener

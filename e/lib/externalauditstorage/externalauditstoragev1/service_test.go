@@ -19,10 +19,11 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 type testPack struct {
-	clock           clockwork.FakeClock
+	clock           clocki.FakeClock
 	mem             *memory.Memory
 	s               *local.ExternalAuditStorageService
 	integrationsSvc *local.IntegrationsService

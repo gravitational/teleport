@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -41,7 +42,7 @@ import (
 type Fixture struct {
 	Ctx              context.Context
 	Backend          backend.Backend
-	Clock            clockwork.FakeClock
+	Clock            clocki.FakeClock
 	Auth             *auth.Server
 	SCIMClient       *scimsdk.ClientMock
 	ICClient         *icsdk.ClientMock

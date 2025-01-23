@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 type testUACAccessPoint struct {
@@ -306,7 +307,7 @@ func mustDeleteCleanupAssignments(t *testing.T, ctx context.Context, ap *testUAC
 	}
 }
 
-func mustCreateAssignmentList(t *testing.T, hash crypto.Hash, user string, clock clockwork.FakeClock) func([][]types.Resource) []types.OktaAssignment {
+func mustCreateAssignmentList(t *testing.T, hash crypto.Hash, user string, clock clocki.FakeClock) func([][]types.Resource) []types.OktaAssignment {
 	return func(itemsTargets [][]types.Resource) []types.OktaAssignment {
 		var groups []string
 		var apps []string

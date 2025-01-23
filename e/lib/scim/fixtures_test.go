@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 type builtinRoleAuthorizer struct{}
@@ -35,7 +36,7 @@ type testFixture struct {
 	plugins         mockPluginsService
 	creds           mockCredentialsService
 	shim            *mockProviderShim
-	clock           clockwork.FakeClock
+	clock           clocki.FakeClock
 	userCtx         context.Context
 	identityService mockIdentityService
 }

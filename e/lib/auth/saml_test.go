@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -61,7 +62,7 @@ type samlTestFixture struct {
 	testContext context.Context
 	authServer  *auth.Server
 	samlService *SAMLAuthService
-	clock       clockwork.FakeClock
+	clock       clocki.FakeClock
 }
 
 func newSAMLTestFixture(t *testing.T) *samlTestFixture {

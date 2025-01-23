@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 var cmpOpts = []cmp.Option{
@@ -41,7 +42,7 @@ var cmpOpts = []cmp.Option{
 // accessListSyncTestContext contains test information for testing the access list synchronizer.
 type accessListSyncTestContext struct {
 	svc     *accessListSync
-	clock   clockwork.FakeClock
+	clock   clocki.FakeClock
 	emitter *eventstest.ChannelEmitter
 	ap      *testAccessPoint
 

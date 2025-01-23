@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 const (
@@ -4624,7 +4625,7 @@ func diffDevices(want, got []*devicepb.Device) string {
 type storageEnv struct {
 	// Clock is the underlying FakeClock.
 	// nil if withClock() is used with a real clock.
-	Clock           clockwork.FakeClock
+	Clock           clocki.FakeClock
 	IdentityService *local.IdentityService
 	S               *storage.S
 
@@ -4663,7 +4664,7 @@ func newEnv(opts ...opt) (*storageEnv, error) {
 	// best to honor the clock we got.
 	// Initially storageEnv only allowed for a FakeClock, this was retrofited
 	// later.
-	if fakeClock, ok := env.memClock.(clockwork.FakeClock); ok {
+	if fakeClock, ok := env.memClock.(clocki.FakeClock); ok {
 		env.Clock = fakeClock
 	} else if env.memClock == nil {
 		env.Clock = clockwork.NewFakeClock()

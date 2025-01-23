@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestNewService(t *testing.T) {
@@ -311,7 +312,7 @@ func TestLicenseUpdateServiceRun(t *testing.T) {
 // requireNewLicense is a helper function that advances the clock and checks that
 // the license is eventually the expected value
 func requireNewLicense(t *testing.T,
-	fakeClock clockwork.FakeClock,
+	fakeClock clocki.FakeClock,
 	expectedEntitlements map[entitlements.EntitlementKind]modules.EntitlementInfo,
 	expectedAnonKey string,
 	expectedPerms os.FileMode,

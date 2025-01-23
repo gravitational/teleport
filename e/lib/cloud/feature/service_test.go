@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 type testClient struct {
@@ -117,7 +118,7 @@ func TestNewService(t *testing.T) {
 	}
 }
 
-func requireFeatures(t *testing.T, fakeClock clockwork.FakeClock, backend backend.Backend, ctx context.Context, want modules.Features) {
+func requireFeatures(t *testing.T, fakeClock clocki.FakeClock, backend backend.Backend, ctx context.Context, want modules.Features) {
 	t.Helper()
 
 	// Advance the clock so the service fetch and stores features

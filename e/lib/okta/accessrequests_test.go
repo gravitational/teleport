@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestAccessRequestReconciler(t *testing.T) {
@@ -665,7 +666,7 @@ func TestOnLogin(t *testing.T) {
 	}
 }
 
-func setupTestAccessRequestReconciler(t *testing.T) (context.Context, clockwork.FakeClock, *testAccessPoint, *AccessRequestReconciler) {
+func setupTestAccessRequestReconciler(t *testing.T) (context.Context, clocki.FakeClock, *testAccessPoint, *AccessRequestReconciler) {
 	t.Helper()
 
 	ctx := context.Background()
