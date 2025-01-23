@@ -24,19 +24,19 @@ class CloudService {
   }
 
   async sendTeleportInvite(req: SendTeleportInvite): Promise<User[]> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
-    return api.post(cfg.api.teleportInvitePath, req, null, webauthnResponse);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+    return api.post(cfg.api.teleportInvitePath, req, null, mfaResponse);
   }
 
   async sendTeleportCredentialReset(
     req: SendTeleportCredentialReset
   ): Promise<void> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
     return api.post(
       cfg.api.teleportCredentialResetPath,
       req,
       null,
-      webauthnResponse
+      mfaResponse
     );
   }
 }

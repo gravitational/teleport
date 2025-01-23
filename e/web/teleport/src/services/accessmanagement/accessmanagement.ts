@@ -154,11 +154,11 @@ export const accessManagementService = {
       .then(resp => makeAccessList(resp.accessList));
   },
   async deleteAccessList(accessListId: string): Promise<void> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
     return api.delete(
       cfg.getAccessManagementListUrl(accessListId),
       null,
-      webauthnResponse
+      mfaResponse
     );
   },
 };

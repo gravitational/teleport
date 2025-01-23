@@ -20,11 +20,14 @@ export function SAMLIdPLogin() {
       try {
         // Prompt for MFA, we only get routed here when MFA
         // is required for SAML IdP Sessions.
-        const webauthnResponse = await auth.getWebauthnResponse(
-          MfaChallengeScope.USER_SESSION,
-          false,
-          null,
+        const mfaChallenge = await auth.getMfaChallenge(
+          { scope: MfaChallengeScope.USER_SESSION },
           signal.signal
+        );
+
+        const mfaResponse = await auth.getMfaChallengeResponse(
+          mfaChallenge,
+          'webauthn'
         );
         // url safe base64 encoding is chosen here because with just a
         // plain JSON or even encodeURIComponent encoded string, it can break
@@ -32,7 +35,8 @@ export function SAMLIdPLogin() {
         // form action URL when the value passes through the Go's html templating.
         const mfaResponseBytes = new TextEncoder().encode(
           JSON.stringify({
-            webauthnAssertionResponse: webauthnResponse,
+            // TODO(Joerger): Handle non-webauthn response.
+            webauthnAssertionResponse: mfaResponse.webauthn_response,
           })
         );
         const urlSafeMfaResponse = bufferToBase64url(mfaResponseBytes.buffer);
