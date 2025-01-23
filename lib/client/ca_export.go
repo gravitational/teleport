@@ -124,32 +124,6 @@ func exportAllAuthorities(
 	return authorities, nil
 }
 
-// ExportAuthorities is the single-authority version of [ExportAllAuthorities].
-// Soft-deprecated, prefer using [ExportAllAuthorities] and handling exports
-// with more than one authority gracefully.
-func ExportAuthorities(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
-	// TODO(codingllama): Remove ExportAuthorities.
-	return exportAuthorities(ctx, client, req, ExportAllAuthorities)
-}
-
-func exportAuthorities(
-	ctx context.Context,
-	client authclient.ClientI,
-	req ExportAuthoritiesRequest,
-	exportAllFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
-) (string, error) {
-	authorities, err := exportAllFunc(ctx, client, req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// At least one authority is guaranteed on success by both ExportAll methods.
-	if l := len(authorities); l > 1 {
-		return "", trace.BadParameter("export returned %d authorities, expected exactly one", l)
-	}
-
-	return string(authorities[0].Data), nil
-}
-
 func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) ([]*ExportedAuthority, error) {
 	var typesToExport []types.CertAuthType
 
