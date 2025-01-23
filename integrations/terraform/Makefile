@@ -10,7 +10,6 @@ ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
 # CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
-KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
 
@@ -31,7 +30,7 @@ clean: tfclean
 .PHONY: build
 build: clean
 # Turning off GOWORK to prevent missing package errors.
-	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
 	lipo -create -output $(BUILDDIR)/terraform-provider-teleport $^
