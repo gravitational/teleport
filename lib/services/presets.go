@@ -196,6 +196,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindWorkloadIdentity, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
+					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
+					types.NewRule(types.KindGitServer, RW()),
 				},
 			},
 		},
@@ -252,6 +254,9 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.Wildcard},
 					},
 				},
+				GitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{teleport.TraitInternalGitHubOrgs},
+				}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -516,6 +521,34 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 	}
 }
 
+// NewPresetWildcardWorkloadIdentityIssuerRole returns a new pre-defined role
+// for issuing workload identities.
+func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Issue workload identities",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				WorkloadIdentityLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindWorkloadIdentity, RO()),
+				},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
@@ -664,6 +697,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 					types.NewRule(types.KindStaticHostUser, RW()),
 					types.NewRule(types.KindWorkloadIdentity, RW()),
+					types.NewRule(types.KindGitServer, RW()),
 				},
 			},
 		},
@@ -926,6 +960,16 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
+	// GitHub permissions.
+	if len(role.GetGitHubPermissions(types.Allow)) == 0 {
+		if githubOrgs := defaultGitHubOrgs()[role.GetName()]; len(githubOrgs) > 0 {
+			role.SetGitHubPermissions(types.Allow, []types.GitHubPermission{{
+				Organizations: githubOrgs,
+			}})
+			changed = true
+		}
+	}
+
 	if !changed {
 		return nil, trace.AlreadyExists("no change")
 	}
@@ -1036,4 +1080,10 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 	}
 
 	return changed, nil
+}
+
+func defaultGitHubOrgs() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
 }

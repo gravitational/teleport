@@ -16,6 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ComponentType } from 'react';
+
+import {
+  Application,
+  Database,
+  Kubernetes,
+  Laptop,
+  ListAddCheck,
+  Server,
+  ShieldCheck,
+  Table,
+  Terminal,
+} from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
+
 import {
   ClusterOrResourceUri,
   isAppUri,
@@ -100,7 +115,7 @@ export function getDocumentGatewayTitle(doc: DocumentGateway): string {
 
   switch (targetKind) {
     case 'db': {
-      return targetUser ? `${targetUser}@${targetName}` : targetName;
+      return targetUser ? `${targetName} (${targetUser})` : targetName;
     }
     case 'app': {
       return targetSubresourceName
@@ -110,5 +125,81 @@ export function getDocumentGatewayTitle(doc: DocumentGateway): string {
     default: {
       targetKind satisfies never;
     }
+  }
+}
+
+/**
+ * Returns a name and icon of the document.
+ * If possible, the name is the title of a document, except for cases
+ * when it contains some additional values like cwd, or a shell name.
+ * At the moment, the name is used only in the status bar.
+ * The icon is used both in the status bar and the tabs.
+ */
+export function getStaticNameAndIcon(
+  document: Document
+): { name: string; Icon: ComponentType<IconProps> } | undefined {
+  switch (document.kind) {
+    case 'doc.cluster':
+      return {
+        name: 'Resources',
+        Icon: Table,
+      };
+    case 'doc.gateway_cli_client':
+      return {
+        name: document.title,
+        Icon: Database,
+      };
+    case 'doc.gateway':
+      if (isDatabaseUri(document.targetUri)) {
+        return {
+          name: document.title,
+          Icon: Database,
+        };
+      }
+      if (isAppUri(document.targetUri)) {
+        return {
+          name: document.title,
+          Icon: Application,
+        };
+      }
+      return;
+    case 'doc.gateway_kube':
+      return {
+        name: routing.parseKubeUri(document.targetUri).params.kubeId,
+        Icon: Kubernetes,
+      };
+    case 'doc.terminal_tsh_node':
+      return isDocumentTshNodeWithServerId(document)
+        ? {
+            name: document.title,
+            Icon: Server,
+          }
+        : undefined;
+    case 'doc.access_requests':
+      return {
+        name: document.title,
+        Icon: ListAddCheck,
+      };
+    case 'doc.terminal_shell':
+      return {
+        name: 'Terminal',
+        Icon: Terminal,
+      };
+    case 'doc.connect_my_computer':
+      return {
+        name: document.title,
+        Icon: Laptop,
+      };
+    case 'doc.authorize_web_session':
+      return {
+        name: document.title,
+        Icon: ShieldCheck,
+      };
+    case 'doc.blank':
+    case 'doc.terminal_tsh_kube':
+      return undefined;
+    default:
+      document satisfies never;
+      return undefined;
   }
 }

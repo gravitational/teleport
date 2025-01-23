@@ -278,11 +278,15 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 }
 
 // Disable the systemd service.
-func (s SystemdService) Disable(ctx context.Context) error {
+func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	code := s.systemctl(ctx, slog.LevelInfo, "disable", s.ServiceName)
+	args := []string{"disable", s.ServiceName}
+	if now {
+		args = append(args, "--now")
+	}
+	code := s.systemctl(ctx, slog.LevelInfo, args...)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
 	}
@@ -310,6 +314,18 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// IsPresent returns true if the service exists.
+func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
+	if err := s.checkSystem(ctx); err != nil {
+		return false, trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelDebug, "list-unit-files", "--quiet", s.ServiceName)
+	if code < 0 {
+		return false, trace.Errorf("unable to determine if systemd service %s is present", s.ServiceName)
+	}
+	return code == 0, nil
 }
 
 // checkSystem returns an error if the system is not compatible with this process manager.

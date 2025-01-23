@@ -54,9 +54,15 @@ export function createViteConfig(
       }
     }
 
+    const targetHostname =
+      target !== DEFAULT_PROXY_TARGET
+        ? new URL(`http://${target}`).hostname
+        : undefined;
+
     const config: UserConfig = {
       clearScreen: false,
       server: {
+        allowedHosts: targetHostname ? [`.${targetHostname}`] : [],
         fs: {
           allow: [rootDirectory, '.'],
         },
