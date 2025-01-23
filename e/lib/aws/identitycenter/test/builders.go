@@ -169,6 +169,7 @@ type AccessList struct {
 	Owners        []types.User
 	GrantsMembers []types.Role
 	GrantsOwners  []types.Role
+	Labels        map[string]string
 }
 
 func (a AccessList) Build(t *testing.T) *accesslist.AccessList {
@@ -189,7 +190,8 @@ func (a AccessList) Build(t *testing.T) *accesslist.AccessList {
 
 	acl, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name: a.Name,
+			Name:   a.Name,
+			Labels: a.Labels,
 		},
 		accesslist.Spec{
 			Title:  a.Title,

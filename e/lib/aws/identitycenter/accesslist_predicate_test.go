@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
@@ -56,6 +57,7 @@ func TestAccessListPredicate(t *testing.T) {
 		ownerGrants  []types.Role
 		memberGrants []types.Role
 		expectation  require.BoolAssertionFunc
+		labels       map[string]string
 	}{
 
 		{
@@ -87,6 +89,14 @@ func TestAccessListPredicate(t *testing.T) {
 			ownerGrants: []types.Role{allowRole, denyRole},
 			expectation: require.False,
 		},
+		{
+			name:        "acl originated from AWS Identity Center ",
+			ownerGrants: []types.Role{},
+			labels: map[string]string{
+				common.OriginLabel: common.OriginAWSIdentityCenter,
+			},
+			expectation: require.True,
+		},
 	}
 
 	for _, test := range testCases {
@@ -97,6 +107,7 @@ func TestAccessListPredicate(t *testing.T) {
 				Owners:        []types.User{adminUser},
 				GrantsMembers: test.memberGrants,
 				GrantsOwners:  test.ownerGrants,
+				Labels:        test.labels,
 			}.Build(t))
 			require.NoError(t, err)
 			t.Cleanup(func() {
