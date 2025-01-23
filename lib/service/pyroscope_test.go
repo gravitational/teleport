@@ -40,6 +40,7 @@ func TestAddKubeTagsFromEnv(t *testing.T) {
 				"TELEPORT_PYROSCOPE_KUBE_COMPONENT":         "tenant-instance",
 				"TELEPORT_PYROSCOPE_KUBE_REGION":            "us-east-1",
 				"TELEPORT_PYROSCOPE_KUBE_POD_TEMPLATE_HASH": "abcdef123456",
+				"TELEPORT_PYROSCOPE_KUBE_NAMESPACE":         "test",
 			},
 			expectedTags: map[string]string{
 				"host":              "hostname",
@@ -50,6 +51,7 @@ func TestAddKubeTagsFromEnv(t *testing.T) {
 				"component":         "tenant-instance",
 				"region":            "us-east-1",
 				"pod_template_hash": "abcdef123456",
+				"namespace":         "test",
 			},
 		},
 		{

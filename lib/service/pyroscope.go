@@ -131,15 +131,16 @@ func getPyroscopeProfileTypesFromEnv() []pyroscope.ProfileType {
 	return profileTypes
 }
 
-// getTagsFromKubeEnv extracts Kubernetes metadata passed from downward API.
+// getTagsFromKubeEnv extracts Kubernetes metadata passed from downward API and returns them if set.
 func addKubeTagsFromEnv(tags map[string]string) map[string]string {
 
 	env := map[string]string{
 		"name":              "TELEPORT_PYROSCOPE_KUBE_NAME",
 		"instance":          "TELEPORT_PYROSCOPE_KUBE_INSTANCE",
 		"component":         "TELEPORT_PYROSCOPE_KUBE_COMPONENT",
-		"region":            "TELEPORT_PYROSCOPE_KUBE_REGION",
+		"namespace":         "TELEPORT_PYROSCOPE_KUBE_NAMESPACE",
 		"pod_template_hash": "TELEPORT_PYROSCOPE_KUBE_POD_TEMPLATE_HASH",
+		"region":            "TELEPORT_PYROSCOPE_KUBE_REGION",
 	}
 
 	for k, v := range env {
