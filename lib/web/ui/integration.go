@@ -168,6 +168,27 @@ func (r *Integration) CheckAndSetDefaults() error {
 	return nil
 }
 
+type CreateIntegrationRequest struct {
+	Integration
+
+	OAuth *struct {
+		ID     string `json:"id"`
+		Secret string `json:"secret"`
+	} `json:"oauth,omitempty"`
+}
+
+func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
+	if err := r.Integration.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if r.SubKind == types.IntegrationSubKindGitHub {
+		if r.OAuth == nil || r.OAuth.ID == "" || r.OAuth.Secret == "" {
+			return trace.BadParameter("missing OAuth settings for GitHub integrations")
+		}
+	}
+	return nil
+}
+
 // UpdateIntegrationRequest is a request to update an Integration
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.

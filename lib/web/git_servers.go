@@ -1,0 +1,102 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package web
+
+import (
+	"net/http"
+
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/web/ui"
+)
+
+func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	var req *ui.CreateGitServerRequest
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var gitServer types.Server
+	switch req.SubKind {
+	case types.SubKindGitHub:
+		if req.GitHub == nil {
+			return nil, trace.BadParameter("missing github server metadata")
+		}
+		githubServer, err := types.NewGitHubServerWithName(req.Name, types.GitHubServerMetadata{
+			Organization: req.GitHub.Organization,
+			Integration:  req.GitHub.Integration,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		gitServer = githubServer
+
+	default:
+		return nil, trace.BadParameter("unsupported git server sub kind: %v", req.SubKind)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Overwrite {
+		upserted, err := clt.GitServerClient().UpsertGitServer(r.Context(), gitServer)
+		return upserted, trace.Wrap(err)
+	}
+
+	created, err := clt.GitServerClient().CreateGitServer(r.Context(), gitServer)
+	return created, trace.Wrap(err)
+}
+
+func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("git server name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gitServer, err := clt.GitServerClient().GetGitServer(r.Context(), name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui.MakeGitServer(site.GetName(), gitServer, false), nil
+}
+
+func (h *Handler) gitServerDelete(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("git server name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, clt.GitServerClient().DeleteGitServer(r.Context(), name)
+}

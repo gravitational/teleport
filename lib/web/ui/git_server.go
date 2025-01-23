@@ -78,3 +78,14 @@ func MakeGitServer(clusterName string, server types.Server, requiresRequest bool
 	}
 	return uiServer
 }
+
+type CreateGitServerRequest struct {
+	// SubKind is a git server subkind such as GitHub
+	SubKind string `json:"subKind"`
+	// Name is this server name
+	Name string `json:"id"`
+	// GitHub contains metadata for GitHub proxy severs.
+	GitHub *GitHubServerMetadata `json:"github,omitempty"`
+	// Overwrite performs an upsert of the resource.
+	Overwrite bool `json:"overwrite,omitempty"`
+}
