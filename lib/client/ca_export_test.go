@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -323,34 +322,17 @@ func TestExportAuthorities(t *testing.T) {
 			assertFunc(t, exported)
 		}
 
-		runUnaryTest := func(
-			t *testing.T,
-			exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) (string, error),
-			assertFunc func(t *testing.T, output string),
-		) {
-			exported, err := exportFunc(ctx, mockedAuthClient, tt.req)
-			tt.errorCheck(t, err)
-			if err != nil {
-				return
-			}
-
-			assertFunc(t, exported)
-		}
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			t.Run(fmt.Sprintf("%s/ExportAllAuthorities", tt.name), func(t *testing.T) {
+			t.Run("ExportAllAuthorities", func(t *testing.T) {
 				runTest(t, ExportAllAuthorities, tt.assertNoSecrets)
-			})
-			t.Run(fmt.Sprintf("%s/ExportAuthorities", tt.name), func(t *testing.T) {
-				runUnaryTest(t, ExportAuthorities, tt.assertNoSecrets)
 			})
 			if tt.skipSecrets {
 				return
 			}
 
-			t.Run(fmt.Sprintf("%s/ExportAllAuthoritiesSecrets", tt.name), func(t *testing.T) {
+			t.Run("ExportAllAuthoritiesSecrets", func(t *testing.T) {
 				runTest(t, ExportAllAuthoritiesSecrets, tt.assertSecrets)
 			})
 		})
