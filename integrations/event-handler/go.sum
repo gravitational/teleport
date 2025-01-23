@@ -485,8 +485,6 @@ github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8F
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFER/+0TfRypJhc9XeuggTtEZzhhe75DSVqMv/avHEU=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
-github.com/gravitational/kustomize/api v0.16.0-teleport.1 h1:d/aWgghHn/N6TlwGxjjbelUC7b0G0YRyUDf8XS1aScg=
-github.com/gravitational/kustomize/api v0.16.0-teleport.1/go.mod h1:E/0/egj7ED7xWEegMHlRagaZTiL6fxakmSR2pyiK2ZU=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 h1:TjiJ98fWU5N28MBktP5vj1/xohin7cX/JBPPJ8iCiTE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624/go.mod h1:pERQ8qtFfvV0Pfw9jA5o1WH1snupQQ3SZ+n8CVdRJNs=
 github.com/gravitational/predicate v1.3.2 h1:NAdaWihgGVS3nuKDZZHTda4wwNjGlvG4a+UYQ4f3gQc=
@@ -1110,6 +1108,8 @@ sigs.k8s.io/controller-runtime v0.19.4 h1:SUmheabttt0nx8uJtoII4oIP27BVVvAKFvdvGF
 sigs.k8s.io/controller-runtime v0.19.4/go.mod h1:iRmWllt8IlaLjvTTDLhRBXIEtkCK6hwVBJJsYS9Ajf4=
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd h1:EDPBXCAspyGV4jQlpZSudPeMmr1bNJefnuqLsRAsHZo=
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd/go.mod h1:B8JuhiUyNFVKdsE8h686QcCxMaH6HrOAZj4vswFpcB0=
+sigs.k8s.io/kustomize/api v0.17.2 h1:E7/Fjk7V5fboiuijoZHgs4aHuexi5Y2loXlVOAVAG5g=
+sigs.k8s.io/kustomize/api v0.17.2/go.mod h1:UWTz9Ct+MvoeQsHcJ5e+vziRRkwimm3HytpZgIYqye0=
 sigs.k8s.io/kustomize/kyaml v0.17.1 h1:TnxYQxFXzbmNG6gOINgGWQt09GghzgTP6mIurOgrLCQ=
 sigs.k8s.io/kustomize/kyaml v0.17.1/go.mod h1:9V0mCjIEYjlXuCdYsSXvyoy2BTsLESH7TlGV81S282U=
 sigs.k8s.io/structured-merge-diff/v4 v4.4.1 h1:150L+0vs/8DA78h1u02ooW1/fFq/Lwr+sGiqlzvrtq4=
