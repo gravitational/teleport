@@ -126,6 +126,7 @@ func (s *IssuanceService) deriveAttrs(
 	authzCtx *authz.Context,
 	workloadAttrs *workloadidentityv1pb.WorkloadAttrs,
 ) (*workloadidentityv1pb.Attrs, error) {
+	authzCtx.Identity.GetIdentity().Traits
 	attrs := &workloadidentityv1pb.Attrs{
 		Workload: workloadAttrs,
 		User: &workloadidentityv1pb.UserAttrs{

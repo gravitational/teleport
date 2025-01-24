@@ -173,6 +173,18 @@ func Test_getFieldStringValue(t *testing.T) {
 			},
 		},
 		{
+			name: "map navigation",
+			in: &workloadidentityv1pb.Attrs{
+				User: &workloadidentityv1pb.UserAttrs{
+					Labels: map[string]string{
+						"key": "value",
+					},
+				},
+			},
+			attr: "user.labels.key",
+			want: "value",
+		},
+		{
 			// We mostly just want this to not panic.
 			name:       "nil root",
 			in:         nil,

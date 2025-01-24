@@ -157,12 +157,18 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 			}
 			return message.Get(fieldDesc).String(), nil
 		}
+
+		kind := fieldDesc.Kind()
 		// If we're not processing the final key part, we expect this to point
 		// to a message that we can further explore.
-		if fieldDesc.Kind() != protoreflect.MessageKind {
+		if kind != protoreflect.MessageKind {
 			return "", trace.BadParameter("attribute %q is not a message", part)
 		}
+		fieldDesc.IsMap()
 		message = message.Get(fieldDesc).Message()
+
+		mapp := message.Get(fieldDesc).Map()
+		mapp.
 	}
 	return "", nil
 }
