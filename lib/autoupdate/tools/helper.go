@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -35,7 +36,7 @@ var (
 	// version is the current version of the Teleport.
 	version = teleport.Version
 	// baseURL is CDN URL for downloading official Teleport packages.
-	baseURL = defaultBaseURL
+	baseURL = autoupdate.DefaultBaseURL
 )
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
@@ -50,6 +51,11 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
+	}
+
+	// Overrides default base URL for custom CDN for downloading updates.
+	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
+		baseURL = envBaseURL
 	}
 
 	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
@@ -80,12 +86,12 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
 	}
+	// Overrides default base URL for custom CDN for downloading updates.
+	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
+		baseURL = envBaseURL
+	}
+
 	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
-	// The user has typed a command like `tsh ssh ...` without being logged in,
-	// if the running binary needs to be updated, update and re-exec.
-	//
-	// If needed, download the new version of client tools and re-exec. Make
-	// sure to exit this process with the same exit code as the child process.
 	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
 	if err != nil {
 		return trace.Wrap(err)
