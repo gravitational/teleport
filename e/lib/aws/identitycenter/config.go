@@ -9,6 +9,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
@@ -99,7 +100,7 @@ type ServiceConfig struct {
 	// into AWS and have their permission assignments managed by Teleport.
 	// Returns `true` if the user should be provisioned and managed by Teleport.
 	// Defaults to including ALL non-system Users.
-	UserPredicate func(types.User) bool
+	UserPredicate identitycentercommon.UserFilterFunc
 
 	// PluginStatusSink is used to emit plugin status. It can be used to report the main
 	// plugin runtime status or emit internal sub-process status such as group import
@@ -129,9 +130,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing users service")
 	}
 	if cfg.UserPredicate == nil {
-		cfg.UserPredicate = func(u types.User) bool {
-			return !types.IsSystemResource(u)
-		}
+		return trace.BadParameter("missing user predicate")
 	}
 	if cfg.AccessListsSvc == nil {
 		return trace.BadParameter("missing access lists service")

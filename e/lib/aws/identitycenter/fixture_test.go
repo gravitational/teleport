@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 )
 
@@ -39,6 +40,7 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 		},
 		PluginsService:   fixture.PluginService,
 		PluginStatusSink: fixture.PluginStatusSink,
+		UserPredicate:    identitycentercommon.UserPredicateFilter(nil),
 	}
 
 	svc, err := NewService(cfg)

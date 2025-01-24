@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,10 +54,6 @@ type AccessListsService interface {
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
-
-// UserPredicate is a filter function for identifying users to provision
-// downstream.
-type UserPredicate func(types.User) bool
 
 // AccessListPredicate is a filter function for identifying Access Lists to
 // provision downstream
@@ -96,7 +93,7 @@ type ServiceConfig struct {
 	// UserPredicate is a function used to select which users are provisioned
 	// downstream. Returns `true` if the user should be provisioned downstream.
 	// Defaults to including ALL non-system Users.
-	UserPredicate UserPredicate
+	UserPredicate identitycentercommon.UserFilterFunc
 
 	// AccessListPredicate is a function used to select which access lists are
 	// provisioned downstream. Returns `true` if the given access list should be
@@ -165,9 +162,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.UserPredicate == nil {
-		cfg.UserPredicate = func(u types.User) bool {
-			return !types.IsSystemResource(u)
-		}
+		return trace.BadParameter("must supply user predicate")
 	}
 
 	if cfg.AccessListPredicate == nil {
@@ -202,7 +197,7 @@ type Service struct {
 	stateSvc            services.DownstreamProvisioningStates
 	stateSvcCache       services.DownstreamProvisioningStateGetter
 	usersSvcCache       UsersService
-	userPredicate       UserPredicate
+	userPredicate       identitycentercommon.UserFilterFunc
 	accessListsSvcCache AccessListsService
 	accessListPredicate AccessListPredicate
 	eventsClient        types.Events

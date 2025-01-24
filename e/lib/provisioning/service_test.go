@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
+	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -222,6 +223,26 @@ func TestUpstreamProvisioningUserActivationDeactivation(t *testing.T) {
 	})
 }
 
+func TestUpstreamUserProvisioning(t *testing.T) {
+	const (
+		aliceUser = "alice"
+		bobUser   = "bob"
+	)
+	oktaOrigin := map[string]string{common.OriginLabel: types.OriginOkta}
+	userFilters := []*types.AWSICUserSyncFilter{
+		{Labels: map[string]string{common.OriginLabel: "unknown"}},
+		// filters are OR-ed if any filter matches the user is included.
+		{Labels: oktaOrigin},
+	}
+
+	pack := newPack(t, withUserPredicate(identitycentercommon.UserPredicateFilter(userFilters)))
+
+	pack.mustCreateTeleportUser(t, aliceUser)
+	pack.mustCreateTeleportUser(t, bobUser, withUserLabels(oktaOrigin))
+	assertSCIMUserExistAndIsActive(t, pack.scimMock, bobUser)
+	assertSCIMGroupDoestExist(t, pack.scimMock, aliceUser)
+}
+
 type mockDeps struct {
 	*local.AccessService
 	*local.IdentityService
@@ -261,6 +282,7 @@ type testPack struct {
 type sutOptions struct {
 	scimClient          *scimsdk.ClientMock
 	accessListPredicate AccessListPredicate
+	userPredicate       identitycentercommon.UserFilterFunc
 }
 
 type sutOption func(*sutOptions)
@@ -271,12 +293,19 @@ func withAccessListPredicate(p AccessListPredicate) sutOption {
 	}
 }
 
+func withUserPredicate(fn func(types.User) bool) sutOption {
+	return func(opts *sutOptions) {
+		opts.userPredicate = fn
+	}
+}
+
 func newPack(t *testing.T, options ...sutOption) *testPack {
 	defaultOpts := &sutOptions{
 		scimClient: scimsdk.NewSCIMClientMock(),
 		accessListPredicate: func(context.Context, *accesslist.AccessList) (bool, error) {
 			return true, nil
 		},
+		userPredicate: identitycentercommon.UserPredicateFilter(nil),
 	}
 	for _, opt := range options {
 		opt(defaultOpts)
@@ -298,6 +327,7 @@ func newPack(t *testing.T, options ...sutOption) *testPack {
 		Clock:               clock,
 		DownstreamID:        "downstreamID",
 		AccessListPredicate: defaultOpts.accessListPredicate,
+		UserPredicate:       defaultOpts.userPredicate,
 	})
 	require.NoError(t, err)
 
@@ -374,10 +404,27 @@ func assertSCIMGroupDoestExist(t *testing.T, scimClient scimsdk.Client, displayN
 	})
 }
 
-func (s *testPack) mustCreateTeleportUser(t *testing.T, name string) {
+type userOption struct {
+	labels map[string]string
+}
+
+type userOptionFn func(*userOption)
+
+func withUserLabels(labels map[string]string) userOptionFn {
+	return func(opts *userOption) {
+		opts.labels = labels
+	}
+}
+
+func (s *testPack) mustCreateTeleportUser(t *testing.T, name string, options ...userOptionFn) {
+	opts := &userOption{}
+	for _, opt := range options {
+		opt(opts)
+	}
 	_, err := s.depsMock.CreateUser(context.Background(), &types.UserV2{
 		Metadata: types.Metadata{
-			Name: name,
+			Labels: opts.labels,
+			Name:   name,
 		},
 	})
 	require.NoError(t, err)

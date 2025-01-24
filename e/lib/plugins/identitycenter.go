@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
+	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
@@ -103,6 +104,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			},
 			PluginStatusSink: deps.statusSink,
 			PluginsService:   deps.pluginsService,
+			UserPredicate:    identitycentercommon.UserPredicateFilter(settings.UserSyncFilters),
 		})
 		if err != nil {
 			return trace.Wrap(err)
