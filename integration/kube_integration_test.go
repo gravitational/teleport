@@ -1144,6 +1144,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: 2 * time.Second,
+			verifyError:       errorContains("Client exceeded idle timeout of"),
 		},
 		{
 			name: "expired cert",
@@ -1152,6 +1153,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 				MaxSessionTTL:         types.NewDuration(3 * time.Second),
 			},
 			disconnectTimeout: 6 * time.Second,
+			verifyError:       errorContains("client certificate expire"),
 		},
 	}
 
@@ -1246,8 +1248,14 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 			tty:          true,
 			stdin:        term,
 		})
-		require.NoError(t, err)
+		require.NoError(t, tc.verifyError(err))
 	}()
+
+	require.Eventually(t, func() bool {
+		// wait for the shell prompt
+		return strings.Contains(term.AllOutput(), "#")
+	}, 5*time.Second, 10*time.Millisecond, "Failed to get shell prompt. "+
+		"If this fails, the exec command is likely hanging and never reaching the kind cluster")
 
 	// lets type something followed by "enter" and then hang the session
 	require.NoError(t, enterInput(sessionCtx, term, "echo boring platypus\r\n", ".*boring platypus.*"))
