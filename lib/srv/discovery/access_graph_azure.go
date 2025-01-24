@@ -67,9 +67,9 @@ func (s *Server) reconcileAccessGraphAzure(
 	}
 
 	for _, fetcher := range allFetchers {
-		s.syncStatus.syncStarted(fetcher, s.clock.Now())
+		s.tagSyncStatus.syncStarted(fetcher, s.clock.Now())
 	}
-	for _, discoveryConfigName := range s.syncStatus.discoveryConfigs() {
+	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
@@ -117,9 +117,9 @@ func (s *Server) reconcileAccessGraphAzure(
 	pushErr := azurePush(stream, upsert, toDel)
 
 	for _, fetcher := range allFetchers {
-		s.syncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
+		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
 	}
-	for _, discoveryConfigName := range s.syncStatus.discoveryConfigs() {
+	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 

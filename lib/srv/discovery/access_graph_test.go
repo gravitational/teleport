@@ -247,20 +247,20 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 					AccessPoint: accessPoint,
 					clock:       clock,
 				},
-				syncStatus: newTagSyncStatus(),
+				tagSyncStatus: newTagSyncStatus(),
 			}
 
 			if tt.args.preRun {
 				for _, fetcher := range tt.args.fetchers {
-					s.syncStatus.syncStarted(fetcher, s.clock.Now())
+					s.tagSyncStatus.syncStarted(fetcher, s.clock.Now())
 				}
 			} else {
 				for _, fetcher := range tt.args.fetchers {
-					s.syncStatus.syncFinished(fetcher, tt.args.pushErr, s.clock.Now())
+					s.tagSyncStatus.syncFinished(fetcher, tt.args.pushErr, s.clock.Now())
 				}
 			}
 
-			for _, discoveryConfigName := range s.syncStatus.discoveryConfigs() {
+			for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
 				s.updateDiscoveryConfigStatus(discoveryConfigName)
 			}
 

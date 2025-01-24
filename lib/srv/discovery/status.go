@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
+// FetcherStatus defines an interface for fetchers to report status
 type FetcherStatus interface {
 	// Status reports the last known status of the fetcher.
 	Status() (uint64, error)
@@ -67,10 +68,8 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 			IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
 		}
 
-		// Merge AWS Sync (TAG) status
-		discoveryConfigStatus = s.syncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
-
-		// Merge Azure Sync (TAG) status
+		// Merge AWS or Azure Sync (TAG) status
+		discoveryConfigStatus = s.tagSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
 		// Merge AWS EC2 Instances (auto discovery) status
 		discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
@@ -102,6 +101,7 @@ type tagSyncStatus struct {
 	syncResults map[string][]tagSyncResult
 }
 
+// newTagSyncStatus creates a new sync status object for storing results from the last fetch
 func newTagSyncStatus() *tagSyncStatus {
 	return &tagSyncStatus{
 		syncResults: make(map[string][]tagSyncResult),
