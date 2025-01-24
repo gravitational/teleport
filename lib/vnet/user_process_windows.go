@@ -58,11 +58,18 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		return nil, nsi, trace.Wrap(err, "generating gRPC server TLS config")
 	}
 
+	u, err := user.Current()
+	if err != nil {
+		return nil, nsi, trace.Wrap(err, "getting current OS user")
+	}
+	// Uid is documented to be the user's SID on Windows.
+	userSID := u.Uid
+
 	credDir, err := os.MkdirTemp("", "vnet_service_certs")
 	if err != nil {
 		return nil, nsi, trace.Wrap(err, "creating temp dir for service certs")
 	}
-	if err := secureCredDir(credDir); err != nil {
+	if err := secureCredDir(credDir, userSID); err != nil {
 		return nil, nsi, trace.Wrap(err, "applying permissions to service credential dir")
 	}
 	if err := ipcCreds.client.write(credDir); err != nil {
@@ -99,6 +106,7 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		return trace.Wrap(runService(processCtx, &windowsAdminProcessConfig{
 			clientApplicationServiceAddr: listener.Addr().String(),
 			serviceCredentialPath:        credDir,
+			userSID:                      userSID,
 		}))
 	})
 	pm.AddCriticalBackgroundTask("gRPC service", func() error {
@@ -120,13 +128,7 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 // secureCredDir sets ACLs so that the current user can write credentials files
 // to dir but cannot read them. Only the LocalSystem account is allowed to read
 // and delete the files.
-func secureCredDir(dir string) error {
-	u, err := user.Current()
-	if err != nil {
-		return trace.Wrap(err, "getting current OS user")
-	}
-	// Uid is documented to be the user's SID on Windows.
-	userSID := u.Uid
+func secureCredDir(dir string, userSID string) error {
 	// S-1-5-18 is the well-known SID (security identifier) for the LocalSystem
 	// service account, which the VNet windows service runs as.
 	// * https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
