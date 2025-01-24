@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/trace"
@@ -58,7 +57,7 @@ func (c *clientApplicationServiceClient) close() error {
 // Ping pings the client application.
 func (c *clientApplicationServiceClient) Ping(ctx context.Context) error {
 	if _, err := c.clt.Ping(ctx, &vnetv1.PingRequest{}); err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err, "pinging client application")
 	}
 	return nil
 }
@@ -70,7 +69,7 @@ func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context
 		PipePath: pipePath,
 	})
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err, "authenticating process")
 	}
 	if resp.Version != api.Version {
 		return trace.BadParameter("version mismatch, user process version is %s, admin process version is %s",
@@ -86,7 +85,7 @@ func (c *clientApplicationServiceClient) ResolveAppInfo(ctx context.Context, fqd
 		Fqdn: fqdn,
 	})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err, "resolving app info")
 	}
 	return resp.GetAppInfo(), nil
 }
@@ -98,7 +97,7 @@ func (c *clientApplicationServiceClient) ReissueAppCert(ctx context.Context, app
 		TargetPort: uint32(targetPort),
 	})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err, "reissuing app cert")
 	}
 	return resp.GetCert(), nil
 }
@@ -108,7 +107,7 @@ func (c *clientApplicationServiceClient) ReissueAppCert(ctx context.Context, app
 func (c *clientApplicationServiceClient) SignForApp(ctx context.Context, req *vnetv1.SignForAppRequest) ([]byte, error) {
 	resp, err := c.clt.SignForApp(ctx, req)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err, "signing for app")
 	}
 	return resp.GetSignature(), nil
 }
@@ -119,7 +118,7 @@ func (c *clientApplicationServiceClient) OnNewConnection(ctx context.Context, ap
 		AppKey: appKey,
 	})
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -132,7 +131,7 @@ func (c *clientApplicationServiceClient) OnInvalidLocalPort(ctx context.Context,
 		TargetPort: uint32(targetPort),
 	})
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err)
 	}
 	return nil
 }

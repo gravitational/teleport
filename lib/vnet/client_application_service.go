@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
-	"github.com/gravitational/teleport/api/trail"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
@@ -74,7 +73,7 @@ func (s *clientApplicationService) AuthenticateProcess(ctx context.Context, req 
 func (s *clientApplicationService) ResolveAppInfo(ctx context.Context, req *vnetv1.ResolveAppInfoRequest) (*vnetv1.ResolveAppInfoResponse, error) {
 	appInfo, err := s.appProvider.ResolveAppInfo(ctx, req.GetFqdn())
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err, "resolving app info")
 	}
 	return &vnetv1.ResolveAppInfoResponse{
 		AppInfo: appInfo,
@@ -86,11 +85,11 @@ func (s *clientApplicationService) ResolveAppInfo(ctx context.Context, req *vnet
 // issue signatures in [clientApplicationService.SignForApp].
 func (s *clientApplicationService) ReissueAppCert(ctx context.Context, req *vnetv1.ReissueAppCertRequest) (*vnetv1.ReissueAppCertResponse, error) {
 	if req.AppInfo == nil {
-		return nil, trail.ToGRPC(trace.BadParameter("missing AppInfo"))
+		return nil, trace.BadParameter("missing AppInfo")
 	}
 	cert, err := s.appProvider.ReissueAppCert(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
 	if err != nil {
-		return nil, trail.ToGRPC(trace.Wrap(err, "reissuing app certificate"))
+		return nil, trace.Wrap(err, "reissuing app certificate")
 	}
 	s.setSignerForApp(req.GetAppInfo().GetAppKey(), uint16(req.GetTargetPort()), cert.PrivateKey.(crypto.Signer))
 	return &vnetv1.ReissueAppCertResponse{
@@ -114,18 +113,18 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 	case vnetv1.Hash_HASH_SHA256:
 		hash = crypto.SHA256
 	default:
-		return nil, trail.ToGRPC(trace.BadParameter("unsupported hash %v", req.GetHash()))
+		return nil, trace.BadParameter("unsupported hash %v", req.GetHash())
 	}
 	appKey := req.GetAppKey()
 
 	signer, ok := s.getSignerForApp(req.GetAppKey(), uint16(req.GetTargetPort()))
 	if !ok {
-		return nil, trail.ToGRPC(trace.BadParameter("no signer for app %v", appKey))
+		return nil, trace.BadParameter("no signer for app %v", appKey)
 	}
 
 	signature, err := signer.Sign(rand.Reader, req.GetDigest(), hash)
 	if err != nil {
-		return nil, trail.ToGRPC(trace.Wrap(err, "signing for app %v", appKey))
+		return nil, trace.Wrap(err, "signing for app %v", appKey)
 	}
 	return &vnetv1.SignForAppResponse{
 		Signature: signature,
@@ -149,7 +148,7 @@ func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, target
 // established through VNet for observability.
 func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vnetv1.OnNewConnectionRequest) (*vnetv1.OnNewConnectionResponse, error) {
 	if err := s.appProvider.OnNewConnection(ctx, req.GetAppKey()); err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	return &vnetv1.OnNewConnectionResponse{}, nil
 }
