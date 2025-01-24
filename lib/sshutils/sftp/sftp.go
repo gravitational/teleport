@@ -331,7 +331,7 @@ func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
 		for i, srcPath := range c.srcPaths {
 			c.srcPaths[i], err = expandPath(srcPath)
 			if err != nil {
-				return trace.Wrap(err, "error expanding %q", srcPath)
+				return trace.Wrap(err)
 			}
 		}
 	}
@@ -339,11 +339,21 @@ func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
 	if dstIsRemote {
 		c.dstPath, err = expandPath(c.dstPath)
 		if err != nil {
-			return trace.Wrap(err, "error expanding %q", c.dstPath)
+			return trace.Wrap(err)
 		}
 	}
 
 	return nil
+}
+
+// PathExpansionError is an [error] indicating that
+// path expansion was rejected.
+type PathExpansionError struct {
+	path string
+}
+
+func (p PathExpansionError) Error() string {
+	return fmt.Sprintf("expanding remote ~user paths is not supported, specify an absolute path instead of %q", p.path)
 }
 
 func expandPath(pathStr string) (string, error) {
@@ -360,7 +370,7 @@ func expandPath(pathStr string) (string, error) {
 		return ".", nil
 	}
 	if pfxLen == 1 && len(pathStr) > 1 {
-		return "", trace.BadParameter("expanding remote ~user paths is not supported, specify an absolute path instead")
+		return "", trace.Wrap(PathExpansionError{path: pathStr})
 	}
 
 	// if an SFTP path is not absolute, it is assumed to start at the user's
