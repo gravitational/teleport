@@ -178,7 +178,7 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 		// automatically reconnect if the connection is lost without
 		// relying on new events from the auth server to trigger a reconnect.
 		serviceConfig = `{
-		 "loadBalancingPolicy": "round_robin",
+		 "loadBalancingConfig": [{"round_robin": {}}],
 		 "healthCheckConfig": {
 			 "serviceName": ""
 		 }
