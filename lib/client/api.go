@@ -76,6 +76,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/client/hardwarekey"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -1299,7 +1300,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if innerPrompt == nil {
 			innerPrompt = &keys.CLIPrompt{}
 		}
-		c.CustomHardwareKeyPrompt = keys.NewPinCachingPrompt(innerPrompt, c.PIVPinCacheTimeout)
+		c.CustomHardwareKeyPrompt = hardwarekey.NewPinCachingPrompt(innerPrompt, c.PIVPinCacheTimeout)
 	}
 
 	if c.CustomHardwareKeyPrompt != nil {
