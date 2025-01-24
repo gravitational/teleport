@@ -117,8 +117,10 @@ var initTestLoggerOnce = sync.Once{}
 // InitLoggerForTests initializes the standard logger for tests.
 func InitLoggerForTests() {
 	initTestLoggerOnce.Do(func() {
-		// Parse flags to check testing.Verbose().
-		flag.Parse()
+		if !flag.Parsed() {
+			// Parse flags to check testing.Verbose().
+			flag.Parse()
+		}
 
 		if !testing.Verbose() {
 			slog.SetDefault(slog.New(logutils.DiscardHandler{}))
