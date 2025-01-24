@@ -62,11 +62,13 @@ KUBE_AUTH_CONTEXT=$TELEPORT_CLUSTER-$KUBE_AUTH_CLUSTER
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
 TCCTL_PATH=${TCCTL_PATH:-../../cloud/tcctl/cmd/tcctl}
 
-[ -z "$TENANT" ] && fail_on_exit_code "Environment variable \"TENANT\" must be set." 1
-echo "-> Checking for tenant \"$TENANT\"..."
-NAMESPACE=${NAMESPACE_PREFIX}-${TENANT}
-kubectl get tenant $TENANT -n $NAMESPACE --context=$KUBE_TENANT_CONTEXT &>/dev/null
-fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\"."
+if [[ -z "$CLOUD_SKIP_DEPLOY" ]]; then
+    [ -z "$TENANT" ] && fail_on_exit_code "Environment variable \"TENANT\" must be set." 1
+    echo "-> Checking for tenant \"$TENANT\"..."
+    NAMESPACE=${NAMESPACE_PREFIX}-${TENANT}
+    kubectl get tenant $TENANT -n $NAMESPACE --context=$KUBE_TENANT_CONTEXT &>/dev/null
+    fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\"."
+fi
 
 if [[ -n "$RELEASE" ]]; then
     echo "-> Patching tenant to run existing release \"$RELEASE\"..."
@@ -76,6 +78,10 @@ else
   # generate an image tag for the target docker image
   commit_short=$(cd .. && git rev-parse --short HEAD)
   timestamp=$(date +"%Y%m%d-%H%M")
+  if [[ -z "$TENANT" ]]; then
+    git_email=$(git config user.email)
+    TENANT=${git_email%%@*}
+  fi
   target_image_tag="${BASE_IMAGE_TAG}-${TENANT}-${commit_short}-${timestamp}"
   echo "-> Generated docker image tag \"$target_image_tag\""
   target_image="${TARGET_IMAGE_REPO}:${target_image_tag}"
