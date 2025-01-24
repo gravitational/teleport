@@ -535,14 +535,14 @@ func TestExportIntegrationAuthorities(t *testing.T) {
 		{
 			name: "missing integration",
 			req: ExportIntegrationAuthoritiesRequest{
-				Type: "github",
+				AuthType: "github",
 			},
 			checkError: require.Error,
 		},
 		{
 			name: "unknown type",
 			req: ExportIntegrationAuthoritiesRequest{
-				Type:        "unknown",
+				AuthType:    "unknown",
 				Integration: "integration",
 			},
 			checkError: require.Error,
@@ -550,7 +550,7 @@ func TestExportIntegrationAuthorities(t *testing.T) {
 		{
 			name: "github",
 			req: ExportIntegrationAuthoritiesRequest{
-				Type:        "github",
+				AuthType:    "github",
 				Integration: "integration",
 			},
 			checkError: require.NoError,
@@ -562,7 +562,7 @@ func TestExportIntegrationAuthorities(t *testing.T) {
 		{
 			name: "matching fingerprint",
 			req: ExportIntegrationAuthoritiesRequest{
-				Type:             "github",
+				AuthType:         "github",
 				Integration:      "integration",
 				MatchFingerprint: fingerprint,
 			},
@@ -575,15 +575,11 @@ func TestExportIntegrationAuthorities(t *testing.T) {
 		{
 			name: "no matching fingerprint",
 			req: ExportIntegrationAuthoritiesRequest{
-				Type:             "github",
+				AuthType:         "github",
 				Integration:      "integration",
 				MatchFingerprint: "something-does-not-match",
 			},
-			checkError: require.NoError,
-			checkOutput: func(t *testing.T, authorities []*ExportedAuthority) {
-				require.Len(t, authorities, 1)
-				require.Empty(t, authorities[0].Data)
-			},
+			checkError: require.Error,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

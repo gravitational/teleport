@@ -232,14 +232,14 @@ var allowedCRLCertificateTypes = []string{
 	string(types.UserCA),
 }
 
-func (a *AuthCommand) fetchAuthorities(ctx context.Context, clt authCommandClient) ([]*client.ExportedAuthority, error) {
+func (a *AuthCommand) exportAuthorities(ctx context.Context, clt authCommandClient) ([]*client.ExportedAuthority, error) {
 	switch {
 	case client.IsIntegrationAuthorityType(a.authType):
 		if a.exportPrivateKeys {
 			return nil, trace.BadParameter("exporting private keys is not supported for integration authorities")
 		}
 		return client.ExportIntegrationAuthorities(ctx, clt, client.ExportIntegrationAuthoritiesRequest{
-			Type:             a.authType,
+			AuthType:         a.authType,
 			MatchFingerprint: a.exportAuthorityFingerprint,
 			Integration:      a.integration,
 		})
@@ -263,7 +263,7 @@ func (a *AuthCommand) fetchAuthorities(ctx context.Context, clt authCommandClien
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
 func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClient) error {
-	authorities, err := a.fetchAuthorities(ctx, clt)
+	authorities, err := a.exportAuthorities(ctx, clt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
