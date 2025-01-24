@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -1162,6 +1163,18 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			},
 			expectResolvable: true,
 		},
+		{
+			name:             "trace.BadParameter should be resolvable",
+			err:              trace.BadParameter("bad"),
+			expectResolvable: true,
+		},
+		{
+			name: "nonRetryableError should not be resolvable",
+			err: trace.Wrap(&NonRetryableError{
+				Err: trace.BadParameter("bad"),
+			}),
+			expectResolvable: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			resolvable := IsErrorResolvableWithRelogin(tt.err)
@@ -1172,6 +1185,18 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNonRetryableError(t *testing.T) {
+	orgError := trace.AccessDenied("do not enter")
+	err := &NonRetryableError{
+		Err: orgError,
+	}
+	require.Error(t, err)
+	assert.Equal(t, "do not enter", err.Error())
+	assert.True(t, IsNonRetryableError(err))
+	assert.True(t, trace.IsAccessDenied(err))
+	assert.Equal(t, orgError, err.Unwrap())
 }
 
 type fakeResourceClient struct {
