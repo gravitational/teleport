@@ -294,7 +294,7 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	return nil
 }
 
-// IsEnabled returns true if the service is enabled, or if it's disabled but still active.
+// IsEnabled returns true if the service is enabled.
 func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	if err := s.checkSystem(ctx); err != nil {
 		return false, trace.Wrap(err)
@@ -306,7 +306,15 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	case code == 0:
 		return true, nil
 	}
-	code = s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
+	return false, nil
+}
+
+// IsActive returns true if the service is active.
+func (s SystemdService) IsActive(ctx context.Context) (bool, error) {
+	if err := s.checkSystem(ctx); err != nil {
+		return false, trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
 		return false, trace.Errorf("unable to determine if systemd service %s is active", s.ServiceName)

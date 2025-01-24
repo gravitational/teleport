@@ -227,6 +227,8 @@ func TestUpdater_Update(t *testing.T) {
 		installErr error
 		setupErr   error
 		reloadErr  error
+		notActive  bool
+		notEnabled bool
 
 		removedRevisions  []Revision
 		installedRevision Revision
@@ -277,6 +279,32 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			},
 			now: true,
+
+			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
+			installedRevision: NewRevision("16.3.0", 0),
+			installedTemplate: "https://example.com",
+			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "group",
+			reloadCalls:       1,
+			setupCalls:        1,
+		},
+		{
+			name: "updates enabled now, not started or enabled",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Group:       "group",
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+			now:        true,
+			notEnabled: true,
+			notActive:  true,
 
 			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
 			installedRevision: NewRevision("16.3.0", 0),
@@ -641,6 +669,15 @@ func TestUpdater_Update(t *testing.T) {
 					reloadCalls++
 					return tt.reloadErr
 				},
+				FuncIsPresent: func(ctx context.Context) (bool, error) {
+					return true, nil
+				},
+				FuncIsEnabled: func(ctx context.Context) (bool, error) {
+					return !tt.notEnabled, nil
+				},
+				FuncIsActive: func(ctx context.Context) (bool, error) {
+					return !tt.notActive, nil
+				},
 			}
 			updater.Setup = func(_ context.Context) error {
 				setupCalls++
@@ -696,6 +733,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		cfg              *UpdateConfig // nil -> file not present
 		tryLinkSystemErr error
 		syncErr          error
+		notPresent       bool
 
 		syncCalls          int
 		tryLinkSystemCalls int
@@ -793,6 +831,20 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			syncCalls:          1,
 			syncErr:            ErrNotSupported,
 		},
+		{
+			name: "SELinux blocks service from being read",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+			tryLinkSystemCalls: 1,
+			syncCalls:          1,
+			notPresent:         true,
+			errMatch:           "cannot find systemd service",
+		},
 	}
 
 	for _, tt := range tests {
@@ -828,6 +880,9 @@ func TestUpdater_LinkPackage(t *testing.T) {
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
 					return tt.syncErr
+				},
+				FuncIsPresent: func(ctx context.Context) (bool, error) {
+					return !tt.notPresent, nil
 				},
 			}
 
@@ -1054,6 +1109,9 @@ func TestUpdater_Remove(t *testing.T) {
 				FuncIsEnabled: func(_ context.Context) (bool, error) {
 					return tt.processEnabled, tt.isEnabledErr
 				},
+				FuncIsActive: func(_ context.Context) (bool, error) {
+					return false, nil
+				},
 			}
 			updater.Teardown = func(_ context.Context) error {
 				teardownCalls++
@@ -1089,6 +1147,9 @@ func TestUpdater_Install(t *testing.T) {
 		installErr error
 		setupErr   error
 		reloadErr  error
+		notPresent bool
+		notEnabled bool
+		notActive  bool
 
 		removedRevision   Revision
 		installedRevision Revision
@@ -1327,6 +1388,29 @@ func TestUpdater_Install(t *testing.T) {
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
+		{
+			name:       "not present after install",
+			notPresent: true,
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedTemplate: cdnURITemplate,
+			linkedRevision:    NewRevision("16.3.0", 0),
+			reloadCalls:       0,
+			revertCalls:       1,
+			setupCalls:        1,
+			errMatch:          "cannot find systemd service",
+		},
+		{
+			name:       "not started or enabled",
+			notEnabled: true,
+			notActive:  true,
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedTemplate: cdnURITemplate,
+			linkedRevision:    NewRevision("16.3.0", 0),
+			reloadCalls:       1,
+			setupCalls:        1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1406,6 +1490,15 @@ func TestUpdater_Install(t *testing.T) {
 				FuncReload: func(_ context.Context) error {
 					reloadCalls++
 					return tt.reloadErr
+				},
+				FuncIsPresent: func(ctx context.Context) (bool, error) {
+					return !tt.notPresent, nil
+				},
+				FuncIsEnabled: func(ctx context.Context) (bool, error) {
+					return !tt.notEnabled, nil
+				},
+				FuncIsActive: func(ctx context.Context) (bool, error) {
+					return !tt.notActive, nil
 				},
 			}
 			updater.Setup = func(_ context.Context) error {
@@ -1512,6 +1605,8 @@ type testProcess struct {
 	FuncReload    func(ctx context.Context) error
 	FuncSync      func(ctx context.Context) error
 	FuncIsEnabled func(ctx context.Context) (bool, error)
+	FuncIsActive  func(ctx context.Context) (bool, error)
+	FuncIsPresent func(ctx context.Context) (bool, error)
 }
 
 func (tp *testProcess) Reload(ctx context.Context) error {
@@ -1524,4 +1619,12 @@ func (tp *testProcess) Sync(ctx context.Context) error {
 
 func (tp *testProcess) IsEnabled(ctx context.Context) (bool, error) {
 	return tp.FuncIsEnabled(ctx)
+}
+
+func (tp *testProcess) IsActive(ctx context.Context) (bool, error) {
+	return tp.FuncIsActive(ctx)
+}
+
+func (tp *testProcess) IsPresent(ctx context.Context) (bool, error) {
+	return tp.FuncIsPresent(ctx)
 }
