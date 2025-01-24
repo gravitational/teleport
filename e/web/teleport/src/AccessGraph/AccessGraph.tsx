@@ -12,9 +12,13 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 import cfg, { EnterpriseConfig } from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
+import { storageService } from 'teleport/services/storageService';
 import { getCurrentTheme } from 'teleport/ThemeProvider';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import { EmptyState } from './EmptyState';
 
 interface AccessGraphProps {
   clusterId: string;
@@ -48,6 +52,10 @@ function locationIsEqual(a: Location, b: Location) {
 }
 
 export function AccessGraph() {
+  const ctx = useTeleportE();
+  const hasAccess =
+    ctx.storeUser.getAccessGraphAccess().list &&
+    storageService.getAccessGraphEnabled();
   const { clusterId } = useStickyClusterId();
 
   const backUrl = cfg.oss.getUnifiedResourcesRoute(cfg.oss.proxyCluster);
@@ -72,6 +80,10 @@ export function AccessGraph() {
     },
     [history, location]
   );
+
+  if (!hasAccess) {
+    return <EmptyState />;
+  }
 
   return (
     <Suspense fallback={<AccessGraphLoading />}>

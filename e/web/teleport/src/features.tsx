@@ -482,7 +482,13 @@ class FeatureAccessGraph implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return storageService.getAccessGraphEnabled() && flags.accessGraph;
+    if (
+      OSS.shouldHideFromNavigation(cfg.oss) ||
+      this.route.path !== cfg.routes.accessGraph.dashboard
+    ) {
+      return storageService.getAccessGraphEnabled() && flags.accessGraph;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -581,7 +587,11 @@ class FeatureAccessGraphIntegrations extends FeatureAccessGraph {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return super.hasAccess(flags) && flags.accessGraphIntegrations;
+    return (
+      storageService.getAccessGraphEnabled() &&
+      flags.accessGraph &&
+      flags.accessGraphIntegrations
+    );
   }
 
   navigationItem = {
