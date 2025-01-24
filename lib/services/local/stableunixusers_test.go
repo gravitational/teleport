@@ -66,8 +66,9 @@ func TestStableUNIXUsersBasic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, baseUID, uid)
 
-	uid, err = svc.SearchFreeUID(ctx, baseUID, baseUID+100)
+	uid, ok, err := svc.SearchFreeUID(ctx, baseUID, baseUID+100)
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.Equal(t, baseUID+1, uid)
 
 	for i := range 2 * defaults.DefaultChunkSize {
@@ -77,17 +78,20 @@ func TestStableUNIXUsersBasic(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, err = svc.SearchFreeUID(ctx, baseUID, baseUID+defaults.DefaultChunkSize)
-	require.ErrorAs(t, err, new(*trace.LimitExceededError))
-
-	uid, err = svc.SearchFreeUID(ctx, baseUID, baseUID+3*defaults.DefaultChunkSize)
+	_, ok, err = svc.SearchFreeUID(ctx, baseUID, baseUID+defaults.DefaultChunkSize)
 	require.NoError(t, err)
+	require.False(t, ok)
+
+	uid, ok, err = svc.SearchFreeUID(ctx, baseUID, baseUID+3*defaults.DefaultChunkSize)
+	require.NoError(t, err)
+	require.True(t, ok)
 	require.Equal(t, baseUID+1+2*defaults.DefaultChunkSize, uid)
 
 	// TODO(espadolini): remove or adjust this if SearchFreeUID ends up
 	// searching more than the final part of the range
-	uid, err = svc.SearchFreeUID(ctx, baseUID-100, baseUID+3*defaults.DefaultChunkSize)
+	uid, ok, err = svc.SearchFreeUID(ctx, baseUID-100, baseUID+3*defaults.DefaultChunkSize)
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.Equal(t, baseUID+1+2*defaults.DefaultChunkSize, uid)
 
 	resp, nextPageToken, err := svc.ListStableUNIXUsers(ctx, 0, "")
