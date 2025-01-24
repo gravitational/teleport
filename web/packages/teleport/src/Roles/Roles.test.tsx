@@ -271,19 +271,25 @@ test('renders the role diff component', async () => {
       list: true,
     },
   });
-  const RoleDiffComponent = () => <div>i am rendered</div>;
+  const roleDiffElement = <div>i am rendered</div>;
+
   render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <Roles
           {...defaultState()}
-          roleDiffProps={{ RoleDiffComponent, updateRoleDiff: () => null }}
+          roleDiffProps={{
+            roleDiffElement,
+            updateRoleDiff: () => null,
+            errorMessage: 'there is an error here',
+          }}
         />
       </ContextProvider>
     </MemoryRouter>
   );
   await openEditor();
   expect(screen.getByText('i am rendered')).toBeInTheDocument();
+  expect(screen.getByText('there is an error here')).toBeInTheDocument();
 });
 
 async function openEditor() {

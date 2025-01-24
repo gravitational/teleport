@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 
 import { Alert, Box, Flex } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import cfg from 'teleport/config';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { storageService } from 'teleport/services/storageService';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
@@ -46,6 +48,7 @@ export type RoleEditorProps = {
   originalRole?: RoleWithYaml;
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
+  onRoleUpdate?(r: Role): void;
 };
 
 /**
@@ -57,7 +60,10 @@ export const RoleEditor = ({
   originalRole,
   onCancel,
   onSave,
+  onRoleUpdate,
 }: RoleEditorProps) => {
+  const roleTesterEnabled =
+    cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled();
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
   // standard/YAML tab switcher and the switched panels.
@@ -65,6 +71,12 @@ export const RoleEditor = ({
   const yamlEditorId = `${idPrefix}-yaml`;
 
   const [standardModel, dispatch] = useStandardModel(originalRole?.object);
+
+  useEffect(() => {
+    if (standardModel.validationResult.isValid) {
+      onRoleUpdate?.(roleEditorModelToRole(standardModel.roleModel));
+    }
+  }, [standardModel, onRoleUpdate]);
 
   const [yamlModel, setYamlModel] = useState<YamlEditorModel>({
     content: originalRole?.yaml ?? '',
@@ -86,6 +98,20 @@ export const RoleEditor = ({
     );
     return roleToRoleEditorModel(parsedRole, originalRole?.object);
   });
+
+  // The standard editor will automatically preview the changes based on state updates
+  // but the yaml editor needs to be told when to update (the preview button)
+  const handleYamlPreview = useCallback(async () => {
+    if (!onRoleUpdate) {
+      return;
+    }
+    // error will be handled by the parseYaml attempt. we only continue if parsed returns a value (success)
+    const [parsed] = await parseYaml();
+    if (!parsed) {
+      return;
+    }
+    onRoleUpdate(roleEditorModelToRole(parsed));
+  }, [onRoleUpdate, parseYaml]);
 
   // Converts standard editor model to a YAML representation.
   const [yamlifyAttempt, yamlifyRole] = useAsync(
@@ -216,6 +242,7 @@ export const RoleEditor = ({
                 isProcessing={isProcessing}
                 onCancel={handleCancel}
                 originalRole={originalRole}
+                onPreview={roleTesterEnabled ? handleYamlPreview : undefined}
               />
             </Flex>
           )}
