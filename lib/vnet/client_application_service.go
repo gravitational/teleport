@@ -38,9 +38,15 @@ type clientApplicationService struct {
 
 	appProvider appProvider
 
+	// mu protects appSignerCache
 	mu sync.Mutex
 	// appSignerCache caches the crypto.Signer for each certificate issued by
 	// ReissueAppCert so that SignForApp can later use that signer.
+	//
+	// Signers are never deleted from the map. When the cert expires, the local
+	// proxy in the admin process will detect the cert expiry and call
+	// ReissueAppCert, which will overwrite the signer for the app with a new
+	// one.
 	appSignerCache map[appKey]crypto.Signer
 }
 
