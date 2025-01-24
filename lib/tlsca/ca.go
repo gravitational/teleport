@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -905,7 +906,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
-	if id.JoinAttributes != nil {
+	if id.JoinAttributes != nil && shouldPersistJoinAttrs() {
 		encoded, err := protojson.MarshalOptions{
 			// Use the proto field names as this is what we use in the
 			// templating engine and this being consistent for any user who
@@ -1352,4 +1353,11 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), nil
+}
+
+// shouldPersistJoinAttrs returns true if the join attributes should be persisted
+// into the X509 identity. This provides an emergency "off" handle for this
+// new behavior until we are confident it is working as expected.
+func shouldPersistJoinAttrs() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_JOIN_ATTRS") != "yes"
 }

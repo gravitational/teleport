@@ -511,6 +511,12 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
+		githubPermissions := r.GetGitHubPermissions(condition)
+		for i, perm := range githubPermissions {
+			githubPermissions[i].Organizations = applyValueTraitsSlice(perm.Organizations, traits, "github organizations")
+		}
+		r.SetGitHubPermissions(condition, githubPermissions)
+
 		var out []types.KubernetesResource
 		// we access the resources in the role using the role conditions
 		// to avoid receiving the compatibility resources added in GetKubernetesResources
@@ -677,7 +683,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, constants.TraitJWT:
+				constants.TraitGCPServiceAccounts, constants.TraitJWT,
+				constants.TraitGitHubOrgs:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -3580,4 +3587,31 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
+}
+
+// AuthPreferenceGetter defines an interface for getting the authentication
+// preferences.
+type AuthPreferenceGetter interface {
+	// GetAuthPreference fetches the cluster authentication preferences.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+}
+
+// AccessStateFromSSHCertificate populates access state based on user's SSH
+// certificate and auth preference.
+func AccessStateFromSSHCertificate(ctx context.Context, cert *ssh.Certificate, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
+		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
+			state.MFAVerified = true
+		}
+	}
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
+	return state, nil
 }

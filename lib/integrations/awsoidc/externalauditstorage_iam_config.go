@@ -122,7 +122,7 @@ func ConfigureExternalAuditStorage(
 		PolicyDocument: &policyDocString,
 	})
 	if err != nil {
-		err = awslib.ConvertIAMv2Error(err)
+		err = awslib.ConvertIAMError(err)
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q not found", params.Role)
 		}

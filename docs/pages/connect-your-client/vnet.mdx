@@ -75,6 +75,20 @@ $ tsh vnet
 
 ## Troubleshooting
 
+### Conflicting IPv4 ranges
+
+On the client computer, VNet uses IPv4 addresses from the CGNAT IP range `100.64.0.0/10` by
+default, and needs to configure addresses and routes for this range.
+This can conflict with other VPN-like applications, notably Tailscale also uses
+this range.
+
+If you are experiencing connectivity problems with VNet, check if you are
+running Tailscale or another VPN client, and try disabling it to see if the
+issue persists.
+To avoid the conflict and run VNet alongside Tailscale or another VPN client you
+can configure VNet to use a different IPv4 range, see our VNet configuration
+[guide](../enroll-resources/application-access/guides/vnet.mdx#configuring-ipv4-cidr-range).
+
 ### Connecting to the app without VNet
 
 Sometimes connectivity issues are not related to VNet, and you can narrow that down by trying to
@@ -104,7 +118,8 @@ From /var/log/vnet.log:
 INFO  Setting an IP route for the VNet. netmask:100.64.0.0/10 vnet/osconfig_darwin.go:47
 ```
 
-Send a query for a TCP app available in your cluster:
+Send a query for a TCP app available in your cluster, replacing <Var
+name="tcp-app.teleport.example.com" /> with the name of your app:
 
 ```code
 $ dscacheutil -q host -a name <Var name="tcp-app.teleport.example.com" />
@@ -141,4 +156,6 @@ client you use.
 
 ## Next steps
 
+- Read our VNet configuration [guide](../enroll-resources/application-access/guides/vnet.mdx)
+  to learn how to configure VNet access to your applications.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.

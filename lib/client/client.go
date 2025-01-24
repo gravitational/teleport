@@ -61,7 +61,6 @@ import (
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Namespace   string
 	Tracer      oteltrace.Tracer
 	Client      *tracessh.Client
 	TC          *TeleportClient
@@ -257,8 +256,6 @@ func nodeName(node TargetNode) string {
 type NodeDetails struct {
 	// Addr is an address to dial
 	Addr string
-	// Namespace is the node namespace
-	Namespace string
 	// Cluster is the name of the target cluster
 	Cluster string
 
@@ -282,10 +279,7 @@ func (n NodeDetails) String() string {
 // ProxyFormat returns the address in the format
 // used by the proxy subsystem
 func (n *NodeDetails) ProxyFormat() string {
-	parts := []string{n.Addr}
-	if n.Namespace != "" {
-		parts = append(parts, n.Namespace)
-	}
+	parts := []string{n.Addr, apidefaults.Namespace}
 	if n.Cluster != "" {
 		parts = append(parts, n.Cluster)
 	}
@@ -351,7 +345,6 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 
 	nc := &NodeClient{
 		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
-		Namespace:       apidefaults.Namespace,
 		TC:              tc,
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,

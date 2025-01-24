@@ -18,17 +18,22 @@
 
 import { Role, RoleOptions } from 'teleport/services/resources';
 
+import { defaultRoleVersion } from './standardmodel';
+
 export type DeepPartial<T> = {
   [k in keyof T]?: T[k] extends object ? DeepPartial<T[k]> : T[k];
 };
 
 /**
  * Returns a "completed" model, emulating what `RoleV6.CheckAndSetDefaults`
- * does on the server side. These two functions must be kept in sync.
+ * does on the server side. These two functions must be kept in sync. Don't add
+ * arbitrary defaults here unless they are returned the same way from the
+ * server side, or the role editor will silently modify these fields on every
+ * role it opens and saves without user intervention.
  */
 export const withDefaults = (role: DeepPartial<Role>): Role => ({
   kind: 'role',
-  version: '',
+  version: defaultRoleVersion,
 
   ...role,
 
@@ -70,15 +75,6 @@ export const optionsWithDefaults = (
       },
     },
 
-    ssh_port_forwarding: {
-      local: {
-        ...defaults.ssh_port_forwarding.local,
-      },
-      remote: {
-        ...defaults.ssh_port_forwarding.remote,
-      },
-    },
-
     record_session: {
       ...defaults.record_session,
       ...options?.record_session,
@@ -86,6 +82,14 @@ export const optionsWithDefaults = (
   };
 };
 
+/**
+ * Default options, exactly as returned by the server side for the empty
+ * options object. This invariant must be held at all times, since this object
+ * is used to resolve partial responses. Don't add arbitrary defaults here
+ * unless they are returned the same way from the server side, or the role
+ * editor will silently modify these options on every role it opens and saves
+ * without user intervention.
+ */
 export const defaultOptions = (): RoleOptions => ({
   cert_format: 'standard',
   create_db_user: false,
@@ -101,14 +105,6 @@ export const defaultOptions = (): RoleOptions => ({
   },
   max_session_ttl: '30h0m0s',
   pin_source_ip: false,
-  ssh_port_forwarding: {
-    local: {
-      enabled: false,
-    },
-    remote: {
-      enabled: false,
-    },
-  },
   record_session: {
     default: 'best_effort',
     desktop: true,

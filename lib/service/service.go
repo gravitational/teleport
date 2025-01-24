@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -1006,6 +1007,15 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		"pid", fmt.Sprintf("%v.%v", os.Getpid(), processID),
 	)
 
+	// Use the custom metrics registry if specified, else create a new one.
+	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// because some tests are running multiple Teleport instances from the same
+	// config.
+	metricsRegistry := cfg.MetricsRegistry
+	if metricsRegistry == nil {
+		metricsRegistry = prometheus.NewRegistry()
+	}
+
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
@@ -1189,7 +1199,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
-		metricsRegistry:        cfg.MetricsRegistry,
+		metricsRegistry:        metricsRegistry,
 	}
 
 	process.registerExpectedServices(cfg)
@@ -1229,18 +1239,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	upgraderKind := os.Getenv(automaticupgrades.EnvUpgrader)
-	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
-	if upgraderVersion == "" {
-		upgraderKind = ""
-	}
-
-	// Instances deployed using the AWS OIDC integration are automatically updated
-	// by the proxy. The instance heartbeat should properly reflect that.
-	externalUpgrader := upgraderKind
-	if externalUpgrader == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
-		externalUpgrader = types.OriginIntegrationAWSOIDC
-	}
+	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
@@ -1273,7 +1272,25 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
 		}
 
-		if upgraderKind == "unit" {
+		switch upgraderKind {
+		case types.UpgraderKindTeleportUpdate:
+			isDefault, err := autoupdate.IsManagedAndDefault()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !isDefault {
+				// Only write the nop schedule for the default updater.
+				// Suffixed installations of Teleport can coexist with the old upgrader system.
+				break
+			}
+			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := driver.ForceNop(process.ExitContext()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
 				if err != nil {
@@ -1301,28 +1318,14 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
 				return nil
 			})
+			if err := process.configureUpgraderExporter(upgraderKind); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		default:
+			if err := process.configureUpgraderExporter(upgraderKind); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
-
-		driver, err := uw.NewDriver(upgraderKind)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
-			Driver:                   driver,
-			ExportFunc:               process.exportUpgradeWindows,
-			AuthConnectivitySentinel: process.inventoryHandle.Sender(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
-		process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
-			exporter.Close()
-		})
-
-		process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", upgraderKind)
 	}
 
 	serviceStarted := false
@@ -1339,6 +1342,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err := process.initTracingService(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if address := os.Getenv("TELEPORT_PYROSCOPE_SERVER_ADDRESS"); address != "" {
+		process.initPyroscope(address)
 	}
 
 	if cfg.DebugService.Enabled {
@@ -1528,6 +1535,63 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	go process.notifyParent()
 
 	return process, nil
+}
+
+// detectUpgrader returns metadata about auto-upgraders that may be active.
+// Note that kind and externalName are usually the same.
+// However, some unregistered upgraders like the AWS ODIC upgrader are not valid kinds.
+// For these upgraders, kind is empty and externalName is set to a non-kind value.
+func (process *TeleportProcess) detectUpgrader() (kind, externalName, version string) {
+	// Check if the deprecated teleport-upgrader script is being used.
+	kind = os.Getenv(automaticupgrades.EnvUpgrader)
+	version = automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
+	if version == "" {
+		kind = ""
+	}
+
+	// If the installation is managed by teleport-update, it supersedes the teleport-upgrader script.
+	ok, err := autoupdate.IsManagedByUpdater()
+	if err != nil {
+		process.logger.WarnContext(process.ExitContext(), "Failed to determine if auto-updates are enabled.", "error", err)
+	} else if ok {
+		// If this is a teleport-update managed installation, the version
+		// managed by the timer will always match the installed version of teleport.
+		kind = types.UpgraderKindTeleportUpdate
+		version = "v" + teleport.Version
+	}
+
+	// Instances deployed using the AWS OIDC integration are automatically updated
+	// by the proxy. The instance heartbeat should properly reflect that.
+	externalName = kind
+	if externalName == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
+		externalName = types.OriginIntegrationAWSOIDC
+	}
+	return kind, externalName, version
+}
+
+// configureUpgraderExporter configures the window exporter for upgraders that export windows.
+func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
+	driver, err := uw.NewDriver(kind)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
+		Driver:                   driver,
+		ExportFunc:               process.exportUpgradeWindows,
+		AuthConnectivitySentinel: process.inventoryHandle.Sender(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
+	process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
+		exporter.Close()
+	})
+
+	process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", kind)
+	return nil
 }
 
 // enterpriseServicesEnabled will return true if any enterprise services are enabled.
@@ -2465,7 +2529,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(spiffeFedSyncer.Run(process.GracefulExitContext()), "running SPIFFEFederation Syncer")
 	})
 
-	agentRolloutController, err := rollout.NewController(authServer, logger, process.Clock, cfg.Auth.AgentRolloutControllerSyncPeriod)
+	agentRolloutController, err := rollout.NewController(authServer, logger, process.Clock, cfg.Auth.AgentRolloutControllerSyncPeriod, process.metricsRegistry)
 	if err != nil {
 		return trace.Wrap(err, "creating the rollout controller")
 	}
@@ -2960,14 +3024,6 @@ func (process *TeleportProcess) initSSH() error {
 				"use builtin namespace %q, or omit the 'namespace' config option.", ns, apidefaults.Namespace)
 		}
 		namespace := types.ProcessNamespace(cfg.SSH.Namespace)
-		_, err = authClient.GetNamespace(namespace)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return trace.NotFound(
-					"namespace %v is not found, ask your system administrator to create this namespace so you can register nodes there.", namespace)
-			}
-			return trace.Wrap(err)
-		}
 
 		if auditd.IsLoginUIDSet() {
 			const warn = "Login UID is set, but it shouldn't be. Incorrect login UID breaks session ID when using auditd. " +
@@ -3432,30 +3488,7 @@ func (l promHTTPLogAdapter) Println(v ...interface{}) {
 // prometheus consumption
 func (process *TeleportProcess) initMetricsService() error {
 	mux := http.NewServeMux()
-
-	// We gather metrics both from the in-process registry (preferred metrics registration method)
-	// and the global registry (used by some Teleport services and many dependencies).
-	gatherers := prometheus.Gatherers{
-		process.metricsRegistry,
-		prometheus.DefaultGatherer,
-	}
-
-	metricsHandler := promhttp.InstrumentMetricHandler(
-		process.metricsRegistry, promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{
-			// Errors can happen if metrics are registered with identical names in both the local and the global registry.
-			// In this case, we log the error but continue collecting metrics. The first collected metric will win
-			// (the one from the local metrics registry takes precedence).
-			// As we move more things to the local registry, especially in other tools like tbot, we will have less
-			// conflicts in tests.
-			ErrorHandling: promhttp.ContinueOnError,
-			ErrorLog: promHTTPLogAdapter{
-				ctx:    process.ExitContext(),
-				Logger: process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics),
-			},
-		}),
-	)
-
-	mux.Handle("/metrics", metricsHandler)
+	mux.Handle("/metrics", process.newMetricsHandler())
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentMetrics, process.id))
 
@@ -3540,6 +3573,33 @@ func (process *TeleportProcess) initMetricsService() error {
 	return nil
 }
 
+// newMetricsHandler creates a new metrics handler serving metrics both from the global prometheus registry and the
+// in-process one.
+func (process *TeleportProcess) newMetricsHandler() http.Handler {
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	gatherers := prometheus.Gatherers{
+		process.metricsRegistry,
+		prometheus.DefaultGatherer,
+	}
+
+	metricsHandler := promhttp.InstrumentMetricHandler(
+		process.metricsRegistry, promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{
+			// Errors can happen if metrics are registered with identical names in both the local and the global registry.
+			// In this case, we log the error but continue collecting metrics. The first collected metric will win
+			// (the one from the local metrics registry takes precedence).
+			// As we move more things to the local registry, especially in other tools like tbot, we will have less
+			// conflicts in tests.
+			ErrorHandling: promhttp.ContinueOnError,
+			ErrorLog: promHTTPLogAdapter{
+				ctx:    process.ExitContext(),
+				Logger: process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics),
+			},
+		}),
+	)
+	return metricsHandler
+}
+
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
@@ -3549,7 +3609,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// metrics will otherwise be served by the metrics service if it's enabled
 	// in the config.
 	if !process.Config.Metrics.Enabled {
-		mux.Handle("/metrics", promhttp.Handler())
+		mux.Handle("/metrics", process.newMetricsHandler())
 	}
 
 	if process.Config.Debug {
@@ -4390,6 +4450,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	gitServerWatcher, err := services.NewGitServerWatcher(process.ExitContext(), services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    teleport.ComponentProxy,
+			Logger:       process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:       accessPoint,
+			MaxStaleness: time.Minute,
+		},
+		GitServerGetter: accessPoint.GitServerReadOnlyClient(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -4655,6 +4728,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
 				NodeWatcher:           nodeWatcher,
+				GitServerWatcher:      gitServerWatcher,
 				CertAuthorityWatcher:  caWatcher,
 				CircuitBreakerConfig:  process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:    utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
@@ -4914,9 +4988,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Server: &http.Server{
 				Handler: utils.ChainHTTPMiddlewares(
 					webHandler,
-					makeXForwardedForMiddleware(cfg),
 					limiter.MakeMiddleware(proxyLimiter),
 					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
+					makeXForwardedForMiddleware(cfg),
 				),
 				// Note: read/write timeouts *should not* be set here because it
 				// will break some application access use-cases.

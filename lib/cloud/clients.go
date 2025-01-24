@@ -39,20 +39,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -107,24 +95,12 @@ type GCPClients interface {
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region and any role(s).
 	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
-	// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
-	GetAWSRedshiftServerlessClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftserverlessiface.RedshiftServerlessAPI, error)
-	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
-	GetAWSElastiCacheClient(ctx context.Context, region string, opts ...AWSOptionsFn) (elasticacheiface.ElastiCacheAPI, error)
-	// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
-	GetAWSMemoryDBClient(ctx context.Context, region string, opts ...AWSOptionsFn) (memorydbiface.MemoryDBAPI, error)
 	// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
 	GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error)
 	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
 	GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error)
-	// GetAWSIAMClient returns AWS IAM client for the specified region.
-	GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
-	// GetAWSKMSClient returns AWS KMS client for the specified region.
-	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error)
-	// GetAWSS3Client returns AWS S3 client.
-	GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -500,24 +476,6 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 	return c.getAWSSessionForRole(ctx, region, options)
 }
 
-// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
-func (c *cloudClients) GetAWSRedshiftServerlessClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return redshiftserverless.New(session), nil
-}
-
-// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
-func (c *cloudClients) GetAWSElastiCacheClient(ctx context.Context, region string, opts ...AWSOptionsFn) (elasticacheiface.ElastiCacheAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return elasticache.New(session), nil
-}
-
 // GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
 func (c *cloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
 	session, err := c.GetAWSSession(ctx, region, opts...)
@@ -525,15 +483,6 @@ func (c *cloudClients) GetAWSOpenSearchClient(ctx context.Context, region string
 		return nil, trace.Wrap(err)
 	}
 	return opensearchservice.New(session), nil
-}
-
-// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
-func (c *cloudClients) GetAWSMemoryDBClient(ctx context.Context, region string, opts ...AWSOptionsFn) (memorydbiface.MemoryDBAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return memorydb.New(session), nil
 }
 
 // GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
@@ -545,24 +494,6 @@ func (c *cloudClients) GetAWSSecretsManagerClient(ctx context.Context, region st
 	return secretsmanager.New(session), nil
 }
 
-// GetAWSIAMClient returns AWS IAM client for the specified region.
-func (c *cloudClients) GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return iam.New(session), nil
-}
-
-// GetAWSS3Client returns AWS S3 client.
-func (c *cloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return s3.New(session), nil
-}
-
 // GetAWSSTSClient returns AWS STS client for the specified region.
 func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
 	session, err := c.GetAWSSession(ctx, region, opts...)
@@ -570,15 +501,6 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 		return nil, trace.Wrap(err)
 	}
 	return sts.New(session), nil
-}
-
-// GetAWSKMSClient returns AWS KMS client for the specified region.
-func (c *cloudClients) GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return kms.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -1006,20 +928,14 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RedshiftServerless      redshiftserverlessiface.RedshiftServerlessAPI
-	ElastiCache             elasticacheiface.ElastiCacheAPI
 	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
-	MemoryDB                memorydbiface.MemoryDBAPI
 	SecretsManager          secretsmanageriface.SecretsManagerAPI
-	IAM                     iamiface.IAMAPI
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
 	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
 	InstanceMetadata        imds.Client
-	KMS                     kmsiface.KMSAPI
-	S3                      s3iface.S3API
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -1076,24 +992,6 @@ func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Se
 	})
 }
 
-// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
-func (c *TestCloudClients) GetAWSRedshiftServerlessClient(ctx context.Context, region string, opts ...AWSOptionsFn) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.RedshiftServerless, nil
-}
-
-// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
-func (c *TestCloudClients) GetAWSElastiCacheClient(ctx context.Context, region string, opts ...AWSOptionsFn) (elasticacheiface.ElastiCacheAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.ElastiCache, nil
-}
-
 // GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
 func (c *TestCloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
 	_, err := c.GetAWSSession(ctx, region, opts...)
@@ -1101,15 +999,6 @@ func (c *TestCloudClients) GetAWSOpenSearchClient(ctx context.Context, region st
 		return nil, trace.Wrap(err)
 	}
 	return c.OpenSearch, nil
-}
-
-// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
-func (c *TestCloudClients) GetAWSMemoryDBClient(ctx context.Context, region string, opts ...AWSOptionsFn) (memorydbiface.MemoryDBAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.MemoryDB, nil
 }
 
 // GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
@@ -1121,24 +1010,6 @@ func (c *TestCloudClients) GetAWSSecretsManagerClient(ctx context.Context, regio
 	return c.SecretsManager, nil
 }
 
-// GetAWSIAMClient returns AWS IAM client for the specified region.
-func (c *TestCloudClients) GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.IAM, nil
-}
-
-// GetAWSS3Client returns AWS S3 client.
-func (c *TestCloudClients) GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.S3, nil
-}
-
 // GetAWSSTSClient returns AWS STS client for the specified region.
 func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
 	_, err := c.GetAWSSession(ctx, region, opts...)
@@ -1146,15 +1017,6 @@ func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.STS, nil
-}
-
-// GetAWSKMSClient returns AWS KMS client for the specified region.
-func (c *TestCloudClients) GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.KMS, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.

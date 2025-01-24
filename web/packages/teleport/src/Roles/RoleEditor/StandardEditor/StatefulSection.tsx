@@ -16,11 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useReducer } from 'react';
 
 import Validation, { Validator } from 'shared/components/Validation';
 
-import { SectionProps } from './sections';
+import { SectionProps, SectionPropsWithDispatch } from './sections';
+import { defaultRoleVersion, StandardEditorModel } from './standardmodel';
+import { useStandardModel } from './useStandardModel';
+import { withDefaults } from './withDefaults';
 
 /** A helper for testing editor section components. */
 export function StatefulSection<Model, ValidationResult>({
@@ -34,10 +37,68 @@ export function StatefulSection<Model, ValidationResult>({
   component: React.ComponentType<SectionProps<Model, any>>;
   onChange(model: Model): void;
   validatorRef?(v: Validator): void;
-  validate(arg: Model): ValidationResult;
+  validate(
+    model: Model,
+    previousModel: Model,
+    previousResult: ValidationResult
+  ): ValidationResult;
 }) {
-  const [model, setModel] = useState<Model>(defaultValue);
-  const validation = validate(model);
+  const [{ model, validationResult }, dispatch] = useReducer(
+    (
+      { model, validationResult: previousValidationResult },
+      newModel: Model
+    ) => ({
+      model: newModel,
+      validationResult: validate(newModel, model, previousValidationResult),
+    }),
+    {
+      model: defaultValue,
+      validationResult: validate(defaultValue, undefined, undefined),
+    }
+  );
+  return (
+    <Validation>
+      {({ validator }) => {
+        validatorRef?.(validator);
+        return (
+          <Component
+            value={model}
+            validation={validationResult}
+            isProcessing={false}
+            onChange={newModel => {
+              dispatch(newModel);
+              onChange(newModel);
+            }}
+          />
+        );
+      }}
+    </Validation>
+  );
+}
+
+const minimalRole = withDefaults({
+  metadata: { name: 'foobar' },
+  version: defaultRoleVersion,
+});
+
+/** A helper for testing editor section components. */
+export function StatefulSectionWithDispatch<Model, ValidationResult>({
+  selector,
+  validationSelector,
+  component: Component,
+  validatorRef,
+  modelRef,
+}: {
+  selector(m: StandardEditorModel): Model;
+  validationSelector(m: StandardEditorModel): ValidationResult;
+  component: React.ComponentType<SectionPropsWithDispatch<Model, any>>;
+  validatorRef?(v: Validator): void;
+  modelRef?(m: Model): void;
+}) {
+  const [state, dispatch] = useStandardModel(minimalRole);
+  const model = selector(state);
+  const validation = validationSelector(state);
+  modelRef?.(model);
   return (
     <Validation>
       {({ validator }) => {
@@ -47,10 +108,7 @@ export function StatefulSection<Model, ValidationResult>({
             value={model}
             validation={validation}
             isProcessing={false}
-            onChange={model => {
-              setModel(model);
-              onChange(model);
-            }}
+            dispatch={dispatch}
           />
         );
       }}

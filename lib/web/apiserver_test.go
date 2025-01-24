@@ -30,7 +30,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -400,6 +399,16 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	defer caWatcher.Close()
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+		GitServerGetter: s.proxyClient.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyGitServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -415,6 +424,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
@@ -1268,6 +1278,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	role := defaultRoleForNewUser(&types.UserV2{Metadata: types.Metadata{Name: username}}, loginUser)
 	role.SetAWSRoleARNs(types.Allow, []string{"arn:aws:iam::999999999999:role/ProdInstance"})
 	role.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+	role.SetGitHubPermissions(types.Allow, []types.GitHubPermission{{Organizations: []string{types.Wildcard}}})
 
 	// This role is used to test that DevInstance AWS Role is only available to AppServices that have env:dev label.
 	roleForDev, err := types.NewRole("dev-access", types.RoleSpecV6{
@@ -1364,6 +1375,15 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
 	require.NoError(t, err)
 
+	// add git server
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Organization: "org1",
+		Integration:  "org1",
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().GitServers.UpsertGitServer(context.Background(), gitServer)
+	require.NoError(t, err)
+
 	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
 
@@ -1414,7 +1434,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 10)
+	require.Len(t, res.Items, 11)
 	require.Equal(t, "", res.StartKey)
 
 	// Only list valid AWS Roles for AWS Apps
@@ -2796,7 +2816,8 @@ func TestInstallerRepoChannel(t *testing.T) {
 
 		wc := s.client(t)
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here:
+			// https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
@@ -2870,7 +2891,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		wc := s.client(t)
 
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 	echo {{ .PublicProxyAddr }}
 	echo Teleport-{{ .MajorVersion }}
@@ -2927,7 +2948,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 		wc := s.client(t)
 		t.Run("documented variables are injected", func(t *testing.T) {
-			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			// Variables documented here: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
@@ -3543,6 +3564,89 @@ func TestEndpointNotFoundHandling(t *testing.T) {
 	}
 }
 
+func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
+	t.Parallel()
+	const username = "test-user@example.com"
+	// Allow user to create tokens.
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindToken,
+					[]string{types.VerbCreate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+
+	res, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "token"), types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(res.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	tt := []struct {
+		name     string
+		endpoint string
+	}{
+		{
+			name:     "web path with prefix",
+			endpoint: "v1/web/config.js",
+		},
+		{
+			name:     "web path without prefix",
+			endpoint: "web/config.js",
+		},
+		{
+			name:     "webapi path with prefix",
+			endpoint: "v1/webapi/spiffe/bundle.json",
+		},
+		{
+			name:     "webapi path without prefix",
+			endpoint: "webapi/spiffe/bundle.json",
+		},
+		{
+			name:     ".well-known path with prefix",
+			endpoint: "v1/.well-known/jwks.json",
+		},
+		{
+			name:     ".well-known path without prefix",
+			endpoint: ".well-known/jwks.json",
+		},
+		{
+			name:     "workload-identity path with prefix",
+			endpoint: "v1/workload-identity/jwt-jwks.json",
+		},
+		{
+			name:     "workload-identity path without prefix",
+			endpoint: "workload-identity/jwt-jwks.json",
+		},
+		{
+			name:     "scripts path with prefix",
+			endpoint: fmt.Sprintf("v1/scripts/%s/install-node.sh", responseToken.ID),
+		},
+		{
+			name:     "scripts path without prefix",
+			endpoint: fmt.Sprintf("scripts/%s/install-node.sh", responseToken.ID),
+		},
+	}
+
+	for _, tc := range tt {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := pack.clt.Get(context.Background(), fmt.Sprintf("%s/%s", proxy.web.URL, tc.endpoint), url.Values{})
+
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
 
@@ -3969,153 +4073,6 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	)
 	require.NoError(t, err)
 	return database
-}
-
-func TestAuthExport(t *testing.T) {
-	env := newWebPack(t, 1)
-	clusterName := env.server.ClusterName()
-
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil)
-
-	validateTLSCertificateDERFunc := func(t *testing.T, b []byte) {
-		cert, err := x509.ParseCertificate(b)
-		require.NoError(t, err)
-		require.NotNil(t, cert, "ParseCertificate failed")
-		require.Equal(t, "localhost", cert.Subject.CommonName, "unexpected certificate subject CN")
-	}
-
-	validateTLSCertificatePEMFunc := func(t *testing.T, b []byte) {
-		pemBlock, _ := pem.Decode(b)
-		require.NotNil(t, pemBlock, "pem.Decode failed")
-
-		validateTLSCertificateDERFunc(t, pemBlock.Bytes)
-	}
-
-	for _, tt := range []struct {
-		name           string
-		authType       string
-		expectedStatus int
-		assertBody     func(t *testing.T, bs []byte)
-	}{
-		{
-			name:           "all",
-			authType:       "",
-			expectedStatus: http.StatusOK,
-			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
-				require.Contains(t, string(b), "cert-authority ecdsa-sha2-nistp256")
-			},
-		},
-		{
-			name:           "host",
-			authType:       "host",
-			expectedStatus: http.StatusOK,
-			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
-			},
-		},
-		{
-			name:           "user",
-			authType:       "user",
-			expectedStatus: http.StatusOK,
-			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "cert-authority ecdsa-sha2-nistp256")
-			},
-		},
-		{
-			name:           "windows",
-			authType:       "windows",
-			expectedStatus: http.StatusOK,
-			assertBody:     validateTLSCertificateDERFunc,
-		},
-		{
-			name:           "db",
-			authType:       "db",
-			expectedStatus: http.StatusOK,
-			assertBody:     validateTLSCertificatePEMFunc,
-		},
-		{
-			name:           "db-der",
-			authType:       "db-der",
-			expectedStatus: http.StatusOK,
-			assertBody:     validateTLSCertificateDERFunc,
-		},
-		{
-			name:           "db-client",
-			authType:       "db-client",
-			expectedStatus: http.StatusOK,
-			assertBody:     validateTLSCertificatePEMFunc,
-		},
-		{
-			name:           "db-client-der",
-			authType:       "db-client-der",
-			expectedStatus: http.StatusOK,
-			assertBody:     validateTLSCertificateDERFunc,
-		},
-		{
-			name:           "tls",
-			authType:       "tls",
-			expectedStatus: http.StatusOK,
-			assertBody:     validateTLSCertificatePEMFunc,
-		},
-		{
-			name:           "invalid",
-			authType:       "invalid",
-			expectedStatus: http.StatusBadRequest,
-			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), `"invalid" authority type is not supported`)
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			// export host certificate
-			t.Run("deprecated endpoint", func(t *testing.T) {
-				endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
-				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
-			})
-			t.Run("new endpoint", func(t *testing.T) {
-				endpointExport := pack.clt.Endpoint("webapi", "auth", "export")
-				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
-			})
-		})
-	}
-}
-
-func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, expectedStatus int, assertBody func(t *testing.T, bs []byte)) {
-	ctx := context.Background()
-
-	if authType != "" {
-		endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, authType)
-	}
-
-	reqCtx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
-	require.NoError(t, err)
-
-	anonHTTPClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-
-	resp, err := anonHTTPClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	bs, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	require.Equal(t, expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
-
-	require.NotEmpty(t, bs, "unexpected empty body from http response")
-	if assertBody != nil {
-		assertBody(t, bs)
-	}
 }
 
 func TestClusterDatabasesGet_NoRole(t *testing.T) {
@@ -8270,6 +8227,16 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyNodeWatcher.Close)
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+		GitServerGetter: client.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyGitServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -8285,6 +8252,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
@@ -10630,10 +10598,10 @@ func TestGithubConnector(t *testing.T) {
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "github"), nil)
 	assert.NoError(t, err, "unexpected error listing github connectors")
 
-	var item []webui.ResourceItem
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &item), "invalid resource item received")
+	authConnectorsResp := webui.ListAuthConnectorsResponse{}
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &authConnectorsResp), "invalid response received")
 
-	assert.Empty(t, item)
+	assert.Empty(t, authConnectorsResp.Connectors)
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
 

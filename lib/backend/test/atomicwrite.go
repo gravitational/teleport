@@ -30,9 +30,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-func RunAtomicWriteComplianceSuite(t *testing.T, newBackend Constructor) {
+func RunAtomicWriteComplianceSuite[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	t.Run("Move", func(t *testing.T) {
 		testAtomicWriteMove(t, newBackend)
 	})
@@ -59,7 +60,7 @@ func RunAtomicWriteComplianceSuite(t *testing.T, newBackend Constructor) {
 }
 
 // testAtomicWriteMove verifies the correct behavior of "move" operations.
-func testAtomicWriteMove(t *testing.T, newBackend Constructor) {
+func testAtomicWriteMove[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
 
@@ -121,7 +122,7 @@ func testAtomicWriteMove(t *testing.T, newBackend Constructor) {
 
 // testAtomicWriteLock verifies correct behavior of various "lock" patterns (i.e. where some update on key X is conditional on
 // the state of key Y).
-func testAtomicWriteLock(t *testing.T, newBackend Constructor) {
+func testAtomicWriteLock[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
 
@@ -275,7 +276,7 @@ func testAtomicWriteLock(t *testing.T, newBackend Constructor) {
 }
 
 // testAtomicWriteMax verifies correct behavior of very large atomic writes.
-func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
+func testAtomicWriteMax[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
 
@@ -361,7 +362,7 @@ func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
 }
 
 // testAtomicWriteConcurrent is a sanity-check intended to verify the correctness of AtomicWrite under high concurrency.
-func testAtomicWriteConcurrent(t *testing.T, newBackend Constructor) {
+func testAtomicWriteConcurrent[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	const (
 		increments = 200
 		workers    = 20
@@ -454,7 +455,7 @@ func testAtomicWriteConcurrent(t *testing.T, newBackend Constructor) {
 // testAtomicWriteNonConflicting verifies that non-conflicting but overlapping transactions all succeed
 // on the first attempt when running concurrently, meaning that backends that treat overlap as conflict (e.g. dynamo)
 // handle such conflicts internally.
-func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
+func testAtomicWriteNonConflicting[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	const workers = 60
 
 	bk, _, err := newBackend()
@@ -521,7 +522,7 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 // testAtomicWriteOther verifies some minor edge-cases that may not be covered by other tests. Specifically,
 // it verifies that Item.Key has no effect on writes or subsequent reads, and that ineffectual writes still
 // update the value of revision.
-func testAtomicWriteOther(t *testing.T, newBackend Constructor) {
+func testAtomicWriteOther[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
 

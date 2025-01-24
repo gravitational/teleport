@@ -44,7 +44,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -507,7 +506,6 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 
 	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stderrWriter{stream: stream}
 	clientConfig.Stdin = stream

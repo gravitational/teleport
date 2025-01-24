@@ -167,3 +167,28 @@ message UserLastSeenNotificationStatus {
   // last_seen_time is the timestamp of the last notification that the user has seen.
   google.protobuf.Timestamp last_seen_time = 1;
 }
+
+// UniqueNotificationIdentifier represents a unique notification identifier.
+// This is a resource whose existence is used to keep track of whether a particular notification has already been created, in order to prevent duplicate notifications.
+// For example, if the unique identifier is "unique_notification_identifier/access_list_30d_reminder/1234", when a caller attempts to create a notification
+// for a 30 day reminder to review access list 1234, it will create this identifier resource as well, and any subsequent times it attempts to create the notification,
+// it will detect that the identifier already exists, and thus know not to create a duplicate.
+// Note that using this system does not always guarantee accuracy/concurrency, so this shouldn't be used for security critical notifications.
+message UniqueNotificationIdentifier {
+  // kind is the resource kind ("unique_notification_identifier").
+  string kind = 1;
+  // version is the resource version.
+  string version = 2;
+  // metadata is the unique notification identifier metadata.
+  teleport.header.v1.Metadata metadata = 3;
+  // spec is the unique notification identifier spec.
+  UniqueNotificationIdentifierSpec spec = 5;
+}
+
+// UniqueNotificationIdentifierSpec is the unique notification identifier specification.
+message UniqueNotificationIdentifierSpec {
+  // unique_identifier is the unique identifier string. This is what is used to keep track of the unique notification and what is used in the resource's backend key.
+  string unique_identifier = 1;
+  // unique_identifier_prefix is the prefix for this unique notiifcation identifier, this is used to group notification identifiers together, eg. "access_list_30d_reminder"
+  string unique_identifier_prefix = 2;
+}

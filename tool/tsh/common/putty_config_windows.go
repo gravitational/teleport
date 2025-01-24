@@ -389,7 +389,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	if err := addPuTTYSession(proxyHost, hostname, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); err != nil {
 		logger.ErrorContext(cf.Context, "Failed to add PuTTY session",
 			"user_host", userHostString,
-			"error",err,
+			"error", err,
 		)
 		return trace.Wrap(err)
 	}

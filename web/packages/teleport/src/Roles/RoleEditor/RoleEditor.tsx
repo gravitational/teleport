@@ -31,11 +31,10 @@ import { EditorHeader } from './EditorHeader';
 import { EditorTab } from './EditorTabs';
 import { StandardEditor } from './StandardEditor/StandardEditor';
 import {
-  newRole,
   roleEditorModelToRole,
   roleToRoleEditorModel,
-  StandardEditorModel,
 } from './StandardEditor/standardmodel';
+import { useStandardModel } from './StandardEditor/useStandardModel';
 import { YamlEditor } from './YamlEditor';
 import { YamlEditorModel } from './yamlmodel';
 
@@ -65,16 +64,7 @@ export const RoleEditor = ({
   const standardEditorId = `${idPrefix}-standard`;
   const yamlEditorId = `${idPrefix}-yaml`;
 
-  const [standardModel, setStandardModel] = useState<StandardEditorModel>(
-    () => {
-      const role = originalRole?.object ?? newRole();
-      const roleModel = roleToRoleEditorModel(role, role);
-      return {
-        roleModel,
-        isDirty: !originalRole, // New role is dirty by default.
-      };
-    }
-  );
+  const [standardModel, dispatch] = useStandardModel(originalRole?.object);
 
   const [yamlModel, setYamlModel] = useState<YamlEditorModel>({
     content: originalRole?.yaml ?? '',
@@ -141,9 +131,9 @@ export const RoleEditor = ({
         // Abort if there's an error. Don't switch the tab or set the model.
         if (err) return;
 
-        setStandardModel({
-          roleModel,
-          isDirty: yamlModel.isDirty,
+        dispatch({
+          type: 'set-role-model',
+          payload: roleModel,
         });
         break;
       }
@@ -213,7 +203,7 @@ export const RoleEditor = ({
                 onCancel={handleCancel}
                 standardEditorModel={standardModel}
                 isProcessing={isProcessing}
-                onChange={setStandardModel}
+                dispatch={dispatch}
               />
             </Flex>
           )}

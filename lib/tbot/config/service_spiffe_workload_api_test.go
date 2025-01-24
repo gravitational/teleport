@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 func ptr[T any](v T) *T {
