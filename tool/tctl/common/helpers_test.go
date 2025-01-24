@@ -216,7 +216,7 @@ func mustWriteIdentityFile(t *testing.T, client *authclient.Client, username str
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
-	fakeClock       clockwork.FakeClock
+	fakeClock       *clockwork.FakeClock
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -233,7 +233,7 @@ func withFileDescriptors(fds []*servicecfg.FileDescriptor) testServerOptionFunc 
 	}
 }
 
-func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
+func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fakeClock = fakeClock
 	}

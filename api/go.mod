@@ -10,7 +10,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/trace v1.4.0
-	github.com/jonboulle/clockwork v0.4.0
+	github.com/jonboulle/clockwork v0.5.0
 	github.com/russellhaering/gosaml2 v0.9.1
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.58.0
