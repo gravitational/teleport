@@ -37,8 +37,6 @@ var (
 	version = teleport.Version
 	// baseURL is CDN URL for downloading official Teleport packages.
 	baseURL = autoupdate.DefaultBaseURL
-	// baseURLEnvVar allows to override base URL for the Teleport package URL via env var.
-	baseURLEnvVar = "TELEPORT_CDN_BASE_URL"
 )
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
@@ -56,7 +54,7 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 	}
 
 	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(baseURLEnvVar); envBaseURL != "" {
+	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
 		baseURL = envBaseURL
 	}
 
@@ -89,7 +87,7 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		return nil
 	}
 	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(baseURLEnvVar); envBaseURL != "" {
+	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
 		baseURL = envBaseURL
 	}
 
