@@ -247,10 +247,18 @@ type Process interface {
 	// If the type implementing Process does not support the system process manager,
 	// Sync must return ErrNotSupported.
 	Sync(ctx context.Context) error
-	// IsEnabled must return true if the Process is running or is configured to run.
+	// IsEnabled must return true if the Process is configured to run on system boot.
 	// If the type implementing Process does not support the system process manager,
-	// Sync must return ErrNotSupported.
+	// IsEnabled must return ErrNotSupported.
 	IsEnabled(ctx context.Context) (bool, error)
+	// IsActive must return true if the Process is currently running.
+	// If the type implementing Process does not support the system process manager,
+	// IsActive must return ErrNotSupported.
+	IsActive(ctx context.Context) (bool, error)
+	// IsPresent must return true if the Process is installed on the system.
+	// If the type implementing Process does not support the system process manager,
+	// IsPresent must return ErrNotSupported.
+	IsPresent(ctx context.Context) (bool, error)
 }
 
 // OverrideConfig contains overrides for individual update operations.
@@ -329,7 +337,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
-	return nil
+	return trace.Wrap(u.notices(ctx))
 }
 
 // Remove removes everything created by the updater.
@@ -356,12 +364,12 @@ func (u *Updater) Remove(ctx context.Context) error {
 	revert, err := u.Installer.LinkSystem(ctx)
 	if errors.Is(err, ErrNoBinaries) {
 		u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
-		ok, err := u.Process.IsEnabled(ctx)
+		ok, err := isActiveOrEnabled(ctx, u.Process)
 		if err != nil && !errors.Is(err, ErrNotSupported) {
 			return trace.Wrap(err)
 		}
 		if ok {
-			return trace.Errorf("refusing to remove active installation of Teleport, please disable Teleport first")
+			return trace.Errorf("refusing to remove active installation of Teleport, please stop and disable Teleport first")
 		}
 		if err := u.Installer.Unlink(ctx, active); err != nil {
 			return trace.Wrap(err)
@@ -435,6 +443,25 @@ func (u *Updater) Remove(ctx context.Context) error {
 	}
 	u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
 	return nil
+}
+
+// isActiveOrEnabled returns true if the service is active or enabled.
+func isActiveOrEnabled(ctx context.Context, s Process) (bool, error) {
+	enabled, err := s.IsEnabled(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if enabled {
+		return true, nil
+	}
+	active, err := s.IsActive(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if active {
+		return true, nil
+	}
+	return false, nil
 }
 
 // Status returns all available local and remote fields related to agent auto-updates.
@@ -580,6 +607,10 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	} else {
 		u.Log.InfoContext(ctx, "Configuration updated.")
 	}
+	// Show notices last
+	if updateErr == nil && now {
+		updateErr = u.notices(ctx)
+	}
 	return trace.NewAggregate(updateErr, writeErr)
 }
 
@@ -693,6 +724,20 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		return trace.Wrap(err, "failed to validate configuration for new version %s of Teleport", target)
 	}
 
+	present, err := u.Process.IsPresent(ctx)
+	if err != nil || !present {
+		u.Log.ErrorContext(ctx, "Reverting symlinks due to error reading Teleport service file.")
+		if ok := revertConfig(ctx); ok {
+			u.Log.WarnContext(ctx, "Teleport updater encountered an error reading the Teleport service file and successfully reverted the installation.")
+		}
+	}
+	if err != nil {
+		return trace.Wrap(err, "failed to determine if new version %s of Teleport has an installed systemd service", target)
+	}
+	if !present {
+		return trace.Errorf("cannot find systemd service for new version %s of Teleport, check SELinux settings", target)
+	}
+
 	// Restart Teleport if necessary.
 
 	if cfg.Status.Active != target {
@@ -716,6 +761,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 			}
 			return trace.Wrap(err, "failed to start new version %s of Teleport", target)
 		}
+
 		if r := cfg.Status.Active; r.Version != "" {
 			cfg.Status.Backup = toPtr(r)
 		}
@@ -727,9 +773,41 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		u.Log.InfoContext(ctx, "Backup version set.", backupKey, r)
 	}
 
-	return trace.Wrap(u.cleanup(ctx, []Revision{
+	if err := u.cleanup(ctx, []Revision{
 		target, active, backup,
-	}))
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(u.notices(ctx))
+}
+
+// notices displays final notices after install or update.
+func (u *Updater) notices(ctx context.Context) error {
+	enabled, err := u.Process.IsEnabled(ctx)
+	if err != nil {
+		return trace.Wrap(err, "failed to query Teleport systemd enabled status")
+	}
+	active, err := u.Process.IsActive(ctx)
+	if err != nil {
+		return trace.Wrap(err, "failed to query Teleport systemd active status")
+	}
+	if !enabled && active {
+		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.\n"+
+			"After configuring teleport.yaml, you can enable it with:\n"+
+			"\tsystemctl enable teleport")
+	}
+	if !active && enabled {
+		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.\n"+
+			"After configuring teleport.yaml, you can start it with:\n"+
+			"\tsystemctl start teleport")
+	}
+	if !active && !enabled {
+		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.\n"+
+			"After configuring teleport.yaml, you can enable and start it with:\n"+
+			"\tsystemctl enable teleport --now")
+	}
+	return nil
 }
 
 // cleanup orphan installations
@@ -791,10 +869,21 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	} else if err != nil {
 		return trace.Wrap(err, "failed to link system package installation")
 	}
+
+	// If syncing succeeds, ensure the installed systemd service can be found via systemctl.
+	// SELinux contexts can interfere with systemctl's ability to read service files.
 	if err := u.Process.Sync(ctx); errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Systemd is not installed. Skipping sync.")
 	} else if err != nil {
 		return trace.Wrap(err, "failed to sync systemd configuration")
+	} else {
+		present, err := u.Process.IsPresent(ctx)
+		if err != nil {
+			return trace.Wrap(err, "failed to determine if Teleport has an installed systemd service")
+		}
+		if !present {
+			return trace.Errorf("cannot find systemd service for Teleport, check SELinux settings")
+		}
 	}
 	u.Log.InfoContext(ctx, "Successfully linked system package installation.")
 	return nil

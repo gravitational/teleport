@@ -233,7 +233,7 @@ func (ns *Namespace) Setup(ctx context.Context) error {
 		}
 		// If the old teleport-upgrade script is detected, disable it to ensure they do not interfere.
 		// Note that the schedule is also set to nop by the Teleport agent -- this just prevents restarts.
-		enabled, err := oldTimer.IsEnabled(ctx)
+		enabled, err := isActiveOrEnabled(ctx, oldTimer)
 		if err != nil {
 			return trace.Wrap(err, "failed to determine if deprecated teleport-upgrade systemd timer is enabled")
 		}
