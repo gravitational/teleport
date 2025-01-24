@@ -28,9 +28,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-func newAtomicWriteBackend(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+func newAtomicWriteBackend(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 	dynamoCfg := map[string]interface{}{
 		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,
