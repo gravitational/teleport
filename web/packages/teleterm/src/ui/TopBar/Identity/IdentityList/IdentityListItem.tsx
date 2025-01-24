@@ -101,7 +101,7 @@ export function AddClusterItem(props: { index: number; onClick(): void }) {
 
   return (
     <StyledListItem isActive={isActive} onClick={props.onClick}>
-      <WithIconItem letter="+" title="Add a Cluster…" />
+      <WithIconItem letter="+" title="Add Cluster…" />
     </StyledListItem>
   );
 }

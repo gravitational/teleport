@@ -82,7 +82,7 @@ export function ColorPicker(props: {
           p={1}
         >
           {$userIcon}
-          <Flex alignItems="center" flexDirection="column" gap={2} px={2}>
+          <Flex alignItems="center" flexDirection="row" gap={2} px={2}>
             {profileColors.options.map(profileColor => (
               <Circle
                 tabIndex={0}
