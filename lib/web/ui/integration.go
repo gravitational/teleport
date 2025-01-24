@@ -168,13 +168,25 @@ func (r *Integration) CheckAndSetDefaults() error {
 	return nil
 }
 
+type IntegrationOAuthCredentials struct {
+	ID     string `json:"id"`
+	Secret string `json:"secret"`
+}
+
+func (c *IntegrationOAuthCredentials) Check() error {
+	if c.ID == "" {
+		return trace.BadParameter("missing OAuth ID field")
+	}
+	if c.Secret == "" {
+		return trace.BadParameter("missing OAuth Secret field")
+	}
+	return nil
+}
+
 type CreateIntegrationRequest struct {
 	Integration
 
-	OAuth *struct {
-		ID     string `json:"id"`
-		Secret string `json:"secret"`
-	} `json:"oauth,omitempty"`
+	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
 
 func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
@@ -182,8 +194,11 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if r.SubKind == types.IntegrationSubKindGitHub {
-		if r.OAuth == nil || r.OAuth.ID == "" || r.OAuth.Secret == "" {
+		if r.OAuth == nil {
 			return trace.BadParameter("missing OAuth settings for GitHub integrations")
+		}
+		if err := r.OAuth.Check(); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 	return nil
@@ -192,13 +207,20 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 // UpdateIntegrationRequest is a request to update an Integration
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
-	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	AWSOIDC *IntegrationAWSOIDCSpec      `json:"awsoidc,omitempty"`
+	GitHub  *IntegrationGitHub           `json:"github,omitempty"`
+	OAuth   *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
 
 // CheckAndSetDefaults checks if the provided values are valid.
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if r.OAuth != nil {
+		if err := r.OAuth.Check(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
