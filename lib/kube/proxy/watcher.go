@@ -20,11 +20,11 @@ package proxy
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -241,7 +241,7 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 	sessions := maps.Values(s.fwd.sessions)
 	s.fwd.mu.Unlock()
 	// close active sessions
-	for _, sess := range sessions {
+	for sess := range sessions {
 		if sess.ctx.kubeClusterName == name {
 			// TODO(tigrato): check if we should send errors to each client
 			errs = append(errs, sess.Close())
