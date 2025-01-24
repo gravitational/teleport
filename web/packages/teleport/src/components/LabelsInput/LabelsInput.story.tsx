@@ -60,6 +60,8 @@ export const Custom = () => {
       <LabelsInput
         labels={labels}
         setLabels={setLables}
+        legend="List of Labels"
+        tooltipContent="List of labels, 'nuff said"
         labelKey={{
           fieldName: 'Custom Key Name',
           placeholder: 'custom key placeholder',
