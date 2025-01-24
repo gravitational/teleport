@@ -37,7 +37,11 @@ func IsManagedByUpdater() (bool, error) {
 	if runtime.GOOS != constants.LinuxOS {
 		return false, nil
 	}
-	if ok, err := hasSystemD(); err != nil || !ok {
+	systemd, err := hasSystemD()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if !systemd {
 		return false, nil
 	}
 	teleportPath, err := os.Readlink("/proc/self/exe")
@@ -64,7 +68,11 @@ func IsManagedAndDefault() (bool, error) {
 	if runtime.GOOS != constants.LinuxOS {
 		return false, nil
 	}
-	if ok, err := hasSystemD(); err != nil || !ok {
+	systemd, err := hasSystemD()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if !systemd {
 		return false, nil
 	}
 	teleportPath, err := os.Readlink("/proc/self/exe")

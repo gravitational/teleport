@@ -342,6 +342,7 @@ func (s SystemdService) checkSystem(ctx context.Context) error {
 
 }
 
+// hasSystemD returns true if the system uses the SystemD process manager.
 func hasSystemD() (bool, error) {
 	_, err := os.Stat("/run/systemd/system")
 	if errors.Is(err, os.ErrNotExist) {
