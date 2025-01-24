@@ -425,7 +425,7 @@ func (w *Monitor) disconnectClientOnExpiredCert() {
 			msg = reason
 		}
 		if _, err := w.MessageWriter.WriteString(msg); err != nil {
-			w.Logger.WarnContext(w.Context, "Failed to send certificate expiration message", "error", err)
+			w.Entry.WithError(err).Warn("Failed to send certificate expiration message")
 		}
 	}
 	w.disconnectClient(reason)
