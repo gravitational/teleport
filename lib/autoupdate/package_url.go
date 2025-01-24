@@ -50,6 +50,8 @@ const (
 	{{- else }}
 	{{- .Package }}{{ if .Enterprise }}-ent{{ end }}-v{{ .Version }}-{{ .OS }}-{{ .Arch }}{{ if .FIPS }}-fips{{ end }}-bin.tar.gz
 	{{- end }}`
+	// BaseURLEnvVar allows to override base URL for the Teleport package URL via env var.
+	BaseURLEnvVar = "TELEPORT_CDN_BASE_URL"
 )
 
 // MakeURL constructs the package download URL from template, base URL and revision.
