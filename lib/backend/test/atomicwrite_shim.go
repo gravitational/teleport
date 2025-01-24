@@ -35,7 +35,7 @@ import (
 // with a shim that converts all calls to single-write methods (all write methods but DeleteRange) into calls to
 // AtomicWrite. This is done to ensure that the relationship between the conditional actions of AtomicWrite and the
 // single-write methods is well defined, and to improve overall coverage of AtomicWrite implementations via reuse.
-func RunBackendComplianceSuiteWithAtomicWriteShim[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
+func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Constructor) {
 	RunBackendComplianceSuite(t, func(options ...ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		bk, clock, err := newBackend(options...)
 		if err != nil {
