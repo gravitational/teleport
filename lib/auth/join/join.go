@@ -356,8 +356,11 @@ func registerThroughProxy(
 
 	var certs *proto.Certs
 	switch params.JoinMethod {
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
-		// IAM and Azure join methods require gRPC client
+	case types.JoinMethodIAM,
+		types.JoinMethodAzure,
+		types.JoinMethodTPM,
+		types.JoinMethodOracle:
+		// These join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
 			proxyinsecureclient.ConnectionConfig{
@@ -381,6 +384,8 @@ func registerThroughProxy(
 			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodTPM:
 			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, hostKeys, params)
+		case types.JoinMethodOracle:
+			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
@@ -648,6 +653,11 @@ type joinServiceClient interface {
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
 	) (*proto.Certs, error)
+	RegisterUsingOracleMethod(
+		ctx context.Context,
+		tokenReq *types.RegisterUsingTokenRequest,
+		challengeResponse client.RegisterOracleChallengeResponseFunc,
+	) (*proto.Certs, error)
 }
 
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
@@ -799,6 +809,12 @@ func registerUsingTPMMethod(
 		},
 	)
 	return certs, trace.Wrap(err)
+}
+
+func registerUsingOracleMethod(
+	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
+) (*proto.Certs, error) {
+	return nil, trace.NotImplemented("Not implemented")
 }
 
 // readCA will read in CA that will be used to validate the certificate that
