@@ -253,8 +253,6 @@ type Process interface {
 	IsEnabled(ctx context.Context) (bool, error)
 }
 
-// TODO(sclevine): add support for need_restart and selinux config
-
 // OverrideConfig contains overrides for individual update operations.
 // If validated, these overrides may be persisted to disk.
 type OverrideConfig struct {
