@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -143,6 +144,13 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Tokens
 	// TODO(strideynet): REMOVE IN 18.0.0 - this method is now gRPC
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
+
+	// these endpoints are still in use by v17 agents since they cache
+	// KindNamespace
+	//
+	// TODO(espadolini): REMOVE IN v19
+	srv.GET("/:version/namespaces", srv.WithAuth(srv.getNamespaces))
+	srv.GET("/:version/namespaces/:namespace", srv.WithAuth(srv.getNamespace))
 
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
@@ -661,6 +669,36 @@ func (s *APIServer) searchSessionEvents(auth *ServerWithRoles, w http.ResponseWr
 	}
 
 	return eventsList, nil
+}
+
+func (*APIServer) getNamespaces(*ServerWithRoles, http.ResponseWriter, *http.Request, httprouter.Params, string) (any, error) {
+	return []types.Namespace{{
+		Kind:    types.KindNamespace,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}}, nil
+}
+
+func (*APIServer) getNamespace(_ *ServerWithRoles, _ http.ResponseWriter, _ *http.Request, p httprouter.Params, _ string) (any, error) {
+	name := p.ByName("namespace")
+	if !types.IsValidNamespace(name) {
+		return nil, trace.BadParameter("invalid namespace %q", name)
+	}
+	if name != defaults.Namespace {
+		return nil, trace.NotFound("namespace %q is not found", name)
+	}
+
+	return &types.Namespace{
+		Kind:    types.KindNamespace,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}, nil
 }
 
 func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
