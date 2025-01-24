@@ -2725,14 +2725,6 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			dryRun:                 true,
 		},
 		{
-			desc:                   "role max_duration is ignored when requestedMaxDuration is not set",
-			requestor:              "alice",
-			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
-			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
-			expectedPendingTTL:     8 * time.Hour,
-			expectedSessionTTL:     8 * time.Hour,
-		},
-		{
 			desc:                   "when role max_duration is not set: default to defaultSessionTTL when requestedMaxDuration is not set",
 			requestor:              "bob",
 			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
@@ -2812,6 +2804,14 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			expectedPendingTTL:     day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
+		{
+			desc:                   "role max_duration is respected when requestedMaxDuration is not set",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 1 day
+			expectedAccessDuration: 3 * day,
+			expectedPendingTTL:     3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
 	}
 
 	for _, tt := range tts {
@@ -2832,7 +2832,9 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
+			if tt.requestedMaxDuration != 0 {
+				req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
+			}
 			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
