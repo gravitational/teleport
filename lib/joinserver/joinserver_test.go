@@ -90,7 +90,7 @@ func (c *mockJoinServiceClient) RegisterUsingOracleMethod(
 	ctx context.Context,
 	challengeResponse client.RegisterOracleChallengeResponseFunc,
 ) (*proto.Certs, error) {
-	return nil, nil
+	return c.returnCerts, c.returnError
 }
 
 func (c *mockJoinServiceClient) RegisterUsingToken(

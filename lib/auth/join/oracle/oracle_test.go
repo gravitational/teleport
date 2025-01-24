@@ -93,7 +93,7 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 	defaultCompartmentID := "compartment-id"
 	defaultInstanceID := "instance-id"
 
-	defaultHandle := func(code int, responseBody any) http.Handler {
+	defaultHandler := func(code int, responseBody any) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(code)
 			body, err := json.Marshal(responseBody)
@@ -111,7 +111,7 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 	}{
 		{
 			name: "ok",
-			handler: defaultHandle(http.StatusOK, authenticateClientResult{
+			handler: defaultHandler(http.StatusOK, authenticateClientResult{
 				Principal: principal{
 					Claims: []claim{
 						{
@@ -146,12 +146,12 @@ func TestFetchOraclePrincipalClaims(t *testing.T) {
 		},
 		{
 			name:    "http error",
-			handler: defaultHandle(http.StatusNotFound, authenticateClientResult{}),
+			handler: defaultHandler(http.StatusNotFound, authenticateClientResult{}),
 			assert:  assert.Error,
 		},
 		{
 			name: "api error",
-			handler: defaultHandle(http.StatusOK, authenticateClientResult{
+			handler: defaultHandler(http.StatusOK, authenticateClientResult{
 				ErrorMessage: "it didn't work",
 			}),
 			assert: assert.Error,

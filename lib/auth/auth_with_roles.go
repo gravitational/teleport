@@ -2393,12 +2393,14 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	return nil
 }
 
+// validateOracleJoinToken validates the fields in a token using the Oracle
+// join method. It's done here instead of in the client so the client doesn't
+// have to import the Oracle SDK.
 func validateOracleJoinToken(token types.ProvisionToken) error {
 	if token.GetJoinMethod() != types.JoinMethodOracle {
 		return nil
 	}
 
-	// Check that all Oracle regions are valid.
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
 		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)

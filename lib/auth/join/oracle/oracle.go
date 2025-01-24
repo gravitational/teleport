@@ -125,7 +125,7 @@ func newAuthenticateClientRequest(time time.Time, challenge string, headers http
 	return req
 }
 
-func createAuthHTTPRequest(endpoint string, auth authenticateClientRequest) (*http.Request, error) {
+func createAuthHTTPRequest(region string, auth authenticateClientRequest) (*http.Request, error) {
 	req, err := common.MakeDefaultHTTPRequestWithTaggedStruct(
 		http.MethodPost,
 		"",
@@ -134,12 +134,11 @@ func createAuthHTTPRequest(endpoint string, auth authenticateClientRequest) (*ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	endpointURL, err := url.Parse(endpoint)
+	endpointURL, err := url.Parse(fmt.Sprintf("https://auth.%s.oraclecloud.com/v1/authentication/authenticateClient", region))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	endpointURL.Path = "/v1/authentication/authenticateClient"
-	// Manually set the host header so it will be sent as part of
+	// Manually set the host header so it will be sent as part of the grpc.
 	req.Header.Set("Host", endpointURL.Host)
 	req.Host = endpointURL.Host
 	req.URL = endpointURL
@@ -163,15 +162,14 @@ func CreateSignedRequest(provider common.ConfigurationProvider, challenge string
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	endpoint := fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
 	now := time.Now().UTC()
-	innerReq, err := createAuthHTTPRequest(endpoint, newAuthenticateClientRequest(now, challenge, nil))
+	innerReq, err := createAuthHTTPRequest(region, newAuthenticateClientRequest(now, challenge, nil))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	signer.Sign(innerReq)
 
-	outerReq, err := createAuthHTTPRequest(endpoint, newAuthenticateClientRequest(now, challenge, innerReq.Header))
+	outerReq, err := createAuthHTTPRequest(region, newAuthenticateClientRequest(now, challenge, innerReq.Header))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -196,8 +194,8 @@ func GetAuthorizationHeaderValues(header http.Header) map[string]string {
 
 // CreateRequestFromHeaders recreates an HTTP request to the authenticateClient
 // endpoint from its inner and outer headers.
-func CreateRequestFromHeaders(endpoint string, innerHeaders, outerHeaders http.Header) (*http.Request, error) {
-	req, err := createAuthHTTPRequest(endpoint, authenticateClientRequest{
+func CreateRequestFromHeaders(region string, innerHeaders, outerHeaders http.Header) (*http.Request, error) {
+	req, err := createAuthHTTPRequest(region, authenticateClientRequest{
 		Date:      outerHeaders.Get(DateHeader),
 		Challenge: outerHeaders.Get(ChallengeHeader),
 		UserAgent: teleportUserAgent,
@@ -246,7 +244,7 @@ func FetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (Claims,
 
 // Hack: StringToRegion will lazily load regions from a config file if its
 // input isn't in its hard-coded list, in a non-threadsafe way. Call it here
-// to load the config ahead of time.
+// to load the config ahead of time so future calls are threadsafe.
 var _ = common.StringToRegion("")
 
 // ParseRegion parses a string into a full (not abbreviated) Oracle Cloud
@@ -263,17 +261,20 @@ func ParseRegion(rawRegion string) string {
 // It returns an error if the input is not a valid OCID.
 func ParseRegionFromOCID(ocid string) (string, error) {
 	// OCID format: ocid1.<RESOURCE TYPE>.<REALM>.[REGION][.FUTURE USE].<UNIQUE ID>
+	// Check format.
 	ocidParts := strings.Split(ocid, ".")
 	switch len(ocidParts) {
 	case 5, 6:
 	default:
 		return "", trace.BadParameter("not an ocid")
 	}
+	// Check version.
 	if ocidParts[0] != "ocid1" {
 		return "", trace.BadParameter("invalid ocid version: %v", ocidParts[0])
 	}
 	resourceType := ocidParts[1]
 	region := ParseRegion(ocidParts[3])
+	// Check type. Only instance OCIDs should have a region.
 	switch resourceType {
 	case "instance":
 		if region == "" {
@@ -286,6 +287,7 @@ func ParseRegionFromOCID(ocid string) (string, error) {
 	default:
 		return "", trace.BadParameter("unsupported resource type: %v", resourceType)
 	}
+	// Check realm.
 	switch ocidParts[2] {
 	case "oc1", "oc2", "oc3":
 	default:

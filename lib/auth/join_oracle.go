@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -58,7 +57,7 @@ func checkHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 	now := clock.Now().UTC()
 	rawHeaderDate := headers.Get(oracle.DateHeader)
 	if rawHeaderDate == "" {
-		return trace.BadParameter("missing header X-Date")
+		return trace.BadParameter("missing header %v", oracle.DateHeader)
 	}
 	headerDate, err := time.Parse(http.TimeFormat, rawHeaderDate)
 	if err != nil {
@@ -108,56 +107,69 @@ func formatHeaderFromMap(m map[string]string) http.Header {
 	return header
 }
 
-func (a *Server) checkOracleRequest(ctx context.Context, challenge string, req *proto.RegisterUsingOracleMethodRequest, fetchClaims oracleClaimsFetcher) (*oracle.Claims, error) {
+func getRegionFromHost(host string) (string, error) {
+	regionEndpoint, foundAuth := strings.CutPrefix(host, "auth.")
+	rawRegion, foundOracleCloud := strings.CutSuffix(regionEndpoint, ".oraclecloud.com")
+	if !foundAuth || !foundOracleCloud {
+		return "", trace.BadParameter("expected host auth.{region}.oraclecloud.com, got %s", host)
+	}
+	region := oracle.ParseRegion(rawRegion)
+	if region == "" {
+		return "", trace.BadParameter("missing or invalid region")
+	}
+	return region, nil
+}
+
+func (a *Server) checkOracleRequest(
+	ctx context.Context,
+	challenge string,
+	req *proto.RegisterUsingOracleMethodRequest,
+	fetchClaims oracleClaimsFetcher,
+) (oracle.Claims, error) {
+	// Check shared token parameters.
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return oracle.Claims{}, trace.Wrap(err)
 	}
 	if provisionToken.GetJoinMethod() != types.JoinMethodOracle {
-		return nil, trace.AccessDenied("this token does not support the Oracle join method")
+		return oracle.Claims{}, trace.AccessDenied("this token does not support the Oracle join method")
 	}
 
+	// Check signed headers.
 	outerHeaders := formatHeaderFromMap(req.Headers)
 	innerHeaders := formatHeaderFromMap(req.PayloadHeaders)
 	if err := checkHeaders(outerHeaders, challenge, a.GetClock()); err != nil {
-		return nil, trace.Wrap(err)
+		return oracle.Claims{}, trace.Wrap(err)
 	}
 	if err := checkHeaders(innerHeaders, challenge, a.GetClock()); err != nil {
-		return nil, trace.Wrap(err)
+		return oracle.Claims{}, trace.Wrap(err)
 	}
 
-	// Check region.
-	host := outerHeaders.Get("host")
-	hostParts := strings.Split(host, ".")
-	if len(hostParts) != 4 {
-		return nil, trace.BadParameter("unexpected host: %v", host)
-	}
-	region := string(oracle.ParseRegion(hostParts[1]))
-	if region == "" {
-		return nil, trace.BadParameter("invalid region: %v", region)
-	}
-
-	endpoint := fmt.Sprintf("https://auth.%s.oraclecloud.com", region)
-	authReq, err := oracle.CreateRequestFromHeaders(endpoint, innerHeaders, outerHeaders)
+	// Authenticate request with Oracle.
+	region, err := getRegionFromHost(outerHeaders.Get("host"))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return oracle.Claims{}, trace.Wrap(err)
 	}
-
+	authReq, err := oracle.CreateRequestFromHeaders(region, innerHeaders, outerHeaders)
+	if err != nil {
+		return oracle.Claims{}, trace.Wrap(err)
+	}
 	claims, err := fetchClaims(ctx, authReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return oracle.Claims{}, trace.Wrap(err)
 	}
 
+	// Check allow rules.
 	token, ok := provisionToken.(*types.ProvisionTokenV2)
 	if !ok {
-		return nil, trace.BadParameter("oracle join method only supports ProvisionTokenV2")
+		return oracle.Claims{}, trace.BadParameter("oracle join method only supports ProvisionTokenV2")
 	}
 	if err := checkOracleAllowRules(claims, provisionToken.GetName(), token.Spec.Oracle.Allow); err != nil {
-		return nil, trace.Wrap(err)
+		return oracle.Claims{}, trace.Wrap(err)
 	}
 
-	return &claims, nil
+	return claims, nil
 }
 
 // RegisterUsingOracleMethod registers the caller using the Oracle join method and
@@ -179,11 +191,12 @@ func (a *Server) registerUsingOracleMethod(
 ) (certs *proto.Certs, err error) {
 	var provisionToken types.ProvisionToken
 	var joinRequest *types.RegisterUsingTokenRequest
+	var claims oracle.Claims
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, nil, joinRequest,
+				ctx, err, provisionToken, claims, joinRequest,
 			)
 		}
 	}()
@@ -205,7 +218,7 @@ func (a *Server) registerUsingOracleMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	claims, err := a.checkOracleRequest(ctx, challenge, req, fetchClaims)
+	claims, err = a.checkOracleRequest(ctx, challenge, req, fetchClaims)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -55,7 +55,7 @@ type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterU
 // error.
 type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodChallengeResponse, error)
 
-// RegisterOracleChallengeResposneFunc is a function type meant to be passed to
+// RegisterOracleChallengeResponseFunc is a function type meant to be passed to
 // RegisterUsingOracleMethod: It must return a
 // *proto.RegisterUsingOracleMethodRequest for a given challenge, or an error.
 type RegisterOracleChallengeResponseFunc func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error)

@@ -371,6 +371,14 @@ func TestRegisterUsingOracleMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, a.UpsertToken(ctx, token))
 
+	wrongToken, err := types.NewProvisionToken(
+		"wrong-token",
+		[]types.SystemRole{types.RoleNode},
+		time.Now().Add(time.Minute),
+	)
+	require.NoError(t, err)
+	require.NoError(t, a.UpsertToken(ctx, wrongToken))
+
 	mockFetchClaims := func(_ context.Context, _ *http.Request) (oracle.Claims, error) {
 		return oracle.Claims{
 			TenancyID:     makeTenancyID("foo"),
@@ -379,26 +387,72 @@ func TestRegisterUsingOracleMethod(t *testing.T) {
 		}, nil
 	}
 
-	_, err = a.registerUsingOracleMethod(
-		ctx,
-		func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error) {
-			innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(provider, challenge)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &proto.RegisterUsingOracleMethodRequest{
-				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-					Token:        "my-token",
-					HostID:       "test-node",
-					Role:         types.RoleNode,
-					PublicSSHKey: sshPublicKey,
-					PublicTLSKey: tlsPublicKey,
-				},
-				Headers:        mapFromHeader(outerHeaders),
-				PayloadHeaders: mapFromHeader(innerHeaders),
-			}, nil
+	tests := []struct {
+		name          string
+		modifyRequest func(*proto.RegisterUsingOracleMethodRequest)
+		assert        require.ErrorAssertionFunc
+	}{
+		{
+			name:   "ok",
+			assert: require.NoError,
 		},
-		mockFetchClaims,
-	)
-	require.NoError(t, err)
+		{
+			name: "token not found",
+			modifyRequest: func(req *proto.RegisterUsingOracleMethodRequest) {
+				req.RegisterUsingTokenRequest.Token = "nonexistent"
+			},
+			assert: require.Error,
+		},
+		{
+			name: "wrong join method",
+			modifyRequest: func(req *proto.RegisterUsingOracleMethodRequest) {
+				req.RegisterUsingTokenRequest.Token = "wrong-token"
+			},
+			assert: require.Error,
+		},
+		{
+			name: "wrong host",
+			modifyRequest: func(req *proto.RegisterUsingOracleMethodRequest) {
+				req.Headers["Host"] = "somewhere.us-phoenix-1.example.com"
+			},
+			assert: require.Error,
+		},
+		{
+			name: "invalid host region",
+			modifyRequest: func(req *proto.RegisterUsingOracleMethodRequest) {
+				req.Headers["Host"] = "auth.foo.oraclecloud.com"
+			},
+			assert: require.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err = a.registerUsingOracleMethod(
+				ctx,
+				func(challenge string) (*proto.RegisterUsingOracleMethodRequest, error) {
+					innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(provider, challenge)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					req := &proto.RegisterUsingOracleMethodRequest{
+						RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+							Token:        "my-token",
+							HostID:       "test-node",
+							Role:         types.RoleNode,
+							PublicSSHKey: sshPublicKey,
+							PublicTLSKey: tlsPublicKey,
+						},
+						Headers:        mapFromHeader(outerHeaders),
+						PayloadHeaders: mapFromHeader(innerHeaders),
+					}
+					if tc.modifyRequest != nil {
+						tc.modifyRequest(req)
+					}
+					return req, nil
+				},
+				mockFetchClaims,
+			)
+			tc.assert(t, err)
+		})
+	}
 }
