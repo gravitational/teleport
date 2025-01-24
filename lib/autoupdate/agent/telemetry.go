@@ -21,9 +21,12 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
@@ -31,6 +34,12 @@ import (
 // The binary is considered managed if it lives under /opt/teleport, but not within the package
 // path at /opt/teleport/system.
 func IsManagedByUpdater() (bool, error) {
+	if runtime.GOOS != constants.LinuxOS {
+		return false, nil
+	}
+	if ok, err := hasSystemD(); err != nil || !ok {
+		return false, nil
+	}
 	teleportPath, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
@@ -52,6 +61,12 @@ func IsManagedByUpdater() (bool, error) {
 // and the default installation (with teleport.service as the unit file name).
 // The binary is considered managed and default if it lives within /opt/teleport/default.
 func IsManagedAndDefault() (bool, error) {
+	if runtime.GOOS != constants.LinuxOS {
+		return false, nil
+	}
+	if ok, err := hasSystemD(); err != nil || !ok {
+		return false, nil
+	}
 	teleportPath, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
