@@ -118,7 +118,9 @@ var initTestLoggerOnce = sync.Once{}
 func InitLoggerForTests() {
 	initTestLoggerOnce.Do(func() {
 		// Parse flags to check testing.Verbose().
-		flag.Parse()
+		if !flag.Parsed() {
+			flag.Parse()
+		}
 
 		if !testing.Verbose() {
 			slog.SetDefault(slog.New(logutils.DiscardHandler{}))
