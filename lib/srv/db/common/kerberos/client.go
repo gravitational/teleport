@@ -58,7 +58,7 @@ func newClientProvider(authClient windows.AuthInterface, dataDir string) *client
 }
 
 var errBadCertificate = errors.New("invalid certificate was provided via AD configuration")
-var errBadKerberosConfig = errors.New("configuration must have either keytab or kdc_host_name and ldap_cert")
+var errBadKerberosConfig = errors.New("configuration must have either keytab_file or kdc_host_name and ldap_cert")
 
 func (c *clientProvider) GetKerberosClient(ctx context.Context, sessionCtx *common.Session) (*client.Client, error) {
 	switch {
@@ -104,7 +104,7 @@ func (c *clientProvider) keytabClient(session *common.Session) (*client.Client, 
 
 	// Login.
 	err = kbClient.Login()
-	return kbClient, err
+	return kbClient, trace.Wrap(err)
 }
 
 // kinitClient returns a kerberos client using a kinit ccache
