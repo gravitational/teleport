@@ -16,11 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useMemo } from 'react';
+import { z } from 'zod';
+
 import { getCliCommandArgv0 } from 'teleterm/services/tshd/gateway';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
-import { OfflineGateway } from '../components/OfflineGateway';
+import { PortFieldInput } from '../components/FieldInputs';
+import { FormFields, OfflineGateway } from '../components/OfflineGateway';
 import { useWorkspaceContext } from '../Documents';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 import { useGateway } from './useGateway';
@@ -50,7 +54,7 @@ export function DocumentGateway(props: {
 
   const runCliCommand = () => {
     const command = getCliCommandArgv0(gateway.gatewayCliCommand);
-    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+    const title = `${command} · ${doc.targetName} (${doc.targetUser})`;
 
     const cliDoc = documentsService.createGatewayCliDocument({
       title,
@@ -63,15 +67,21 @@ export function DocumentGateway(props: {
     documentsService.setLocation(cliDoc.uri);
   };
 
+  const renderFormControls = useMemo(
+    () => makeRenderFormControlsFromDefaultPort(defaultPort),
+    [defaultPort]
+  );
+
   if (!connected) {
     return (
       <Document visible={visible}>
         <OfflineGateway
           connectAttempt={connectAttempt}
           reconnect={reconnect}
-          gatewayPort={{ isSupported: true, defaultPort }}
           targetName={doc.targetName}
           gatewayKind="database"
+          formSchema={formSchema}
+          renderFormControls={renderFormControls}
         />
       </Document>
     );
@@ -92,3 +102,16 @@ export function DocumentGateway(props: {
     </Document>
   );
 }
+
+export const formSchema = z.object({ [FormFields.LocalPort]: z.string() });
+
+export const makeRenderFormControlsFromDefaultPort =
+  (defaultPort: string) => (isProcessing: boolean) => (
+    <PortFieldInput
+      name={FormFields.LocalPort}
+      label="Port (optional)"
+      defaultValue={defaultPort}
+      mb={0}
+      readonly={isProcessing}
+    />
+  );

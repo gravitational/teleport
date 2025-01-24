@@ -188,6 +188,8 @@ type WebConfigAuthSettings struct {
 	AllowPasswordless bool `json:"allowPasswordless,omitempty"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
+	// DefaultConnectorName is the name of the default connector in the auth preferences. This will be empty if the default is "local".
+	DefaultConnectorName string `json:"defaultConnectorName"`
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.

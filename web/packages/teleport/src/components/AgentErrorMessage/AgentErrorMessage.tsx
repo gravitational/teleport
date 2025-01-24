@@ -20,7 +20,7 @@ import { Link } from 'design';
 import { Danger } from 'design/Alert';
 
 const PREDICATE_DOC =
-  'https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering';
+  'https://goteleport.com/docs/reference/predicate-language/#resource-filtering';
 
 export default function AgentErrorMessage({ message = '' }) {
   const showDocLink = message.includes('predicate expression');

@@ -556,6 +556,8 @@ const (
 	KindUserLastSeenNotification = "user_last_seen_notification"
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
+	// KindUniqueNotificationIdentifier is a resource which tracks a unique identifier for a notification and is used to prevent duplicate notifications in certain cases.
+	KindUniqueNotificationIdentifier = "unique_notification_identifier"
 
 	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
 	// a Teleport SSH node type.
@@ -1496,5 +1498,5 @@ const (
 const (
 	// GitHubOrgServerDomain is the sub domain used in the hostname of a
 	// types.Server to indicate the GitHub organization of a Git server.
-	GitHubOrgServerDomain = "github-org"
+	GitHubOrgServerDomain = "teleport-github-org"
 )

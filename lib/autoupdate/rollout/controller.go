@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -45,13 +46,14 @@ type Controller struct {
 	clock      clockwork.Clock
 	log        *slog.Logger
 	period     time.Duration
+	metrics    *metrics
 }
 
 // NewController creates a new Controller for the autoupdate_agent_rollout kind.
 // The period can be specified to control the sync frequency. This is mainly
 // used to speed up tests or for demo purposes. When empty, the controller picks
 // a sane default value.
-func NewController(client Client, log *slog.Logger, clock clockwork.Clock, period time.Duration) (*Controller, error) {
+func NewController(client Client, log *slog.Logger, clock clockwork.Clock, period time.Duration, reg prometheus.Registerer) (*Controller, error) {
 	if client == nil {
 		return nil, trace.BadParameter("missing client")
 	}
@@ -60,6 +62,9 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 	}
 	if clock == nil {
 		return nil, trace.BadParameter("missing clock")
+	}
+	if reg == nil {
+		return nil, trace.BadParameter("missing prometheus.Registerer")
 	}
 
 	if period <= 0 {
@@ -77,13 +82,20 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 		return nil, trace.Wrap(err, "failed to initialize time-based strategy")
 	}
 
+	m, err := newMetrics(reg)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize metrics")
+	}
+
 	return &Controller{
-		clock: clock,
-		log:   log,
+		metrics: m,
+		clock:   clock,
+		log:     log,
 		reconciler: reconciler{
-			clt:   client,
-			log:   log,
-			clock: clock,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: m,
 			rolloutStrategies: []rolloutStrategy{
 				timeBased,
 				haltOnError,
@@ -113,7 +125,7 @@ func (c *Controller) Run(ctx context.Context) error {
 		case <-ticker.Next():
 			c.log.DebugContext(ctx, "Reconciling autoupdate_agent_rollout")
 			if err := c.tryAndCatch(ctx); err != nil {
-				c.log.ErrorContext(ctx, "Failed to reconcile autoudpate_agent_controller", "error", err)
+				c.log.ErrorContext(ctx, "Failed to reconcile autoupdate_agent_controller", "error", err)
 			}
 		}
 	}
@@ -122,13 +134,22 @@ func (c *Controller) Run(ctx context.Context) error {
 // tryAndCatch tries to run the controller reconciliation logic and recovers from potential panic by converting them
 // into errors. This ensures that a critical bug in the reconciler cannot bring down the whole Teleport cluster.
 func (c *Controller) tryAndCatch(ctx context.Context) (err error) {
+	startTime := c.clock.Now()
 	// If something terribly bad happens during the reconciliation, we recover and return an error
 	defer func() {
 		if r := recover(); r != nil {
 			c.log.ErrorContext(ctx, "Recovered from panic in the autoupdate_agent_rollout controller", "panic", r)
 			err = trace.NewAggregate(err, trace.Errorf("Panic recovered during reconciliation: %v", r))
+			c.metrics.observeReconciliation(metricsReconciliationResultLabelValuePanic, c.clock.Now().Sub(startTime))
 		}
 	}()
+
 	err = trace.Wrap(c.reconciler.reconcile(ctx))
+	endTime := c.clock.Now()
+	result := metricsReconciliationResultLabelValueSuccess
+	if err != nil {
+		result = metricsReconciliationResultLabelValueFail
+	}
+	c.metrics.observeReconciliation(result, endTime.Sub(startTime))
 	return
 }

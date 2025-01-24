@@ -194,7 +194,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.errCheck(t, ConvertIAMv2Error(tt.inErr))
+			tt.errCheck(t, ConvertIAMError(tt.inErr))
 		})
 	}
 }

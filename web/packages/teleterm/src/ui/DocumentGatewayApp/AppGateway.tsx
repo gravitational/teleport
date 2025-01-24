@@ -20,8 +20,10 @@ import {
   ChangeEvent,
   ChangeEventHandler,
   PropsWithChildren,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import styled from 'styled-components';
@@ -38,12 +40,21 @@ import {
 } from 'design';
 import { Check, Spinner } from 'design/Icon';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
-import { Attempt } from 'shared/hooks/useAsync';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
-import { PortFieldInput } from '../components/FieldInputs';
+import {
+  formatPortRange,
+  portRangeSeparator,
+} from 'teleterm/services/tshd/app';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { PortFieldInput } from 'teleterm/ui/components/FieldInputs';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { setUpAppGateway } from 'teleterm/ui/services/workspacesService';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function AppGateway(props: {
   gateway: Gateway;
@@ -55,6 +66,10 @@ export function AppGateway(props: {
   disconnect(): void;
 }) {
   const { gateway } = props;
+  const ctx = useAppContext();
+  const { tshd } = ctx;
+  const { targetUri } = gateway;
+  const logger = useLogger('AppGateway');
 
   const {
     changeLocalPort,
@@ -84,6 +99,54 @@ export function AppGateway(props: {
   // When the app is not multi-port, targetSubresourceName is empty and the user cannot change it.
   const isMultiPort =
     gateway.protocol === 'TCP' && gateway.targetSubresourceName;
+  const targetPortRef = useRef<HTMLInputElement>(null);
+
+  const [tcpPortsAttempt, getTcpPorts] = useAsync(
+    useCallback(
+      () =>
+        retryWithRelogin(ctx, targetUri, () =>
+          tshd
+            .getApp({ appUri: targetUri })
+            .then(({ response }) => response.app.tcpPorts)
+        ),
+      [ctx, targetUri, tshd]
+    )
+  );
+  const currentTargetPort = parseInt(gateway.targetSubresourceName);
+  const getTcpPortsForMenuLogin: () => Promise<LoginItem[]> =
+    useCallback(async () => {
+      const [tcpPorts, error] = await getTcpPorts();
+
+      if (error) {
+        throw error;
+      }
+
+      return tcpPorts
+        .filter(
+          portRange =>
+            // Filter out single-port port ranges that are equal to the current port.
+            portRange.endPort !== 0 || portRange.port != currentTargetPort
+        )
+        .map(portRange => ({
+          login: formatPortRange(portRange),
+          url: '',
+        }));
+    }, [getTcpPorts, currentTargetPort]);
+
+  const onPortRangeSelect = (_, formattedPortRange: string) => {
+    const firstPort = formattedPortRange.split(portRangeSeparator)[0];
+    const targetPort = parseInt(firstPort);
+
+    if (Number.isNaN(targetPort)) {
+      logger.error('Not a number', firstPort);
+      return;
+    }
+
+    setUpAppGateway(ctx, targetUri, {
+      telemetry: { origin: 'resource_table' },
+      targetPort,
+    });
+  };
 
   return (
     <Flex
@@ -93,79 +156,102 @@ export function AppGateway(props: {
       mx="auto"
       mt="4"
       px="5"
-      gap={2}
+      gap={3}
     >
-      <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-        <H1>App Connection</H1>
-        <ButtonSecondary size="small" onClick={props.disconnect}>
-          Close Connection
-        </ButtonSecondary>
-      </Flex>
-
-      {disconnectAttempt.status === 'error' && (
-        <Alert details={disconnectAttempt.statusText} m={0}>
-          Could not close the connection
-        </Alert>
-      )}
-
-      <Flex as="form" gap={2}>
-        <Validation>
-          <PortFieldInput
-            label={
-              <LabelWithAttemptStatus
-                text="Local Port"
-                attempt={changeLocalPortAttempt}
+      <Flex flexDirection="column" gap={2}>
+        <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
+          <H1>App Connection</H1>
+          <Flex gap={2}>
+            {isMultiPort && (
+              <MenuLogin
+                getLoginItems={getTcpPortsForMenuLogin}
+                onSelect={onPortRangeSelect}
+                textTransform="none"
+                placeholder="Pick target port"
+                ButtonComponent={ButtonSecondary}
+                buttonText="Open New Connection"
               />
-            }
-            defaultValue={gateway.localPort}
-            onChange={handleLocalPortChange}
-            mb={0}
-          />
-          {isMultiPort && (
+            )}
+            <ButtonSecondary size="small" onClick={props.disconnect}>
+              Close Connection
+            </ButtonSecondary>
+          </Flex>
+        </Flex>
+
+        {disconnectAttempt.status === 'error' && (
+          <Alert details={disconnectAttempt.statusText} m={0}>
+            Could not close the connection
+          </Alert>
+        )}
+
+        <Flex as="form" gap={2}>
+          <Validation>
             <PortFieldInput
               label={
                 <LabelWithAttemptStatus
-                  text="Target Port"
-                  attempt={changeTargetPortAttempt}
+                  text="Local Port"
+                  attempt={changeLocalPortAttempt}
                 />
               }
-              required
-              defaultValue={gateway.targetSubresourceName}
-              onChange={handleTargetPortChange}
+              defaultValue={gateway.localPort}
+              onChange={handleLocalPortChange}
               mb={0}
             />
-          )}
-        </Validation>
+            {isMultiPort && (
+              <PortFieldInput
+                label={
+                  <LabelWithAttemptStatus
+                    text="Target Port"
+                    attempt={changeTargetPortAttempt}
+                  />
+                }
+                required
+                defaultValue={gateway.targetSubresourceName}
+                onChange={handleTargetPortChange}
+                mb={0}
+                ref={targetPortRef}
+              />
+            )}
+          </Validation>
+        </Flex>
       </Flex>
 
-      <div>
-        <Text>Access the app at:</Text>
-        <TextSelectCopy mt={1} text={address} bash={false} />
-      </div>
+      <Flex flexDirection="column" gap={2}>
+        <div>
+          <Text>Access the app at:</Text>
+          <TextSelectCopy mt={1} text={address} bash={false} />
+        </div>
 
-      {changeLocalPortAttempt.status === 'error' && (
-        <Alert details={changeLocalPortAttempt.statusText} m={0}>
-          Could not change the local port
-        </Alert>
-      )}
+        {changeLocalPortAttempt.status === 'error' && (
+          <Alert details={changeLocalPortAttempt.statusText} m={0}>
+            Could not change the local port
+          </Alert>
+        )}
 
-      {changeTargetPortAttempt.status === 'error' && (
-        <Alert details={changeTargetPortAttempt.statusText} m={0}>
-          Could not change the target port
-        </Alert>
-      )}
+        {changeTargetPortAttempt.status === 'error' && (
+          <Alert details={changeTargetPortAttempt.statusText} m={0}>
+            Could not change the target port
+          </Alert>
+        )}
 
-      <Text>
-        The connection is made through an authenticated proxy so no extra
-        credentials are necessary. See{' '}
-        <Link
-          href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
-          target="_blank"
-        >
-          the documentation
-        </Link>{' '}
-        for more details.
-      </Text>
+        {tcpPortsAttempt.status === 'error' && (
+          <Alert kind="warning" details={tcpPortsAttempt.statusText} m={0}>
+            Could not fetch available target ports
+          </Alert>
+        )}
+
+        <Text>
+          The connection is made through an authenticated proxy so no extra
+          credentials are necessary. See{' '}
+          <Link
+            href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
+            target="_blank"
+          >
+            the documentation
+          </Link>{' '}
+          for more details.
+        </Text>
+      </Flex>
     </Flex>
   );
 }
@@ -191,7 +277,11 @@ const LabelWithAttemptStatus = (props: {
       // repeated when the user switches to this tab.
       // https://www.w3.org/TR/css-animations-1/#example-4e34d7ba
       <UnmountAfter timeoutMs={disappearanceDelayMs + disappearanceDurationMs}>
-        <DisappearingCheck color="success.main" size="small" />
+        <DisappearingCheck
+          color="success.main"
+          size="small"
+          title={`${props.text} successfully updated`}
+        />
       </UnmountAfter>
     )}
   </Flex>

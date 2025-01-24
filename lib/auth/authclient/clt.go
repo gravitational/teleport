@@ -825,6 +825,26 @@ func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize
 	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
+// CreateUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) CreateUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) GetUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) DeleteUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUniqueNotificationIdentifiersForPrefix not implemented: can only be called locally.
+func (c *Client) ListUniqueNotificationIdentifiersForPrefix(ctx context.Context, prefix string, pageSize int, startKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // GetAccessGraphSettings gets the access graph settings from the backend.
 func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -1703,6 +1723,9 @@ type ClientI interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
+	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
+
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
 
@@ -1900,4 +1923,7 @@ type ClientI interface {
 
 	// GitServerClient returns git server client.
 	GitServerClient() *gitserver.Client
+
+	// GitServerReadOnlyClient returns the read-only client for Git servers.
+	GitServerReadOnlyClient() gitserver.ReadOnlyClient
 }

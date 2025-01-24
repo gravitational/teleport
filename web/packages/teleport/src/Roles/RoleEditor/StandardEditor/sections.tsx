@@ -28,11 +28,22 @@ import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import { useValidation } from 'shared/components/Validation';
 import { ValidationResult } from 'shared/components/Validation/rules';
 
+import { StandardModelDispatcher } from './useStandardModel';
+
+/** Properties of a section that uses plain callbacks to change the model. */
 export type SectionProps<Model, ValidationResult> = {
   value: Model;
   isProcessing: boolean;
   validation?: ValidationResult;
-  onChange?(value: Model): void;
+  onChange(value: Model): void;
+};
+
+/** Properties of a section that uses a dispatcher to change the model. */
+export type SectionPropsWithDispatch<Model, ValidationResult> = {
+  value: Model;
+  isProcessing: boolean;
+  validation?: ValidationResult;
+  dispatch: StandardModelDispatcher;
 };
 
 /**

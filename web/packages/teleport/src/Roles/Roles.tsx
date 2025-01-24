@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import { ComponentType, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
@@ -37,7 +37,7 @@ import {
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
-import { RoleResource, RoleWithYaml } from 'teleport/services/resources';
+import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
@@ -48,15 +48,25 @@ import { RoleList } from './RoleList';
 import templates from './templates';
 import { State, useRoles } from './useRoles';
 
-export function RolesContainer() {
+// RoleDiffProps are an optional set of props to render the role diff visualizer.
+type RoleDiffProps = {
+  RoleDiffComponent: ComponentType;
+  updateRoleDiff: (role: Role) => Promise<void>;
+};
+
+export type RolesProps = {
+  roleDiffProps?: RoleDiffProps;
+};
+
+export function RolesContainer({ roleDiffProps }: RolesProps) {
   const ctx = useTeleport();
   const state = useRoles(ctx);
-  return <Roles {...state} />;
+  return <Roles {...state} roleDiffProps={roleDiffProps} />;
 }
 
 const useNewRoleEditor = storageService.getUseNewRoleEditor();
 
-export function Roles(props: State) {
+export function Roles(props: State & RolesProps) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -219,6 +229,7 @@ export function Roles(props: State) {
             onClose={resources.disregard}
             resources={resources}
             onSave={handleSave}
+            roleDiffProps={props.roleDiffProps}
           />
         )}
         <Box
@@ -239,7 +250,7 @@ export function Roles(props: State) {
             <Link
               color="text.main"
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
+              href="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             >
               the cluster management (RBAC)
             </Link>{' '}
@@ -252,7 +263,7 @@ export function Roles(props: State) {
       {!useNewRoleEditor &&
         (resources.status === 'creating' || resources.status === 'editing') && (
           <ResourceEditor
-            docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+            docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             title={title}
             text={resources.item.content}
             name={resources.item.name}

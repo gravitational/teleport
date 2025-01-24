@@ -258,4 +258,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getContactsAccess() {
     return this.state.acl.contacts;
   }
+
+  getGitServersAccess() {
+    return this.state.acl.gitServers;
+  }
 }

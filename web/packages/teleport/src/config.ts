@@ -43,7 +43,9 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
 import type { MfaChallengeResponse } from './services/mfa';
+import { KindAuthConnectors } from './services/resources';
 
+export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
@@ -124,6 +126,8 @@ const cfg = {
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
+    /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
+    defaultConnectorName: '',
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
@@ -203,6 +207,15 @@ const cfg = {
 
     downloadCenter: '/web/downloads',
 
+    // sso routes
+    ssoConnector: {
+      /**
+       * create is the dedicated page for creating a new auth connector.
+       */
+      create: '/web/sso/new/:connectorType(github|oidc|saml)',
+      edit: '/web/sso/edit/:connectorType(github|oidc|saml)/:connectorName?',
+    },
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -281,6 +294,7 @@ const cfg = {
     rolePath: '/v1/webapi/roles/:name?',
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
+    githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
@@ -341,8 +355,6 @@ const cfg = {
       '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
       '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
-    awsConfigureIamScriptEc2InstanceConnectPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamEksScriptPath:
       '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
 
@@ -361,8 +373,12 @@ const cfg = {
     awsSubnetListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/subnets',
 
-    awsAppAccessPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsAppAccess: {
+      create:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+      createV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    },
     awsConfigureIamAppAccessPath:
       '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName&awsAccountID=:accountID',
 
@@ -379,14 +395,6 @@ const cfg = {
       enrollV2:
         '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
     },
-
-    ec2InstancesListPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
-    ec2InstanceConnectEndpointsListPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
-    // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
-    ec2InstanceConnectDeployPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -413,6 +421,8 @@ const cfg = {
 
     msTeamsAppZipPath:
       '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
+
+    defaultConnectorPath: '/v1/webapi/authconnector/default',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
@@ -484,6 +494,10 @@ const cfg = {
 
   getAuth2faType() {
     return cfg.auth ? cfg.auth.second_factor : null;
+  },
+
+  getDefaultConnectorName() {
+    return cfg.auth ? cfg.auth.defaultConnectorName : '';
   },
 
   getPreferredMfaType() {
@@ -770,6 +784,20 @@ const cfg = {
     return generatePath(cfg.routes.kubernetes, { clusterId });
   },
 
+  getEditAuthConnectorRoute(
+    connectorType: KindAuthConnectors,
+    connectorName?: string
+  ) {
+    return generatePath(cfg.routes.ssoConnector.edit, {
+      connectorType,
+      connectorName,
+    });
+  },
+
+  getCreateAuthConnectorRoute(connectorType: KindAuthConnectors) {
+    return generatePath(cfg.routes.ssoConnector.create, { connectorType });
+  },
+
   getUsersUrl() {
     return cfg.api.usersPath;
   },
@@ -919,6 +947,10 @@ const cfg = {
     return generatePath(cfg.api.githubConnectorsPath, { name });
   },
 
+  getGithubConnectorUrl(name: string) {
+    return generatePath(cfg.api.githubConnectorPath, { name });
+  },
+
   getTrustedClustersUrl(name?: string) {
     return generatePath(cfg.api.trustedClustersPath, { name });
   },
@@ -1057,7 +1089,16 @@ const cfg = {
   getAwsAppAccessUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.awsAppAccessPath, {
+    return generatePath(cfg.api.awsAppAccess.create, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsAppAccessUrlV2(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccess.createV2, {
       clusterId,
       name: integrationName,
     });
@@ -1113,33 +1154,6 @@ const cfg = {
     });
   },
 
-  getListEc2InstancesUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstancesListPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getListEc2InstanceConnectEndpointsUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstanceConnectEndpointsListPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getDeployEc2InstanceConnectEndpointUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstanceConnectDeployPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
   getListSecurityGroupsUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -1154,17 +1168,6 @@ const cfg = {
       clusterId,
       name: integrationName,
     });
-  },
-
-  getEc2InstanceConnectIAMConfigureScriptUrl(
-    params: UrlAwsConfigureIamScriptParams
-  ) {
-    return (
-      cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
-        ...params,
-      })
-    );
   },
 
   getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
@@ -1383,8 +1386,6 @@ export interface UrlDeployServiceIamConfigureScriptParams {
 export interface UrlAwsOidcConfigureIdp {
   integrationName: string;
   roleName: string;
-  s3Bucket?: string;
-  s3Prefix?: string;
   policyPreset?: AwsOidcPolicyPreset;
 }
 

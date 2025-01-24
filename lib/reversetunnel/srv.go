@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -124,6 +125,9 @@ type server struct {
 
 	// proxySigner is used to sign PROXY headers to securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// gitKeyManager manages keys for git proxies.
+	gitKeyManager *git.KeyManager
 }
 
 // Config is a reverse tunnel server configuration
@@ -205,6 +209,9 @@ type Config struct {
 	// NodeWatcher is a node watcher.
 	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// GitServerWatcher is a Git server watcher.
+	GitServerWatcher *services.GenericWatcher[types.Server, readonly.Server]
+
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
@@ -273,6 +280,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.NodeWatcher == nil {
 		return trace.BadParameter("missing parameter NodeWatcher")
 	}
+	if cfg.GitServerWatcher == nil {
+		return trace.BadParameter("missing parameter GitServerWatcher")
+	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
 	}
@@ -313,6 +323,16 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	gitKeyManager, err := git.NewKeyManager(&git.KeyManagerConfig{
+		ParentContext: ctx,
+		AuthClient:    cfg.LocalAuthClient,
+		AccessPoint:   cfg.LocalAccessPoint,
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	srv := &server{
 		Config:           cfg,
 		localAuthClient:  cfg.LocalAuthClient,
@@ -325,6 +345,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		logger:           cfg.Logger,
 		offlineThreshold: offlineThreshold,
 		proxySigner:      cfg.PROXYSigner,
+		gitKeyManager:    gitKeyManager,
 	}
 
 	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
@@ -1271,7 +1292,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 
 	go remoteSite.updateLocks(lockRetry)
-
 	return remoteSite, nil
 }
 

@@ -131,15 +131,8 @@ describe('setUpAppGateway', () => {
         endpointUri: 'tcp://localhost',
         tcpPorts: [{ port: 1234, endPort: 0 }],
       }),
-      expectedTargetSubresourceName: '1234',
-    },
-    {
-      name: 'creates tunnel for a multi-port TCP app with a preselected target port',
-      app: makeApp({
-        endpointUri: 'tcp://localhost',
-        tcpPorts: [{ port: 1234, endPort: 0 }],
-      }),
       targetPort: 1234,
+      expectedTitle: 'foo:1234',
     },
     {
       name: 'creates tunnel for a web app',
@@ -147,11 +140,11 @@ describe('setUpAppGateway', () => {
         endpointUri: 'http://localhost:3000',
       }),
     },
-  ])('$name', async ({ app, targetPort, expectedTargetSubresourceName }) => {
+  ])('$name', async ({ app, targetPort, expectedTitle }) => {
     const appContext = new MockAppContext();
     setTestCluster(appContext);
 
-    await setUpAppGateway(appContext, app, {
+    await setUpAppGateway(appContext, app.uri, {
       telemetry: { origin: 'resource_table' },
       targetPort,
     });
@@ -166,11 +159,10 @@ describe('setUpAppGateway', () => {
       port: undefined,
       status: '',
       targetName: 'foo',
-      targetSubresourceName:
-        expectedTargetSubresourceName || targetPort?.toString() || undefined,
+      targetSubresourceName: targetPort?.toString(),
       targetUri: '/clusters/teleport-local/apps/foo',
       targetUser: '',
-      title: 'foo',
+      title: expectedTitle || 'foo',
       uri: expect.any(String),
     });
   });

@@ -101,6 +101,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     activate(params);
   }
 
+  findConnection(id: string): TrackedConnection | undefined {
+    return this.state.connections.find(c => c.id === id);
+  }
+
   findConnectionByDocument(document: Document): TrackedConnection {
     switch (document.kind) {
       case 'doc.terminal_tsh_node':
@@ -199,14 +203,17 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       draft.connections.forEach(i => {
         switch (i.kind) {
           case 'connection.gateway': {
-            i.connected = !!this._clusterService.findGateway(i.gatewayUri);
+            i.connected = !!this._clusterService.findGatewayByConnectionParams({
+              targetUri: i.targetUri,
+              targetUser: i.targetUser,
+              targetSubresourceName: i.targetSubresourceName,
+            });
             break;
           }
           case 'connection.kube': {
-            i.connected = !!this._clusterService.findGatewayByConnectionParams(
-              i.kubeUri,
-              ''
-            );
+            i.connected = !!this._clusterService.findGatewayByConnectionParams({
+              targetUri: i.kubeUri,
+            });
             break;
           }
           default: {
@@ -245,9 +252,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         switch (doc.kind) {
           // process gateway connections
           case 'doc.gateway': {
+            // Ignore freshly created docs which have no corresponding gateway yet.
             if (!doc.port) {
               break;
             }
+
             const gwConn = draft.connections.find(
               getGatewayConnectionByDocument(doc)
             ) as TrackedGatewayConnection;
@@ -256,7 +265,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
               const newItem = createGatewayConnection(doc);
               draft.connections.push(newItem);
             } else {
-              gwConn.gatewayUri = doc.gatewayUri;
+              // In case the document changes, update the gateway title.
+              // Specifically, it addresses a case where we changed a title format
+              // for db gateway documents, and we wanted this change to be reflected
+              // in already created connections.
+              gwConn.title = doc.title;
               gwConn.targetSubresourceName = doc.targetSubresourceName;
               gwConn.port = doc.port;
               gwConn.connected = !!this._clusterService.findGateway(
@@ -273,10 +286,9 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
 
             if (kubeConn) {
               kubeConn.connected =
-                !!this._clusterService.findGatewayByConnectionParams(
-                  doc.targetUri,
-                  ''
-                );
+                !!this._clusterService.findGatewayByConnectionParams({
+                  targetUri: doc.targetUri,
+                });
             } else {
               const newItem = createGatewayKubeConnection(doc);
               draft.connections.push(newItem);

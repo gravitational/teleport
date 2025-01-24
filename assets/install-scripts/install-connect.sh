@@ -129,9 +129,10 @@ add_apt_key() {
     TMP_KEY="$TEMP_DIR/teleport-pubkey.gpg"
     download "https://apt.releases.teleport.dev/gpg" "$TMP_KEY"
     set -x
-    cat $TMP_KEY | $SUDO tee /usr/share/keyrings/teleport-archive-keyring.asc >/dev/null
+    $SUDO mkdir -p /etc/apt/keyrings
+    cat $TMP_KEY | $SUDO tee /etc/apt/keyrings/teleport-archive-keyring.asc >/dev/null
     set +x
-    TELEPORT_REPO="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${APT_REPO_ID?} ${APT_REPO_VERSION_CODENAME?} stable/v${MAJOR}"
+    TELEPORT_REPO="deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${APT_REPO_ID?} ${APT_REPO_VERSION_CODENAME?} stable/v${MAJOR}"
   fi
 
   set -x

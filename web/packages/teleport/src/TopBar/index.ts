@@ -17,3 +17,4 @@
  */
 
 export { TopBar, TopBarContainer } from './TopBar';
+export type { TopBarProps } from './TopBar';

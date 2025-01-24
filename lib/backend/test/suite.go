@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 var (
@@ -123,7 +124,7 @@ func (r BlockingFakeClock) BlockUntil(int) {
 // Constructor describes a function for constructing new instances of a
 // backend, with various options as required by a given test. Note that
 // it's the caller's responsibility to close it when the test is finished.
-type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error)
+type Constructor[FakeClock clocki.FakeClock] func(options ...ConstructionOption) (backend.Backend, FakeClock, error)
 
 // RunBackendComplianceSuite runs the entire backend compliance suite,
 // creating a collection of named subtests under the context provided
@@ -132,7 +133,7 @@ type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork
 // As each test requires a new backend instance it will invoke the supplied
 // `newBackend` function, which callers will use inject instances of the
 // backend under test.
-func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
+func RunBackendComplianceSuite[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	t.Run("CRUD", func(t *testing.T) {
 		testCRUD(t, newBackend)
 	})
@@ -206,7 +207,7 @@ func RequireItems(t *testing.T, expected, actual []backend.Item) {
 }
 
 // testCRUD tests create read update scenarios
-func testCRUD(t *testing.T, newBackend Constructor) {
+func testCRUD[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -295,7 +296,7 @@ func testCRUD(t *testing.T, newBackend Constructor) {
 	require.Equal(t, lease.Revision, out.Revision)
 }
 
-func testQueryRange(t *testing.T, newBackend Constructor) {
+func testQueryRange[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -331,6 +332,11 @@ func testQueryRange(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	RequireItems(t, []backend.Item{c1, c2}, result.Items)
 
+	// item at the end of the range
+	result, err = uut.GetRange(ctx, prefix("prefix", "c", "c1"), prefix("prefix", "c", "c2"), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, []backend.Item{c1, c2}, result.Items)
+
 	// pagination
 	result, err = uut.GetRange(ctx, prefix("prefix"), backend.RangeEnd(prefix("prefix")), 2)
 	require.NoError(t, err)
@@ -352,7 +358,7 @@ func testQueryRange(t *testing.T, newBackend Constructor) {
 }
 
 // testDeleteRange tests delete items by range
-func testDeleteRange(t *testing.T, newBackend Constructor) {
+func testDeleteRange[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -391,7 +397,7 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 }
 
 // testCompareAndSwap tests compare and swap functionality
-func testCompareAndSwap(t *testing.T, newBackend Constructor) {
+func testCompareAndSwap[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -468,7 +474,7 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 }
 
 // testExpiration tests scenario with expiring values
-func testExpiration(t *testing.T, newBackend Constructor) {
+func testExpiration[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -500,7 +506,7 @@ func addSeconds(t time.Time, seconds int64) time.Time {
 }
 
 // testKeepAlive tests keep alive API
-func testKeepAlive(t *testing.T, newBackend Constructor) {
+func testKeepAlive[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	const eventTimeout = 10 * time.Second
 
 	uut, clock, err := newBackend()
@@ -562,7 +568,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 }
 
 // testEvents tests scenarios with event watches
-func testEvents(t *testing.T, newBackend Constructor) {
+func testEvents[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	const eventTimeout = 10 * time.Second
 	var ttlDeleteTimeout = eventTimeout
 	// TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT may be set to extend the time waited
@@ -644,7 +650,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 }
 
 // testFetchLimit tests fetch max items size limit.
-func testFetchLimit(t *testing.T, newBackend Constructor) {
+func testFetchLimit[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -669,7 +675,7 @@ func testFetchLimit(t *testing.T, newBackend Constructor) {
 }
 
 // testLimit tests limit.
-func testLimit(t *testing.T, newBackend Constructor) {
+func testLimit[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -746,7 +752,7 @@ func requireNoEvent(t *testing.T, watcher backend.Watcher, timeout time.Duration
 }
 
 // WatchersClose tests scenarios with watches close
-func testWatchersClose(t *testing.T, newBackend Constructor) {
+func testWatchersClose[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
 
@@ -787,7 +793,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 }
 
 // testLocking tests locking logic
-func testLocking(t *testing.T, newBackend Constructor) {
+func testLocking[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	tok1 := "token1"
 	tok2 := "token2"
 	ttl := 30 * time.Second
@@ -922,7 +928,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 
 // testConcurrentOperations tests concurrent operations on the same
 // shared backend
-func testConcurrentOperations(t *testing.T, newBackend Constructor) {
+func testConcurrentOperations[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uutA, _, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uutA.Close()) }()
@@ -1017,7 +1023,7 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 
 // Mirror tests mirror mode for backends (used in caches). Only some backends
 // support mirror mode (like memory).
-func testMirror(t *testing.T, newBackend Constructor) {
+func testMirror[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	const eventTimeout = 2 * time.Second
 
 	uut, _, err := newBackend(WithMirrorMode(true))
@@ -1098,7 +1104,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 }
 
-func testConditionalDelete(t *testing.T, newBackend Constructor) {
+func testConditionalDelete[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -1138,7 +1144,7 @@ func testConditionalDelete(t *testing.T, newBackend Constructor) {
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision)
 }
 
-func testConditionalUpdate(t *testing.T, newBackend Constructor) {
+func testConditionalUpdate[FakeClock clocki.FakeClock](t *testing.T, newBackend Constructor[FakeClock]) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()

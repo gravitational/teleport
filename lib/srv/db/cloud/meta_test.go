@@ -23,13 +23,17 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -95,21 +99,21 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	// Configure ElastiCache API mock.
-	elasticache := &mocks.ElastiCacheMock{
-		ReplicationGroups: []*elasticache.ReplicationGroup{
+	ecClient := &mocks.ElastiCacheClient{
+		ReplicationGroups: []ectypes.ReplicationGroup{
 			{
 				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789012:replicationgroup:my-redis"),
 				ReplicationGroupId:       aws.String("my-redis"),
 				ClusterEnabled:           aws.Bool(true),
 				TransitEncryptionEnabled: aws.Bool(true),
-				UserGroupIds:             []*string{aws.String("my-user-group")},
+				UserGroupIds:             []string{"my-user-group"},
 			},
 		},
 	}
 
 	// Configure MemoryDB API mock.
-	memorydb := &mocks.MemoryDBMock{
-		Clusters: []*memorydb.Cluster{
+	mdbClient := &mocks.MemoryDBClient{
+		Clusters: []memorydbtypes.Cluster{
 			{
 				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789012:cluster:my-cluster"),
 				Name:       aws.String("my-cluster"),
@@ -124,25 +128,25 @@ func TestAWSMetadata(t *testing.T) {
 	// Configure Redshift Serverless API mock.
 	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "us-west-1")
 	redshiftServerlessEndpoint := mocks.RedshiftServerlessEndpointAccess(redshiftServerlessWorkgroup, "my-endpoint", "us-west-1")
-	redshiftServerless := &mocks.RedshiftServerlessMock{
-		Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
-		Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlessEndpoint},
+	redshiftServerless := &mocks.RedshiftServerlessClient{
+		Workgroups: []rsstypes.Workgroup{*redshiftServerlessWorkgroup},
+		Endpoints:  []rsstypes.EndpointAccess{*redshiftServerlessEndpoint},
 	}
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
-			ElastiCache:        elasticache,
-			MemoryDB:           memorydb,
-			RedshiftServerless: redshiftServerless,
-			STS:                &fakeSTS.STSClientV1,
+			STS: &fakeSTS.STSClientV1,
 		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
 		awsClients: fakeAWSClients{
+			mdbClient:      mdbClient,
+			ecClient:       ecClient,
 			rdsClient:      rdsClt,
 			redshiftClient: redshiftClt,
+			rssClient:      redshiftServerless,
 		},
 	})
 	require.NoError(t, err)
@@ -410,10 +414,6 @@ func TestAWSMetadata(t *testing.T) {
 // TestAWSMetadataNoPermissions verifies that lack of AWS permissions does not
 // cause an error.
 func TestAWSMetadataNoPermissions(t *testing.T) {
-	// Create unauthorized mocks.
-	rdsClt := &mocks.RDSClient{Unauth: true}
-	redshiftClt := &mocks.RedshiftClient{Unauth: true}
-
 	fakeSTS := &mocks.STSClient{}
 
 	// Create metadata fetcher.
@@ -425,8 +425,10 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			STSClient: fakeSTS,
 		},
 		awsClients: fakeAWSClients{
-			rdsClient:      rdsClt,
-			redshiftClient: redshiftClt,
+			ecClient:       &mocks.ElastiCacheClient{Unauth: true},
+			mdbClient:      &mocks.MemoryDBClient{Unauth: true},
+			rdsClient:      &mocks.RDSClient{Unauth: true},
+			redshiftClient: &mocks.RedshiftClient{Unauth: true},
 		},
 	})
 	require.NoError(t, err)
@@ -501,8 +503,24 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 }
 
 type fakeAWSClients struct {
+	ecClient       elasticacheClient
+	iamClient      iamClient
+	mdbClient      memoryDBClient
 	rdsClient      rdsClient
 	redshiftClient redshiftClient
+	rssClient      rssClient
+}
+
+func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
+	return f.ecClient
+}
+
+func (f fakeAWSClients) getIAMClient(aws.Config, ...func(*iam.Options)) iamClient {
+	return f.iamClient
+}
+
+func (f fakeAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
+	return f.mdbClient
 }
 
 func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClient {
@@ -511,4 +529,8 @@ func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClien
 
 func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)) redshiftClient {
 	return f.redshiftClient
+}
+
+func (f fakeAWSClients) getRedshiftServerlessClient(aws.Config, ...func(*rss.Options)) rssClient {
+	return f.rssClient
 }

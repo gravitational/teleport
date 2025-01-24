@@ -231,7 +231,7 @@ const Heading = () => {
         <br />
         For all the available values of the helm chart see the{' '}
         <Link
-          href="https://goteleport.com/docs/kubernetes-access/helm/reference/teleport-kube-agent/"
+          href="https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/"
           target="_blank"
         >
           the documentation
