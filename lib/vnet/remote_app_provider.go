@@ -41,7 +41,8 @@ func newRemoteAppProvider(clt *clientApplicationServiceClient) *remoteAppProvide
 
 // ResolveAppInfo implements [appProvider.ResolveAppInfo].
 func (p *remoteAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
-	return p.clt.ResolveAppInfo(ctx, fqdn)
+	appInfo, err := p.clt.ResolveAppInfo(ctx, fqdn)
+	return appInfo, trace.Wrap(err)
 }
 
 // ReissueAppCert issues a new cert for the target app. Signatures made with the
