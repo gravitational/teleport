@@ -773,13 +773,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		u.Log.InfoContext(ctx, "Backup version set.", backupKey, r)
 	}
 
-	if err := u.cleanup(ctx, []Revision{
+	return trace.Wrap(u.cleanup(ctx, []Revision{
 		target, active, backup,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(u.notices(ctx))
+	}))
 }
 
 // notices displays final notices after install or update.
@@ -794,21 +790,18 @@ func (u *Updater) notices(ctx context.Context) error {
 	}
 	if !enabled && active {
 		//nolint:sloglint // sum of constants
-		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.\n"+
-			"After configuring teleport.yaml, you can enable it with:\n"+
-			"\tsystemctl enable teleport")
+		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot. "+
+			"After configuring teleport.yaml, you can enable it with: systemctl enable teleport")
 	}
 	if !active && enabled {
 		//nolint:sloglint // sum of constants
-		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.\n"+
-			"After configuring teleport.yaml, you can start it with:\n"+
-			"\tsystemctl start teleport")
+		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running. "+
+			"After configuring teleport.yaml, you can start it with: systemctl start teleport")
 	}
 	if !active && !enabled {
 		//nolint:sloglint // sum of constants
-		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.\n"+
-			"After configuring teleport.yaml, you can enable and start it with:\n"+
-			"\tsystemctl enable teleport --now")
+		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot. "+
+			"After configuring teleport.yaml, you can enable and start it with: systemctl enable teleport --now")
 	}
 	return nil
 }
