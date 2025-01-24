@@ -795,17 +795,17 @@ func (u *Updater) notices(ctx context.Context) error {
 	if !enabled && active {
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.\n"+
 			"After configuring teleport.yaml, you can enable it with:\n"+
-			"\tsystemctl enable teleport")
+			"\tsystemctl enable teleport") //nolint:sloglint // sum of constants
 	}
 	if !active && enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.\n"+
 			"After configuring teleport.yaml, you can start it with:\n"+
-			"\tsystemctl start teleport")
+			"\tsystemctl start teleport") //nolint:sloglint // sum of constants
 	}
 	if !active && !enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.\n"+
 			"After configuring teleport.yaml, you can enable and start it with:\n"+
-			"\tsystemctl enable teleport --now")
+			"\tsystemctl enable teleport --now") //nolint:sloglint // sum of constants
 	}
 	return nil
 }
