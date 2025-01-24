@@ -5197,36 +5197,6 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 	return nil
 }
 
-// authExportPublic returns the CA Certs that can be used to set up a chain of trust which includes the current Teleport Cluster
-//
-// GET /webapi/sites/:site/auth/export?type=<auth type>
-// GET /webapi/auth/export?type=<auth type>
-func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	err := rateLimitRequest(r, h.limiter)
-	if err != nil {
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-		return
-	}
-	authorities, err := client.ExportAuthorities(
-		r.Context(),
-		h.GetProxyClient(),
-		client.ExportAuthoritiesRequest{
-			AuthType: r.URL.Query().Get("type"),
-		},
-	)
-	if err != nil {
-		h.log.WithError(err).Debug("Failed to generate CA Certs.")
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-		return
-	}
-
-	reader := strings.NewReader(authorities)
-
-	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
-	// It also handles the Range negotiation
-	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
-}
-
 const robots = `User-agent: *
 Disallow: /`
 
