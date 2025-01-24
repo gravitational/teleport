@@ -231,7 +231,7 @@ func TestUpdater_Update(t *testing.T) {
 
 		removedRevisions  []Revision
 		installedRevision Revision
-		installedTemplate string
+		installedBaseURL  string
 		linkedRevision    Revision
 		requestGroup      string
 		reloadCalls       int
@@ -245,9 +245,9 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Group:       "group",
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					Group:   "group",
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -257,7 +257,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
 			reloadCalls:       1,
@@ -269,9 +269,9 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Group:       "group",
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					Group:   "group",
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -281,7 +281,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
 			reloadCalls:       1,
@@ -293,9 +293,9 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Group:       "group",
-					URLTemplate: "https://example.com",
-					Enabled:     false,
+					Group:   "group",
+					BaseURL: "https://example.com",
+					Enabled: false,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -309,9 +309,9 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Group:       "group",
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					Group:   "group",
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -325,9 +325,9 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Group:       "group",
-					URLTemplate: "https://example.com",
-					Enabled:     false,
+					Group:   "group",
+					BaseURL: "https://example.com",
+					Enabled: false,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -340,8 +340,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "http://example.com",
-					Enabled:     true,
+					BaseURL: "http://example.com",
+					Enabled: true,
 				},
 			},
 			inWindow: true,
@@ -361,7 +361,7 @@ func TestUpdater_Update(t *testing.T) {
 			installErr: errors.New("install error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			errMatch:          "install error",
 		},
 		{
@@ -370,8 +370,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("16.3.0", 0),
@@ -385,8 +385,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("16.3.0", 0),
@@ -399,8 +399,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -410,7 +410,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevisions: []Revision{
 				NewRevision("backup-version", 0),
@@ -425,8 +425,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("16.3.0", 0),
@@ -444,8 +444,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
@@ -456,7 +456,7 @@ func TestUpdater_Update(t *testing.T) {
 			flags:    autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			removedRevisions: []Revision{
 				NewRevision("backup-version", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
@@ -476,8 +476,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -488,7 +488,7 @@ func TestUpdater_Update(t *testing.T) {
 			setupErr: errors.New("setup error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevisions: []Revision{
 				NewRevision("backup-version", 0),
@@ -504,8 +504,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -516,7 +516,7 @@ func TestUpdater_Update(t *testing.T) {
 			reloadErr: errors.New("reload error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevisions: []Revision{
 				NewRevision("backup-version", 0),
@@ -532,8 +532,8 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -549,9 +549,9 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
-					Pinned:      true,
+					BaseURL: "https://example.com",
+					Enabled: true,
+					Pinned:  true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -604,7 +604,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			var (
 				installedRevision Revision
-				installedTemplate string
+				installedBaseURL  string
 				linkedRevision    Revision
 				removedRevisions  []Revision
 				revertFuncCalls   int
@@ -613,9 +613,9 @@ func TestUpdater_Update(t *testing.T) {
 				reloadCalls       int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, rev Revision, template string) error {
+				FuncInstall: func(_ context.Context, rev Revision, template, baseURL string) error {
 					installedRevision = rev
-					installedTemplate = template
+					installedBaseURL = baseURL
 					return tt.installErr
 				},
 				FuncLink: func(_ context.Context, rev Revision) (revert func(context.Context) bool, err error) {
@@ -661,7 +661,7 @@ func TestUpdater_Update(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, tt.installedRevision, installedRevision)
-			require.Equal(t, tt.installedTemplate, installedTemplate)
+			require.Equal(t, tt.installedBaseURL, installedBaseURL)
 			require.Equal(t, tt.linkedRevision, linkedRevision)
 			require.Equal(t, tt.removedRevisions, removedRevisions)
 			require.Equal(t, tt.flags, installedRevision.Flags)
@@ -1093,7 +1093,7 @@ func TestUpdater_Install(t *testing.T) {
 
 		removedRevision   Revision
 		installedRevision Revision
-		installedTemplate string
+		installedBaseURL  string
 		linkedRevision    Revision
 		requestGroup      string
 		reloadCalls       int
@@ -1107,9 +1107,9 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Enabled:     true,
-					Group:       "group",
-					URLTemplate: "https://example.com",
+					Enabled: true,
+					Group:   "group",
+					BaseURL: "https://example.com",
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -1117,7 +1117,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
 			reloadCalls:       1,
@@ -1129,8 +1129,8 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Group:       "old-group",
-					URLTemplate: "https://example.com/old",
+					Group:   "old-group",
+					BaseURL: "https://example.com/old",
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -1138,15 +1138,15 @@ func TestUpdater_Install(t *testing.T) {
 			},
 			userCfg: OverrideConfig{
 				UpdateSpec: UpdateSpec{
-					Enabled:     true,
-					Group:       "new-group",
-					URLTemplate: "https://example.com/new",
+					Enabled: true,
+					Group:   "new-group",
+					BaseURL: "https://example.com/new",
 				},
 				ForceVersion: "new-version",
 			},
 
 			installedRevision: NewRevision("new-version", 0),
-			installedTemplate: "https://example.com/new",
+			installedBaseURL:  "https://example.com/new",
 			linkedRevision:    NewRevision("new-version", 0),
 			requestGroup:      "new-group",
 			reloadCalls:       1,
@@ -1163,7 +1163,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1180,7 +1180,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1191,7 +1191,7 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "http://example.com",
+					BaseURL: "http://example.com",
 				},
 			},
 
@@ -1206,7 +1206,7 @@ func TestUpdater_Install(t *testing.T) {
 			installErr: errors.New("install error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			errMatch:          "install error",
 		},
 		{
@@ -1220,7 +1220,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			setupCalls:        1,
@@ -1237,7 +1237,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevision:   NewRevision("backup-version", 0),
 			reloadCalls:       1,
@@ -1255,7 +1255,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			setupCalls:        1,
@@ -1264,7 +1264,7 @@ func TestUpdater_Install(t *testing.T) {
 			name: "config does not exist",
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1273,7 +1273,7 @@ func TestUpdater_Install(t *testing.T) {
 			name:              "FIPS and Enterprise flags",
 			flags:             autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1288,7 +1288,7 @@ func TestUpdater_Install(t *testing.T) {
 			setupErr: errors.New("setup error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			revertCalls:       1,
@@ -1300,7 +1300,7 @@ func TestUpdater_Install(t *testing.T) {
 			reloadErr: errors.New("reload error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       2,
 			revertCalls:       1,
@@ -1313,7 +1313,7 @@ func TestUpdater_Install(t *testing.T) {
 			setupErr:  ErrNotSupported,
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1323,7 +1323,7 @@ func TestUpdater_Install(t *testing.T) {
 			reloadErr: ErrNotNeeded,
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: autoupdate.DefaultCDNURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1374,7 +1374,7 @@ func TestUpdater_Install(t *testing.T) {
 
 			var (
 				installedRevision Revision
-				installedTemplate string
+				installedBaseURL  string
 				linkedRevision    Revision
 				removedRevision   Revision
 				revertFuncCalls   int
@@ -1383,9 +1383,9 @@ func TestUpdater_Install(t *testing.T) {
 				revertSetupCalls  int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, rev Revision, template string) error {
+				FuncInstall: func(_ context.Context, rev Revision, template, baseURL string) error {
 					installedRevision = rev
-					installedTemplate = template
+					installedBaseURL = baseURL
 					return tt.installErr
 				},
 				FuncLink: func(_ context.Context, rev Revision) (revert func(context.Context) bool, err error) {
@@ -1427,7 +1427,7 @@ func TestUpdater_Install(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, tt.installedRevision, installedRevision)
-			require.Equal(t, tt.installedTemplate, installedTemplate)
+			require.Equal(t, tt.installedBaseURL, installedBaseURL)
 			require.Equal(t, tt.linkedRevision, linkedRevision)
 			require.Equal(t, tt.removedRevision, removedRevision)
 			require.Equal(t, tt.flags, installedRevision.Flags)
@@ -1462,7 +1462,7 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall       func(ctx context.Context, rev Revision, template string) error
+	FuncInstall       func(ctx context.Context, rev Revision, template, baseURL string) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
 	FuncLink          func(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
@@ -1473,8 +1473,8 @@ type testInstaller struct {
 	FuncList          func(ctx context.Context) (revs []Revision, err error)
 }
 
-func (ti *testInstaller) Install(ctx context.Context, rev Revision, template string) error {
-	return ti.FuncInstall(ctx, rev, template)
+func (ti *testInstaller) Install(ctx context.Context, rev Revision, template, baseURL string) error {
+	return ti.FuncInstall(ctx, rev, template, baseURL)
 }
 
 func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {

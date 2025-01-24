@@ -126,7 +126,8 @@ func TestLocalInstaller_Install(t *testing.T) {
 				ReservedFreeInstallDisk: tt.reservedInstall,
 			}
 			ctx := context.Background()
-			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL+"/{{.OS}}/{{.Arch}}/{{.Version}}")
+			testTemplate := "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}"
+			err := installer.Install(ctx, NewRevision(version, tt.flags), testTemplate, server.URL)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -134,7 +135,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			const expectedPath = "/" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
+			const expectedPath = "/teleport-" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
 

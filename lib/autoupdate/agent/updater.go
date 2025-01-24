@@ -184,7 +184,7 @@ type Updater struct {
 type Installer interface {
 	// Install the Teleport agent at revision from the download template.
 	// Install must be idempotent.
-	Install(ctx context.Context, rev Revision, template string) error
+	Install(ctx context.Context, rev Revision, template string, baseURL string) error
 	// Link the Teleport agent at the specified revision of Teleport into the linking locations.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// Link must be idempotent. Link's revert function must be idempotent.
@@ -641,11 +641,11 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 
 	// Install and link the desired version (or validate existing installation)
 
-	template := cfg.Spec.URLTemplate
-	if template == "" {
-		template = autoupdate.DefaultCDNURITemplate
+	baseURL := cfg.Spec.BaseURL
+	if baseURL == "" {
+		baseURL = autoupdate.DefaultBaseURL
 	}
-	err := u.Installer.Install(ctx, target, template)
+	err := u.Installer.Install(ctx, target, autoupdate.DefaultCDNURITemplate, baseURL)
 	if err != nil {
 		return trace.Wrap(err, "failed to install")
 	}

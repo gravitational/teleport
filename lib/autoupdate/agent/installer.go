@@ -126,7 +126,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template string) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template string, baseURL string) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,7 +134,7 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template st
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// generate download URI from template
-	uri, err := autoupdate.MakeURL(template, autoupdate.DefaultBaseURL, autoupdate.DefaultPackage, rev.Version, rev.Flags)
+	uri, err := autoupdate.MakeURL(template, baseURL, autoupdate.DefaultPackage, rev.Version, rev.Flags)
 	if err != nil {
 		return trace.Wrap(err)
 	}

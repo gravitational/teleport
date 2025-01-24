@@ -3,7 +3,7 @@ kind: update_config
 spec:
     proxy: localhost
     group: new-group
-    url_template: https://example.com/new
+    base_url: https://example.com/new
     enabled: true
     pinned: false
 status:

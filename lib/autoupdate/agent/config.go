@@ -60,8 +60,8 @@ type UpdateSpec struct {
 	Proxy string `yaml:"proxy"`
 	// Group specifies the update group identifier for the agent.
 	Group string `yaml:"group,omitempty"`
-	// URLTemplate for the Teleport tgz download URL.
-	URLTemplate string `yaml:"url_template,omitempty"`
+	// BaseURL is CDN base URL used in `url_template` for the Teleport tgz download URL.
+	BaseURL string `yaml:"base_url,omitempty"`
 	// Enabled controls whether auto-updates are enabled.
 	Enabled bool `yaml:"enabled"`
 	// Pinned controls whether the active_version is pinned.
@@ -204,16 +204,16 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Group != "" {
 		spec.Group = override.Group
 	}
-	switch override.URLTemplate {
+	switch override.BaseURL {
 	case "":
 	case "default":
-		spec.URLTemplate = ""
+		spec.BaseURL = ""
 	default:
-		spec.URLTemplate = override.URLTemplate
+		spec.BaseURL = override.BaseURL
 	}
-	if spec.URLTemplate != "" &&
-		!strings.HasPrefix(strings.ToLower(spec.URLTemplate), "https://") {
-		return trace.Errorf("Teleport download URL must use TLS (https://)")
+	if spec.BaseURL != "" &&
+		!strings.HasPrefix(strings.ToLower(spec.BaseURL), "https://") {
+		return trace.Errorf("Teleport download URL must use TLS (https://): %q", spec.BaseURL)
 	}
 	if override.Enabled {
 		spec.Enabled = true
