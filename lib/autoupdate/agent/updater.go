@@ -793,19 +793,22 @@ func (u *Updater) notices(ctx context.Context) error {
 		return trace.Wrap(err, "failed to query Teleport systemd active status")
 	}
 	if !enabled && active {
+		//nolint:sloglint // sum of constants
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.\n"+
 			"After configuring teleport.yaml, you can enable it with:\n"+
-			"\tsystemctl enable teleport") //nolint:sloglint // sum of constants
+			"\tsystemctl enable teleport")
 	}
 	if !active && enabled {
+		//nolint:sloglint // sum of constants
 		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.\n"+
 			"After configuring teleport.yaml, you can start it with:\n"+
-			"\tsystemctl start teleport") //nolint:sloglint // sum of constants
+			"\tsystemctl start teleport")
 	}
 	if !active && !enabled {
+		//nolint:sloglint // sum of constants
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.\n"+
 			"After configuring teleport.yaml, you can enable and start it with:\n"+
-			"\tsystemctl enable teleport --now") //nolint:sloglint // sum of constants
+			"\tsystemctl enable teleport --now")
 	}
 	return nil
 }
