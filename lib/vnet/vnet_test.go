@@ -908,16 +908,16 @@ func TestRemoteAppProvider(t *testing.T) {
 		appProvider: remoteAppProvider,
 	})
 
-	dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	defer cancel()
 	for _, app := range []string{
 		"echo.root.example.com",
 		"echo.leaf.example.com",
 	} {
-		conn, err := p.dialHost(dialCtx, app, 123)
+		conn, err := p.dialHost(ctx, app, 123)
 		require.NoError(t, err)
 		testEchoConnection(t, conn)
 	}
+	dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
 	_, err = p.dialHost(dialCtx, "badapp.root.example.com.", 123)
 	require.Error(t, err)
 }
