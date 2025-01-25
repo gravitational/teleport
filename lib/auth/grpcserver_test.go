@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -60,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
@@ -84,7 +84,7 @@ import (
 func TestMFADeviceManagement(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(clockwork.FakeClock)
+	clock := testServer.Clock().(*clockwork.FakeClock)
 	ctx := context.Background()
 
 	// Enable MFA support.
@@ -564,7 +564,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(clockwork.FakeClock)
+	clock := testServer.Clock().(*clockwork.FakeClock)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -752,7 +752,7 @@ type mfaDevices struct {
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 	require.NotNil(t, challenge.TOTP, "nil TOTP challenge")
 
-	if c, ok := d.clock.(clockwork.FakeClock); ok {
+	if c, ok := d.clock.(*clockwork.FakeClock); ok {
 		c.Advance(30 * time.Second)
 	}
 
@@ -1515,7 +1515,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
-	fakeClock, ok := clock.(clockwork.FakeClock)
+	fakeClock, ok := clock.(*clockwork.FakeClock)
 	require.True(t, ok)
 	fakeClock.Advance(-60 * time.Second)
 

@@ -37,13 +37,13 @@ import (
 	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
@@ -574,26 +574,35 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		HostKeyCallback: callback,
 	}
 
+	loggerWithVMMetadata := slog.With(
+		"project_id", req.ProjectID,
+		"zone", req.Zone,
+		"vm_name", req.Name,
+		"ips", ipAddrs,
+	)
+
 	var errs []error
 	for _, ip := range ipAddrs {
 		addr := net.JoinHostPort(ip, req.SSHPort)
 		stdout, stderr, err := sshutils.RunSSH(ctx, addr, req.Script, config, sshutils.WithDialer(req.dialContext))
-		slog.DebugContext(ctx, "Command completed",
-			"stdoout", string(stdout),
-			"stderr", string(stderr),
-		)
 		if err == nil {
 			return nil
 		}
 
 		// An exit error means the connection was successful, so don't try another address.
 		if errors.Is(err, &ssh.ExitError{}) {
+			loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed after connecting",
+				"ip", ip,
+				"error", err,
+				"stdout", string(stdout),
+				"stderr", string(stderr),
+			)
 			return trace.Wrap(err)
 		}
 		errs = append(errs, err)
 	}
 
 	err = trace.NewAggregate(errs...)
-	slog.DebugContext(ctx, "Command exited with error", "error", err)
+	loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed", "error", err)
 	return err
 }

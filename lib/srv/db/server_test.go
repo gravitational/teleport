@@ -256,7 +256,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 // Most testing code should NOT need to use this function.
 //
 // In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
-func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
+func advanceInSteps(clock *clockwork.FakeClock, total time.Duration) {
 	step := total / 100
 	if step <= 0 {
 		step = 1

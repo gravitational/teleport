@@ -121,18 +121,20 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       },
     }));
 
+    const ButtonComponent = props.ButtonComponent || ButtonBorder;
+
     return (
       <React.Fragment>
-        <ButtonBorder
+        <ButtonComponent
           width={alignButtonWidthToMenu ? width : null}
           textTransform={props.textTransform}
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
-          Connect
+          {props.buttonText || 'Connect'}
           <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
-        </ButtonBorder>
+        </ButtonComponent>
         <Menu
           anchorOrigin={anchorOrigin}
           transformOrigin={transformOrigin}

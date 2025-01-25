@@ -9,14 +9,14 @@ and describe how to manage the resulting Teleport deployment.
 
 This module will deploy the following components:
 - One AWS EC2 instance running the Teleport Auth Service, Proxy Service and SSH Service components
-- AWS DynamoDB tables for storing the Teleport backend database and audit events
+- Amazon DynamoDB tables for storing the Teleport backend database and audit events
 - An AWS S3 bucket for storing Teleport session recordings
 - A minimal AWS IAM role granting permissions for the EC2 instance to use DynamoDB and S3
 - An AWS security group restricting inbound traffic to the EC2 instance
-- An AWS Route 53 DNS record pointing to the subdomain you control and choose during installation
+- An Amazon Route 53 DNS record pointing to the subdomain you control and choose during installation
 
 It also optionally deploys the following components when ACM is enabled:
-- An AWS ACM certificate for the subdomain in AWS Route 53 that you control and choose during installation
+- An Amazon ACM certificate for the subdomain in Amazon Route 53 that you control and choose during installation
 - An AWS Application Load Balancer using the above ACM certificate to secure incoming traffic
 
 More details are [provided below](#reference-deployment-defaults).
@@ -232,8 +232,10 @@ here. The license file isn't used in Teleport Community Edition installs.)
 $ export TF_VAR_route53_zone="example.com"
 ```
 
-Our Terraform setup requires you to have your domain provisioned in AWS Route 53 - it will automatically add
-DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
+Our Terraform setup requires you to have your domain provisioned in Amazon Route
+53 - it will automatically add DNS records for
+[`route53_domain`](#route53\_domain) as set up below. You can list these with
+this command:
 
 ```code
 $ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output json

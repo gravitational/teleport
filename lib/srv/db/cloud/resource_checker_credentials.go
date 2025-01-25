@@ -156,7 +156,7 @@ func (c *credentialsChecker) checkAzure(ctx context.Context, database types.Data
 
 func (c *credentialsChecker) warn(ctx context.Context, msg string, args ...any) {
 	logger := c.logger.With(
-		"help_message", `You can update "db_service.resources" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/database-access/reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.`,
+		"help_message", `You can update "db_service.resources" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/reference/agent-services/database-access-reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.`,
 	)
 
 	if c.isWildcardMatcher() {

@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"os"
 	"sync"
@@ -277,7 +278,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				}
 			}
 		}
-
 	} else {
 		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
@@ -377,6 +377,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 type site interface {
 	GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+	GetGitServers(context.Context, func(readonly.Server) bool) ([]types.Server, error)
 }
 
 // remoteSite is a site implementation that wraps
@@ -388,6 +389,17 @@ type remoteSite struct {
 // GetNodes uses the wrapped sites NodeWatcher to filter nodes
 func (r remoteSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	watcher, err := r.site.NodeWatcher()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
+	return servers, trace.Wrap(err)
+}
+
+// GetGitServers uses the wrapped sites GitServerWatcher to filter git servers.
+func (r remoteSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
+	watcher, err := r.site.GitServerWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -409,6 +421,9 @@ func (r remoteSite) GetClusterNetworkingConfig(ctx context.Context) (types.Clust
 // getServer attempts to locate a node matching the provided host and port in
 // the provided site.
 func getServer(ctx context.Context, host, port string, site site) (types.Server, error) {
+	if org, ok := types.GetGitHubOrgFromNodeAddr(host); ok {
+		return getGitHubServer(ctx, org, site)
+	}
 	return getServerWithResolver(ctx, host, port, site, nil /* use default resolver */)
 }
 
@@ -561,4 +576,26 @@ func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authcli
 		return nil, trace.Wrap(err)
 	}
 	return site.GetClient()
+}
+
+func getGitHubServer(ctx context.Context, gitHubOrg string, site site) (types.Server, error) {
+	servers, err := site.GetGitServers(ctx, func(s readonly.Server) bool {
+		github := s.GetGitHub()
+		return github != nil && github.Organization == gitHubOrg
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch len(servers) {
+	case 0:
+		return nil, trace.NotFound("unable to locate Git server for GitHub organization %s", gitHubOrg)
+	case 1:
+		return servers[0], nil
+	default:
+		// It's unusual but possible to have multiple servers per organization
+		// (e.g. possibly a second Git server for a manual CA rotation). Pick a
+		// random one.
+		return servers[rand.N(len(servers))], nil
+	}
 }

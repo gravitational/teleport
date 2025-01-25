@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { memo } from 'react';
 import { components, MultiValueProps } from 'react-select';
 import styled from 'styled-components';
 
@@ -29,9 +30,8 @@ import {
 } from 'shared/components/FieldSelect';
 import { precomputed } from 'shared/components/Validation/rules';
 
-import { SectionBox, SectionProps } from './sections';
+import { SectionBox, SectionPropsWithDispatch } from './sections';
 import {
-  newRuleModel,
   ResourceKindOption,
   resourceKindOptions,
   resourceKindOptionsMap,
@@ -40,20 +40,18 @@ import {
 } from './standardmodel';
 import { AccessRuleValidationResult } from './validation';
 
-export function AccessRules({
+/**
+ * Access rules tab. This component is memoized to optimize performance; make
+ * sure that the properties don't change unless necessary.
+ */
+export const AccessRules = memo(function AccessRules({
   value,
   isProcessing,
   validation,
-  onChange,
-}: SectionProps<RuleModel[], AccessRuleValidationResult[]>) {
+  dispatch,
+}: SectionPropsWithDispatch<RuleModel[], AccessRuleValidationResult[]>) {
   function addRule() {
-    onChange?.([...value, newRuleModel()]);
-  }
-  function setRule(rule: RuleModel) {
-    onChange?.(value.map(r => (r.id === rule.id ? rule : r)));
-  }
-  function removeRule(id: string) {
-    onChange?.(value.filter(r => r.id !== id));
+    dispatch({ type: 'add-access-rule' });
   }
   return (
     <Flex flexDirection="column" gap={3}>
@@ -62,9 +60,8 @@ export function AccessRules({
           key={rule.id}
           isProcessing={isProcessing}
           value={rule}
-          onChange={setRule}
           validation={validation[i]}
-          onRemove={() => removeRule(rule.id)}
+          dispatch={dispatch}
         />
       ))}
       <ButtonSecondary alignSelf="start" onClick={addRule}>
@@ -73,18 +70,21 @@ export function AccessRules({
       </ButtonSecondary>
     </Flex>
   );
-}
+});
 
-function AccessRule({
+const AccessRule = memo(function AccessRule({
   value,
   isProcessing,
   validation,
-  onChange,
-  onRemove,
-}: SectionProps<RuleModel, AccessRuleValidationResult> & {
-  onRemove?(): void;
-}) {
-  const { resources, verbs } = value;
+  dispatch,
+}: SectionPropsWithDispatch<RuleModel, AccessRuleValidationResult>) {
+  const { id, resources, verbs } = value;
+  function setRule(rule: RuleModel) {
+    dispatch({ type: 'set-access-rule', payload: rule });
+  }
+  function removeRule() {
+    dispatch({ type: 'remove-access-rule', payload: { id } });
+  }
   return (
     <SectionBox
       title="Access Rule"
@@ -92,7 +92,7 @@ function AccessRule({
       removable
       isProcessing={isProcessing}
       validation={validation}
-      onRemove={onRemove}
+      onRemove={removeRule}
     >
       <ResourceKindSelect
         components={{ MultiValue: ResourceKindMultiValue }}
@@ -101,7 +101,7 @@ function AccessRule({
         isDisabled={isProcessing}
         options={resourceKindOptions}
         value={resources}
-        onChange={r => onChange?.({ ...value, resources: r })}
+        onChange={r => setRule({ ...value, resources: r })}
         rule={precomputed(validation.fields.resources)}
       />
       <FieldSelect
@@ -110,13 +110,13 @@ function AccessRule({
         isDisabled={isProcessing}
         options={verbOptions}
         value={verbs}
-        onChange={v => onChange?.({ ...value, verbs: v })}
+        onChange={v => setRule({ ...value, verbs: v })}
         rule={precomputed(validation.fields.verbs)}
         mb={0}
       />
     </SectionBox>
   );
-}
+});
 
 const ResourceKindSelect = styled(
   FieldSelectCreatable<ResourceKindOption, true>

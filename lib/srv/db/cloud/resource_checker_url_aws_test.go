@@ -22,12 +22,12 @@ import (
 	"context"
 	"testing"
 
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -121,27 +121,14 @@ func TestURLChecker_AWS(t *testing.T) {
 
 	// Mock cloud clients.
 	mockClients := &cloud.TestCloudClients{
-		RedshiftServerless: &mocks.RedshiftServerlessMock{
-			Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
-			Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlessVPCEndpoint},
-		},
-		ElastiCache: &mocks.ElastiCacheMock{
-			ReplicationGroups: []*elasticache.ReplicationGroup{elastiCacheClusterConfigurationMode, elastiCacheCluster},
-		},
-		MemoryDB: &mocks.MemoryDBMock{
-			Clusters: []*memorydb.Cluster{memoryDBCluster},
-		},
 		OpenSearch: &mocks.OpenSearchMock{
 			Domains: []*opensearchservice.DomainStatus{openSearchDomain, openSearchVPCDomain},
 		},
 		STS: &mocks.STSClientV1{},
 	}
 	mockClientsUnauth := &cloud.TestCloudClients{
-		RedshiftServerless: &mocks.RedshiftServerlessMock{Unauth: true},
-		ElastiCache:        &mocks.ElastiCacheMock{Unauth: true},
-		MemoryDB:           &mocks.MemoryDBMock{Unauth: true},
-		OpenSearch:         &mocks.OpenSearchMock{Unauth: true},
-		STS:                &mocks.STSClientV1{},
+		OpenSearch: &mocks.OpenSearchMock{Unauth: true},
+		STS:        &mocks.STSClientV1{},
 	}
 
 	// Test both check methods.
@@ -158,6 +145,12 @@ func TestURLChecker_AWS(t *testing.T) {
 			clients:           mockClients,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
 			awsClients: fakeAWSClients{
+				mdbClient: &mocks.MemoryDBClient{
+					Clusters: []memorydbtypes.Cluster{*memoryDBCluster},
+				},
+				ecClient: &mocks.ElastiCacheClient{
+					ReplicationGroups: []ectypes.ReplicationGroup{*elastiCacheClusterConfigurationMode, *elastiCacheCluster},
+				},
 				rdsClient: &mocks.RDSClient{
 					DBInstances:      []rdstypes.DBInstance{*rdsInstance},
 					DBClusters:       []rdstypes.DBCluster{*rdsCluster, *docdbCluster},
@@ -167,6 +160,10 @@ func TestURLChecker_AWS(t *testing.T) {
 				redshiftClient: &mocks.RedshiftClient{
 					Clusters: []redshifttypes.Cluster{redshiftCluster},
 				},
+				rssClient: &mocks.RedshiftServerlessClient{
+					Workgroups: []rsstypes.Workgroup{*redshiftServerlessWorkgroup},
+					Endpoints:  []rsstypes.EndpointAccess{*redshiftServerlessVPCEndpoint},
+				},
 			},
 		},
 		{
@@ -174,8 +171,11 @@ func TestURLChecker_AWS(t *testing.T) {
 			clients:           mockClientsUnauth,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
 			awsClients: fakeAWSClients{
+				ecClient:       &mocks.ElastiCacheClient{Unauth: true},
+				mdbClient:      &mocks.MemoryDBClient{Unauth: true},
 				rdsClient:      &mocks.RDSClient{Unauth: true},
 				redshiftClient: &mocks.RedshiftClient{Unauth: true},
+				rssClient:      &mocks.RedshiftServerlessClient{Unauth: true},
 			},
 		},
 	}

@@ -35,7 +35,11 @@
             {
               "title": "Upgrading Reference",
               "slug": "/upgrading/upgrading-reference/"
-	    }
+	        },
+            {
+              "title": "Client Tool Automatic Updates",
+              "slug": "/upgrading/client-tools-autoupdate/"
+            }
           ]
         },
         {
@@ -132,8 +136,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "16.4.11",
-      "major_version": "16",
+      "version": "17.1.6",
+      "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -211,8 +215,18 @@
   },
   "redirects": [
     {
+      "source": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
       "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
       "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/ibm/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
       "permanent": true
     },
     {
@@ -273,6 +287,11 @@
     {
       "source": "/reference/operator-resources/resources.teleport.dev_users/",
       "destination": "/reference/operator-resources/resources-teleport-dev-users/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/role-templates/",
+      "destination": "/admin-guides/access-controls/guides/role-templates/",
       "permanent": true
     }
   ]

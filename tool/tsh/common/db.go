@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1131,7 +1132,7 @@ func getDatabaseServers(ctx context.Context, tc *client.TeleportClient, name str
 		logger.DebugContext(ctx, "Listing databases with predicate and labels", "predicate", predicate, "labels", tc.Labels)
 
 		databases, err = tc.ListDatabaseServersWithFilters(ctx, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
+			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: predicate,
 			Labels:              tc.Labels,
@@ -1193,7 +1194,7 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 		predicate := makePredicateConjunction(predicate, tc.PredicateExpression)
 		logger.DebugContext(ctx, "Listing databases with predicate and labels", "predicate", predicate, "labels", tc.Labels)
 		databases, err = tc.ListDatabases(ctx, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
+			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: predicate,
 			Labels:              tc.Labels,

@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -113,7 +114,7 @@ type sshTestFixture struct {
 	up      *upack
 	signer  ssh.Signer
 	user    string
-	clock   clockwork.FakeClock
+	clock   *clockwork.FakeClock
 	testSrv *auth.TestServer
 }
 
@@ -473,8 +474,6 @@ func TestSessionAuditLog(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	roleOptions.ForwardAgent = types.NewBool(true)
-	//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
-	roleOptions.PortForwarding = types.NewBoolOption(true)
 	role.SetOptions(roleOptions)
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
@@ -516,32 +515,82 @@ func TestSessionAuditLog(t *testing.T) {
 	x11Event := nextEvent()
 	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
 
-	// Request a remote port forwarding listener.
+	// LOCAL PORT FORWARDING
+	// Start up a test server that doesn't do any remote port forwarding
+	nonForwardServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	t.Cleanup(nonForwardServer.Close)
+	nonForwardServer.Start()
+
+	// Each locally forwarded dial should result in a new "start" event and each closed connection should result in a "stop"
+	// event. Note that we don't know what port the server will forward the connection on, so we don't have an easy way to validate the
+	// event's addr field.
+	localConn, err := f.ssh.clt.DialContext(context.Background(), "tcp", nonForwardServer.Listener.Addr().String())
+	require.NoError(t, err)
+
+	e = nextEvent()
+	localForwardStart, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardLocalEvent, localForwardStart.GetType())
+	require.Equal(t, events.PortForwardCode, localForwardStart.GetCode())
+	require.Equal(t, nonForwardServer.Listener.Addr().String(), localForwardStart.Addr)
+
+	// closed connections should result in PortForwardLocal stop events
+	localConn.Close()
+	e = nextEvent()
+	localForwardStop, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardLocalEvent, localForwardStop.GetType())
+	require.Equal(t, events.PortForwardStopCode, localForwardStop.GetCode())
+	require.Equal(t, nonForwardServer.Listener.Addr().String(), localForwardStop.Addr)
+
+	// REMOTE PORT FORWARDING
+	// Creation of a port forwarded listener should generate PortForwardRemote start events
 	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	// Start up a test server that uses the port forwarded listener.
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	e = nextEvent()
+	remoteForwardStart, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, listener.Addr().String(), remoteForwardStart.Addr)
+	require.Equal(t, events.PortForwardRemoteEvent, remoteForwardStart.GetType())
+	require.Equal(t, events.PortForwardCode, remoteForwardStart.GetCode())
+
+	// Start up a test server that uses the remote port forwarded listener.
+	remoteForwardServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "hello, world")
 	}))
-	t.Cleanup(ts.Close)
-	ts.Listener = listener
-	ts.Start()
+	t.Cleanup(remoteForwardServer.Close)
+	remoteForwardServer.Listener = listener
+	remoteForwardServer.Start()
 
-	// Request forward to remote port. Each dial should result in a new event. Note that we don't
-	// know what port the server will forward the connection on, so we don't have an easy way to
-	// validate the event's addr field.
-	conn, err := f.ssh.clt.DialContext(context.Background(), "tcp", listener.Addr().String())
+	// Each dial to the remote listener should result in a new "start" event and each closed connection should result in a "stop" event.
+	// Note that we don't know what port the server will forward the connection on, so we don't have an easy way to validate the event's
+	// addr field.
+	remoteConn, err := net.Dial("tcp", listener.Addr().String())
 	require.NoError(t, err)
-	conn.Close()
-
-	directPortForwardEvent := nextEvent()
-	require.IsType(t, &apievents.PortForward{}, directPortForwardEvent, "expected PortForward event but got event of type %T", directPortForwardEvent)
-
 	e = nextEvent()
-	remotePortForwardEvent, ok := e.(*apievents.PortForward)
+	remoteConnStart, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
-	require.Equal(t, listener.Addr().String(), remotePortForwardEvent.Addr)
+	require.Equal(t, events.PortForwardRemoteConnEvent, remoteConnStart.GetType())
+	require.Equal(t, events.PortForwardCode, remoteConnStart.GetCode())
+
+	remoteConn.Close()
+	e = nextEvent()
+	remoteConnStop, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardRemoteConnEvent, remoteConnStop.GetType())
+	require.Equal(t, events.PortForwardStopCode, remoteConnStop.GetCode())
+
+	// Closing the server (and therefore the listener) should generate an PortForwardRemote stop event
+	remoteForwardServer.Close()
+	e = nextEvent()
+	remoteForwardStop, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardRemoteEvent, remoteForwardStop.GetType())
+	require.Equal(t, events.PortForwardStopCode, remoteForwardStop.Code)
+	require.Equal(t, listener.Addr().String(), remoteForwardStop.Addr)
 
 	// End the session. Session leave, data, and end events should be emitted.
 	se.Close()
@@ -1219,6 +1268,7 @@ func TestAgentForward(t *testing.T) {
 
 // TestX11Forward tests x11 forwarding via unix sockets
 func TestX11Forward(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
@@ -1230,9 +1280,6 @@ func TestX11Forward(t *testing.T) {
 		DisplayOffset: x11.DefaultDisplayOffset,
 		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
@@ -1267,7 +1314,7 @@ func TestX11Forward(t *testing.T) {
 		errCh <- x11EchoRequest(serverDisplay2)
 	}()
 
-	for i := 0; i > 4; i++ {
+	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errCh:
 			assert.NoError(t, err)
@@ -1320,7 +1367,11 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		}()
 
 		err = utils.ProxyConn(ctx, clientXConn, sch)
-		assert.NoError(t, err)
+
+		// Error should be nil if the ssh client is closed first, or canceled if the context is closed first.
+		if !errors.Is(err, context.Canceled) {
+			assert.NoError(t, err)
+		}
 	})
 	require.NoError(t, err)
 
@@ -1678,6 +1729,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -1813,6 +1865,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -2499,6 +2552,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			Emitter:               proxyClient,
 			LockWatcher:           lockWatcher,
 			NodeWatcher:           nodeWatcher,
+			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 		})
 		require.NoError(t, err)
@@ -2760,6 +2814,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
@@ -3099,6 +3154,19 @@ func newNodeWatcher(ctx context.Context, t *testing.T, client *authclient.Client
 	return nodeWatcher
 }
 
+func newGitServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.Server, readonly.Server] {
+	watcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+		GitServerGetter: client.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
+	return watcher
+}
+
 func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
 	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -3180,6 +3248,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})

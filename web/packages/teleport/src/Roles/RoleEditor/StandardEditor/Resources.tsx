@@ -16,25 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { memo } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
-import { Add, Trash } from 'design/Icon';
+import { Add, Plus, Trash } from 'design/Icon';
 import { Mark } from 'design/Mark';
 import Text, { H4 } from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
-import FieldSelect, {
+import {
+  FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { precomputed } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { SectionBox, SectionProps } from './sections';
+import { SectionBox, SectionProps, SectionPropsWithDispatch } from './sections';
 import {
   AppAccess,
   DatabaseAccess,
@@ -57,6 +60,87 @@ import {
   ServerAccessValidationResult,
   WindowsDesktopAccessValidationResult,
 } from './validation';
+
+/**
+ * Resources tab. This component is memoized to optimize performance; make sure
+ * that the properties don't change unless necessary.
+ */
+export const ResourcesTab = memo(function ResourcesTab({
+  value,
+  isProcessing,
+  validation,
+  dispatch,
+}: SectionPropsWithDispatch<
+  ResourceAccess[],
+  ResourceAccessValidationResult[]
+>) {
+  /** All resource access kinds except those that are already in the role. */
+  const allowedResourceAccessKinds = allResourceAccessKinds.filter(k =>
+    value.every(as => as.kind !== k)
+  );
+
+  const addResourceAccess = (kind: ResourceAccessKind) =>
+    dispatch({ type: 'add-resource-access', payload: { kind } });
+
+  return (
+    <Flex flexDirection="column" gap={3} my={2}>
+      {value.map((res, i) => {
+        return (
+          <ResourceAccessSection
+            key={res.kind}
+            value={res}
+            isProcessing={isProcessing}
+            validation={validation[i]}
+            dispatch={dispatch}
+          />
+        );
+      })}
+      <Box>
+        <MenuButton
+          menuProps={{
+            transformOrigin: {
+              vertical: 'bottom',
+              horizontal: 'right',
+            },
+            anchorOrigin: {
+              vertical: 'top',
+              horizontal: 'right',
+            },
+          }}
+          buttonText={
+            <>
+              <Plus size="small" mr={2} />
+              Add New Resource Access
+            </>
+          }
+          buttonProps={{
+            size: 'medium',
+            fill: 'filled',
+            disabled: isProcessing || allowedResourceAccessKinds.length === 0,
+          }}
+        >
+          {allowedResourceAccessKinds.map(kind => (
+            <MenuItem key={kind} onClick={() => addResourceAccess(kind)}>
+              {resourceAccessSections[kind].title}
+            </MenuItem>
+          ))}
+        </MenuButton>
+      </Box>
+    </Flex>
+  );
+});
+
+/**
+ * All resource access kinds, in order of appearance in the resource kind
+ * dropdown.
+ */
+const allResourceAccessKinds: ResourceAccessKind[] = [
+  'kube_cluster',
+  'node',
+  'app',
+  'db',
+  'windows_desktop',
+];
 
 /** Maps resource access kind to UI component configuration. */
 export const resourceAccessSections: Record<
@@ -98,28 +182,34 @@ export const resourceAccessSections: Record<
  * A generic resource section. Details are rendered by components from the
  * `resourceAccessSections` map.
  */
-export const ResourceAccessSection = <
+export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   T extends ResourceAccess,
   V extends ResourceAccessValidationResult,
 >({
   value,
   isProcessing,
   validation,
-  onChange,
-  onRemove,
-}: SectionProps<T, V> & {
-  onRemove?(): void;
-}) => {
+  dispatch,
+}: SectionPropsWithDispatch<T, V>) {
   const {
     component: Body,
     title,
     tooltip,
   } = resourceAccessSections[value.kind];
+
+  function handleChange(val: T) {
+    dispatch({ type: 'set-resource-access', payload: val });
+  }
+
+  function handleRemove() {
+    dispatch({ type: 'remove-resource-access', payload: { kind: value.kind } });
+  }
+
   return (
     <SectionBox
       title={title}
       removable
-      onRemove={onRemove}
+      onRemove={handleRemove}
       tooltip={tooltip}
       isProcessing={isProcessing}
       validation={validation}
@@ -128,11 +218,11 @@ export const ResourceAccessSection = <
         value={value}
         isProcessing={isProcessing}
         validation={validation}
-        onChange={onChange}
+        onChange={handleChange}
       />
     </SectionBox>
   );
-};
+});
 
 export function ServerAccessSection({
   value,
@@ -232,7 +322,10 @@ export function KubernetesAccessSection({
             onClick={() =>
               onChange?.({
                 ...value,
-                resources: [...value.resources, newKubernetesResourceModel()],
+                resources: [
+                  ...value.resources,
+                  newKubernetesResourceModel(value.roleVersion),
+                ],
               })
             }
           >
@@ -289,6 +382,7 @@ function KubernetesResourceView({
         isDisabled={isProcessing}
         options={kubernetesResourceKindOptions}
         value={kind}
+        rule={precomputed(validation.kind)}
         onChange={k => onChange?.({ ...value, kind: k })}
       />
       <FieldInput
@@ -323,6 +417,7 @@ function KubernetesResourceView({
         isDisabled={isProcessing}
         options={kubernetesVerbOptions}
         value={verbs}
+        rule={precomputed(validation.verbs)}
         onChange={v => onChange?.({ ...value, verbs: v })}
         mb={0}
       />

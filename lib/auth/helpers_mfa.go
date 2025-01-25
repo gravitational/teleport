@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 // TestDevice is a test MFA device.
@@ -190,9 +191,8 @@ func (d *TestDevice) solveAuthnTOTP(c *proto.MFAAuthenticateChallenge) (*proto.M
 	if d.clock == nil {
 		return nil, trace.BadParameter("clock not set")
 	}
-	if c, ok := d.clock.(clockwork.FakeClock); ok {
-		c.Advance(30 * time.Second)
-	}
+	clocki.Advance(d.clock, 30*time.Second)
+
 	code, err := totp.GenerateCode(d.TOTPSecret, d.clock.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -244,9 +244,7 @@ func (d *TestDevice) solveRegisterTOTP(c *proto.MFARegisterChallenge) (*proto.MF
 	if d.clock == nil {
 		return nil, trace.BadParameter("clock not set")
 	}
-	if c, ok := d.clock.(clockwork.FakeClock); ok {
-		c.Advance(30 * time.Second)
-	}
+	clocki.Advance(d.clock, 30*time.Second)
 
 	if c.GetTOTP().Algorithm != otp.AlgorithmSHA1.String() {
 		return nil, trace.BadParameter("unexpected TOTP challenge algorithm: %s", c.GetTOTP().Algorithm)

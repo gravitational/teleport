@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthType } from 'shared/services';
+
 export type Resource<T extends Kind> = {
   id: string;
   kind: T;
@@ -44,6 +46,7 @@ export type RoleResource = Resource<KindRole>;
  */
 export type Role = {
   kind: KindRole;
+  version: RoleVersion;
   metadata: {
     name: string;
     description?: string;
@@ -56,8 +59,15 @@ export type Role = {
     deny: RoleConditions;
     options: RoleOptions;
   };
-  version: string;
 };
+
+export enum RoleVersion {
+  V3 = 'v3',
+  V4 = 'v4',
+  V5 = 'v5',
+  V6 = 'v6',
+  V7 = 'v7',
+}
 
 /**
  * A set of conditions that must be matched to allow or deny access. Fields
@@ -88,6 +98,11 @@ export type RoleConditions = {
 };
 
 export type Labels = Record<string, string | string[]>;
+
+export type DefaultAuthConnector = {
+  name?: string;
+  type: AuthType;
+};
 
 export type KubernetesResource = {
   kind?: KubernetesResourceKind;
@@ -351,7 +366,8 @@ export type RoleOptions = {
   };
   max_session_ttl: string;
   pin_source_ip: boolean;
-  ssh_port_forwarding: SSHPortForwarding;
+  ssh_port_forwarding?: SSHPortForwarding;
+  port_forwarding?: boolean;
   record_session: {
     default: SessionRecordingMode;
     ssh?: SessionRecordingMode;
@@ -366,11 +382,11 @@ export type RoleOptions = {
 };
 
 export type SSHPortForwarding = {
-  local: {
-    enabled: boolean;
+  local?: {
+    enabled?: boolean;
   };
-  remote: {
-    enabled: boolean;
+  remote?: {
+    enabled?: boolean;
   };
 };
 

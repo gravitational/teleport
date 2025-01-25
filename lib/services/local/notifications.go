@@ -38,11 +38,12 @@ import (
 
 // NotificationsService manages notification resources in the backend.
 type NotificationsService struct {
-	clock                           clockwork.Clock
-	userNotificationService         *generic.ServiceWrapper[*notificationsv1.Notification]
-	globalNotificationService       *generic.ServiceWrapper[*notificationsv1.GlobalNotification]
-	userNotificationStateService    *generic.ServiceWrapper[*notificationsv1.UserNotificationState]
-	userLastSeenNotificationService *generic.ServiceWrapper[*notificationsv1.UserLastSeenNotification]
+	clock                               clockwork.Clock
+	userNotificationService             *generic.ServiceWrapper[*notificationsv1.Notification]
+	globalNotificationService           *generic.ServiceWrapper[*notificationsv1.GlobalNotification]
+	userNotificationStateService        *generic.ServiceWrapper[*notificationsv1.UserNotificationState]
+	userLastSeenNotificationService     *generic.ServiceWrapper[*notificationsv1.UserLastSeenNotification]
+	uniqueNotificationIdentifierService *generic.ServiceWrapper[*notificationsv1.UniqueNotificationIdentifier]
 }
 
 // NewNotificationsService returns a new instance of the NotificationService.
@@ -96,12 +97,26 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 		return nil, trace.Wrap(err)
 	}
 
+	uniqueNotificationIdentifierService, err := generic.NewServiceWrapper[*notificationsv1.UniqueNotificationIdentifier](
+		generic.ServiceWrapperConfig[*notificationsv1.UniqueNotificationIdentifier]{
+			Backend:       backend,
+			ResourceKind:  types.KindUniqueNotificationIdentifier,
+			BackendPrefix: notificationUniqueIdentifierPrefix,
+			MarshalFunc:   services.MarshalUniqueNotificationIdentifier,
+			UnmarshalFunc: services.UnmarshalUniqueNotificationIdentifier,
+			ValidateFunc:  services.ValidateUniqueNotificationIdentifier,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &NotificationsService{
-		clock:                           clock,
-		userNotificationService:         userNotificationService,
-		globalNotificationService:       globalNotificationService,
-		userNotificationStateService:    userNotificationStateService,
-		userLastSeenNotificationService: userLastSeenNotificationService,
+		clock:                               clock,
+		userNotificationService:             userNotificationService,
+		globalNotificationService:           globalNotificationService,
+		userNotificationStateService:        userNotificationStateService,
+		userLastSeenNotificationService:     userLastSeenNotificationService,
+		uniqueNotificationIdentifierService: uniqueNotificationIdentifierService,
 	}, nil
 }
 
@@ -171,7 +186,7 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, notif
 	}
 	notification.Metadata.Name = uuid.String()
 
-	if err := CheckAndSetExpiry(notification, s.clock); err != nil {
+	if err := CheckAndSetExpiry(notification.Metadata, s.clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -259,7 +274,7 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := CheckAndSetExpiry(globalNotification.Spec.Notification, s.clock); err != nil {
+	if err := CheckAndSetExpiry(globalNotification.Spec.Notification.Metadata, s.clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -411,13 +426,85 @@ func (s *NotificationsService) DeleteUserLastSeenNotification(ctx context.Contex
 	return trace.Wrap(err)
 }
 
+// ListUniqueNotificationIdentifiersForPrefix returns unique notification identifiers with a given prefix
+func (s *NotificationsService) ListUniqueNotificationIdentifiersForPrefix(ctx context.Context, prefix string, pageSize int, startKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+	if prefix == "" {
+		return nil, "", trace.BadParameter("prefix is missing")
+	}
+
+	serviceWithPrefix := s.uniqueNotificationIdentifierService.WithPrefix(prefix)
+
+	identifiers, nextKey, err := serviceWithPrefix.ListResources(ctx, pageSize, startKey)
+	return identifiers, nextKey, trace.Wrap(err)
+}
+
+// CreateUniqueNotificationIdentifier creates a unique notification identifier resource.
+func (s *NotificationsService) CreateUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	if prefix == "" {
+		return nil, trace.BadParameter("prefix is missing")
+	}
+	if identifier == "" {
+		return nil, trace.BadParameter("identifier is missing")
+	}
+
+	uniqueNotificationIdentifier := &notificationsv1.UniqueNotificationIdentifier{
+		Spec: &notificationsv1.UniqueNotificationIdentifierSpec{
+			UniqueIdentifier:       identifier,
+			UniqueIdentifierPrefix: prefix,
+		},
+		Metadata: &headerv1.Metadata{
+			// the service adapter uses `getName()` to determine the backend key
+			Name: identifier,
+		},
+		Kind:    types.KindUniqueNotificationIdentifier,
+		Version: types.V1,
+	}
+
+	if err := CheckAndSetExpiry(uniqueNotificationIdentifier.Metadata, s.clock); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceWithPrefix := s.uniqueNotificationIdentifierService.WithPrefix(prefix)
+
+	created, err := serviceWithPrefix.CreateResource(ctx, uniqueNotificationIdentifier)
+	return created, trace.Wrap(err)
+}
+
+// GetUniqueNotificationIdentifier returns a unique notification identifier resource.
+func (s *NotificationsService) GetUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	if prefix == "" {
+		return nil, trace.BadParameter("prefix is missing")
+	}
+	if identifier == "" {
+		return nil, trace.BadParameter("identifier is missing")
+	}
+
+	serviceWithPrefix := s.uniqueNotificationIdentifierService.WithPrefix(prefix)
+
+	return serviceWithPrefix.GetResource(ctx, identifier)
+}
+
+// DeleteUniqueNotificationIdentifier deletes a unique notification identifier resource.
+func (s *NotificationsService) DeleteUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) error {
+	if prefix == "" {
+		return trace.BadParameter("prefix is missing")
+	}
+	if identifier == "" {
+		return trace.BadParameter("identifier is missing")
+	}
+
+	serviceWithPrefix := s.uniqueNotificationIdentifierService.WithPrefix(prefix)
+
+	return serviceWithPrefix.DeleteResource(ctx, identifier)
+}
+
 // CheckAndSetExpiry checks and sets the default expiry for a notification.
-func CheckAndSetExpiry(notification *notificationsv1.Notification, clock clockwork.Clock) error {
+func CheckAndSetExpiry(metadata *headerv1.Metadata, clock clockwork.Clock) error {
 	// If the expiry hasn't been provided, set the default to 30 days from now.
-	if notification.Metadata.Expires == nil {
+	if metadata.Expires == nil {
 		now := clock.Now()
 		futureTime := now.Add(defaultExpiry)
-		notification.Metadata.Expires = timestamppb.New(futureTime)
+		metadata.Expires = timestamppb.New(futureTime)
 		return nil
 	}
 
@@ -426,7 +513,7 @@ func CheckAndSetExpiry(notification *notificationsv1.Notification, clock clockwo
 	now := clock.Now()
 	timeOfMaxExpiry := now.Add(maxExpiry)
 
-	if (*notification.Metadata.Expires).AsTime().After(timeOfMaxExpiry) {
+	if metadata.Expires.AsTime().After(timeOfMaxExpiry) {
 		return trace.BadParameter("notification expiry cannot be more than %d days from its creation", int(maxExpiry.Hours()/24))
 	}
 
@@ -434,10 +521,11 @@ func CheckAndSetExpiry(notification *notificationsv1.Notification, clock clockwo
 }
 
 var (
-	notificationsGlobalPrefix       = backend.NewKey("notifications", "global")    // notifications/global/<notification id>
-	notificationsUserSpecificPrefix = backend.NewKey("notifications", "user")      // notifications/user/<username>/<notification id>
-	notificationsStatePrefix        = backend.NewKey("notifications", "states")    // notifications/states/<username>/<notification id>
-	notificationsUserLastSeenPrefix = backend.NewKey("notifications", "last_seen") // notifications/last_seen/<username>
+	notificationsGlobalPrefix          = backend.NewKey("notifications", "global")        // notifications/global/<notification id>
+	notificationsUserSpecificPrefix    = backend.NewKey("notifications", "user")          // notifications/user/<username>/<notification id>
+	notificationsStatePrefix           = backend.NewKey("notifications", "states")        // notifications/states/<username>/<notification id>
+	notificationsUserLastSeenPrefix    = backend.NewKey("notifications", "last_seen")     // notifications/last_seen/<username>
+	notificationUniqueIdentifierPrefix = backend.NewKey("notification_unique_identifier") // notification_unique_identifier/<key>
 )
 
 const (

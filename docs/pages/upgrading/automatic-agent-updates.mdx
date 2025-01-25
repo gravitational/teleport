@@ -81,6 +81,8 @@ Teleport cluster that agents use to determine when to check for upgrades.
    $ tctl create cmc-editor.yaml
    ```
 
+   (!docs/pages/includes/create-role-using-web.mdx!)
+
 1. Add the role to your Teleport user:
 
   (!docs/pages/includes/add-role-to-user.mdx role="cmc-editor"!)
@@ -164,17 +166,16 @@ Server ID                            Hostname      Services Version Upgrader
    Service. This way, the Teleport installation has the same major version as
    the automatic updater. 
 
-   Replace <Var name="example.teleport.sh" /> with the domain name of the
-   Teleport Proxy Service and <Var name="stable/cloud" /> with the name of your
-   automatic update channel. For cloud-hosted Teleport Enterprise accounts, this
-   is always `stable/cloud`:
+   Replace <Var name="stable/cloud" /> with the name of your automatic update
+   channel. For cloud-hosted Teleport Enterprise accounts, this is always
+   `stable/cloud`:
 
    ```code
-   $ TELEPORT_VERSION="$(curl https://<Var name="example.teleport.sh" />/v1/webapi/automaticupgrades/channel/<Var name="stable/cloud" />/version | sed 's/v//')"
+   $ TELEPORT_VERSION="$(curl https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/<Var name="stable/cloud" />/version | sed 's/v//')"
    ```
 
-1. Ensure that the Teleport repository is properly configured to use the <Var
-   name="stable/cloud" /> channel, and install the `teleport-ent-updater`
+1. Ensure that the Teleport repository is properly configured to use the 
+   <Var name="stable/cloud" /> channel, and install the `teleport-ent-updater`
    package. You must install `teleport-ent-updater` on each agent you would like
    to enroll into automatic updates:
 
@@ -289,7 +290,7 @@ This section assumes that the name of your `teleport-kube-agent` release is
    ```code
    $ helm -n <Var name="teleport" />  upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
    --values=values.yaml \
-   --version=<Var name="(=cloud.version=)" />
+   --version="(=cloud.version=)"
    ```
    </TabItem>
    <TabItem label="Self-Hosted">
@@ -297,7 +298,7 @@ This section assumes that the name of your `teleport-kube-agent` release is
    ```code
    $ helm -n <Var name="teleport" />  upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
    --values=values.yaml \
-   --version=<Var name="(=teleport.version=)" />
+   --version="(=teleport.version=)"
    ```
    </TabItem>
    </Tabs>

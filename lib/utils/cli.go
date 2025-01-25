@@ -117,8 +117,10 @@ var initTestLoggerOnce = sync.Once{}
 // InitLoggerForTests initializes the standard logger for tests.
 func InitLoggerForTests() {
 	initTestLoggerOnce.Do(func() {
-		// Parse flags to check testing.Verbose().
-		flag.Parse()
+		if !flag.Parsed() {
+			// Parse flags to check testing.Verbose().
+			flag.Parse()
+		}
 
 		if !testing.Verbose() {
 			slog.SetDefault(slog.New(logutils.DiscardHandler{}))
@@ -499,7 +501,7 @@ type PredicateError struct {
 }
 
 func (p PredicateError) Error() string {
-	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
+	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/reference/predicate-language/#resource-filtering", p.Err.Error())
 }
 
 // FormatAlert formats and colors the alert message if possible.
