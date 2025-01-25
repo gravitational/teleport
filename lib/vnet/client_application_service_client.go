@@ -19,12 +19,13 @@ package vnet
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 // clientApplicationServiceClient is a gRPC client for the client application

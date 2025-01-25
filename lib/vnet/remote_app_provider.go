@@ -23,8 +23,9 @@ import (
 	"crypto/x509"
 	"io"
 
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/trace"
+
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 // remoteAppProvider implements appProvider when the client application is
