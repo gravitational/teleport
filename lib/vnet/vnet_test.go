@@ -885,7 +885,7 @@ func TestRemoteAppProvider(t *testing.T) {
 	appProvider := newLocalAppProvider(clientApp, clock)
 	svc := newClientApplicationService(appProvider)
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, svc)
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "user process gRPC server",
