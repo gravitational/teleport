@@ -174,7 +174,7 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 		}
 
 		ctx := authz.ContextWithUser(req.Context(), userType)
-		req = req.WithContext(ctx)
+		req = req.Clone(ctx)
 
 		path := p.ByName("path")
 		if !strings.HasPrefix(path, "/") {
@@ -182,6 +182,7 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 		}
 
 		req.URL.Path = path
+		req.URL.RawPath = ""
 		req.RequestURI = req.URL.RequestURI()
 
 		f.router.ServeHTTP(w, req)
