@@ -83,7 +83,7 @@ func TestMain(m *testing.M) {
 	}))
 	baseURL = server.URL
 	for _, version := range testVersions {
-		if err := buildAndArchiveApps(ctx, tmp, toolsDir, version, server.URL); err != nil {
+		if err := buildAndArchiveApps(ctx, tmp, version, server.URL); err != nil {
 			log.Fatalf("failed to build testing app binary archive: %v", err)
 		}
 	}
@@ -131,7 +131,7 @@ func serve256File(w http.ResponseWriter, _ *http.Request, filePath string) {
 }
 
 // buildAndArchiveApps compiles the updater integration and pack it depends on platform is used.
-func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, version string, baseURL string) error {
+func buildAndArchiveApps(ctx context.Context, path string, version string, baseURL string) error {
 	versionPath := filepath.Join(path, version)
 	for _, app := range []string{"tsh", "tctl"} {
 		output := filepath.Join(versionPath, app)
@@ -141,7 +141,7 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 		case constants.DarwinOS:
 			output = filepath.Join(versionPath, app+".app", "Contents", "MacOS", app)
 		}
-		if err := buildBinary(output, toolsDir, version, baseURL, app); err != nil {
+		if err := buildBinary(output, version, baseURL, app); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -159,7 +159,7 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 }
 
 // buildBinary executes command to build client tool binary with updater logic for testing.
-func buildBinary(output string, toolsDir string, version string, baseURL string, app string) error {
+func buildBinary(output string, version string, baseURL string, app string) error {
 	cmd := exec.Command(
 		"go", "build", "-o", output,
 		"-ldflags", strings.Join([]string{
