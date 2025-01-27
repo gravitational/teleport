@@ -57,7 +57,10 @@ export const VnetConnectionItem = (props: {
   );
 };
 
-export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
+export const VnetSliderStepHeader = (props: {
+  goBack: () => void;
+  runDiagnosticsFromVnetPanel: () => Promise<unknown>;
+}) => (
   <VnetConnectionItemBase
     title="Go back to Connections"
     onClick={props.goBack}
@@ -65,6 +68,7 @@ export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
     showExtraRightButtons
     // Make the element focusable.
     tabIndex={0}
+    runDiagnosticsFromVnetPanel={props.runDiagnosticsFromVnetPanel}
   />
 );
 
@@ -78,7 +82,13 @@ const VnetConnectionItemBase = forwardRef<
     showExtraRightButtons?: boolean;
     isActive?: boolean;
     tabIndex?: number;
-  }
+  } & (
+    | { showExtraRightButtons?: false }
+    | {
+        showExtraRightButtons: true;
+        runDiagnosticsFromVnetPanel: () => Promise<unknown>;
+      }
+  )
 >((props, ref) => {
   const { configService } = useAppContext();
   const isVnetDiagEnabled = configService.get('unstable.vnetDiag').value;
@@ -88,7 +98,6 @@ const VnetConnectionItemBase = forwardRef<
     stop,
     startAttempt,
     stopAttempt,
-    runDiagnostics,
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
   } = useVnetContext();
@@ -193,7 +202,7 @@ const VnetConnectionItemBase = forwardRef<
                   disabled={!!disabledDiagnosticsReason}
                   onClick={e => {
                     e.stopPropagation();
-                    runDiagnostics();
+                    props.runDiagnosticsFromVnetPanel();
                   }}
                 >
                   <icons.ListMagnifyingGlass size={18} />

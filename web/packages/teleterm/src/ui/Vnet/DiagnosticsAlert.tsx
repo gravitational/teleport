@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode, useCallback } from 'react';
+import { PropsWithChildren, ReactNode, useCallback } from 'react';
 
 import { Alert, Flex, P2 } from 'design';
 import { ActionButton } from 'design/Alert';
-import { AlertProps } from 'design/Alert/Alert';
+import { AlertKind } from 'design/Alert/Alert';
+import { Checks } from 'design/Icon';
+import { StatusIcon } from 'design/StatusIcon';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -33,23 +35,27 @@ import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connection
 import { textSpacing } from './sliderStep';
 import { useVnetContext } from './vnetContext';
 
-export const DiagnosticsAlert = () => {
-  const { diagnosticsAttempt, runDiagnostics, resetDiagnosticsAttempt } =
-    useVnetContext();
+export const DiagnosticsAlert = (props: {
+  runDiagnosticsFromVnetPanel: () => Promise<unknown>;
+}) => {
+  const {
+    diagnosticsAttempt,
+    dismissDiagnosticsAlert,
+    hasDismissedDiagnosticsAlert,
+  } = useVnetContext();
   const { workspacesService } = useAppContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
     'workspacesService',
     useCallback(state => state.rootClusterUri, [])
   );
-  const onDismiss = () => {
-    // Reset the attempt, otherwise re-opening the panel would show the warning again.
-    resetDiagnosticsAttempt();
-  };
 
   if (
     diagnosticsAttempt.status === '' ||
-    diagnosticsAttempt.status === 'processing'
+    // If diagnostics are currently running, but there are results from the previous run, display
+    // the results from the previous run. Otherwise display nothing.
+    (diagnosticsAttempt.status === 'processing' && !diagnosticsAttempt.data) ||
+    hasDismissedDiagnosticsAlert
   ) {
     return null;
   }
@@ -59,7 +65,6 @@ export const DiagnosticsAlert = () => {
       <SliderStepAlert
         kind="danger"
         details={<P2>{diagnosticsAttempt.statusText}</P2>}
-        onDismiss={onDismiss}
       >
         Encountered an error while running diagnostics
       </SliderStepAlert>
@@ -81,10 +86,9 @@ export const DiagnosticsAlert = () => {
     const docsService =
       workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
-    // Check for an existing doc first. It may be present if someone re-runs diagnostics from
-    // within a doc, then opens the VNet panel and clicks "Open Report". The report in the panel
-    // and the report in the doc are equal in that case, as they both come from
-    // diagnosticsAttempt.data.
+    // Check for an existing doc first. It may be present if someone re-runs diagnostics from within
+    // a doc, then opens the VNet panel and clicks "Open Diag Report". The report in the panel and
+    // the report in the doc are equal in that case, as they both come from diagnosticsAttempt.data.
     const existingDoc = docsService.getDocuments().find(
       d =>
         d.kind === 'doc.vnet_diag_report' &&
@@ -112,26 +116,21 @@ export const DiagnosticsAlert = () => {
         checkAttempt.checkReport.status === CheckReportStatus.OK
     )
   ) {
-    // TODO(ravicious): Once we start automatically running checks, this alert needs to be shown
-    // only if the user manually requested diagnostics to be run. Alternatively, we can replace it
-    // with some kind of a smaller "Everything's okay" indicator, but the user needs to be able to
-    // open the report anyway.
     return (
-      <SliderStepAlert
-        kind="success"
-        onDismiss={onDismiss}
-        buttons={
-          <ActionButton
-            fill="border"
-            intent="neutral"
-            inputAlignment
-            action={{ content: 'Open Report', onClick: openReport }}
-            {...disabledOpenReportButtonProps}
-          />
-        }
-      >
-        No issues found.
-      </SliderStepAlert>
+      <Flex px={textSpacing} justifyContent="space-between" alignItems="center">
+        <Flex gap={1}>
+          <StatusIcon kind="neutral" customIcon={Checks} size="large" />
+          No issues found.
+        </Flex>
+
+        <ActionButton
+          fill="minimal"
+          intent="neutral"
+          inputAlignment
+          action={{ content: 'Open Diag Report', onClick: openReport }}
+          {...disabledOpenReportButtonProps}
+        />
+      </Flex>
     );
   }
 
@@ -157,21 +156,24 @@ export const DiagnosticsAlert = () => {
   return (
     <SliderStepAlert
       kind="warning"
-      onDismiss={onDismiss}
+      onDismiss={dismissDiagnosticsAlert}
       buttons={
         <>
           <ActionButton
             fill="border"
             intent="neutral"
             inputAlignment
-            action={{ content: 'Open Report', onClick: openReport }}
+            action={{ content: 'Open Diag Report', onClick: openReport }}
             {...disabledOpenReportButtonProps}
           />
           <ActionButton
             fill="minimal"
             intent="neutral"
             inputAlignment
-            action={{ content: 'Retry', onClick: runDiagnostics }}
+            action={{
+              content: 'Retry',
+              onClick: props.runDiagnosticsFromVnetPanel,
+            }}
           />
         </>
       }
@@ -182,20 +184,24 @@ export const DiagnosticsAlert = () => {
 };
 
 const SliderStepAlert = (
-  props: (
-    | { buttons?: ReactNode; details?: never }
-    | { details?: ReactNode; buttons?: never }
-  ) &
-    Required<Pick<AlertProps, 'kind' | 'onDismiss' | 'children'>>
+  props: PropsWithChildren<{
+    kind: AlertKind;
+    onDismiss?: () => void;
+  }> &
+    (
+      | { buttons?: ReactNode; details?: never }
+      | { details?: ReactNode; buttons?: never }
+    )
 ) => {
-  const { buttons, details, ...alertProps } = props;
+  const { buttons, onDismiss } = props;
 
   return (
     <Alert
+      kind={props.kind}
       mt={0}
       mx={textSpacing}
       mb={textSpacing}
-      dismissible
+      {...(onDismiss ? { dismissible: true, onDismiss } : {})}
       alignItems={buttons ? 'flex-start' : 'center'}
       details={
         buttons ? (
@@ -203,10 +209,11 @@ const SliderStepAlert = (
             {buttons}
           </Flex>
         ) : (
-          details
+          props.details
         )
       }
-      {...alertProps}
-    />
+    >
+      {props.children}
+    </Alert>
   );
 };

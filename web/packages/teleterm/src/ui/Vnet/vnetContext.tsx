@@ -56,7 +56,6 @@ export type VnetContext = {
   listDNSZonesAttempt: Attempt<string[]>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
-  resetDiagnosticsAttempt: () => void;
   /**
    * Calculates whether the button for running diagnostics should be disabled. If it should be
    * disabled, it returns a reason for this, otherwise it returns a falsy value.
@@ -67,6 +66,22 @@ export type VnetContext = {
   getDisabledDiagnosticsReason: (
     runDiagnosticsAttempt: Attempt<Report>
   ) => string;
+  /**
+   * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
+   * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
+   *
+   * The user can dismissed an alert only after a diagnostics run was successful and either found
+   * some issues or some checks have failed to complete.
+   */
+  dismissDiagnosticsAlert: () => void;
+  /**
+   * Whether the user dismissed the diagnostics alert in the VNet panel.
+   */
+  hasDismissedDiagnosticsAlert: boolean;
+  /**
+   * Shows the diagnostics alert in the VNet panel again.
+   */
+  reinstateDiagnosticsAlert: () => void;
 };
 
 export type VnetStatus =
@@ -125,10 +140,6 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       [vnet]
     )
   );
-  const resetDiagnosticsAttempt = useCallback(
-    () => setDiagnosticsAttempt(makeEmptyAttempt()),
-    [setDiagnosticsAttempt]
-  );
 
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
@@ -138,7 +149,9 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         reason: { value: 'regular-shutdown-or-not-started' },
       });
       setAppState({ autoStart: false });
-    }, [vnet, setAppState])
+      setDiagnosticsAttempt(makeEmptyAttempt());
+      setHasDismissedDiagnosticsAlert(false);
+    }, [vnet, setAppState, setDiagnosticsAttempt])
   );
 
   const [listDNSZonesAttempt, listDNSZones] = useAsync(
@@ -239,6 +252,17 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     [configService, runDiagnostics, status.value]
   );
 
+  const [hasDismissedDiagnosticsAlert, setHasDismissedDiagnosticsAlert] =
+    useState(false);
+  const reinstateDiagnosticsAlert = useCallback(
+    () => setHasDismissedDiagnosticsAlert(false),
+    []
+  );
+  const dismissDiagnosticsAlert = useCallback(
+    () => setHasDismissedDiagnosticsAlert(true),
+    []
+  );
+
   return (
     <VnetContext.Provider
       value={{
@@ -252,8 +276,10 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         listDNSZonesAttempt,
         runDiagnostics,
         diagnosticsAttempt,
-        resetDiagnosticsAttempt,
         getDisabledDiagnosticsReason,
+        dismissDiagnosticsAlert,
+        hasDismissedDiagnosticsAlert,
+        reinstateDiagnosticsAlert,
       }}
     >
       {props.children}
