@@ -18,9 +18,10 @@
 
 import styled from 'styled-components';
 
-import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
+import { Box, ButtonIcon, ButtonSecondary, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
+import { IconTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
 import {
   useRule,
@@ -63,6 +64,8 @@ type LabelValidationResult = {
 export type LabelsRule = Rule<Label[], LabelListValidationResult>;
 
 export function LabelsInput({
+  legend,
+  tooltipContent,
   labels = [],
   setLabels,
   disableBtns = false,
@@ -74,6 +77,8 @@ export function LabelsInput({
   inputWidth = 200,
   rule = defaultRule,
 }: {
+  legend?: string;
+  tooltipContent?: string;
   labels: Label[];
   setLabels(l: Label[]): void;
   disableBtns?: boolean;
@@ -141,23 +146,46 @@ export function LabelsInput({
   const width = `${inputWidth}px`;
   const inputSize = 'medium';
   return (
-    <>
-      {labels.length > 0 && (
-        <Flex mt={2}>
-          <Box width={width} mr="3">
-            {labelKey.fieldName} <SmallText>(required field)</SmallText>
-          </Box>
-          <Box>
-            {labelVal.fieldName} <SmallText>(required field)</SmallText>
-          </Box>
-        </Flex>
-      )}
-      <Box>
+    <Fieldset gap={labels.length > 0 ? 2 : 1}>
+      <Stack gap={1}>
+        {legend && (
+          <Legend>
+            {tooltipContent ? (
+              <>
+                <span
+                  css={{
+                    marginRight: '4px',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  {legend}
+                </span>
+                <IconTooltip children={tooltipContent} />
+              </>
+            ) : (
+              legend
+            )}
+          </Legend>
+        )}
+        {labels.length > 0 && (
+          <Flex>
+            <Box width={width} mr="3">
+              <Text typography="body3">
+                {labelKey.fieldName} (required field)
+              </Text>
+            </Box>
+            <Text typography="body3">
+              {labelVal.fieldName} (required field)
+            </Text>
+          </Flex>
+        )}
+      </Stack>
+      <Stack gap={2}>
         {labels.map((label, index) => {
           const validationItem: LabelValidationResult | undefined =
             validationResult.results?.[index];
           return (
-            <Box mb={2} key={index}>
+            <Box key={index}>
               <Flex alignItems="start">
                 <FieldInput
                   size={inputSize}
@@ -217,7 +245,7 @@ export function LabelsInput({
             </Box>
           );
         })}
-      </Box>
+      </Stack>
       <ButtonSecondary
         onClick={e => {
           e.preventDefault();
@@ -229,16 +257,11 @@ export function LabelsInput({
         <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
         {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
       </ButtonSecondary>
-    </>
+    </Fieldset>
   );
 }
 
 const defaultRule = () => () => ({ valid: true });
-
-const SmallText = styled.span`
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  font-weight: lighter;
-`;
 
 export const nonEmptyLabels: LabelsRule = labels => () => {
   const results = labels.map(label => ({
@@ -250,3 +273,22 @@ export const nonEmptyLabels: LabelsRule = labels => () => {
     results: results,
   };
 };
+
+const Stack = styled(Flex).attrs({
+  flexDirection: 'column',
+  alignItems: 'start',
+})``;
+
+const Fieldset = styled(Stack).attrs({
+  as: 'fieldset',
+})`
+  border: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const Legend = styled.legend`
+  margin: 0;
+  padding: 0;
+  ${props => props.theme.typography.body3}
+`;
