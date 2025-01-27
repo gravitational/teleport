@@ -146,42 +146,46 @@ export function LabelsInput({
   const width = `${inputWidth}px`;
   const inputSize = 'medium';
   return (
-    <Fieldset>
-      {legend && (
-        <Legend>
-          {tooltipContent ? (
-            <>
-              <span
-                css={{
-                  marginRight: '4px',
-                  verticalAlign: 'middle',
-                }}
-              >
-                {legend}
-              </span>
-              <IconTooltip children={tooltipContent} />
-            </>
-          ) : (
-            legend
-          )}
-        </Legend>
-      )}
-      {labels.length > 0 && (
-        <Flex mt={legend ? 1 : 0} mb={1}>
-          <Box width={width} mr="3">
+    <Fieldset gap={labels.length > 0 ? 2 : 1}>
+      <Stack gap={1}>
+        {legend && (
+          <Legend>
+            {tooltipContent ? (
+              <>
+                <span
+                  css={{
+                    marginRight: '4px',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  {legend}
+                </span>
+                <IconTooltip children={tooltipContent} />
+              </>
+            ) : (
+              legend
+            )}
+          </Legend>
+        )}
+        {labels.length > 0 && (
+          <Flex>
+            <Box width={width} mr="3">
+              <Text typography="body3">
+                {labelKey.fieldName} (required field)
+              </Text>
+            </Box>
             <Text typography="body3">
-              {labelKey.fieldName} (required field)
+              {labelVal.fieldName} (required field)
             </Text>
-          </Box>
-          <Text typography="body3">{labelVal.fieldName} (required field)</Text>
-        </Flex>
-      )}
-      <Box>
+          </Flex>
+        )}
+      </Stack>
+      <Stack gap={2}>
         {labels.map((label, index) => {
           const validationItem: LabelValidationResult | undefined =
             validationResult.results?.[index];
           return (
-            <Box mb={2} key={index}>
+            <Box key={index}>
               <Flex alignItems="start">
                 <FieldInput
                   size={inputSize}
@@ -241,7 +245,7 @@ export function LabelsInput({
             </Box>
           );
         })}
-      </Box>
+      </Stack>
       <ButtonSecondary
         onClick={e => {
           e.preventDefault();
@@ -270,14 +274,21 @@ export const nonEmptyLabels: LabelsRule = labels => () => {
   };
 };
 
-const Fieldset = styled.fieldset`
+const Stack = styled(Flex).attrs({
+  flexDirection: 'column',
+  alignItems: 'start',
+})``;
+
+const Fieldset = styled(Stack).attrs({
+  as: 'fieldset',
+})`
   border: none;
   margin: 0;
   padding: 0;
 `;
 
 const Legend = styled.legend`
-  margin: 0 0 ${props => props.theme.space[1]}px 0;
+  margin: 0;
   padding: 0;
   ${props => props.theme.typography.body3}
 `;
