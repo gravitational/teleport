@@ -33,6 +33,7 @@ import {
 } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { DiagnosticsAlert } from './DiagnosticsAlert';
 import { useVnetContext, VnetContextProvider } from './vnetContext';
@@ -168,10 +169,12 @@ describe('DiagnosticsAlert', () => {
 
       render(
         <MockAppContextProvider appContext={appContext}>
-          <VnetContextProvider>
-            <RunDiagnostics />
-            <DiagnosticsAlert />
-          </VnetContextProvider>
+          <ConnectionsContextProvider>
+            <VnetContextProvider>
+              <RunDiagnostics />
+              <DiagnosticsAlert />
+            </VnetContextProvider>
+          </ConnectionsContextProvider>
         </MockAppContextProvider>
       );
 
