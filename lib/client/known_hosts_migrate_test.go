@@ -28,7 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type knownHostsMigrateTest struct {
@@ -48,12 +48,14 @@ func generateHostCert(t *testing.T, s *knownHostsMigrateTest, clusterName string
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
 	require.NoError(t, err)
 
-	cert, err := s.keygen.GenerateHostCert(services.HostCertParams{
+	cert, err := s.keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		HostID:        "127.0.0.1",
 		NodeName:      "127.0.0.1",
-		ClusterName:   clusterName,
 		PublicHostKey: hostPub,
+		Identity: sshca.Identity{
+			ClusterName: clusterName,
+		},
 	})
 	require.NoError(t, err)
 
