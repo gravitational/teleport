@@ -5292,6 +5292,29 @@ func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.Cert
 	return pool, trace.Wrap(err)
 }
 
+// RootClusterCACertPoolPEM returns a PEM-encoded cert pool with the root cluster CA.
+func (tc *TeleportClient) RootClusterCACertPoolPEM(ctx context.Context) ([]byte, error) {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/RootClusterCACertPoolPEM",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	keyRing, err := tc.localAgent.GetCoreKeyRing()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootClusterName, err := keyRing.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool, err := keyRing.clientCertPoolPEM(rootClusterName)
+	return pool, trace.Wrap(err)
+}
+
 // HeadlessApprove handles approval of a headless authentication request.
 func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthenticationID string, confirm bool) error {
 	ctx, span := tc.Tracer.Start(

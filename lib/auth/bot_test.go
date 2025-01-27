@@ -80,7 +80,7 @@ func renewBotCerts(
 	botUser string,
 	key crypto.Signer,
 ) (*authclient.Client, *proto.Certs, error) {
-	fakeClock := srv.Clock().(clockwork.FakeClock)
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(key)
 	if err != nil {
@@ -120,7 +120,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	fakeClock := srv.Clock().(clockwork.FakeClock)
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
 
 	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)

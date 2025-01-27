@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -176,16 +175,17 @@ func TestBuildPrincipals(t *testing.T) {
 	// run tests
 	for _, tc := range tests {
 		t.Logf("Running test case: %q", tc.desc)
-		hostCertificateBytes, err := tt.suite.A.GenerateHostCert(
-			services.HostCertParams{
-				CASigner:      caSigner,
-				PublicHostKey: hostPublicKey,
-				HostID:        tc.inHostID,
-				NodeName:      tc.inNodeName,
-				ClusterName:   tc.inClusterName,
-				Role:          tc.inRole,
-				TTL:           time.Hour,
-			})
+		hostCertificateBytes, err := tt.suite.A.GenerateHostCert(sshca.HostCertificateRequest{
+			CASigner:      caSigner,
+			PublicHostKey: hostPublicKey,
+			HostID:        tc.inHostID,
+			NodeName:      tc.inNodeName,
+			TTL:           time.Hour,
+			Identity: sshca.Identity{
+				ClusterName: tc.inClusterName,
+				SystemRole:  tc.inRole,
+			},
+		})
 		require.NoError(t, err)
 
 		hostCertificate, err := sshutils.ParseCertificate(hostCertificateBytes)
@@ -233,9 +233,9 @@ func TestUserCertCompatibility(t *testing.T) {
 			TTL:               time.Hour,
 			CertificateFormat: tc.inCompatibility,
 			Identity: sshca.Identity{
-				Username:      "user",
-				AllowedLogins: []string{"centos", "root"},
-				Roles:         []string{"foo"},
+				Username:   "user",
+				Principals: []string{"centos", "root"},
+				Roles:      []string{"foo"},
 				CertificateExtensions: []*types.CertExtension{{
 					Type:  types.CertExtensionType_SSH,
 					Mode:  types.CertExtensionMode_EXTENSION,

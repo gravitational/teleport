@@ -46,6 +46,9 @@ service IntegrationService {
   // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
   rpc GenerateAWSOIDCToken(GenerateAWSOIDCTokenRequest) returns (GenerateAWSOIDCTokenResponse);
 
+  // GenerateAzureOIDCToken generates a token to be used when executing an Azure OIDC Integration action.
+  rpc GenerateAzureOIDCToken(GenerateAzureOIDCTokenRequest) returns (GenerateAzureOIDCTokenResponse);
+
   // GenerateGitHubUserCert signs a SSH certificate for GitHub integration.
   rpc GenerateGitHubUserCert(GenerateGitHubUserCertRequest) returns (GenerateGitHubUserCertResponse);
 
@@ -115,6 +118,20 @@ message GenerateAWSOIDCTokenRequest {
 
 // GenerateAWSOIDCTokenResponse contains a signed AWS OIDC Integration token.
 message GenerateAWSOIDCTokenResponse {
+  // Token is the signed JWT ready to be used
+  string token = 1;
+}
+
+// GenerateAzureOIDCTokenRequest are the parameters used to request an Azure OIDC
+// Integration token.
+message GenerateAzureOIDCTokenRequest {
+  // Integration is the Azure OIDC Integration name.
+  // Required.
+  string integration = 1;
+}
+
+// GenerateAzureOIDCTokenResponse contains a signed Azure OIDC Integration token.
+message GenerateAzureOIDCTokenResponse {
   // Token is the signed JWT ready to be used
   string token = 1;
 }

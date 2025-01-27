@@ -1,0 +1,276 @@
+---
+title: WorkloadIdentity Resource
+description: Information about the WorkloadIdentity resource
+---
+
+The WorkloadIdentity resource is used to define the structure of an identity
+credentials that can be issued to workloads and the rules around what workloads
+it can be issued to.
+
+It supports templating using attributes of the workload, such as the name of the
+Kubernetes namespace or service account, which allows the WorkloadIdentity
+resource to be used in a generic way for multiple distinct workloads.
+
+## Configuration
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  # The name of the WorkloadIdentity resource. This can be used to directly
+  # request the issuance of a credential for this identity.
+  name: my-workload
+  # Key-value labels that can be used to group and filter WorkloadIdentity
+  # resources when requesting issuance.
+  labels:
+    example: foo
+spec:
+  # Configuration relevant to issuing SPIFFE-compatible workload identity
+  # credentials.
+  spiffe:
+    # The path element of the SPIFFE ID that will be included in credentials
+    # issued for this identity.
+    #
+    # This must be prefixed with a forward-slash (`/`).
+    #
+    # Required. Supports templating.
+    id: /foo/bar/{{ join.kubernetes.pod.name }}/{{ join.kubernetes.service_account.name }}
+    # The hint field allows a string to be passed to workloads along with a
+    # credential issued for this identity. This can be used to help workloads
+    # differentiate between multiple identities that they may have
+    # (e.g `internal` vs `external`).
+    #
+    # Optional. Supports templating.
+    hint: An example hint
+    # Grouped configuration for X.509 credentials.
+    x509:
+      # The DNS Subject Alternative Names (SANs) that should be included in any
+      # X509-SVID issued using this WorkloadIdentity.
+      #
+      # Each individual element of this list supports templating and after
+      # templating must be a valid DNS name.
+      #
+      # Optional, if not provided then no DNS SANs will be included in the X.509
+      # credential.
+      dns_sans:
+      - example.com
+      # Controls the subject distinguished name of an X509 workload identity
+      # credential issued using this identity. If unspecified, a blank subject
+      # will be used.
+      #
+      # In most circumstances, it is recommended to prefer relying on the
+      # SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed
+      # to support legacy systems designed for X.509 and not SPIFFE/WIMSE.
+      subject_template:
+        # The common name (CN - 2.5.4.3) of the subject distinguished name.
+        # Supports templating. If not provided, the common name will be omitted.
+        common_name: my-common-name
+        # The organization (O - 2.5.4.10) of the subject distinguished name.
+        # Supports templating. If not provided, the organization will be omitted.
+        organization: my-organization
+        # The organizational unit (OU - 2.5.4.11) of the subject distinguished
+        # name. Supports templating. If not provided, the organizational unit
+        # will be omitted.
+        organizational_unit: my-organizational-unit
+  # The rules control when this WorkloadIdentity can be used to issue a
+  # credential.
+  rules:
+    # When allow rules are specified, at least one must pass in order for the
+    # WorkloadIdentity to be used to issue a credential. This effectively
+    # creates an OR relationship between the rules.
+    #
+    # If no allow rules are specified, then the WorkloadIdentity can be issued
+    # to any workload with the correct workload_identity_labels within their
+    # role set.
+    allow:
+    # Each rule consists of a set of conditions. All conditions must pass in
+    # order for the rule to be considered a match. This effectively creates an
+    # AND relationship between the conditions.
+    #
+    # A more detailed explanation of the available operators can be found under
+    # the "Rules" section of this page.
+    - conditions:
+      - attribute: join.kubernetes.pod.name
+        eq:
+          value: my-pod
+      - attribute: join.kubernetes.namespace
+        not_eq:
+          value: kube-system
+```
+
+## Templating
+
+The WorkloadIdentity resource supports templating in certain fields, this allows
+you to customize elements of the workload identity credential issued to
+workloads with attested attributes.
+
+For example, you can use templating to insert the name of the Kubernetes
+namespace and service account into the SPIFFE ID of the workload identity
+credential:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: my-kubernetes-workload
+spec:
+  spiffe:
+    id: /k8s/{{ workload.kubernetes.namespace }}/{{ workload.kubernetes.service_account }}
+```
+
+Would result in a SPIFFE ID of `spiffe://example.teleport.sh/k8s/default/foo`
+for a workload running in the `default` namespace with the service account `foo`.
+
+When an attribute is specified in a template, this value must be present in the
+attributes of the workload in order for the workload identity credential to be
+issued. For example, if `workload.kubernetes.namespace` is used in a template,
+then a workload that is not running in Kubernetes would not be issued a
+credential.
+
+The following fields within the WorkloadIdentity resource support templating:
+
+- `spec.spiffe.id`
+- `spec.spiffe.hint`
+- `spec.spiffe.x509.dns_sans`
+- `spec.spiffe.x509.subject_template.common_name`
+- `spec.spiffe.x509.subject_template.organization`
+- `spec.spiffe.x509.subject_template.organizational_unit`
+
+You can find a full list of the supported attributes on the
+[Attributes reference](./attributes.mdx) page.
+
+## Rules
+
+By default, a WorkloadIdentity resource can be used to issue a credential by any
+User or Bot that holds a role that with `workload_identity_labels` that match
+the labels on the WorkloadIdentity resource.
+
+However, you can further restrict the issuance of credentials based on the
+attributes of the workload using the rules mechanism.
+
+Each rule consists of a set of conditions, and all conditions within that rule
+must pass in order for the rule to be considered a pass. If you specify
+multiple rules, then at least one rule must pass in order for the
+WorkloadIdentity to be allowed to be issued.
+
+For example, to restrict the issuance of a credential to only workloads running
+in the `default` namespace with the service account `foo`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        eq:
+          value: default
+      - attribute: workload.kubernetes.service_account
+        eq:
+          value: foo
+```
+
+### Operators
+
+#### `eq`
+
+`eq` (equals) checks that the specified attribute equals the specified value:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        eq:
+          value: default
+```
+
+#### `not_eq`
+
+`not_eq` (not equals) checks that the specified attribute does not equal the
+specified value:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        not_eq:
+          value: default
+```
+
+#### `in`
+
+`in` (includes) checks that the specified attribute equals one of the specified
+values:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        in:
+          values: [default, kube-system]
+```
+
+#### `not_in`
+
+`not_in` (not includes) checks that the specified attribute does not equal any
+of the specified values:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.kubernetes.namespace
+        not_in:
+          values: [foo, bar]
+```
+
+### Casting
+
+When comparing attributes which are not a string (e.g a boolean or number),
+the value in the attribute will be transferred to a string representation.
+
+## Infrastructure as Code
+
+In addition to the YAML representation which can be managed with `tctl`, the
+WorkloadIdentity resource can also be managed using Infrastructure as Code
+tools.
+
+For further information see:
+
+- [Terraform provider reference: teleport_workload_identity](../terraform-provider/resources/workload_identity.mdx)

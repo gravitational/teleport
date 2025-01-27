@@ -1508,7 +1508,7 @@ type testContext struct {
 	spanner map[string]testSpannerDB
 
 	// clock to override clock in tests.
-	clock clockwork.FakeClock
+	clock *clockwork.FakeClock
 }
 
 // testPostgres represents a single proxied Postgres database.

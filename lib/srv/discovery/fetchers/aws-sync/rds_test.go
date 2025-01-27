@@ -101,14 +101,14 @@ func TestPollAWSRDS(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		fetcherConfigOpt func(*awsFetcher)
+		fetcherConfigOpt func(*Fetcher)
 		want             *Resources
 		checkError       func(*testing.T, error)
 	}{
 		{
 			name: "poll rds databases",
 			want: &resourcesFixture,
-			fetcherConfigOpt: func(a *awsFetcher) {
+			fetcherConfigOpt: func(a *Fetcher) {
 				a.awsClients = fakeAWSClients{
 					rdsClient: &mocks.RDSClient{
 						DBInstances: dbInstances(),
@@ -123,7 +123,7 @@ func TestPollAWSRDS(t *testing.T) {
 		{
 			name: "reuse last synced databases on failure",
 			want: &resourcesFixture,
-			fetcherConfigOpt: func(a *awsFetcher) {
+			fetcherConfigOpt: func(a *Fetcher) {
 				a.awsClients = fakeAWSClients{
 					rdsClient: &mocks.RDSClient{Unauth: true},
 				}
@@ -137,7 +137,7 @@ func TestPollAWSRDS(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := &awsFetcher{
+			a := &Fetcher{
 				Config: Config{
 					AccountID: accountID,
 					AWSConfigProvider: &mocks.AWSConfigProvider{

@@ -238,6 +238,8 @@ type MonitorConfig struct {
 	Logger *slog.Logger
 	// IdleTimeoutMessage is sent to the client when the idle timeout expires.
 	IdleTimeoutMessage string
+	// CertificateExpiredMessage is sent to the client when the certificate expires.
+	CertificateExpiredMessage string
 	// MessageWriter wraps a channel to send text messages to the client. Use
 	// for disconnection messages, etc.
 	MessageWriter io.StringWriter
@@ -417,6 +419,15 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 func (w *Monitor) disconnectClientOnExpiredCert() {
 	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
+	if w.MessageWriter != nil {
+		msg := w.CertificateExpiredMessage
+		if msg == "" {
+			msg = reason
+		}
+		if _, err := w.MessageWriter.WriteString(msg); err != nil {
+			w.Logger.WarnContext(w.Context, "Failed to send certificate expiration message", "error", err)
+		}
+	}
 	w.disconnectClient(reason)
 }
 
