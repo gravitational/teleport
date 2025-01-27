@@ -31,7 +31,7 @@ import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
-import { isTshdRpcError } from 'teleterm/services/tshd';
+import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
@@ -85,7 +85,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     reason: { value: 'regular-shutdown-or-not-started' },
   });
   const appCtx = useAppContext();
-  const { vnet, mainProcessClient, notificationsService } = appCtx;
+  const { vnet, mainProcessClient, notificationsService, configService } =
+    appCtx;
   const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
     useCallback(state => state.isInitialized, [])
@@ -117,7 +118,10 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
 
   const [diagnosticsAttempt, runDiagnostics, setDiagnosticsAttempt] = useAsync(
     useCallback(
-      () => vnet.runDiagnostics({}).then(({ response }) => response.report),
+      (signal?: AbortSignal) =>
+        vnet
+          .runDiagnostics({}, { abort: signal && cloneAbortSignal(signal) })
+          .then(({ response }) => response.report),
       [vnet]
     )
   );
@@ -160,6 +164,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
           : '',
     [status.value]
   );
+
   useEffect(() => {
     const handleAutoStart = async () => {
       if (
@@ -206,6 +211,34 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     [appCtx, notificationsService]
   );
 
+  useEffect(
+    function periodicallyRunDiagnostics() {
+      if (!configService.get('unstable.vnetDiag').value) {
+        return;
+      }
+
+      if (status.value !== 'running') {
+        return;
+      }
+
+      let abortController = new AbortController();
+
+      runDiagnostics(abortController.signal);
+      const intervalId = setInterval(() => {
+        abortController.abort();
+        abortController = new AbortController();
+
+        runDiagnostics(abortController.signal);
+      }, diagnosticsIntervalMs);
+
+      return () => {
+        abortController.abort();
+        clearInterval(intervalId);
+      };
+    },
+    [configService, runDiagnostics, status.value]
+  );
+
   return (
     <VnetContext.Provider
       value={{
@@ -227,6 +260,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     </VnetContext.Provider>
   );
 };
+
+const diagnosticsIntervalMs = 30 * 1000; // 30s
 
 export const useVnetContext = () => {
   const context = useContext(VnetContext);
