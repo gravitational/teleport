@@ -106,7 +106,7 @@ func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) 
 //
 // If a 3rd-party route conflicts with more than one VNet route, Run returns a single RouteConflict
 // for that 3rd-party route describing the conflict with the first conflicting VNet route.
-func (c *RouteConflictDiag) Run(ctx context.Context) ([]*diagv1.RouteConflict, error) {
+func (c *RouteConflictDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 	retries := 0
 	for {
 		rcs, err := c.run(ctx)
@@ -121,7 +121,26 @@ func (c *RouteConflictDiag) Run(ctx context.Context) ([]*diagv1.RouteConflict, e
 			}
 			return nil, trace.Wrap(err)
 		}
-		return rcs, nil
+
+		status := diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK
+		if len(rcs) > 0 {
+			status = diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
+		}
+
+		return &diagv1.CheckReport{
+			Status: status,
+			Report: &diagv1.CheckReport_RouteConflictReport{
+				RouteConflictReport: &diagv1.RouteConflictReport{
+					RouteConflicts: rcs,
+				},
+			},
+		}, nil
+	}
+}
+
+func (c *RouteConflictDiag) EmptyCheckReport() *diagv1.CheckReport {
+	return &diagv1.CheckReport{
+		Report: &diagv1.CheckReport_RouteConflictReport{},
 	}
 }
 

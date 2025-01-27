@@ -105,7 +105,7 @@ func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
 		return trace.Wrap(err)
 	}
 
-	for _, rc := range rcs {
+	for _, rc := range rcs.GetRouteConflictReport().RouteConflicts {
 		fmt.Printf("Found a conflicting route: %+v\n", rc)
 	}
 

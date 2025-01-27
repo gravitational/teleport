@@ -132,8 +132,9 @@ func TestRouteConflictDiag(t *testing.T) {
 				VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing,
 			})
 			require.NoError(t, err)
-			rcs, err := routeConflictDiag.Run(context.Background())
+			report, err := routeConflictDiag.Run(context.Background())
 			require.NoError(t, err)
+			rcs := report.GetRouteConflictReport().RouteConflicts
 
 			test.checkResult(t, test.dests, rcs)
 		})
