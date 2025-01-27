@@ -23,10 +23,11 @@ import {
   CheckReport,
   CheckReportStatus,
   Report,
+  RouteConflict,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 export const makeReport = (props: Partial<Report> = {}): Report => ({
-  createdAt: Timestamp.fromDate(new Date(2025, 0, 1, 12, 0)),
+  createdAt: Timestamp.fromDate(new Date(2024, 10, 23, 13, 27, 48)),
   checks: [makeCheckAttempt()],
   networkStackAttempt: {
     status: CheckAttemptStatus.OK,
@@ -61,5 +62,15 @@ export const makeCheckReport = (
       routeConflicts: [],
     },
   },
+  ...props,
+});
+
+export const makeRouteConflict = (
+  props: Partial<RouteConflict> = {}
+): RouteConflict => ({
+  dest: '100.64.0.0/10',
+  vnetDest: '100.64.0.1',
+  interfaceName: 'utun5',
+  interfaceApp: '',
   ...props,
 });
