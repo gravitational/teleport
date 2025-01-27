@@ -92,7 +92,7 @@ func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCommandNotSuppo
 
 func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
 	fmt.Println("Running diagnostics.")
-	conflictingRoutesDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
 		VnetIfaceName: nsi.IfaceName,
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
@@ -100,13 +100,13 @@ func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	crs, err := conflictingRoutesDiag.Run(ctx)
+	rcs, err := routeConflictDiag.Run(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, cr := range crs {
-		fmt.Printf("Found a conflicting route: %+v\n", cr)
+	for _, rc := range rcs {
+		fmt.Printf("Found a conflicting route: %+v\n", rc)
 	}
 
 	return nil

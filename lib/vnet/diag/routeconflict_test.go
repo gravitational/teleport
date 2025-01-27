@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 )
 
 const vnetIface = "utun4"
@@ -32,18 +34,18 @@ const vnetIfaceIndex = 1
 const quuxIfaceIndex = 2
 
 func TestRouteConflictDiag(t *testing.T) {
-	singleRouteConflict := func(t *testing.T, dests []RouteDest, crs []RouteConflict) {
-		require.Len(t, crs, 1)
-		cr := crs[0]
-		require.Equal(t, dests[0], cr.Dest)
-		require.Equal(t, dests[1], cr.VnetDest)
-		require.Equal(t, quuxIface, cr.IfaceName)
-		require.Equal(t, "foobar", cr.IfaceApp)
+	singleRouteConflict := func(t *testing.T, dests []RouteDest, rcs []*diagv1.RouteConflict) {
+		require.Len(t, rcs, 1)
+		rc := rcs[0]
+		require.Equal(t, dests[0].String(), rc.Dest)
+		require.Equal(t, dests[1].String(), rc.VnetDest)
+		require.Equal(t, quuxIface, rc.InterfaceName)
+		require.Equal(t, "foobar", rc.InterfaceApp)
 	}
 
 	tests := map[string]struct {
 		dests       []RouteDest
-		checkResult func(t *testing.T, dests []RouteDest, crs []RouteConflict)
+		checkResult func(t *testing.T, dests []RouteDest, rcs []*diagv1.RouteConflict)
 	}{
 		"single IP vs VNet single IP": {
 			dests: []RouteDest{
@@ -87,20 +89,20 @@ func TestRouteConflictDiag(t *testing.T) {
 				&RouteDestPrefix{ifaceIndex: quuxIfaceIndex, Prefix: netip.MustParsePrefix("1.2.3.0/24")},
 				&RouteDestPrefix{ifaceIndex: vnetIfaceIndex, Prefix: netip.MustParsePrefix("0.0.0.0/1")},
 			},
-			checkResult: func(t *testing.T, dests []RouteDest, crs []RouteConflict) {
-				require.Len(t, crs, 2)
+			checkResult: func(t *testing.T, dests []RouteDest, rcs []*diagv1.RouteConflict) {
+				require.Len(t, rcs, 2)
 
-				cr1 := crs[0]
-				require.Equal(t, "1.2.3.4", cr1.Dest.String())
-				require.Equal(t, "0.0.0.0/1", cr1.VnetDest.String())
-				require.Equal(t, quuxIface, cr1.IfaceName)
-				require.Equal(t, "foobar", cr1.IfaceApp)
+				rc1 := rcs[0]
+				require.Equal(t, "1.2.3.4", rc1.Dest)
+				require.Equal(t, "0.0.0.0/1", rc1.VnetDest)
+				require.Equal(t, quuxIface, rc1.InterfaceName)
+				require.Equal(t, "foobar", rc1.InterfaceApp)
 
-				cr2 := crs[1]
-				require.Equal(t, "1.2.3.0/24", cr2.Dest.String())
-				require.Equal(t, "0.0.0.0/1", cr2.VnetDest.String())
-				require.Equal(t, quuxIface, cr2.IfaceName)
-				require.Equal(t, "foobar", cr2.IfaceApp)
+				rc2 := rcs[1]
+				require.Equal(t, "1.2.3.0/24", rc2.Dest)
+				require.Equal(t, "0.0.0.0/1", rc2.VnetDest)
+				require.Equal(t, quuxIface, rc2.InterfaceName)
+				require.Equal(t, "foobar", rc2.InterfaceApp)
 			},
 		},
 		"default dests are ignored": {
@@ -110,8 +112,8 @@ func TestRouteConflictDiag(t *testing.T) {
 				&RouteDestPrefix{ifaceIndex: vnetIfaceIndex, Prefix: netip.MustParsePrefix("0.0.0.0/1")},
 				&RouteDestPrefix{ifaceIndex: vnetIfaceIndex, Prefix: netip.MustParsePrefix("128.0.0.0/1")},
 			},
-			checkResult: func(t *testing.T, dests []RouteDest, crs []RouteConflict) {
-				require.Empty(t, crs)
+			checkResult: func(t *testing.T, dests []RouteDest, rcs []*diagv1.RouteConflict) {
+				require.Empty(t, rcs)
 			},
 		},
 	}
@@ -126,14 +128,14 @@ func TestRouteConflictDiag(t *testing.T) {
 			}
 			routing := &FakeRouting{dests: test.dests}
 
-			conflictingRoutesDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
+			routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
 				VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing,
 			})
 			require.NoError(t, err)
-			crs, err := conflictingRoutesDiag.Run(context.Background())
+			rcs, err := routeConflictDiag.Run(context.Background())
 			require.NoError(t, err)
 
-			test.checkResult(t, test.dests, crs)
+			test.checkResult(t, test.dests, rcs)
 		})
 	}
 }
@@ -150,11 +152,11 @@ func TestRouteConflictDiag_RetriesOnUnstableIfaceError(t *testing.T) {
 		&RouteDestIP{ifaceIndex: vnetIfaceIndex, Addr: netip.AddrFrom4([4]byte{1, 2, 3, 4})},
 	}}
 
-	conflictingRoutesDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
+	routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
 		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing,
 	})
 	require.NoError(t, err)
-	_, err = conflictingRoutesDiag.Run(context.Background())
+	_, err = routeConflictDiag.Run(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, 2, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
@@ -172,11 +174,11 @@ func TestRouteConflictDiag_RetriesUpToThreeTimes(t *testing.T) {
 		&RouteDestIP{ifaceIndex: vnetIfaceIndex, Addr: netip.AddrFrom4([4]byte{1, 2, 3, 4})},
 	}}
 
-	conflictingRoutesDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
+	routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
 		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing,
 	})
 	require.NoError(t, err)
-	_, err = conflictingRoutesDiag.Run(context.Background())
+	_, err = routeConflictDiag.Run(context.Background())
 	require.ErrorContains(t, err, "whoops something went wrong")
 
 	require.Equal(t, 3, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")

@@ -39,7 +39,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.BadParameter("no interface name, this is a bug")
 	}
 
-	conflictingRoutesDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
 		VnetIfaceName: s.networkStackInfo.IfaceName,
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
@@ -47,13 +47,13 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	crs, err := conflictingRoutesDiag.Run(ctx)
+	rcs, err := routeConflictDiag.Run(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, cr := range crs {
-		log.InfoContext(ctx, "Found conflicting route", "route", cr)
+	for _, rc := range rcs {
+		log.InfoContext(ctx, "Found conflicting route", "route", rc)
 	}
 
 	return &api.RunDiagnosticsResponse{}, nil

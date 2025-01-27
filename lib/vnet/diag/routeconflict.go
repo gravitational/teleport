@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -104,10 +105,10 @@ func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) 
 //
 // If a 3rd-party route conflicts with more than one VNet route, Run returns a single RouteConflict
 // for that 3rd-party route describing the conflict with the first conflicting VNet route.
-func (c *RouteConflictDiag) Run(ctx context.Context) ([]RouteConflict, error) {
+func (c *RouteConflictDiag) Run(ctx context.Context) ([]*diagv1.RouteConflict, error) {
 	retries := 0
 	for {
-		crs, err := c.run(ctx)
+		rcs, err := c.run(ctx)
 		if err != nil {
 			// UnstableIfaceError usually means that an interface was removed between fetching route
 			// messages and getting the details of the interface. In this case, the routes for that
@@ -119,11 +120,11 @@ func (c *RouteConflictDiag) Run(ctx context.Context) ([]RouteConflict, error) {
 			}
 			return nil, trace.Wrap(err)
 		}
-		return crs, nil
+		return rcs, nil
 	}
 }
 
-func (c *RouteConflictDiag) run(ctx context.Context) ([]RouteConflict, error) {
+func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, error) {
 	// Unlike in other interactions with Interfaces, it doesn't make sense to re-fetch the routes,
 	// hence why NewUnstableIfaceError is not used. If this call gives an error, then VnetIfaceName is
 	// likely wrong.
@@ -144,7 +145,7 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]RouteConflict, error) {
 		}
 	}
 
-	var crs []RouteConflict
+	var rcs []*diagv1.RouteConflict
 	for _, rd := range rds {
 		if rd.IfaceIndex() == vnetIface.Index {
 			continue
@@ -170,33 +171,17 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]RouteConflict, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			crs = append(crs, RouteConflict{
-				Dest:      rd,
-				VnetDest:  vnetDest,
-				IfaceName: iface.Name,
-				IfaceApp:  ifaceNetworkExtDesc,
+			rcs = append(rcs, &diagv1.RouteConflict{
+				Dest:          rd.String(),
+				VnetDest:      vnetDest.String(),
+				InterfaceName: iface.Name,
+				InterfaceApp:  ifaceNetworkExtDesc,
 			})
 			break
 		}
 	}
 
-	return crs, nil
-}
-
-// RouteConflict describes a conflict between a route set up by a 3rd-party app where the
-// destination overlaps with a destination in a route set up by VNet.
-type RouteConflict struct {
-	// Dest is the destination of the conflicting route.
-	Dest RouteDest
-	// VnetDest is the destination of a VNet route that Dest overlaps with.
-	VnetDest RouteDest
-	// IfaceName is the name of the interface the route uses, e.g. "utun4".
-	IfaceName string
-	// IfaceApp may contain the name of the application responsible for setting up the interface.
-	// At the moment, the only source of this information is NetworkExtension description included in
-	// the output of `ifconfig -v <interface name>`. Not all VPN applications use this framework, so
-	// it's likely to be empty.
-	IfaceApp string
+	return rcs, nil
 }
 
 // RouteDest allows singular treatment of route destinations, no matter if they have a netmask or not.
