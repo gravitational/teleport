@@ -129,12 +129,12 @@ func installNetIQPlugin(ctx context.Context, args installNetIQPluginArgs) (*ui.P
 }
 
 type netIQPluginInputs struct {
-	oauthClientID         string
+	oAuthClientID         string
 	oAuthClientSecret     string
 	ospURL                string
 	apiURL                string
 	identityVaultUser     string
-	IdentityVaultPassword string
+	identityVaultPassword string
 	insecure              bool
 }
 
@@ -200,7 +200,7 @@ func (args *validateNetIQPluginInputsArgs) validateNetIQConfig(ctx context.Conte
 		return nil, trace.BadParameter("missing Identity Vault password")
 	}
 
-	oAuthClientID := args.form.Get("oauthClientID")
+	oAuthClientID := args.form.Get("oAuthClientID")
 	if oAuthClientID == "" {
 		return nil, trace.BadParameter("missing OAuth client ID")
 	}
@@ -238,11 +238,12 @@ func (args *validateNetIQPluginInputsArgs) validateNetIQConfig(ctx context.Conte
 	return &netIQPluginInputs{
 		ospURL:                osURL,
 		apiURL:                apiURL,
+		oAuthClientID:         oAuthClientID,
+		oAuthClientSecret:     oAuthClientSecret,
 		identityVaultUser:     identityVaultUser,
-		IdentityVaultPassword: identityVaultPassword,
+		identityVaultPassword: identityVaultPassword,
 		insecure:              insecure,
 	}, nil
-
 }
 
 func validateNetIQPluginInputs(ctx context.Context, args validateNetIQPluginInputsArgs) (*netIQPluginInputs, error) {
@@ -256,11 +257,11 @@ func validateNetIQPluginInputs(ctx context.Context, args validateNetIQPluginInpu
 
 func getNetIQPluginCredentials(req *netIQPluginInputs) ([]*types.PluginStaticCredentialsV1, error) {
 	var out []*types.PluginStaticCredentialsV1
-	if req.oauthClientID != "" {
-		out = append(out, buildOAuthCredentials(req.oauthClientID, req.oAuthClientSecret))
+	if req.oAuthClientID != "" {
+		out = append(out, buildOAuthCredentials(req.oAuthClientID, req.oAuthClientSecret))
 	}
 	if req.identityVaultUser != "" {
-		out = append(out, buildBasicAuthCredentials(req.identityVaultUser, req.IdentityVaultPassword))
+		out = append(out, buildBasicAuthCredentials(req.identityVaultUser, req.identityVaultPassword))
 	}
 
 	return out, nil

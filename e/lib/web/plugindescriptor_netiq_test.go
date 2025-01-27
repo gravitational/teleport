@@ -14,7 +14,6 @@ import (
 )
 
 func TestNetIQPluginInstall(t *testing.T) {
-
 	netiqmock := netiqclientmock.New()
 	t.Cleanup(netiqmock.Close)
 
@@ -24,7 +23,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 		ospURL                  string
 		identityVaultUser       string
 		identityVaultPassword   string
-		oauthClientID           string
+		oAuthClientID           string
 		oAuthClientSecret       string
 		insecureSkipVerify      bool
 		expectPluginCreationErr bool
@@ -35,7 +34,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 			ospURL:                netiqmock.BaseOSPURL,
 			identityVaultUser:     netiqmock.IdentityVaultUser,
 			identityVaultPassword: netiqmock.IdentityVaultPassword,
-			oauthClientID:         netiqmock.OAuthClientID,
+			oAuthClientID:         netiqmock.OAuthClientID,
 			oAuthClientSecret:     netiqmock.OAuthClientSecret,
 			insecureSkipVerify:    true,
 		},
@@ -44,7 +43,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 			ospURL:                  netiqmock.BaseOSPURL,
 			identityVaultUser:       netiqmock.IdentityVaultUser,
 			identityVaultPassword:   netiqmock.IdentityVaultPassword,
-			oauthClientID:           netiqmock.OAuthClientID,
+			oAuthClientID:           netiqmock.OAuthClientID,
 			oAuthClientSecret:       netiqmock.OAuthClientSecret,
 			insecureSkipVerify:      true,
 			expectPluginCreationErr: true,
@@ -54,7 +53,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 			apiURL:                  netiqmock.BaseAPIURL,
 			identityVaultUser:       netiqmock.IdentityVaultUser,
 			identityVaultPassword:   netiqmock.IdentityVaultPassword,
-			oauthClientID:           netiqmock.OAuthClientID,
+			oAuthClientID:           netiqmock.OAuthClientID,
 			oAuthClientSecret:       netiqmock.OAuthClientSecret,
 			insecureSkipVerify:      true,
 			expectPluginCreationErr: true,
@@ -64,7 +63,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 			apiURL:                  netiqmock.BaseAPIURL,
 			ospURL:                  netiqmock.BaseOSPURL,
 			identityVaultPassword:   netiqmock.IdentityVaultPassword,
-			oauthClientID:           netiqmock.OAuthClientID,
+			oAuthClientID:           netiqmock.OAuthClientID,
 			oAuthClientSecret:       netiqmock.OAuthClientSecret,
 			insecureSkipVerify:      true,
 			expectPluginCreationErr: true,
@@ -74,7 +73,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 			apiURL:                  netiqmock.BaseAPIURL,
 			ospURL:                  netiqmock.BaseOSPURL,
 			identityVaultUser:       netiqmock.IdentityVaultUser,
-			oauthClientID:           netiqmock.OAuthClientID,
+			oAuthClientID:           netiqmock.OAuthClientID,
 			oAuthClientSecret:       netiqmock.OAuthClientSecret,
 			insecureSkipVerify:      true,
 			expectPluginCreationErr: true,
@@ -119,7 +118,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 				"apiURL":                {testCase.apiURL},
 				"identityVaultUser":     {testCase.identityVaultUser},
 				"identityVaultPassword": {testCase.identityVaultPassword},
-				"oauthClientID":         {testCase.oauthClientID},
+				"oAuthClientID":         {testCase.oAuthClientID},
 				"oAuthClientSecret":     {testCase.oAuthClientSecret},
 			}
 
@@ -163,7 +162,6 @@ func TestNetIQPluginInstall(t *testing.T) {
 			// Expect that the NetIQ plugin settings were set correctly
 			netiqSettings := plg.Spec.GetNetIq()
 			require.NotNil(t, netiqSettings)
-
 		})
 	}
 }
