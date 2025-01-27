@@ -107,7 +107,7 @@ func (p *PluginsCommand) netIQSetupGuide() (netIQSettings, error) {
 	settings := netIQSettings{}
 	var err error
 
-	settings.ospURL, err = promptForURL(os.Stdout, netIQStep1Template, "Please enter the IDM OSP address: ", p.install.netIQ.insecureSkipVerify, checkNetIQOSPAddress)
+	settings.ospURL, err = promptForURL(os.Stdout, netIQStep1Template, "Please enter the IDM OSP address", p.install.netIQ.insecureSkipVerify, checkNetIQOSPAddress)
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
