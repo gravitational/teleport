@@ -274,7 +274,7 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 	// Run `sudo -v` first to re-authenticate, then run the actual tsh command
 	// using `sudo --non-interactive`, so we don't risk getting sudo output
 	// mixed with our desired output.
-	sudoCmd := exec.Command("/usr/bin/sudo", "-v")
+	sudoCmd := exec.Command("/usr/bin/env", "sudo", "-v")
 	sudoCmd.Stdout = os.Stdout
 	sudoCmd.Stderr = os.Stderr
 	sudoCmd.Stdin = os.Stdin
@@ -289,7 +289,7 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 	defer cancel()
 
 	dmiOut := &bytes.Buffer{}
-	dmiCmd := exec.CommandContext(ctx, "/usr/bin/sudo", "-n", tshPath, "device", "dmi-read")
+	dmiCmd := exec.CommandContext(ctx, "/usr/bin/env", "sudo", "-n", tshPath, "device", "dmi-read")
 	dmiCmd.Stdout = dmiOut
 	if err := dmiCmd.Run(); err != nil {
 		return nil, trace.Wrap(err, "running `sudo tsh device dmi-read`")
