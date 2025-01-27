@@ -55,6 +55,7 @@ import {
   getEmptyPendingAccessRequest,
   PendingAccessRequest,
 } from './accessRequestsService';
+import { parseWorkspaceColor, WorkspaceColor } from './color';
 import {
   createClusterDocument,
   Document,
@@ -65,7 +66,6 @@ import {
   DocumentTshNode,
   getDefaultDocumentClusterQueryParams,
 } from './documentsService';
-import { parseProfileColor, ProfileColor } from './profileColor';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
@@ -84,7 +84,7 @@ export interface WorkspacesState {
 
 export interface Workspace {
   localClusterUri: ClusterUri;
-  color: ProfileColor;
+  color: WorkspaceColor;
   documents: Document[];
   location: DocumentUri | undefined;
   accessRequests: {
@@ -179,9 +179,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
-  changeProfileColor(
+  changeWorkspaceColor(
     rootClusterUri: RootClusterUri,
-    color: ProfileColor
+    color: WorkspaceColor
   ): void {
     this.setState(draftState => {
       draftState.workspaces[rootClusterUri].color = color;
@@ -676,7 +676,7 @@ function getWorkspaceDefaultState(
     hasDocumentsToReopen: false,
     localClusterUri: rootClusterUri,
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
-    color: parseProfileColor(undefined, workspaces),
+    color: parseWorkspaceColor(undefined, workspaces),
   };
   if (!restoredWorkspace) {
     return defaultWorkspace;
@@ -686,7 +686,7 @@ function getWorkspaceDefaultState(
   defaultWorkspace.unifiedResourcePreferences = parseUnifiedResourcePreferences(
     restoredWorkspace.unifiedResourcePreferences
   );
-  defaultWorkspace.color = parseProfileColor(
+  defaultWorkspace.color = parseWorkspaceColor(
     restoredWorkspace.color,
     workspaces
   );

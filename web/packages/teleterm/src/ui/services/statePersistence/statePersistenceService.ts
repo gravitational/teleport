@@ -19,8 +19,8 @@
 import { FileStorage } from 'teleterm/types';
 import { ConnectionTrackerState } from 'teleterm/ui/services/connectionTracker';
 import {
-  ProfileColor,
   Workspace,
+  WorkspaceColor,
   WorkspacesState,
 } from 'teleterm/ui/services/workspacesService';
 
@@ -41,7 +41,7 @@ export type PersistedWorkspace = Omit<
   'accessRequests' | 'documentsRestoredOrDiscarded' | 'color'
 > & // TODO(gzdunek) DELETE IN v19.0.0: Make the field required by removing the type below and omitted 'color' above.
 // This expresses that existing persisted state from older versions might not have color defined.
-{ color?: ProfileColor };
+{ color?: WorkspaceColor };
 
 export type WorkspacesPersistedState = Omit<
   WorkspacesState,
