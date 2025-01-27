@@ -25,6 +25,9 @@ export const StaticListItem = styled.li`
   align-items: center;
   justify-content: flex-start;
   outline: none;
+  font-weight: ${props => props.theme.regular};
+  font-family: ${props => props.theme.font};
+  color: ${props => props.theme.colors.text.main};
   position: relative;
   font-size: 14px;
   padding: 0 16px;
