@@ -39,9 +39,11 @@ const (
 )
 
 const (
-	userActivityReportsPrefix     = "userActivityReports"
-	userActivityReportsLock       = "userActivityReportsLock"
-	ResourcePresenceReportsPrefix = "resourcePresenceReports"
+	botInstanceActivityReportsPrefix = "botInstanceActivityReports"
+	botInstanceActivityReportsLock   = "botInstanceActivityReportsLock"
+	userActivityReportsPrefix        = "userActivityReports"
+	userActivityReportsLock          = "userActivityReportsLock"
+	ResourcePresenceReportsPrefix    = "resourcePresenceReports"
 )
 
 // userActivityReportKey returns the backend key for a user activity report with
@@ -158,6 +160,42 @@ func prepareResourcePresenceReports(
 		}
 
 		kindReports[0] = kindReportTail
+		reports = append(reports, report)
+	}
+
+	return reports, nil
+}
+
+// botInstanceActivityReportKey returns the backend key for a bot instance
+// activity report with  a given UUID and start time, such that reports with
+// an earlier start time will appear earlier in lexicographic ordering.
+func botInstanceActivityReportKey(reportUUID uuid.UUID, startTime time.Time) backend.Key {
+	return backend.NewKey(botInstanceActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
+}
+
+func prepareBotInstanceActivityReports(
+	clusterName, reporterHostID []byte,
+	startTime time.Time, records []*prehogv1.BotInstanceActivityRecord,
+) (reports []*prehogv1.BotInstanceActivityReport, err error) {
+	for len(records) > 0 {
+		reportUUID := uuid.New()
+		report := &prehogv1.BotInstanceActivityReport{
+			ReportUuid:     reportUUID[:],
+			ClusterName:    clusterName,
+			ReporterHostid: reporterHostID,
+			StartTime:      timestamppb.New(startTime),
+			Records:        records,
+		}
+
+		for proto.Size(report) > maxItemSize {
+			if len(report.Records) <= 1 {
+				return nil, trace.LimitExceeded("failed to marshal bot instance activity report within size limit (this is a bug)")
+			}
+
+			report.Records = report.Records[:len(report.Records)/2]
+		}
+
+		records = records[len(report.Records):]
 		reports = append(reports, report)
 	}
 
@@ -325,4 +363,103 @@ func (r reportService) listResourcePresenceReports(ctx context.Context, count in
 	}
 
 	return reports, nil
+}
+
+func (r reportService) upsertBotInstanceActivityReport(
+	ctx context.Context, report *prehogv1.BotInstanceActivityReport, ttl time.Duration,
+) error {
+	wire, err := proto.Marshal(report)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reportUUID, err := uuid.FromBytes(report.GetReportUuid())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	startTime := report.GetStartTime().AsTime()
+	if startTime.IsZero() {
+		return trace.BadParameter("missing start_time")
+	}
+
+	if _, err := r.b.Put(ctx, backend.Item{
+		Key:     botInstanceActivityReportKey(reportUUID, startTime),
+		Value:   wire,
+		Expires: startTime.Add(ttl),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (r reportService) deleteBotInstanceActivityReport(
+	ctx context.Context, report *prehogv1.BotInstanceActivityReport,
+) error {
+	reportUUID, err := uuid.FromBytes(report.GetReportUuid())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	startTime := report.GetStartTime().AsTime()
+	if startTime.IsZero() {
+		return trace.BadParameter("missing start_time")
+	}
+
+	if err := r.b.Delete(ctx, botInstanceActivityReportKey(reportUUID, startTime)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// listBotInstanceActivityReports returns the first `count` user activity reports
+// according to the key order; as we store them with time and uuid in the key,
+// this results in returning earlier reports first.
+func (r reportService) listBotInstanceActivityReports(
+	ctx context.Context, count int,
+) ([]*prehogv1.BotInstanceActivityReport, error) {
+	rangeStart := backend.ExactKey(botInstanceActivityReportsPrefix)
+	result, err := r.b.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), count)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reports := make([]*prehogv1.BotInstanceActivityReport, 0, len(result.Items))
+	for _, item := range result.Items {
+		report := &prehogv1.BotInstanceActivityReport{}
+		if err := proto.Unmarshal(item.Value, report); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, report)
+	}
+
+	return reports, nil
+}
+
+func (r reportService) createBotInstanceActivityReportsLock(
+	ctx context.Context, ttl time.Duration, payload []byte,
+) error {
+	if len(payload) == 0 {
+		payload = []byte("null")
+	}
+	lockKey := backend.NewKey(botInstanceActivityReportsLock)
+	// HACK(espadolini): dynamodbbk doesn't let you Create over an expired item
+	// but it will explicitly delete expired items on a Get; in addition, reads
+	// are cheaper than writes in most backends, so we do a Get here first
+	if _, err := r.b.Get(ctx, lockKey); err == nil {
+		return trace.AlreadyExists(botInstanceActivityReportsLock + " already exists")
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if _, err := r.b.Create(ctx, backend.Item{
+		Key:     lockKey,
+		Value:   payload,
+		Expires: r.b.Clock().Now().UTC().Add(ttl),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
