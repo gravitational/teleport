@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, H3, Text } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { NewTab as NewTabIcon } from 'design/Icon';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
@@ -55,14 +56,20 @@ function ConnectDialog(props: Props) {
       onClose={onClose}
       open={true}
     >
-      <DialogHeader>
+      <DialogHeader mb={4}>
         <DialogTitle>Connect to Kubernetes Cluster</DialogTitle>
       </DialogHeader>
-      <DialogContent>
+      <DialogContent minHeight="240px" flex="0 0 auto">
+        <Box borderBottom={1} mb={4} pb={4}>
+          <Text mb={3} bold>
+            Exec into a pod in the browser:
+          </Text>
+          <ButtonPrimary size="large" gap={2} onClick={startKubeExecSession}>
+            Exec
+            <NewTabIcon />
+          </ButtonPrimary>
+        </Box>
         <Box mb={4}>
-          <H3 mt={1} mb={2}>
-            Connect in the CLI using tsh and kubectl
-          </H3>
           <Text bold as="span">
             Step 1
           </Text>
@@ -111,14 +118,6 @@ function ConnectDialog(props: Props) {
             <TextSelectCopy mt="2" text={`tsh request drop`} />
           </Box>
         )}
-        <Box borderTop={1} mb={4} mt={4}>
-          <Flex mt={4} flex-direction="row" justifyContent="space-between">
-            <Text mt={1} bold>
-              Or exec into a pod on this Kubernetes cluster in Web UI
-            </Text>
-            <ButtonPrimary onClick={startKubeExecSession}>Exec</ButtonPrimary>
-          </Flex>
-        </Box>
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
