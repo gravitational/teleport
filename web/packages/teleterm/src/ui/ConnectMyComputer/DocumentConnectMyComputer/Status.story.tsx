@@ -25,7 +25,6 @@ import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-import AppContext from 'teleterm/ui/appContext';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
