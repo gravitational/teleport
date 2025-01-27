@@ -3146,11 +3146,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		loginIP: a.context.Identity.GetIdentity().LoginIP,
-		traits:  accessInfo.Traits,
-		activeRequests: services.RequestIDs{
-			AccessRequests: req.AccessRequests,
-		},
+		loginIP:                a.context.Identity.GetIdentity().LoginIP,
+		traits:                 accessInfo.Traits,
+		activeRequests:         req.AccessRequests,
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),

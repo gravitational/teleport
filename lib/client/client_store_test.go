@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -97,7 +96,7 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 		TTL:           ttl,
 		Identity: sshca.Identity{
 			Username:              idx.Username,
-			AllowedLogins:         allowedLogins,
+			Principals:            allowedLogins,
 			PermitAgentForwarding: false,
 			PermitPortForwarding:  true,
 		},
@@ -293,13 +292,15 @@ func TestProxySSHConfig(t *testing.T) {
 		caSigner, err := ssh.ParsePrivateKey(CAPriv)
 		require.NoError(t, err)
 
-		hostCert, err := auth.keygen.GenerateHostCert(services.HostCertParams{
+		hostCert, err := auth.keygen.GenerateHostCert(sshca.HostCertificateRequest{
 			CASigner:      caSigner,
 			PublicHostKey: hostPub,
 			HostID:        "127.0.0.1",
 			NodeName:      "127.0.0.1",
-			ClusterName:   "host-cluster-name",
-			Role:          types.RoleNode,
+			Identity: sshca.Identity{
+				ClusterName: "host-cluster-name",
+				SystemRole:  types.RoleNode,
+			},
 		})
 		require.NoError(t, err)
 

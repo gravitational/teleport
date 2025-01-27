@@ -26,7 +26,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -35,7 +34,7 @@ type Authority interface {
 	// GenerateHostCert takes the private key of the CA, public key of the new host,
 	// along with metadata (host ID, node name, cluster name, roles, and ttl) and generates
 	// a host certificate.
-	GenerateHostCert(certParams services.HostCertParams) ([]byte, error)
+	GenerateHostCert(HostCertificateRequest) ([]byte, error)
 
 	// GenerateUserCert generates user ssh certificate, it takes pkey as a signing
 	// private key (user certificate authority)
@@ -43,6 +42,47 @@ type Authority interface {
 
 	// Close will close the key-management facility.
 	Close()
+}
+
+// HostCertificateRequest is a request to generate a new ssh host certificate.
+type HostCertificateRequest struct {
+	// CASigner is the signer that will sign the public key of the host with the CA private key
+	CASigner ssh.Signer
+	// PublicHostKey is the public key of the host
+	PublicHostKey []byte
+	// HostID is used by Teleport to uniquely identify a node within a cluster (this is used to help infill
+	// Identity.Princiapals and is not a standalone cert field).
+	HostID string
+	// NodeName is the DNS name of the node (this is used to help infill Identity.Princiapals and is not a
+	// standalone cert field).
+	NodeName string
+	// TTL defines how long a certificate is valid for
+	TTL time.Duration
+	// Identity is the host identity to be encoded in the certificate.
+	Identity Identity
+}
+
+func (r *HostCertificateRequest) Check() error {
+	if r.CASigner == nil {
+		return trace.BadParameter("ssh host certificate request missing ca signer")
+	}
+	if r.HostID == "" && len(r.Identity.Principals) == 0 {
+		return trace.BadParameter("ssh host certificate request missing host ID and principals")
+	}
+	if r.Identity.ClusterName == "" {
+		return trace.BadParameter("ssh host certificate request missing cluster name")
+	}
+	if r.Identity.ValidBefore != 0 {
+		return trace.BadParameter("ValidBefore should not be set in host cert requests (derived from TTL)")
+	}
+	if r.Identity.ValidAfter != 0 {
+		return trace.BadParameter("ValidAfter should not be set in host cert requests (derived from TTL)")
+	}
+	if err := r.Identity.SystemRole.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // UserCertificateRequest is a request to generate a new ssh user certificate.
@@ -67,8 +107,14 @@ func (r *UserCertificateRequest) CheckAndSetDefaults() error {
 	if r.TTL < apidefaults.MinCertDuration {
 		r.TTL = apidefaults.MinCertDuration
 	}
-	if err := r.Identity.Check(); err != nil {
-		return trace.Wrap(err)
+	if len(r.Identity.Principals) == 0 {
+		return trace.BadParameter("ssh user identity missing allowed logins")
+	}
+	if r.Identity.ValidBefore != 0 {
+		return trace.BadParameter("ValidBefore should not be set in user cert requests (derived from TTL)")
+	}
+	if r.Identity.ValidAfter != 0 {
+		return trace.BadParameter("ValidAfter should not be set in user cert requests (derived from TTL)")
 	}
 
 	return nil
