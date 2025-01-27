@@ -82,6 +82,13 @@ export type VnetContext = {
    * Shows the diagnostics alert in the VNet panel again.
    */
   reinstateDiagnosticsAlert: () => void;
+  /**
+   * openReport opens the report in a new document. If there's already a document with the same
+   * report, it opens the existing document instead.
+   *
+   * openReport is undefined if the user is not within any workspace.
+   */
+  openReport: ((report: Report) => void) | undefined;
 };
 
 export type VnetStatus =
@@ -100,8 +107,13 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     reason: { value: 'regular-shutdown-or-not-started' },
   });
   const appCtx = useAppContext();
-  const { vnet, mainProcessClient, notificationsService, configService } =
-    appCtx;
+  const {
+    vnet,
+    mainProcessClient,
+    notificationsService,
+    workspacesService,
+    configService,
+  } = appCtx;
   const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
     useCallback(state => state.isInitialized, [])
@@ -176,6 +188,43 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
           ? 'Generating diagnostic report…'
           : '',
     [status.value]
+  );
+
+  const rootClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
+
+  const openReport = useCallback(
+    (report: Report) => {
+      if (!rootClusterUri) {
+        return;
+      }
+
+      const docsService =
+        workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+      // Check for an existing doc first. It may be present if someone re-runs diagnostics from within
+      // a doc, then opens the VNet panel and clicks "Open Diag Report". The report in the panel and
+      // the report in the doc are equal in that case, as they both come from diagnosticsAttempt.data.
+      const existingDoc = docsService.getDocuments().find(
+        d =>
+          d.kind === 'doc.vnet_diag_report' &&
+          // Reports don't have IDs, so createdAt is used as a good-enough approximation of an ID.
+          d.report?.createdAt === report.createdAt
+      );
+      if (existingDoc) {
+        docsService.open(existingDoc.uri);
+      } else {
+        const doc = docsService.createVnetDiagReportDocument({
+          rootClusterUri,
+          report,
+        });
+        docsService.add(doc);
+        docsService.open(doc.uri);
+      }
+    },
+    [rootClusterUri, workspacesService]
   );
 
   useEffect(() => {
@@ -280,6 +329,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         dismissDiagnosticsAlert,
         hasDismissedDiagnosticsAlert,
         reinstateDiagnosticsAlert,
+        openReport: rootClusterUri ? openReport : undefined,
       }}
     >
       {props.children}

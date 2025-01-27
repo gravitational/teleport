@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PropsWithChildren, ReactNode, useCallback } from 'react';
+import { PropsWithChildren, ReactNode } from 'react';
 
 import { Alert, Flex, P2 } from 'design';
 import { ActionButton } from 'design/Alert';
@@ -28,8 +28,6 @@ import {
   CheckReportStatus,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { textSpacing } from './sliderStep';
@@ -42,13 +40,9 @@ export const DiagnosticsAlert = (props: {
     diagnosticsAttempt,
     dismissDiagnosticsAlert,
     hasDismissedDiagnosticsAlert,
+    openReport,
   } = useVnetContext();
-  const { workspacesService } = useAppContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
-  const rootClusterUri = useStoreSelector(
-    'workspacesService',
-    useCallback(state => state.rootClusterUri, [])
-  );
 
   if (
     diagnosticsAttempt.status === '' ||
@@ -72,39 +66,18 @@ export const DiagnosticsAlert = (props: {
   }
 
   const report = diagnosticsAttempt.data;
-  const disabledOpenReportButtonProps = !rootClusterUri
+  const disabledOpenReportButtonProps = !openReport
     ? {
         disabled: true,
         title: 'Log in to a cluster to see the full report',
       }
     : {};
-  const openReport = () => {
-    if (!rootClusterUri) {
+  const openReportAndClosePanel = () => {
+    if (!openReport) {
       return;
     }
 
-    const docsService =
-      workspacesService.getWorkspaceDocumentService(rootClusterUri);
-
-    // Check for an existing doc first. It may be present if someone re-runs diagnostics from within
-    // a doc, then opens the VNet panel and clicks "Open Diag Report". The report in the panel and
-    // the report in the doc are equal in that case, as they both come from diagnosticsAttempt.data.
-    const existingDoc = docsService.getDocuments().find(
-      d =>
-        d.kind === 'doc.vnet_diag_report' &&
-        // Reports don't have IDs, so createdAt is used as a good-enough approximation of an ID.
-        d.report?.createdAt === report.createdAt
-    );
-    if (existingDoc) {
-      docsService.open(existingDoc.uri);
-    } else {
-      const doc = docsService.createVnetDiagReportDocument({
-        rootClusterUri,
-        report,
-      });
-      docsService.add(doc);
-      docsService.open(doc.uri);
-    }
+    openReport(report);
     closeConnectionsPanel();
   };
 
@@ -127,7 +100,10 @@ export const DiagnosticsAlert = (props: {
           fill="minimal"
           intent="neutral"
           inputAlignment
-          action={{ content: 'Open Diag Report', onClick: openReport }}
+          action={{
+            content: 'Open Diag Report',
+            onClick: openReportAndClosePanel,
+          }}
           {...disabledOpenReportButtonProps}
         />
       </Flex>
@@ -163,7 +139,10 @@ export const DiagnosticsAlert = (props: {
             fill="border"
             intent="neutral"
             inputAlignment
-            action={{ content: 'Open Diag Report', onClick: openReport }}
+            action={{
+              content: 'Open Diag Report',
+              onClick: openReportAndClosePanel,
+            }}
             {...disabledOpenReportButtonProps}
           />
           <ActionButton
