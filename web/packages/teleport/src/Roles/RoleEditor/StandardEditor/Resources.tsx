@@ -242,6 +242,7 @@ export function ServerAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Logins"
+        placeholder="Type a login and press Enter"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Login: ${label}`}
         components={{
@@ -269,6 +270,7 @@ export function KubernetesAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Groups"
+        placeholder="Type a group name and press Enter"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Group: ${label}`}
         components={{
@@ -282,6 +284,7 @@ export function KubernetesAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Users"
+        placeholder="Type a user name and press Enter"
         isDisabled={isProcessing}
         formatCreateLabel={label => `User: ${label}`}
         components={{
@@ -485,6 +488,7 @@ export function DatabaseAccessSection({
       <Box mb={3}>
         <LabelsInput
           legend="Labels"
+          tooltipContent="Access to databases with these labels will be affected by this role"
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
@@ -494,6 +498,7 @@ export function DatabaseAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Database Names"
+        placeholder="Type a database name and press Enter"
         toolTipContent={
           <>
             List of database names that this role is allowed to connect to.
@@ -512,6 +517,7 @@ export function DatabaseAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Database Users"
+        placeholder="Type a user name and press Enter"
         toolTipContent={
           <>
             List of database users that this role is allowed to connect as.
@@ -530,6 +536,7 @@ export function DatabaseAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Database Roles"
+        placeholder="Type a role name and press Enter"
         toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Database Role: ${label}`}
@@ -543,7 +550,7 @@ export function DatabaseAccessSection({
       />
       <LabelsInput
         legend="Database Service Labels"
-        tooltipContent="The database service labels have no influence on which databases' access is controlled by this role. Instead, they control which database services are discoverable while enrolling a new database."
+        tooltipContent="The database service labels control which Database Services (Teleport Agents) are visible to the user, which is required when adding Databases in the Enroll New Resource wizard. Access to Databases themselves is controlled by the Database Labels field."
         disableBtns={isProcessing}
         labels={value.dbServiceLabels}
         setLabels={dbServiceLabels => onChange?.({ ...value, dbServiceLabels })}
@@ -573,6 +580,7 @@ export function WindowsDesktopAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Logins"
+        placeholder="Type a login and press Enter"
         toolTipContent="List of desktop logins that this role is allowed to use"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Login: ${label}`}
