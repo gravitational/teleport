@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package service
 
 import (
@@ -100,19 +116,13 @@ func TestAddKubeTagsFromEnv(t *testing.T) {
 		{
 			name: "Kubernetes env variables set",
 			envVars: map[string]string{
-				"TELEPORT_PYROSCOPE_KUBE_NAME":      "test-name",
-				"TELEPORT_PYROSCOPE_KUBE_INSTANCE":  "test-instance",
-				"TELEPORT_PYROSCOPE_KUBE_COMPONENT": "test-component",
+				"TELEPORT_PYROSCOPE_KUBE_COMPONENT": "auth",
 				"TELEPORT_PYROSCOPE_KUBE_NAMESPACE": "test-namespace",
-				"TELEPORT_PYROSCOPE_KUBE_REGION":    "us-east-1",
 			},
 			initialTags: map[string]string{},
 			wantTags: map[string]string{
-				"name":      "test-name",
-				"instance":  "test-instance",
-				"component": "test-component",
+				"component": "auth",
 				"namespace": "test-namespace",
-				"region":    "us-east-1",
 			},
 		},
 	}

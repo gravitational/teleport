@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/grafana/pyroscope-go"
@@ -95,10 +96,9 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		config.UploadRate = *uploadRate
 	}
 
-	// If set, check for Kubernetes enrichment from downward API
-	if os.Getenv("TELEPORT_PYROSCOPE_KUBE_ENV") == "true" {
+	if isKubeEnvVarSet() {
 		config.Tags = addKubeTagsFromEnv(config.Tags)
-		slog.InfoContext(process.ExitContext(), "Pyroscope will configure tags for Kubernetes env if set.")
+		slog.InfoContext(process.ExitContext(), "Configuring additional tags for Kubernetes if set.")
 	}
 
 	profiler, err := pyroscope.Start(config)
@@ -137,15 +137,22 @@ func getPyroscopeProfileTypesFromEnv() []pyroscope.ProfileType {
 	return profileTypes
 }
 
+// isKubeEnvVarSet checks if metadata tags should be processed.
+func isKubeEnvVarSet() bool {
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "TELEPORT_PYROSCOPE_KUBE_") {
+			return true
+		}
+	}
+	return false
+}
+
 // getTagsFromKubeEnv extracts Kubernetes metadata passed from downward API and returns them if set.
 func addKubeTagsFromEnv(tags map[string]string) map[string]string {
 
 	env := map[string]string{
-		"name":      "TELEPORT_PYROSCOPE_KUBE_NAME",
-		"instance":  "TELEPORT_PYROSCOPE_KUBE_INSTANCE",
 		"component": "TELEPORT_PYROSCOPE_KUBE_COMPONENT",
 		"namespace": "TELEPORT_PYROSCOPE_KUBE_NAMESPACE",
-		"region":    "TELEPORT_PYROSCOPE_KUBE_REGION",
 	}
 
 	for k, v := range env {
