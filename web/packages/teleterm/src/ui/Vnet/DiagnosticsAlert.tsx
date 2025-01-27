@@ -28,6 +28,7 @@ import {
   CheckReportStatus,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
+import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { textSpacing } from './sliderStep';
@@ -113,13 +114,7 @@ export const DiagnosticsAlert = (props: {
   // If this default warningText is shown the user, it means we failed to account for a specific
   // state.
   let warningText = 'Unknown report status';
-  if (
-    report.checks.some(
-      checkAttempt =>
-        checkAttempt.status === CheckAttemptStatus.OK &&
-        checkAttempt.checkReport.status === CheckReportStatus.ISSUES_FOUND
-    )
-  ) {
+  if (hasReportFoundIssues(report)) {
     warningText = 'Other software on your device might interfere with VNet.';
   } else if (
     report.checks.some(
