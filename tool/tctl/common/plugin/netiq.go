@@ -70,11 +70,11 @@ Then, copy the output and paste it into the ` + boldGreen(`com.example.<client-i
 After configuring the OAuth client, please restart OSP to apply the changes and type 'continue' to proceed.
 
 `
-	netIQStep4Template = bold("Step 5: Input Client ID and Client Secret") + `
+	netIQStep4Template = bold("Step 4: Input Client ID and Client Secret") + `
 
 With the values used in Step 2, please copy and paste the following information:
 `
-	netIQStep5Template = bold("Step 4: Input IDM User and Password") + `
+	netIQStep5Template = bold("Step 5: Input IDM User and Password") + `
 
 Please provide the IDM user to configure the integration. 
 This user must have the necessary permissions to access the IDM API and retrieve users, groups, roles 
