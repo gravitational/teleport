@@ -1478,6 +1478,42 @@ description: "string"
 				},
 			},
 		},
+		{
+			description: "curly braces in descriptions",
+			declInfo: PackageInfo{
+				DeclName:    "Metadata",
+				PackageName: "mypkg",
+			},
+			source: `
+package mypkg
+
+// Metadata describes information about a {dynamic resource}. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+    // Name is the {name of the resource}.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+}
+`,
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Metadata",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Metadata",
+					Description: "Describes information about a `{dynamic resource}`. Every dynamic resource in Teleport has a metadata object.",
+					SourcePath:  "/src/myfile.go",
+					YAMLExample: `name: "string"
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The `{name of the resource}`.",
+							Type:        "string",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -1687,7 +1723,7 @@ func TestGetJSONTag(t *testing.T) {
 	}
 }
 
-func TestDescriptionWithoutName(t *testing.T) {
+func TestPrintableDescription(t *testing.T) {
 	cases := []struct {
 		description string
 		input       string
@@ -1737,11 +1773,29 @@ func TestDescriptionWithoutName(t *testing.T) {
 			name:        "MyDecl",
 			expected:    "Performs an action.",
 		},
+		{
+			description: "curly brace pair and identifier name",
+			input:       "MyDecl performs an action, such as {updating, deleting}",
+			name:        "MyDecl",
+			expected:    "Performs an action, such as `{updating, deleting}`",
+		},
+		{
+			description: "curly brace pair and no identifier name",
+			input:       "Performs an action, such as {updating, deleting}",
+			name:        "MyDecl",
+			expected:    "Performs an action, such as `{updating, deleting}`",
+		},
+		{
+			description: "curly brace pair with existing backticks",
+			input:       "Performs an action, such as `{updating, deleting}`",
+			name:        "MyDecl",
+			expected:    "Performs an action, such as `{updating, deleting}`",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			assert.Equal(t, c.expected, descriptionWithoutName(c.input, c.name))
+			assert.Equal(t, c.expected, printableDescription(c.input, c.name))
 		})
 	}
 }
