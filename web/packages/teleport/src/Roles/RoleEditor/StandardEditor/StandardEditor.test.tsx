@@ -63,6 +63,7 @@ test('adding and removing sections', async () => {
     'Applications',
     'Databases',
     'Windows Desktops',
+    'GitHub Organizations',
   ]);
 
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
@@ -76,6 +77,7 @@ test('adding and removing sections', async () => {
     'Applications',
     'Databases',
     'Windows Desktops',
+    'GitHub Organizations',
   ]);
 
   await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
