@@ -19,6 +19,7 @@
 import { castDraft, Immutable, produce } from 'immer';
 import { z } from 'zod';
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
   AvailableResourceMode,
   DefaultTab,
@@ -68,6 +69,12 @@ import {
 } from './documentsService';
 
 export interface WorkspacesState {
+  /**
+   * rootClusterUri points to URI of the root cluster of the current workspace (profile). If set,
+   * the user sees the documents within the workspace, meaning that at some point they were logged
+   * in to the cluster. It doesn't necessarily mean that the cert is active, as it might have
+   * expired since the user has logged in.
+   */
   rootClusterUri?: RootClusterUri;
   workspaces: Record<RootClusterUri, Workspace>;
   /**
@@ -479,6 +486,29 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    */
   restorePersistedState(): void {
     const restoredState = this.statePersistenceService.getWorkspacesState();
+
+    for (const rootClusterUri in restoredState?.workspaces) {
+      const workspace = restoredState?.workspaces[rootClusterUri];
+      const documents = workspace?.documents || [];
+
+      for (const doc of documents) {
+        if (doc?.kind === 'doc.vnet_diag_report' && doc?.report?.createdAt) {
+          // Timestamps use BigInt, which currently isn't serializable to JSON.
+          // TODO(ravicious): Once we upgrade to Node.js >= 21, deal with serializing BigInt
+          // in the function `stringify` of fileStorage, using a combination of these two approaches:
+          // * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#using_json_numbers
+          // * https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1609631034
+          const createdAt = doc.report.createdAt as unknown as string;
+          try {
+            doc.report.createdAt = Timestamp.fromJson(createdAt);
+          } catch (error) {
+            this.logger.error('Could not convert string to timestamp', error);
+            doc.report.createdAt = undefined;
+          }
+        }
+      }
+    }
+
     // Make the restored state immutable.
     this.restoredState = produce(restoredState, () => {});
     const restoredWorkspaces = this.clustersService
@@ -653,6 +683,26 @@ function getDocumentsToPersist(documents: Document[]): Document[] {
       // a session token and id on disk.
       // Moreover, the user would not be able to authorize a session at a later time anyway.
       .filter(d => d.kind !== 'doc.authorize_web_session')
+      .map(d => {
+        // Timestamps use BigInt, which currently isn't serializable to JSON.
+        // TODO(ravicious): Once we upgrade to Node.js >= 21, deal with serializing BigInt
+        // in the function `stringify` of fileStorage, using a combination of these two approaches:
+        // * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#using_json_numbers
+        // * https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1609631034
+        if (d.kind === 'doc.vnet_diag_report' && d.report?.createdAt) {
+          return {
+            ...d,
+            report: {
+              ...d.report,
+              createdAt: Timestamp.toJson(
+                d.report.createdAt
+              ) as unknown as Timestamp,
+            },
+          };
+        }
+
+        return d;
+      })
   );
 }
 
