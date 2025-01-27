@@ -31,6 +31,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
@@ -179,7 +180,7 @@ func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreferen
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
-	if err := p.Validate(); err != nil {
+	if err := services.ValidateAuthPreference(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -238,7 +239,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.GetAuthPreference().Validate(); err != nil {
+	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -306,7 +307,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.GetAuthPreference().Validate(); err != nil {
+	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -256,7 +256,7 @@ func (s *server) createNewStableUNIXUser(ctx context.Context, username string, a
 	// auth server, so just in case we don't consider it valid we will reject it
 	// here (which will fail the API call, but it's better than potentially
 	// trashing the storage)
-	if err := cfg.Validate(); err != nil {
+	if err := services.ValidateStableUNIXUserConfig(cfg); err != nil {
 		return 0, true, trace.Wrap(err)
 	}
 

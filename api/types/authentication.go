@@ -202,11 +202,6 @@ type AuthPreference interface {
 
 	// Clone makes a deep copy of the AuthPreference.
 	Clone() AuthPreference
-
-	// Validate performs checks that should happen before persisting a new
-	// version of the resource, typically only as part of Auth service
-	// operations.
-	Validate() error
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
@@ -869,38 +864,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// Make sure the Okta field is populated.
 	if c.Spec.Okta == nil {
 		c.Spec.Okta = &OktaOptions{}
-	}
-
-	return nil
-}
-
-// Validate implements [AuthPreference].
-func (c *AuthPreferenceV2) Validate() error {
-	if c == nil {
-		return nil
-	}
-
-	if err := c.Spec.StableUnixUserConfig.Validate(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// Validate checks if the configuration is suitable for storage and use.
-func (c *StableUNIXUserConfig) Validate() error {
-	if c == nil || !c.Enabled {
-		return nil
-	}
-
-	if c.FirstUid > c.LastUid {
-		return trace.BadParameter("stable UNIX user is enabled but UID range is empty")
-	}
-
-	// see https://github.com/systemd/systemd/blob/cc7300fc5868f6d47f3f47076100b574bf54e58d/docs/UIDS-GIDS.md
-	const firstUserUID = 1000
-	if c.FirstUid < firstUserUID {
-		return trace.BadParameter("stable UNIX user UID range includes negative or system UIDs; the configured range should be contained between 1000 and 2147483647")
 	}
 
 	return nil

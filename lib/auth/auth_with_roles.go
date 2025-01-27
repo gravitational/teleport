@@ -4731,7 +4731,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
-	if err := newAuthPref.Validate(); err != nil {
+	if err := services.ValidateAuthPreference(newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
 
