@@ -699,7 +699,7 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 		desc = strings.ReplaceAll(desc, ">", `\>`)
 
 		result = append(result, Field{
-			Description: descriptionWithoutName(desc, field.name),
+			Description: printableDescription(desc, field.name),
 			Name:        field.jsonName,
 			Type:        typ,
 		})
@@ -707,27 +707,43 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	return result, nil
 }
 
-// descriptionWithoutName takes a description that contains an identifier name
-// and removes the name so we can include it within the resource reference,
+// curlyBracePairPattern matches a pair of curly braces, with a capture group
+// for the content enclosed by the braces.
+var curlyBracePairPattern = regexp.MustCompile(`\{([^}]*)\}`)
+
+// printableDescription modifies a field or type description to make it suitable
+// for reading on a docs page.
+//
+// ident is the name of a Go identifier. printableDescription removes the name
+// from the description so we can include it within the resource reference,
 // fixing capitalization issues resulting from removing the name. Since the
 // identifier's name within the source won't mean anything to a docs reader,
 // removing it makes the description easier to read.
-func descriptionWithoutName(description, name string) string {
+//
+// Since curly brace pairs break docs site builds, printableDescription also
+// encloses any curly brace pairs with backticks.
+func printableDescription(description, ident string) string {
+	result := curlyBracePairPattern.ReplaceAllString(description, "`{$1}`")
+	// Replace any double-backticks resulting from the previous operation.
+	// This is a hack to avoid the need for more complex logic. Double
+	// backticks won't render as expected in the docs anyway, so it's fine
+	// to replace ones that don't result from the earlier replacement.
+	result = strings.ReplaceAll(result, "``", "`")
+
 	// Not possible to trim the name from description
-	if len(name) > len(description) {
-		return description
+	if len(ident) > len(result) {
+		return result
 	}
 
-	var result = description
 	switch {
-	case strings.HasPrefix(description, name+" are "):
-		result = strings.TrimPrefix(description, name+" are ")
-	case strings.HasPrefix(description, name+" is "):
-		result = strings.TrimPrefix(description, name+" is ")
-	case strings.HasPrefix(description, name+" "):
-		result = strings.TrimPrefix(description, name+" ")
-	case strings.HasPrefix(description, name):
-		result = strings.TrimPrefix(description, name)
+	case strings.HasPrefix(result, ident+" are "):
+		result = strings.TrimPrefix(result, ident+" are ")
+	case strings.HasPrefix(result, ident+" is "):
+		result = strings.TrimPrefix(result, ident+" is ")
+	case strings.HasPrefix(result, ident+" "):
+		result = strings.TrimPrefix(result, ident+" ")
+	case strings.HasPrefix(result, ident):
+		result = strings.TrimPrefix(result, ident)
 	}
 
 	// Make sure the result begins with a capital letter
@@ -855,7 +871,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
 	entry := ReferenceEntry{
 		SectionName: makeSectionName(rs.name),
-		Description: descriptionWithoutName(description, rs.name),
+		Description: printableDescription(description, rs.name),
 		SourcePath:  decl.FilePath,
 		YAMLExample: example,
 		Fields:      []Field{},
