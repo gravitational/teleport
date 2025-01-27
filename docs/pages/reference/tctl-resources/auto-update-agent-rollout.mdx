@@ -1,0 +1,125 @@
+---
+title: Auto Update Agent Rollout Reference
+description: Provides a reference of fields within the Auto Update Agent Rollout resource, which you can manage with tctl.
+sidebar_title: Auto Update Agent Rollout
+---
+
+The resource the Teleport Auth Service uses to track and control the rollout of a new agent version. This resource is written by the automatic agent update controller in the Teleport Auth Service and read by the Teleport Proxy Service.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|status||[Auto Update Agent Rollout Status](#auto-update-agent-rollout-status)|
+|spec||[Auto Update Agent Rollout Spec](#auto-update-agent-rollout-spec)|
+|metadata|||
+|kind||string|
+
+## Auto Update Agent Group State
+
+Represents the agent group state. This state controls whether the agents from this group should install the start version, the target version, and if they should update immediately or wait.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+## Auto Update Agent Rollout Spec
+
+Describes the desired agent rollout. This is built by merging the user-provided AutoUpdateConfigSpecAgents and the operator-provided AutoUpdateVersionSpecAgents.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+start_version: "string"
+target_version: "string"
+schedule: "string"
+autoupdate_mode: "string"
+strategy: "string"
+maintenance_window_duration: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|target_version|Target_version is the version to update to.|string|
+|strategy|Strategy to use for updating the agents. Supported strategies are:   - "time-based": agents update as soon as their maintenance window starts. There is no dependency between groups.     This strategy allows Teleport users to setup reliable follow-the-sun updates and enforce the maintenance window     more strictly. A group finishes its update at the end of the maintenance window, regardless of the new version     adoption rate. Agents that missed the maintenance window will not attempt to update until the next maintenance     window.   - "halt-on-failure": the update proceeds from the first group to the last group, ensuring that each group     successfully updates before allowing the next group to proceed. This is the strategy that offers the best     availability. A group finishes its update once most of its agents are running the correct version. Agents that     missed the group update will try to catch back as soon as possible.|string|
+|start_version|Start_version is the version to update from.|string|
+|schedule|Schedule to use for the rollout. Supported values are "regular" and "immediate". - "regular" follows the regular group schedule - "immediate" updates all the agents immediately|string|
+|maintenance_window_duration|Maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based". Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next maintenance window.||
+|autoupdate_mode|Autoupdate_mode to use for the rollout. Supported modes are: - "enabled": Teleport will update existing agents. - "disabled": Teleport will not update existing agents. - "suspended": Teleport will temporarily stop updating existing agents.|string|
+
+## Auto Update Agent Rollout State
+
+Represents the rollout state. This tells if Teleport started updating agents from the start version to the target version, if the update is done, still in progress or if the rollout was manually reverted.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+## Auto Update Agent Rollout Status
+
+Tracks the current agent rollout status. The status is reset if any spec field changes except the mode.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+groups: 
+  - # [...]
+  - # [...]
+  - # [...]
+state: # [...]
+start_time: # See description
+time_override: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|time_override|Time override is an optional timestamp making the autoupdate_agent_rollout controller use a specific time instead of the system clock when evaluating time-based criteria. This field is used for testing and troubleshooting purposes.||
+|state||[Auto Update Agent Rollout State](#auto-update-agent-rollout-state)|
+|start_time|The start time is set when the rollout is created or reset. Usually this is caused by a version change. The timestamp allows the controller to detect that the rollout just changed. The controller will not start any group that should have been active before the start_time to avoid a double-update effect. For example, a group updates every day between 13:00 and 14:00. If the target version changes to 13:30, the group will not start updating to the new version directly. The controller sees that the group theoretical start time is before the rollout start time and the maintenance window belongs to the previous rollout. When the timestamp is nil, the controller will ignore the start time and check and allow groups to activate.||
+|groups||[][Auto Update Agent Rollout Status Group](#auto-update-agent-rollout-status-group)|
+
+## Auto Update Agent Rollout Status Group
+
+Tracks the current agent rollout status of a specific group.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+start_time: # See description
+state: # [...]
+last_update_time: # See description
+last_update_reason: "string"
+config_days: 
+  - "string"
+  - "string"
+  - "string"
+config_start_hour: 1
+config_wait_hours: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|state|State is the current state of the rollout.|[Auto Update Agent Group State](#auto-update-agent-group-state)|
+|start_time|Start_time of the rollout||
+|name|Name of the group|string|
+|last_update_time|Last_update_time is the time of the previous update for this group.||
+|last_update_reason|Last_update_reason is the trigger for the last update|string|
+|config_wait_hours|Config_wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure". This field must be positive.|number|
+|config_start_hour|Config_start_hour to initiate update|number|
+|config_days|Config_days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"|[]string|
+

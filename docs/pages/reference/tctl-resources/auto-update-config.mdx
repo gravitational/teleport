@@ -1,0 +1,127 @@
+---
+title: Auto Update Config Reference
+description: Provides a reference of fields within the Auto Update Config resource, which you can manage with tctl.
+sidebar_title: Auto Update Config
+---
+
+A config singleton used to configure cluster autoupdate settings.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|spec||[Auto Update Config Spec](#auto-update-config-spec)|
+|metadata|||
+|kind||string|
+
+## Agent Auto Update Group
+
+Specifies the update schedule for a group of agents.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+days: 
+  - "string"
+  - "string"
+  - "string"
+start_hour: 1
+wait_hours: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|wait_hours|Wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure". This field must be positive.|number|
+|start_hour|Start_hour to initiate update|number|
+|name|Name of the group|string|
+|days|Days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"|[]string|
+
+## Agent Auto Update Schedules
+
+Specifies update scheduled for grouped agents.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+regular: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|regular|Regular schedules for non-critical versions.|[][Agent Auto Update Group](#agent-auto-update-group)|
+
+## Auto Update Config Spec
+
+Encodes the parameters of the autoupdate config object.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+tools: # [...]
+agents: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|tools||[Auto Update Config Spec Tools](#auto-update-config-spec-tools)|
+|agents||[Auto Update Config Spec Agents](#auto-update-config-spec-agents)|
+
+## Auto Update Config Spec Agents
+
+Encodes the parameters of automatic agent updates.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+mode: "string"
+strategy: "string"
+maintenance_window_duration: # See description
+schedules: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|strategy|Strategy to use for updating the agents.|string|
+|schedules|Schedules specifies schedules for updates of grouped agents.|[Agent Auto Update Schedules](#agent-auto-update-schedules)|
+|mode|Mode specifies whether agent autoupdates are enabled, disabled, or paused.|string|
+|maintenance_window_duration|Maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based". Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next maintenance window.||
+
+## Auto Update Config Spec Tools
+
+Encodes the parameters for client tools auto updates.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+mode: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|mode|Defines state of the client tools auto update.|string|
+

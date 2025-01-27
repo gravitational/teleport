@@ -1,0 +1,323 @@
+---
+title: Auth Preference Reference
+description: Provides a reference of fields within the Auth Preference resource, which you can manage with tctl.
+sidebar_title: Auth Preference
+---
+
+**Kind**: cluster_auth_preference
+**Version**: v2
+
+Implements the AuthPreference interface.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are: `v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|An AuthPreference specification|[Auth Preference Spec](#auth-preference-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Auth Preference Spec
+
+The actual data we care about for AuthPreference.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+type: "string"
+second_factor: # [...]
+connector_name: "string"
+u2f: # [...]
+disconnect_expired_cert: # [...]
+allow_local_auth: # [...]
+message_of_the_day: "string"
+locking_mode: # [...]
+webauthn: # [...]
+allow_passwordless: # [...]
+require_session_mfa: # [...]
+device_trust: # [...]
+idp: # [...]
+allow_headless: # [...]
+default_session_ttl: # [...]
+okta: # [...]
+hardware_key: # [...]
+signature_algorithm_suite: # [...]
+second_factors: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|webauthn|The settings for server-side Web Authentication support.|[Webauthn](#webauthn)|
+|u2f|The settings for the U2F device.|[U2F](#u2f)|
+|type|The type of authentication.|string|
+|signature_algorithm_suite|The configured signature algorithm suite for the cluster. If unspecified, the current default value is "legacy". 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".|[Signature Algorithm Suite](#signature-algorithm-suite)|
+|second_factors|A list of supported multi-factor types. 1 is "otp", 2 is "webauthn", 3 is "sso", If unspecified, the current default value is [1], or ["otp"].|[][Second Factor Type](#second-factor-type)|
+|second_factor|The type of mult-factor. Deprecated: Prefer using SecondFactors instead.|[Second Factor Type](#second-factor-type)|
+|require_session_mfa|The type of MFA requirement enforced for this cluster. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".|[Require MFAType](#require-mfatype)|
+|okta|A set of options related to the Okta service in Teleport. Requires Teleport Enterprise.|[Okta Options](#okta-options)|
+|message_of_the_day||string|
+|locking_mode|The cluster-wide locking mode default.|[Locking Mode](#locking-mode)|
+|idp|A set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|[Id POptions](#id-poptions)|
+|hardware_key|The settings for hardware key support.|[Hardware Key](#hardware-key)|
+|disconnect_expired_cert|Provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected|[Bool Option](#bool-option)|
+|device_trust|Holds settings related to trusted device verification. Requires Teleport Enterprise.|[Device Trust](#device-trust)|
+|default_session_ttl|The TTL to use for user certs when an explicit TTL is not requested.|[Duration](#duration)|
+|connector_name|The name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.|string|
+|allow_passwordless|Enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.|[Bool Option](#bool-option)|
+|allow_local_auth|True if local authentication is enabled.|[Bool Option](#bool-option)|
+|allow_headless|Enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.|[Bool Option](#bool-option)|
+
+## Bool Option
+
+A wrapper around bool that can take multiple values: * true, false and non-set (when pointer is nil) and can marshal itself to protobuf equivalent BoolValue
+
+{/*Automatically generated from: ../../../../api/types/role.go*/}
+
+Example:
+
+```yaml
+: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Value|A value of the option|Boolean|
+
+## Device Trust
+
+Holds settings related to trusted device verification. Requires Teleport Enterprise.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+mode: "string"
+auto_enroll: true
+ekcert_allowed_cas: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|mode|Of verification for trusted devices.  The following modes are supported:    - "off": disables both device authentication and authorization.   - "optional": allows both device authentication and authorization, but     doesn't enforce the presence of device extensions for sensitive     endpoints.   - "required": enforces the presence of device extensions for sensitive     endpoints.  Mode is always "off" for OSS. Defaults to "optional" for Enterprise.|string|
+|ekcert_allowed_cas|Allow list of EKCert CAs in PEM format. If present, only TPM devices that present an EKCert that is signed by a CA specified here may be enrolled (existing enrollments are unchanged).  If not present, then the CA of TPM EKCerts will not be checked during enrollment, this allows any device to enroll.|[]string|
+|auto_enroll|Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode="off".|Boolean|
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+{/*Automatically generated from: ../../../../api/types/duration.go*/}
+
+## Hardware Key
+
+Holds settings related to hardware key support. Requires Teleport Enterprise.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+piv_slot: "string"
+serial_number_validation: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|serial_number_validation|Holds settings for hardware key serial number validation. By default, serial number validation is disabled.|[Hardware Key Serial Number Validation](#hardware-key-serial-number-validation)|
+|piv_slot|A PIV slot that Teleport clients should use instead of the default based on private key policy. For example, "9a" or "9e".|string|
+
+## Hardware Key Serial Number Validation
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+enabled: true
+serial_number_trait_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|serial_number_trait_name|An optional custom user trait name for hardware key serial numbers to replace the default: "hardware_key_serial_numbers".  Note: Values for this user trait should be a comma-separated list of serial numbers, or a list of comm-separated lists. e.g ["123", "345,678"]|string|
+|enabled|Indicates whether hardware key serial number validation is enabled.|Boolean|
+
+## Id POptions
+
+Specify options related to access Teleport IdPs.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+saml: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|saml|Options related to the Teleport SAML IdP.|[Id PSAMLOptions](#id-psamloptions)|
+
+## Id PSAMLOptions
+
+Specifies options related to accessing the Teleport SAML IdP.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+enabled: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|Set to true if this option allows access to the Teleport SAML IdP.|[Bool Option](#bool-option)|
+
+## Locking Mode
+
+Determines how a (possibly stale) set of locks should be applied to an interaction.
+
+{/*Automatically generated from: ../../../../api/constants/constants.go*/}
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Okta Options
+
+Specify options related to the Okta service.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+sync_period: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|sync_period|The duration between synchronization calls in nanoseconds.|[Duration](#duration)|
+
+## Require MFAType
+
+A type of MFA requirement enforced outside of login, such as per-session MFA or per-request PIV touch.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Second Factor Type
+
+The type of 2FA authentication.
+
+{/*Automatically generated from: ../../../../api/constants/constants.go*/}
+
+## Second Factor Type
+
+A type of second factor.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Signature Algorithm Suite
+
+Represents the suite of cryptographic signature algorithms used in the cluster.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## U2F
+
+Defines settings for U2F device. Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer using WebAuthn instead.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+app_id: "string"
+facets: 
+  - "string"
+  - "string"
+  - "string"
+device_attestation_cas: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|facets|Returns the facets for universal mult-factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation.|[]string|
+|device_attestation_cas|Contains the trusted attestation CAs for U2F devices.|[]string|
+|app_id|Returns the application ID for universal mult-factor.|string|
+
+## Webauthn
+
+Defines user-visible settings for server-side Web Authentication support.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+rp_id: "string"
+attestation_allowed_cas: 
+  - "string"
+  - "string"
+  - "string"
+attestation_denied_cas: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|rp_id|The ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the multi-factor will need to re-register.|string|
+|attestation_denied_cas|Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don't match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied.|[]string|
+|attestation_allowed_cas|Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.|[]string|
+

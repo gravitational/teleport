@@ -1,0 +1,49 @@
+---
+title: Access Graph Settings Reference
+description: Provides a reference of fields within the Access Graph Settings resource, which you can manage with tctl.
+sidebar_title: Access Graph Settings
+---
+
+Holds dynamic configuration settings for the Access Graph service.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/clusterconfig/v1/access_graph_settings.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is the version of the resource.|string|
+|sub_kind|Sub_kind is the sub kind of the resource.|string|
+|spec|Spec is the spec of the resource.|[Access Graph Settings Spec](#access-graph-settings-spec)|
+|metadata|Metadata is the metadata of the resource.||
+|kind|Kind is the kind of the resource.|string|
+
+## Access Graph Secrets Scan Config
+
+Used to configure the parameters for the secrets scanning functionality.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/clusterconfig/v1/access_graph_settings.pb.go*/}
+
+## Access Graph Settings Spec
+
+The spec for the Access Graph service configuration settings.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/clusterconfig/v1/access_graph_settings.pb.go*/}
+
+Example:
+
+```yaml
+secrets_scan_config: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|secrets_scan_config|Secrets_scan_config is used to configure the parameters for the secrets scanning functionality.|[Access Graph Secrets Scan Config](#access-graph-secrets-scan-config)|
+

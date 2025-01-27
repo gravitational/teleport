@@ -1,0 +1,222 @@
+---
+title: User Task Reference
+description: Provides a reference of fields within the User Task resource, which you can manage with tctl.
+sidebar_title: User Task
+---
+
+A resource that represents an action to be completed by the user. UserTasks are a unit of work for users to act upon issues related to other resources. As an example, when auto-enrolling EC2 instances using the Discovery Service a UserTask is created to let the user know that something failed on a set of instances. The user can then mark the task as resolved after following the recommendation/fixing steps.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Mandatory field for all resources. Not populated for this resource type.|string|
+|status|The current status for this UserTask.|[User Task Status](#user-task-status)|
+|spec|The configured properties of UserTask.|[User Task Spec](#user-task-spec)|
+|metadata|Common metadata that all resources share.||
+|kind|The kind of resource represented.|string|
+
+## Discover EC2
+
+Contains the instances that failed to auto-enroll into the cluster.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+instances: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+account_id: "string"
+region: "string"
+ssm_document: "string"
+installer_script: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ssm_document|SSMDocument is the Amazon Systems Manager SSM Document name that was used to install teleport on the instance. In Amazon console, the document is at: https://REGION.console.aws.amazon.com/systems-manager/documents/SSM_DOCUMENT/description|string|
+|region|The AWS Region where Teleport failed to enroll EC2 instances.|string|
+|instances|Maps an instance id to the result of enrolling that instance into teleport.|map[string][Discover EC2Instance](#discover-ec2instance)|
+|installer_script|The Teleport installer script that was used to install teleport on the instance.|string|
+|account_id|AccountID is the AWS Account ID for the instances.|string|
+
+## Discover EC2Instance
+
+Contains the result of enrolling an AWS EC2 Instance.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+instance_id: "string"
+name: "string"
+invocation_url: "string"
+discovery_config: "string"
+discovery_group: "string"
+sync_time: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|sync_time|The timestamp when the error was produced.||
+|name|The instance Name. Might be empty, if the instance doesn't have the Name tag.|string|
+|invocation_url|InvocationURL is the URL that points to the invocation. Empty if there was an error before installing the|string|
+|instance_id|InstanceID is the EC2 Instance ID that uniquely identifies the instance.|string|
+|discovery_group|The DiscoveryGroup name that originated this task.|string|
+|discovery_config|The discovery config name that originated this instance enrollment.|string|
+
+## Discover EKS
+
+Contains the clusters that failed to auto-enroll into the cluster.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+clusters: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+account_id: "string"
+region: "string"
+app_auto_discover: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|region|The AWS Region where Teleport failed to enroll EKS Clusters.|string|
+|clusters|Maps a cluster name to the result of enrolling that cluster into teleport.|map[string][Discover EKSCluster](#discover-ekscluster)|
+|app_auto_discover|Indicates whether the Kubernetes agent should auto enroll HTTP services as Teleport Apps.|Boolean|
+|account_id|AccountID is the AWS Account ID for the cluster.|string|
+
+## Discover EKSCluster
+
+Contains the result of enrolling an AWS EKS Cluster.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+discovery_config: "string"
+discovery_group: "string"
+sync_time: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|sync_time|The timestamp when the error was produced.||
+|name|The cluster Name.|string|
+|discovery_group|The DiscoveryGroup name that originated this task.|string|
+|discovery_config|The discovery config name that originated this cluster enrollment.|string|
+
+## Discover RDS
+
+Contains the databases that failed to auto-enroll into teleport.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+databases: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+account_id: "string"
+region: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|region|The AWS Region where Teleport failed to enroll RDS databases.|string|
+|databases|Maps a database resource id to the result of enrolling that database into teleport. For RDS Aurora Clusters, this is the DBClusterIdentifier. For other RDS databases, this is the DBInstanceIdentifier.|map[string][Discover RDSDatabase](#discover-rdsdatabase)|
+|account_id|AccountID is the AWS Account ID for the database.|string|
+
+## Discover RDSDatabase
+
+Contains the result of enrolling an AWS RDS database.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+is_cluster: true
+engine: "string"
+discovery_config: "string"
+discovery_group: "string"
+sync_time: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|sync_time|The timestamp when the error was produced.||
+|name|The database identifier. For RDS Aurora Clusters, this is the DBClusterIdentifier. For other RDS databases, this is the DBInstanceIdentifier.|string|
+|is_cluster|Indicates whether this database is a cluster or a single instance.|Boolean|
+|engine|Indicates the engine name for this RDS. Eg, aurora-postgresql, postgresql|string|
+|discovery_group|The DiscoveryGroup name that originated this task.|string|
+|discovery_config|The discovery config name that originated this database enrollment.|string|
+
+## User Task Spec
+
+Contains the properties of the UserTask.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+integration: "string"
+task_type: "string"
+issue_type: "string"
+state: "string"
+discover_ec2: # [...]
+discover_eks: # [...]
+discover_rds: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|task_type|Indicates the type of task. Examples: discover-ec2, discover-rds, discover-eks|string|
+|state|Indicates the task state. When the task is created, it starts with OPEN. Users can mark it as RESOLVED. If the issue happens again (eg, new discover iteration faces the same error), it will move to OPEN again.|string|
+|issue_type|An identifier for the type of issue that happened. Example for discover-ec2: SSM_AGENT_NOT_AVAILABLE|string|
+|integration|The integration name that originated this task.|string|
+|discover_rds|DiscoverRDS contains the AWS RDS databases that failed to auto enroll into the cluster. Present when TaskType is discover-rds.|[Discover RDS](#discover-rds)|
+|discover_eks|DiscoverEKS contains the AWS EKS clusters that failed to auto enroll into the cluster. Present when TaskType is discover-eks.|[Discover EKS](#discover-eks)|
+|discover_ec2|DiscoverEC2 contains the AWS EC2 instances that failed to auto enroll into the cluster. Present when TaskType is discover-ec2.|[Discover EC2](#discover-ec2)|
+
+## User Task Status
+
+Contains the current status for the UserTask.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/usertasks/v1/user_tasks.pb.go*/}
+
+Example:
+
+```yaml
+last_state_change: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|last_state_change|The timestamp when the UserTask state was last modified.||
+

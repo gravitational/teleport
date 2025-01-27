@@ -1,0 +1,113 @@
+---
+title: Principal Assignment Reference
+description: Provides a reference of fields within the Principal Assignment resource, which you can manage with tctl.
+sidebar_title: Principal Assignment
+---
+
+Relates a collection of PermissionSets and Applications to a given principal. This is the source of truth for all Account & Permission Set assignments in AWS
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|status||[Principal Assignment Status](#principal-assignment-status)|
+|spec||[Principal Assignment Spec](#principal-assignment-spec)|
+|metadata|||
+|kind||string|
+
+## Account Assignment Ref
+
+A minimal link between an AWS Account and a permission set. Optionally contains human-readable metadata describing the target AWS Account and Permission Set.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+account_id: "string"
+account_name: "string"
+permission_set_arn: "string"
+permission_set_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|permission_set_name|Optionally holds the human-readable name of the target AWS Permission Set.|string|
+|permission_set_arn|Holds the target Permission Set ARN. This will always be set.|string|
+|account_name|Optionally holds the heman-readable name of the target AwS account|string|
+|account_id|Holds the AWS account ID for the target AWS account. This will always be set|string|
+
+## Principal Assignment Spec
+
+Holds information about the Account Assignments assigned to the target principal.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+principal_type: # [...]
+principal_id: "string"
+external_id_source: "string"
+external_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|principal_type|PrincipalId identifies what kind of principal this assignment applies to, either a User or a Group (i.e. AccessList)|[Principal Type](#principal-type)|
+|principal_id|Identifies the Teleport User or Access List that this assignment applies to|string|
+|external_id_source||string|
+|external_id|ExternalID identifies the user or group within AWS|string|
+
+## Principal Assignment Status
+
+PrincipalAssignmentAssignmentStatus holds frequently-changing iinformation about the PrincipalAssignment
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+provisioning_state: # [...]
+assignments: 
+  - # [...]
+  - # [...]
+  - # [...]
+applications: 
+  - "string"
+  - "string"
+  - "string"
+error: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|provisioning_state||[Provisioning State](#provisioning-state)|
+|error||string|
+|assignments||[][Account Assignment Ref](#account-assignment-ref)|
+|applications||[]string|
+
+## Principal Type
+
+Indicates the type of principal represented by a PrincipalAssignment
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+## Provisioning State
+
+Indicates the current stage of the Account-Assignment provisioning pipeline a resource is in.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+

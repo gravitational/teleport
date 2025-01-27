@@ -1,0 +1,98 @@
+---
+title: Identity Center Account Assignment Reference
+description: Provides a reference of fields within the Identity Center Account Assignment resource, which you can manage with tctl.
+sidebar_title: Identity Center Account Assignment
+---
+
+Represents a requestable Identity Center Account Assignment. This is strictly a wire-format object for use with the Unfied resource cache, and the types defined in the `identitycenter` package should be used for actual processing.
+
+{/*Automatically generated from: ../../../../api/client/proto/authservice.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+DisplayName: "string"
+Account: # [...]
+PermissionSet: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version.|string|
+|sub_kind|An optional resource subkind.|string|
+|metadata|The account metadata.|[Metadata](#metadata)|
+|kind|The database server resource kind.|string|
+|PermissionSet|The Identity Center Permission Set this assignment references|[Identity Center Permission Set](#identity-center-permission-set)|
+|DisplayName|A human-readable name for the Account assignment|string|
+|Account|The Identity Center Account this assigment references|[Identity Center Account](#identity-center-account)|
+
+## Identity Center Account
+
+Holds information about an Identity Center account within an IdentityCenterAccountAssignment
+
+{/*Automatically generated from: ../../../../api/client/proto/authservice.pb.go*/}
+
+Example:
+
+```yaml
+ID: "string"
+ARN: "string"
+AccountName: "string"
+Description: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ID|The AWS-assigned account ID|string|
+|Description|A free text description of the account|string|
+|AccountName|The human-readable name of the account|string|
+|ARN|The full Amazon Resource Name for the AWS account|string|
+
+## Identity Center Permission Set
+
+Holds information about an Identity Center permission set within an IdentityCenterAccountAssignment
+
+{/*Automatically generated from: ../../../../api/client/proto/authservice.pb.go*/}
+
+Example:
+
+```yaml
+ARN: "string"
+Name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Name|The human readable name for the Permission Set|string|
+|ARN|The full Amazon Resource Name for the Permission Set|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+

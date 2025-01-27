@@ -1,0 +1,321 @@
+---
+title: User Reference
+description: Provides a reference of fields within the User resource, which you can manage with tctl.
+sidebar_title: User
+---
+
+**Kind**: user
+**Version**: v2
+
+Version 2 resource spec of the user
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are: `v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|status||[User Status](#user-status)|
+|spec|A user specification|[User Spec](#user-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Connector Ref
+
+Holds information about OIDC connector
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+type: "string"
+id: "string"
+identity: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|Connector type|string|
+|identity|External identity of the user|string|
+|id|Connector ID|string|
+
+## Created By
+
+Holds information about the person or agent who created the user
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+connector: # [...]
+time: # See description
+user: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|Holds information about user|[User Ref](#user-ref)|
+|time|Specifies when user was created||
+|connector|Identity if present means that user was automatically created by identity|[Connector Ref](#connector-ref)|
+
+## External Identity
+
+OpenID Connect/SAML or Github identity that is linked to particular user and connector and lets user to log in using external credentials, e.g. google
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+connector_id: "string"
+username: "string"
+samlSingleLogoutUrl: "string"
+user_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|username|Username supplied by external identity provider|string|
+|user_id|The ID of the identity. Some connectors like GitHub have an unique ID apart from the username.|string|
+|samlSingleLogoutUrl|The SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|string|
+|connector_id|Id of registered OIDC connector, e.g. 'google-example.com'|string|
+
+## Local Auth Secrets
+
+Holds sensitive data used to authenticate a local user.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+password_hash: BASE64_STRING
+totp_key: "string"
+mfa: 
+  - # [...]
+  - # [...]
+  - # [...]
+webauthn: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|webauthn|Holds settings necessary for webauthn local auth. May be null for legacy users or users that haven't yet used webauthn as their multi-factor.|[Webauthn Local Auth](#webauthn-local-auth)|
+|totp_key|Deprecated 2nd factor fields, use MFA below instead.|string|
+|password_hash|Encodes a combined salt & hash for password verification.|base64-encoded string|
+|mfa||[][MFADevice](#mfadevice)|
+
+## Login Status
+
+A login status of the user
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+is_locked: true
+locked_message: "string"
+locked_time: # See description
+lock_expires: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|locked_time|Contains time when user was locked||
+|locked_message|Contains the message in case if user is locked|string|
+|lock_expires|Contains time when this lock will expire||
+|is_locked|Tells us if user is locked|Boolean|
+
+## MFADevice
+
+A multi-factor authentication device, such as a security key or an OTP app.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+id: "string"
+added_at: # See description
+last_used: # See description
+: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|metadata||[Metadata](#metadata)|
+|last_used|||
+|kind|Boilerplate for implementing the Resource interface.|string|
+|id|ID is a UUID of this device.|string|
+|added_at|||
+|Device|Types that are valid to be assigned to Device:  	*MFADevice_Totp 	*MFADevice_U2F 	*MFADevice_Webauthn 	*MFADevice_Sso|[is MFADevice_Device](#is-mfadevice_device)|
+
+## MFADevice Kind
+
+Indicates what is known about existence of user's MFA device.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Password State
+
+Indicates what is known about existence of user's password.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Traits
+
+A wrapper around map with string slices as values
+
+{/*Automatically generated from: ../../../../api/types/wrappers/wrappers.go*/}
+
+## User Ref
+
+Holds references to user
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Name of the user|string|
+
+## User Spec
+
+A specification for V2 user
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+oidc_identities: 
+  - # [...]
+  - # [...]
+  - # [...]
+saml_identities: 
+  - # [...]
+  - # [...]
+  - # [...]
+github_identities: 
+  - # [...]
+  - # [...]
+  - # [...]
+roles: 
+  - "string"
+  - "string"
+  - "string"
+traits: # [...]
+status: # [...]
+expires: # See description
+created_by: # [...]
+local_auth: # [...]
+trusted_device_ids: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|trusted_device_ids|Contains the IDs of trusted devices enrolled by the user.  Note that SSO users are transient and thus may contain an empty TrustedDeviceIDs field, even though the user-\>device association exists under the Device Trust subsystem. Do not rely on this field to determine device associations or ownership, it exists for legacy/informative purposes only.  Managed by the Device Trust subsystem, avoid manual edits.|[]string|
+|traits|Key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.|[Traits](#traits)|
+|status|A login status of the user|[Login Status](#login-status)|
+|saml_identities|Lists associated SAML identities that let user log in using externally verified identity|[][External Identity](#external-identity)|
+|roles|A list of roles assigned to user|[]string|
+|oidc_identities|Lists associated OpenID Connect identities that let user log in using externally verified identity|[][External Identity](#external-identity)|
+|local_auth|Holds sensitive data necessary for performing local authentication|[Local Auth Secrets](#local-auth-secrets)|
+|github_identities|List associated Github OAuth2 identities that let user log in using externally verified identity|[][External Identity](#external-identity)|
+|expires|If set sets TTL on the user||
+|created_by|Holds information about agent or person created this user|[Created By](#created-by)|
+
+## User Status
+
+A dynamic state of UserV2.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+password_state: # [...]
+mfa_weakest_device: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|password_state|Password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!|[Password State](#password-state)|
+|mfa_weakest_device|Mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a "best effort" property, in that it can be UNSPECIFIED.|[MFADevice Kind](#mfadevice-kind)|
+
+## Webauthn Local Auth
+
+Holds settings necessary for local webauthn use.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+user_id: BASE64_STRING
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|user_id|The random user handle generated for the user. See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.|base64-encoded string|
+
+## is MFADevice_Device
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+

@@ -1,0 +1,97 @@
+---
+title: Network Restrictions Reference
+description: Provides a reference of fields within the Network Restrictions resource, which you can manage with tctl.
+sidebar_title: Network Restrictions
+---
+
+**Kind**: network_restrictions
+**Version**: v4
+
+NetworkRestrictions specifies a list of addresses to restrict (block). The deny list is checked first and the allow lists overrides it. Thus an empty allow list does not mean that no addresses will be allowed, that will only be the case if the deny list covers the whole address range.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version.|string|
+|sub_kind|An optional resource subkind.|string|
+|spec|Contains the network restrictions data|[Network Restrictions Spec](#network-restrictions-spec)|
+|metadata|The network restrictions metadata.|[Metadata](#metadata)|
+|kind|The network restrictions resource kind.|string|
+
+## Address Condition
+
+Represents a set of addresses. Presently the addresses are specified exclusively in terms of IPv4/IPv6 ranges.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+cidr: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|cidr|IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24", "fe::/8") or a single IP address (e.g "10.1.2.3")|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Network Restrictions Spec
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+deny: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|deny|Lists the addresses that should be denied even if they're allowed by Allow condition.|[][Address Condition](#address-condition)|
+|allow|Lists the addresses that should be allowed.|[][Address Condition](#address-condition)|
+

@@ -1,0 +1,85 @@
+---
+title: Tunnel Connection Reference
+description: Provides a reference of fields within the Tunnel Connection resource, which you can manage with tctl.
+sidebar_title: Tunnel Connection
+---
+
+**Kind**: tunnel_connection
+**Version**: v2
+
+Version 2 of the resource spec of the tunnel connection
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A tunnel specification|[Tunnel Connection Spec](#tunnel-connection-spec)|
+|metadata|A resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Tunnel Connection Spec
+
+A specification for V2 tunnel connection
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+cluster_name: "string"
+proxy_name: "string"
+last_heartbeat: # See description
+type: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|The type of reverse tunnel, either proxy or node.|[Tunnel Type](#tunnel-type)|
+|proxy_name|The name of the proxy server|string|
+|last_heartbeat|A time of the last heartbeat||
+|cluster_name|A name of the cluster|string|
+
+## Tunnel Type
+
+The type of tunnel.
+
+{/*Automatically generated from: ../../../../api/types/constants.go*/}
+

@@ -1,0 +1,129 @@
+---
+title: Database Object Import Rule Reference
+description: Provides a reference of fields within the Database Object Import Rule resource, which you can manage with tctl.
+sidebar_title: Database Object Import Rule
+---
+
+The resource representing a global database object import rule. The import rules govern which database objects are imported from databases. See type teleport.dbobject.v1.DatabaseObject for the description of a database object. For rationale behind this type, see the RFD 151.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Mandatory field for all resources. Not populated for this resource type.|string|
+|spec|Spec represents the specifications for the database object import rule.|[Database Object Import Rule Spec](#database-object-import-rule-spec)|
+|metadata|Common metadata that all resources share.||
+|kind|The kind of resource represented.|string|
+
+## Database Object Import Match
+
+Specifies acceptable object names. Must have at least one non-empty member.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule.pb.go*/}
+
+Example:
+
+```yaml
+table_names: 
+  - "string"
+  - "string"
+  - "string"
+view_names: 
+  - "string"
+  - "string"
+  - "string"
+procedure_names: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|view_names|View_names specify the names of the views to match. Optional.|[]string|
+|table_names|Table_names specify the names of the tables to match. Optional.|[]string|
+|procedure_names|Procedure_names specify the names of the procedures to match. Optional.|[]string|
+
+## Database Object Import Rule Mapping
+
+The mapping between object properties and labels that will be added to the object.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule.pb.go*/}
+
+Example:
+
+```yaml
+match: # [...]
+scope: # [...]
+add_labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|scope|Scope specifies the object scope. Optional. If not provided, all scopes will be accepted.|[Database Object Import Scope](#database-object-import-scope)|
+|match|Match specifies the matching rules, like the object names.|[Database Object Import Match](#database-object-import-match)|
+|add_labels|Add_labels specifies which labels to add if the match succeeds. At least one should be present.|map[string]string|
+
+## Database Object Import Rule Spec
+
+The spec for database object import rule.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule.pb.go*/}
+
+Example:
+
+```yaml
+priority: 1
+database_labels: 
+  - # See description
+  - # See description
+  - # See description
+mappings: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|priority|Priority represents the priority of the rule application.  Rules are processed from lowest to highest priority. If two rules apply the same label, then the value applied with the rule with the highest priority wins.|number|
+|mappings|Mappings is a list of matches that will map match conditions to labels.|[][Database Object Import Rule Mapping](#database-object-import-rule-mapping)|
+|database_labels|Db_labels is a set of labels matched against database labels.|[]|
+
+## Database Object Import Scope
+
+Specifies the object scope. Members are matched independently of each other.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule.pb.go*/}
+
+Example:
+
+```yaml
+database_names: 
+  - "string"
+  - "string"
+  - "string"
+schema_names: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|schema_names|Schema_names specify the names of the schemas to include in the scope. Optional.|[]string|
+|database_names|Database_names specify the names of the databases to include in the scope. Optional.|[]string|
+

@@ -1,0 +1,75 @@
+---
+title: Remote Cluster Reference
+description: Provides a reference of fields within the Remote Cluster resource, which you can manage with tctl.
+sidebar_title: Remote Cluster
+---
+
+**Kind**: remote_cluster
+**Version**: v3
+
+Represents remote cluster resource specification
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Resource API version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|status|A remote cluster status|[Remote Cluster Status](#remote-cluster-status)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Remote Cluster Status
+
+Represents status of the remote cluster
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+connection: "string"
+last_heartbeat: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|last_heartbeat|Records last heartbeat of the cluster||
+|connection|Represents connection status, online or offline|string|
+

@@ -1,0 +1,117 @@
+---
+title: Cluster Audit Config Reference
+description: Provides a reference of fields within the Cluster Audit Config resource, which you can manage with tctl.
+sidebar_title: Cluster Audit Config
+---
+
+**Kind**: cluster_audit_config
+**Version**: v2
+
+Represents audit log settings in the cluster.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|A resource version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A ClusterAuditConfig specification|[Cluster Audit Config Spec](#cluster-audit-config-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Cluster Audit Config Spec
+
+The actual data we care about for ClusterAuditConfig.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+type: "string"
+region: "string"
+audit_sessions_uri: "string"
+audit_events_uri: # [...]
+continuous_backups: true
+auto_scaling: true
+read_max_capacity: 1
+read_min_capacity: 1
+read_target_value: 1
+write_max_capacity: 1
+write_min_capacity: 1
+write_target_value: 1
+retention_period: # [...]
+use_fips_endpoint: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|write_target_value|The ratio of consumed write to provisioned capacity.|number|
+|write_min_capacity|The minimum provisioned write capacity.|number|
+|write_max_capacity|The maximum provisioned write capacity.|number|
+|use_fips_endpoint|Configures AWS endpoints to use FIPS.|[Cluster Audit Config Spec V2_FIPSEndpoint State](#cluster-audit-config-spec-v2_fipsendpoint-state)|
+|type|Audit backend type|string|
+|retention_period|The retention period for audit events.|[Duration](#duration)|
+|region|A region setting for audit sessions used by cloud providers|string|
+|read_target_value|The ratio of consumed read to provisioned capacity.|number|
+|read_min_capacity|The minimum provisioned read capacity.|number|
+|read_max_capacity|The maximum provisioned read capacity.|number|
+|continuous_backups|Used to enable (or disable) PITR (Point-In-Time Recovery).|Boolean|
+|auto_scaling|Used to enable (or disable) auto scaling policy.|Boolean|
+|audit_sessions_uri|A parameter where to upload sessions|string|
+|audit_events_uri|A parameter with all supported outputs for audit events|[Strings](#strings)|
+
+## Cluster Audit Config Spec V2_FIPSEndpoint State
+
+FIPSEndpointState represents an AWS FIPS endpoint state.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+{/*Automatically generated from: ../../../../api/types/duration.go*/}
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Strings
+
+A list of string that can unmarshal from list of strings or a scalar string from scalar yaml or json property
+
+{/*Automatically generated from: ../../../../api/types/wrappers/wrappers.go*/}
+

@@ -1,0 +1,96 @@
+---
+title: Semaphore Reference
+description: Provides a reference of fields within the Semaphore resource, which you can manage with tctl.
+sidebar_title: Semaphore
+---
+
+**Kind**: semaphore
+**Version**: v3
+
+Implements Semaphore interface
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A lease V3 spec|[Semaphore Spec](#semaphore-spec)|
+|metadata|Semaphore metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Semaphore Lease Ref
+
+Identifies an existent lease.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+lease_id: "string"
+expires: # See description
+holder: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|lease_id|The unique ID of the lease.|string|
+|holder|Identifies the lease holder.|string|
+|expires|The time at which the lease expires.||
+
+## Semaphore Spec
+
+Contains the data about lease
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+leases: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|leases|A list of all currently acquired leases.|[][Semaphore Lease Ref](#semaphore-lease-ref)|
+

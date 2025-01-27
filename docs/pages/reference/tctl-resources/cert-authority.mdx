@@ -1,0 +1,277 @@
+---
+title: Cert Authority Reference
+description: Provides a reference of fields within the Cert Authority resource, which you can manage with tctl.
+sidebar_title: Cert Authority
+---
+
+**Kind**: cert_authority
+**Version**: v2
+
+Version 2 resource spec for Cert Authority
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|Contains cert authority specification|[Cert Authority Spec](#cert-authority-spec)|
+|metadata|Connector metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## CAKey Set
+
+The set of CA keys.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+ssh: 
+  - # [...]
+  - # [...]
+  - # [...]
+tls: 
+  - # [...]
+  - # [...]
+  - # [...]
+jwt: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|tls|Contains TLS CA key/cert pairs.|[][TLSKey Pair](#tlskey-pair)|
+|ssh|Contains SSH CA key pairs.|[][SSHKey Pair](#sshkey-pair)|
+|jwt|Contains JWT signing key pairs.|[][JWTKey Pair](#jwtkey-pair)|
+
+## Cert Auth Type
+
+Specifies certificate authority type. New variants should be added to CertAuthTypes and, for one major version, to NewlyAdded().
+
+{/*Automatically generated from: ../../../../api/types/trust.go*/}
+
+## Cert Authority Spec
+
+A host or user certificate authority that can check and if it has private key stored as well, sign it too
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+type: # [...]
+cluster_name: "string"
+roles: 
+  - "string"
+  - "string"
+  - "string"
+role_map: 
+  - # [...]
+  - # [...]
+  - # [...]
+rotation: # [...]
+signing_alg: # [...]
+active_keys: # [...]
+additional_trusted_keys: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|Either user or host certificate authority|[Cert Auth Type](#cert-auth-type)|
+|signing_alg|Unused.  Deprecated: SigningAlg is unused.|[Cert Authority Spec V2_Signing Alg Type](#cert-authority-spec-v2_signing-alg-type)|
+|rotation|A status of the certificate authority rotation|[Rotation](#rotation)|
+|roles|A list of roles assumed by users signed by this CA|[]string|
+|role_map|Specifies role mappings to remote roles|[][Role Mapping](#role-mapping)|
+|cluster_name|Identifies the cluster name this authority serves.|string|
+|additional_trusted_keys|Additional CA key sets that can be used to verify certificates. Certificates should be verified with AdditionalTrustedKeys and ActiveKeys combined.|[CAKey Set](#cakey-set)|
+|active_keys|The CA key sets used to sign any new certificates.|[CAKey Set](#cakey-set)|
+
+## Cert Authority Spec V2_Signing Alg Type
+
+SigningAlgType is unused.  Deprecated: SigningAlgType is unused.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+{/*Automatically generated from: ../../../../api/types/duration.go*/}
+
+## JWTKey Pair
+
+A PEM encoded keypair used for signing JWT tokens.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+public_key: BASE64_STRING
+private_key: BASE64_STRING
+private_key_type: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key|A PEM encoded public key.|base64-encoded string|
+|private_key_type|The type of the PrivateKey.|[Private Key Type](#private-key-type)|
+|private_key|A PEM encoded private key.|base64-encoded string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Private Key Type
+
+The storage type of a private key.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Role Mapping
+
+Provides mapping of remote roles to local roles for trusted clusters
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+remote: "string"
+local: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|remote|Specifies remote role name to map from|string|
+|local|Specifies local roles to map to|[]string|
+
+## Rotation
+
+A status of the rotation of the certificate authority
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+state: "string"
+phase: "string"
+mode: "string"
+current_id: "string"
+started: # See description
+grace_period: # [...]
+last_rotated: # See description
+schedule: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|state|Could be one of "init" or "in_progress".|string|
+|started|Set to the time when rotation has been started in case if the state of the rotation is "in_progress".||
+|schedule|A rotation schedule - used in automatic mode to switch between phases.|[Rotation Schedule](#rotation-schedule)|
+|phase|The current rotation phase.|string|
+|mode|Sets manual or automatic rotation mode.|string|
+|last_rotated|Specifies the last time of the completed rotation.||
+|grace_period|A period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.|[Duration](#duration)|
+|current_id|The ID of the rotation operation to differentiate between rotation attempts.|string|
+
+## Rotation Schedule
+
+A rotation schedule setting time switches for different phases.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+update_clients: # See description
+update_servers: # See description
+standby: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|update_servers|Specifies time to switch to the "Update servers" phase.||
+|update_clients|Specifies time to switch to the "Update clients" phase||
+|standby|Specifies time to switch to the "Standby" phase.||
+
+## SSHKey Pair
+
+An SSH CA key pair.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+public_key: BASE64_STRING
+private_key: BASE64_STRING
+private_key_type: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key|The SSH public key.|base64-encoded string|
+|private_key_type|The type of the PrivateKey.|[Private Key Type](#private-key-type)|
+|private_key|The SSH private key.|base64-encoded string|
+
+## TLSKey Pair
+
+A TLS key pair
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+cert: BASE64_STRING
+key: BASE64_STRING
+key_type: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|key_type|The type of the Key.|[Private Key Type](#private-key-type)|
+|key|A PEM encoded TLS key|base64-encoded string|
+|cert|A PEM encoded TLS cert|base64-encoded string|
+

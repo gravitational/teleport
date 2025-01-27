@@ -1,0 +1,51 @@
+---
+title: User Last Seen Notification Reference
+description: Provides a reference of fields within the User Last Seen Notification resource, which you can manage with tctl.
+sidebar_title: User Last Seen Notification
+---
+
+Represents the timestamp of the last notification a user has seen.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is the resource version.|string|
+|sub_kind|Sub_kind is the optional resource subkind. This is unused.|string|
+|status|Status is the timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.|[User Last Seen Notification Status](#user-last-seen-notification-status)|
+|spec|UserLastSeenNotificationSpec is the user last seen notification item's specification.|[User Last Seen Notification Spec](#user-last-seen-notification-spec)|
+|metadata|Metadata is the user last seen notification object's metadata.||
+|kind|Kind is the resource kind ("user_last_seen_notification").|string|
+
+## User Last Seen Notification Spec
+
+A user last seen notification specification.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+## User Last Seen Notification Status
+
+The timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+last_seen_time: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|last_seen_time|Last_seen_time is the timestamp of the last notification that the user has seen.||
+

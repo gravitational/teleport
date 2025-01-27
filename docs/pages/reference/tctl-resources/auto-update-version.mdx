@@ -1,0 +1,83 @@
+---
+title: Auto Update Version Reference
+description: Provides a reference of fields within the Auto Update Version resource, which you can manage with tctl.
+sidebar_title: Auto Update Version
+---
+
+A resource singleton with version required for tools autoupdate.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|spec||[Auto Update Version Spec](#auto-update-version-spec)|
+|metadata|||
+|kind||string|
+
+## Auto Update Version Spec
+
+Encodes the parameters of the autoupdate versions.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+tools: # [...]
+agents: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|tools||[Auto Update Version Spec Tools](#auto-update-version-spec-tools)|
+|agents||[Auto Update Version Spec Agents](#auto-update-version-spec-agents)|
+
+## Auto Update Version Spec Agents
+
+The spec for the autoupdate version.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+start_version: "string"
+target_version: "string"
+schedule: "string"
+mode: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|target_version|Target_version is the version to update to.|string|
+|start_version|Start_version is the version to update from.|string|
+|schedule|Schedule to use for the rollout|string|
+|mode|Autoupdate_mode to use for the rollout|string|
+
+## Auto Update Version Spec Tools
+
+Encodes the parameters for client tools auto updates.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/autoupdate/v1/autoupdate.pb.go*/}
+
+Example:
+
+```yaml
+target_version: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|target_version|Specifies the semantic version required for tools to establish a connection with the cluster. Client tools after connection to the cluster going to be updated to this version automatically.|string|
+

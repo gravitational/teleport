@@ -1,0 +1,88 @@
+---
+title: Account Reference
+description: Provides a reference of fields within the Account resource, which you can manage with tctl.
+sidebar_title: Account
+---
+
+An Identity-Center-managed AWS account
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|status||[Account Status](#account-status)|
+|spec||[Account Spec](#account-spec)|
+|metadata|||
+|kind||string|
+
+## Account Spec
+
+Holds non-changing data about an AWS Account
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+id: "string"
+arn: "string"
+name: "string"
+description: "string"
+start_url: "string"
+permission_set_info: 
+  - # [...]
+  - # [...]
+  - # [...]
+is_organization_owner: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|start_url|The address of the AWS start page|string|
+|permission_set_info|Contains a list of the available Perission Sets on this account.|[][Permission Set Info](#permission-set-info)|
+|name|The human-readable name of the permission set|string|
+|is_organization_owner|Indicates that this account is the organisation owner, and may have restrictions about adding permission sets|Boolean|
+|id|The AWS-assigned PermissionSet ID|string|
+|description|A heman-readable description of the AWS Permission Set|string|
+|arn|The unique ARN for this permission set|string|
+
+## Account Status
+
+Represents any commonly-changing data about an Identity Center account.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+## Permission Set Info
+
+Represents a permission set that is available on a given account. This is not intended to be a complete description of a PermissionSet, but just enough to identify it for cross-referencing when included in an Account record.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+arn: "string"
+name: "string"
+role: "string"
+assignment_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|role|An optional ARN indicating role provisioned to this account. May be empty if the permission set is not provisioned or is not relevant in the|string|
+|name|Title is the human-readable name of the permission set|string|
+|assignment_id|AssignmentID is the name of a Teleport Account Assignment resource representing this permission set assigned to the enclosing Account.|string|
+|arn|The unique ARN for this permission set|string|
+

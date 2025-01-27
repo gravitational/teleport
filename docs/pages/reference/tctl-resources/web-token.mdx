@@ -1,0 +1,75 @@
+---
+title: Web Token Reference
+description: Provides a reference of fields within the Web Token resource, which you can manage with tctl.
+sidebar_title: Web Token
+---
+
+**Kind**: web_token
+**Version**: v3
+
+Describes a web token. Web tokens are used as a transport to relay bearer tokens to the client. Initially bound to a web session, these have been factored out into a separate resource to enable separate lifecycle management.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version|string|
+|sub_kind|An optional resource sub kind|string|
+|spec|Defines the web token|[Web Token Spec](#web-token-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Web Token Spec
+
+A unique time-limited token bound to a user's web session
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+user: "string"
+token: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|Specifies the user the token is bound to.|string|
+|token|Specifies the token's value.|string|
+

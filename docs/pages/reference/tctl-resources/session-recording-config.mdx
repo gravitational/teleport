@@ -1,0 +1,91 @@
+---
+title: Session Recording Config Reference
+description: Provides a reference of fields within the Session Recording Config resource, which you can manage with tctl.
+sidebar_title: Session Recording Config
+---
+
+**Kind**: session_recording_config
+**Version**: v2
+
+Contains session recording configuration.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are:`v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A SessionRecordingConfig specification|[Session Recording Config Spec](#session-recording-config-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Bool Option
+
+A wrapper around bool that can take multiple values: * true, false and non-set (when pointer is nil) and can marshal itself to protobuf equivalent BoolValue
+
+{/*Automatically generated from: ../../../../api/types/role.go*/}
+
+Example:
+
+```yaml
+: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Value|A value of the option|Boolean|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Session Recording Config Spec
+
+The actual data we care about for SessionRecordingConfig.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+mode: "string"
+proxy_checks_host_keys: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|proxy_checks_host_keys|Used to control if the proxy will check host keys when in recording mode.|[Bool Option](#bool-option)|
+|mode|Controls where (or if) the session is recorded.|string|
+

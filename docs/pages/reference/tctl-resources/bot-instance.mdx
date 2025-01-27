@@ -1,0 +1,135 @@
+---
+title: Bot Instance Reference
+description: Provides a reference of fields within the Bot Instance resource, which you can manage with tctl.
+sidebar_title: Bot Instance
+---
+
+A BotInstance
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/bot_instance.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
+|status|Fields that are set by the server as results of operations. These should not be modified by users.|[Bot Instance Status](#bot-instance-status)|
+|spec|The configured properties of a BotInstance.|[Bot Instance Spec](#bot-instance-spec)|
+|metadata|Common metadata that all resources share.||
+|kind|The kind of resource represented.|string|
+
+## Bot Instance Spec
+
+Contains fields
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/bot_instance.pb.go*/}
+
+Example:
+
+```yaml
+bot_name: "string"
+instance_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|instance_id|The unique identifier for this instance.|string|
+|bot_name|The name of the bot associated with this instance.|string|
+
+## Bot Instance Status
+
+Holds the status of a BotInstance.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/bot_instance.pb.go*/}
+
+Example:
+
+```yaml
+initial_authentication: # [...]
+latest_authentications: 
+  - # [...]
+  - # [...]
+  - # [...]
+initial_heartbeat: # [...]
+latest_heartbeats: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|latest_heartbeats|The N most recent heartbeats for this bot instance.|[][Bot Instance Status Heartbeat](#bot-instance-status-heartbeat)|
+|latest_authentications|The N most recent authentication status records for this bot instance.|[][Bot Instance Status Authentication](#bot-instance-status-authentication)|
+|initial_heartbeat|The initial heartbeat status for this bot instance.|[Bot Instance Status Heartbeat](#bot-instance-status-heartbeat)|
+|initial_authentication|The initial authentication status for this bot instance.|[Bot Instance Status Authentication](#bot-instance-status-authentication)|
+
+## Bot Instance Status Authentication
+
+Contains information about a join or renewal. Ths information is entirely sourced by the Auth Server and can be trusted.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/bot_instance.pb.go*/}
+
+Example:
+
+```yaml
+authenticated_at: # See description
+join_method: "string"
+join_token: "string"
+metadata: # See description
+generation: 1
+public_key: BASE64_STRING
+join_attrs: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key|The public key of the Bot instance. This must be a PEM wrapped, PKIX DER encoded public key. This provides consistency and supports multiple types of public key algorithm.|base64-encoded string|
+|metadata|The metadata sourced from the join method. Deprecated: prefer using join_attrs.||
+|join_token|The join token used for this join or renewal. This is only populated for delegated join methods as the value for `token` join methods is sensitive. Deprecated: prefer using join_attrs.meta.join_token_name|string|
+|join_method|The join method used for this join or renewal. Deprecated: prefer using join_attrs.meta.join_method|string|
+|join_attrs|The attributes generated during the join process. Typically, this is information from the join attestation process itself. This field will eventually replace the `metadata` field, which is structureless.||
+|generation|On each renewal, this generation is incremented. For delegated join methods, this counter is not checked during renewal. For the `token` join method, this counter is checked during renewal and the Bot is locked out if the counter in the certificate does not match the counter of the last authentication.|number|
+|authenticated_at|The timestamp that the join or renewal was authenticated by the Auth Server.||
+
+## Bot Instance Status Heartbeat
+
+Contains information self-reported by an instance of a Bot. This information is not verified by the server and should not be trusted.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/bot_instance.pb.go*/}
+
+Example:
+
+```yaml
+recorded_at: # See description
+is_startup: true
+version: "string"
+hostname: "string"
+uptime: # See description
+join_method: "string"
+one_shot: true
+architecture: "string"
+os: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of `tbot` that submitted this heartbeat.|string|
+|uptime|The duration that `tbot` has been running for when it submitted this heartbeat.||
+|recorded_at|The timestamp that the heartbeat was recorded by the Auth Server. Any value submitted by `tbot` for this field will be ignored.||
+|os|The OS of the host that `tbot` is running on, determined by runtime.GOOS.|string|
+|one_shot|Indicates whether `tbot` is running in one-shot mode.|Boolean|
+|join_method|The currently configured join_method.|string|
+|is_startup|Indicates whether this is the heartbeat submitted by `tbot` on startup.|Boolean|
+|hostname|The hostname of the host that `tbot` is running on.|string|
+|architecture|The architecture of the host that `tbot` is running on, determined by runtime.GOARCH.|string|
+

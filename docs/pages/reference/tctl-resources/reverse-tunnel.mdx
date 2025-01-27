@@ -1,0 +1,86 @@
+---
+title: Reverse Tunnel Reference
+description: Provides a reference of fields within the Reverse Tunnel resource, which you can manage with tctl.
+sidebar_title: Reverse Tunnel
+---
+
+**Kind**: tunnel
+**Version**: v2
+
+Version 2 of the resource spec of the reverse tunnel
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A reverse tunnel specification|[Reverse Tunnel Spec](#reverse-tunnel-spec)|
+|metadata|A resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Reverse Tunnel Spec
+
+A specification for V2 reverse tunnel
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+cluster_name: "string"
+dial_addrs: 
+  - "string"
+  - "string"
+  - "string"
+type: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|The type of reverse tunnel, either proxy or node.|[Tunnel Type](#tunnel-type)|
+|dial_addrs|A list of remote address to establish a connection to it's always SSH over TCP|[]string|
+|cluster_name|A domain name of remote cluster we are connecting to|string|
+
+## Tunnel Type
+
+The type of tunnel.
+
+{/*Automatically generated from: ../../../../api/types/constants.go*/}
+

@@ -1,0 +1,669 @@
+---
+title: Provision Token Reference
+description: Provides a reference of fields within the Provision Token resource, which you can manage with tctl.
+sidebar_title: Provision Token
+---
+
+**Kind**: token
+**Version**: v2
+
+Specifies provisioning token
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are:`v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A provisioning token V2 spec|[Provision Token Spec](#provision-token-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Bool Option
+
+A wrapper around bool that can take multiple values: * true, false and non-set (when pointer is nil) and can marshal itself to protobuf equivalent BoolValue
+
+{/*Automatically generated from: ../../../../api/types/role.go*/}
+
+Example:
+
+```yaml
+: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Value|A value of the option|Boolean|
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+{/*Automatically generated from: ../../../../api/types/duration.go*/}
+
+## Join Method
+
+The method used for new nodes to join the cluster.
+
+{/*Automatically generated from: ../../../../api/types/provisioning.go*/}
+
+## Kubernetes Join Type
+
+
+
+{/*Automatically generated from: ../../../../api/types/provisioning.go*/}
+
+## Labels
+
+A wrapper around map that can marshal and unmarshal itself from scalar and list values
+
+{/*Automatically generated from: ../../../../api/types/role.go*/}
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Provision Token Spec
+
+A specification for V2 token
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+roles: 
+  - # [...]
+  - # [...]
+  - # [...]
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+aws_iid_ttl: # [...]
+join_method: # [...]
+bot_name: "string"
+suggested_labels: # [...]
+github: # [...]
+circleci: # [...]
+suggested_agent_matcher_labels: # [...]
+kubernetes: # [...]
+azure: # [...]
+gitlab: # [...]
+gcp: # [...]
+spacelift: # [...]
+tpm: # [...]
+terraform_cloud: # [...]
+bitbucket: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|tpm|Allows the configuration of options specific to the "tpm" join method.|[Provision Token Spec V2TPM](#provision-token-spec-v2tpm)|
+|terraform_cloud|Allows the configuration of options specific to the "terraform_cloud" join method.|[Provision Token Spec V2Terraform Cloud](#provision-token-spec-v2terraform-cloud)|
+|suggested_labels|A set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|[Labels](#labels)|
+|suggested_agent_matcher_labels|A set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|[Labels](#labels)|
+|spacelift|Allows the configuration of options specific to the "spacelift" join method.|[Provision Token Spec V2Spacelift](#provision-token-spec-v2spacelift)|
+|roles|A list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|[][System Role](#system-role)|
+|kubernetes|Allows the configuration of options specific to the "kubernetes" join method.|[Provision Token Spec V2Kubernetes](#provision-token-spec-v2kubernetes)|
+|join_method|The joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|[Join Method](#join-method)|
+|gitlab|Allows the configuration of options specific to the "gitlab" join method.|[Provision Token Spec V2Git Lab](#provision-token-spec-v2git-lab)|
+|github|Allows the configuration of options specific to the "github" join method.|[Provision Token Spec V2Git Hub](#provision-token-spec-v2git-hub)|
+|gcp|Allows the configuration of options specific to the "gcp" join method.|[Provision Token Spec V2GCP](#provision-token-spec-v2gcp)|
+|circleci|Allows the configuration of options specific to the "circleci" join method.|[Provision Token Spec V2Circle CI](#provision-token-spec-v2circle-ci)|
+|bot_name|The name of the bot this token grants access to, if any|string|
+|bitbucket|Allows the configuration of options specific to the "bitbucket" join method.|[Provision Token Spec V2Bitbucket](#provision-token-spec-v2bitbucket)|
+|azure|Allows the configuration of options specific to the "azure" join method.|[Provision Token Spec V2Azure](#provision-token-spec-v2azure)|
+|aws_iid_ttl|The TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|[Duration](#duration)|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|[][Token Rule](#token-rule)|
+
+## Provision Token Spec V2Azure
+
+Contains the Azure-specific part of the ProvisionTokenSpecV2.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Azure_Rule](#provision-token-spec-v2azure_rule)|
+
+## Provision Token Spec V2Azure_Rule
+
+Rule is a set of properties the Azure-issued token might have to be allowed to use this ProvisionToken.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+subscription: "string"
+resource_groups: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|subscription|The Azure subscription.|string|
+|resource_groups|A list of Azure resource groups the node is allowed to join from.|[]string|
+
+## Provision Token Spec V2Bitbucket
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+audience: "string"
+identity_provider_url: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|identity_provider_url|A Bitbucket-specified issuer URL for incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -\> OpenID Connect section of the repository settings.|string|
+|audience|A Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -\> OpenID Connect section of the repository settings.|string|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Bitbucket_Rule](#provision-token-spec-v2bitbucket_rule)|
+
+## Provision Token Spec V2Bitbucket_Rule
+
+Rule is a set of properties the Bitbucket-issued token might have to be allowed to use this ProvisionToken.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+workspace_uuid: "string"
+repository_uuid: "string"
+deployment_environment_uuid: "string"
+branch_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|workspace_uuid|The UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -\> OpenID Connect section of the repository settings.|string|
+|repository_uuid|The UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -\> OpenID Connect section of the repository settings.|string|
+|deployment_environment_uuid|The UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -\> OpenID Connect -\> Deployment environments" section of the repository settings.|string|
+|branch_name|The name of the branch on which this pipeline executed.|string|
+
+## Provision Token Spec V2Circle CI
+
+Contains the CircleCI-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+organization_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|organization_id||string|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Circle CI_Rule](#provision-token-spec-v2circle-ci_rule)|
+
+## Provision Token Spec V2Circle CI_Rule
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+project_id: "string"
+context_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|project_id||string|
+|context_id||string|
+
+## Provision Token Spec V2GCP
+
+Contains the GCP-specific part of the ProvisionTokenSpecV2.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2GCP_Rule](#provision-token-spec-v2gcp_rule)|
+
+## Provision Token Spec V2GCP_Rule
+
+Rule is a set of properties the GCP-ussued token might have to be allowed to use this ProvisionToken.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+project_ids: 
+  - "string"
+  - "string"
+  - "string"
+locations: 
+  - "string"
+  - "string"
+  - "string"
+service_accounts: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|service_accounts|A list of service account emails (e.g. `\<project-number\>-compute@developer.gserviceaccount.com`).|[]string|
+|project_ids|A list of project IDs (e.g. `\<example-id-123456\>`).|[]string|
+|locations|A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").|[]string|
+
+## Provision Token Spec V2Git Hub
+
+ProvisionTokenSpecV2Github contains the GitHub-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+enterprise_server_host: "string"
+enterprise_slug: "string"
+static_jwks: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|static_jwks|Disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.|string|
+|enterprise_slug|Allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.|string|
+|enterprise_server_host|Allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.|string|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Git Hub_Rule](#provision-token-spec-v2git-hub_rule)|
+
+## Provision Token Spec V2Git Hub_Rule
+
+Rule includes fields mapped from `lib/githubactions.IDToken` Not all fields should be included, only ones that we expect to be useful when trying to create rules around which workflows should be allowed to authenticate against a cluster.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+sub: "string"
+repository: "string"
+repository_owner: "string"
+workflow: "string"
+environment: "string"
+actor: "string"
+ref: "string"
+ref_type: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|workflow|The name of the workflow.|string|
+|sub|Also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.|string|
+|repository_owner|The name of the organization in which the repository is stored.|string|
+|repository|The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`|string|
+|ref_type|The type of ref, for example: "branch".|string|
+|ref|The git ref that triggered the workflow run.|string|
+|environment|The name of the environment used by the job.|string|
+|actor|The personal account that initiated the workflow run.|string|
+
+## Provision Token Spec V2Git Lab
+
+Contains the GitLab-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+domain: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|domain|The domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.|string|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Git Lab_Rule](#provision-token-spec-v2git-lab_rule)|
+
+## Provision Token Spec V2Git Lab_Rule
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+sub: "string"
+ref: "string"
+ref_type: "string"
+namespace_path: "string"
+project_path: "string"
+pipeline_source: "string"
+environment: "string"
+user_login: "string"
+user_id: "string"
+user_email: "string"
+ref_protected: # [...]
+environment_protected: # [...]
+ci_config_sha: "string"
+ci_config_ref_uri: "string"
+deployment_tier: "string"
+project_visibility: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|user_login|The username of the user executing the job|string|
+|user_id|The ID of the user executing the job|string|
+|user_email|The email of the user executing the job|string|
+|sub|Roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.|string|
+|ref_type|Allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`|string|
+|ref_protected|True if the Git ref is protected, false otherwise.|[Bool Option](#bool-option)|
+|ref|Allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.|string|
+|project_visibility|The visibility of the project where the pipeline is running. Can be internal, private, or public.|string|
+|project_path|Used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.|string|
+|pipeline_source|Limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`|string|
+|namespace_path|Used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.|string|
+|environment_protected|True if the Git ref is protected, false otherwise.|[Bool Option](#bool-option)|
+|environment|Limits access by the environment the job deploys to (if one is associated)|string|
+|deployment_tier|The deployment tier of the environment the job specifies|string|
+|ci_config_sha|The git commit SHA for the ci_config_ref_uri.|string|
+|ci_config_ref_uri|The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.|string|
+
+## Provision Token Spec V2Kubernetes
+
+Contains the Kubernetes-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+type: # [...]
+static_jwks: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|Controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.|[Kubernetes Join Type](#kubernetes-join-type)|
+|static_jwks|The configuration specific to the `static_jwks` type.|[Provision Token Spec V2Kubernetes_Static JWKSConfig](#provision-token-spec-v2kubernetes_static-jwksconfig)|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Kubernetes_Rule](#provision-token-spec-v2kubernetes_rule)|
+
+## Provision Token Spec V2Kubernetes_Rule
+
+Rule is a set of properties the Kubernetes-issued token might have to be allowed to use this ProvisionToken
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+service_account: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|service_account|The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".|string|
+
+## Provision Token Spec V2Kubernetes_Static JWKSConfig
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+jwks: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|jwks|Should be the JSON Web Key Set formatted public keys of that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.|string|
+
+## Provision Token Spec V2Spacelift
+
+Contains the Spacelift-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+hostname: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|hostname|The hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`|string|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Spacelift_Rule](#provision-token-spec-v2spacelift_rule)|
+
+## Provision Token Spec V2Spacelift_Rule
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+space_id: "string"
+caller_id: "string"
+caller_type: "string"
+scope: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|space_id|The ID of the space in which the run that owns the token was executed.|string|
+|scope|The scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes|string|
+|caller_type|The type of the caller, ie. the entity that owns the run - either `stack` or `module`.|string|
+|caller_id|The ID of the caller, ie. the stack or module that generated the run.|string|
+
+## Provision Token Spec V2TPM
+
+Contains the TPM-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+ekcert_allowed_cas: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ekcert_allowed_cas|A list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.|[]string|
+|allow|A list of Rules, the presented delegated identity must match one allow rule to permit joining.|[][Provision Token Spec V2TPM_Rule](#provision-token-spec-v2tpm_rule)|
+
+## Provision Token Spec V2TPM_Rule
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+description: "string"
+ek_public_hash: "string"
+ek_certificate_serial: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ek_public_hash|The SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6|string|
+|ek_certificate_serial|The serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4|string|
+|description|A human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: "build-server-100"|string|
+
+## Provision Token Spec V2Terraform Cloud
+
+ProvisionTokenSpecV2Terraform contains Terraform-specific parts of the ProvisionTokenSpecV2.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+audience: "string"
+hostname: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|hostname|The hostname of the Terraform Enterprise instance expected to issue JWTs allowed by this token. This may be unset for regular Terraform Cloud use, in which case it will be assumed to be `app.terraform.io`. Otherwise, it must both match the `iss` (issuer) field included in JWTs, and provide standard JWKS endpoints.|string|
+|audience|The JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the variable is set to match the cluster name, it does not need to be set here.|string|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|[][Provision Token Spec V2Terraform Cloud_Rule](#provision-token-spec-v2terraform-cloud_rule)|
+
+## Provision Token Spec V2Terraform Cloud_Rule
+
+Rule is a set of properties the Terraform-issued token might have to be allowed to use this ProvisionToken.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+organization_id: "string"
+organization_name: "string"
+project_id: "string"
+project_name: "string"
+workspace_id: "string"
+workspace_name: "string"
+run_phase: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|workspace_name|The human-readable name of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.|string|
+|workspace_id|The ID of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.|string|
+|run_phase|The phase of the run the token was issued for, e.g. `plan` or `apply`|string|
+|project_name|The human-readable name for the HCP Terraform project. At least one project or workspace value is required, either ID or name.|string|
+|project_id|The ID of the HCP Terraform project. At least one project or workspace value is required, either ID or name.|string|
+|organization_name|The human-readable name of the HCP Terraform organization. At least one organization value is required, either ID or name.|string|
+|organization_id|The ID of the HCP Terraform organization. At least one organization value is required, either ID or name.|string|
+
+## System Role
+
+Identifies the role of an SSH connection. Unlike "user roles" introduced as part of RBAC in Teleport 1.4+ these are built-in roles used for different Teleport components when connecting to each other.
+
+{/*Automatically generated from: ../../../../api/types/system_role.go*/}
+
+## Token Rule
+
+A rule that a joining node must match in order to use the associated token.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+aws_account: "string"
+aws_regions: 
+  - "string"
+  - "string"
+  - "string"
+aws_role: "string"
+aws_arn: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws_role|Used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.|string|
+|aws_regions|Used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|[]string|
+|aws_arn|Used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|string|
+|aws_account|The AWS account ID.|string|
+

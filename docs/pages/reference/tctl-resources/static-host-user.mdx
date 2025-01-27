@@ -1,0 +1,85 @@
+---
+title: Static Host User Reference
+description: Provides a reference of fields within the Static Host User resource, which you can manage with tctl.
+sidebar_title: Static Host User
+---
+
+A resource that represents host users that should be created on matching nodes.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/userprovisioning/v2/statichostuser.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is the resource version. It must be specified. Supported values are: `v2`.|string|
+|sub_kind|Sub_kind is an optional resource sub kind, used in some resources.|string|
+|spec|Spec is the static host user spec.|[Static Host User Spec](#static-host-user-spec)|
+|metadata|Metadata is resource metadata.||
+|kind|Kind is a resource kind.|string|
+
+## Matcher
+
+A matcher for nodes to add the user to.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/userprovisioning/v2/statichostuser.pb.go*/}
+
+Example:
+
+```yaml
+node_labels: 
+  - # See description
+  - # See description
+  - # See description
+node_labels_expression: "string"
+groups: 
+  - "string"
+  - "string"
+  - "string"
+sudoers: 
+  - "string"
+  - "string"
+  - "string"
+uid: 1
+gid: 1
+default_shell: "string"
+take_ownership_if_user_exists: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|uid|Uid is the new user's uid.|number|
+|take_ownership_if_user_exists|Take_ownership_if_user_exists will take ownership of existing, unmanaged users|Boolean|
+|sudoers|Sudoers is a list of sudoer entries to add.|[]string|
+|node_labels_expression|Node_labels_expression is a predicate expression to create a user from this resource.|string|
+|node_labels|Node_labels is a map of node labels that will create a user from this resource.|[]|
+|groups|Groups is a list of additional groups to add the user to.|[]string|
+|gid|Gid is the new user's gid.|number|
+|default_shell|Default_shell is the new user's default shell|string|
+
+## Static Host User Spec
+
+The static host user spec.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/userprovisioning/v2/statichostuser.pb.go*/}
+
+Example:
+
+```yaml
+matchers: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|matchers||[][Matcher](#matcher)|
+

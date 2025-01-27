@@ -1,0 +1,53 @@
+---
+title: Database Object Reference
+description: Provides a reference of fields within the Database Object resource, which you can manage with tctl.
+sidebar_title: Database Object
+---
+
+Represents a database object that can be imported into Teleport. An example of such object would be a database table, along with various metadata. For rationale behind this type, see the RFD 151.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/dbobject/v1/dbobject.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Mandatory field for all resources. Not populated for this resource type.|string|
+|spec|Ification for the database object.|[Database Object Spec](#database-object-spec)|
+|metadata|Common metadata that all resources share.||
+|kind|The kind of resource represented.|string|
+
+## Database Object Spec
+
+The spec for the database object.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/dbobject/v1/dbobject.pb.go*/}
+
+Example:
+
+```yaml
+protocol: "string"
+database_service_name: "string"
+object_kind: "string"
+database: "string"
+schema: "string"
+name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|schema|The schema containing the object (if applicable). Optional.|string|
+|protocol|The protocol used to connect to the database (e.g., postgres). Required.|string|
+|object_kind|The kind of database object (e.g., table, view). Required.|string|
+|name|The name of the object. Required.|string|
+|database_service_name|The name of the database service that this object belongs to. Required.|string|
+|database|The database containing the object. Optional.|string|
+

@@ -1,0 +1,76 @@
+---
+title: Access Monitoring Rule Reference
+description: Provides a reference of fields within the Access Monitoring Rule resource, which you can manage with tctl.
+sidebar_title: Access Monitoring Rule
+---
+
+Represents an access monitoring rule resources.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules.pb.go*/}
+
+Example:
+
+```yaml
+metadata: # See description
+kind: "string"
+sub_kind: "string"
+version: "string"
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is version|string|
+|sub_kind|Sub_kind is an optional resource sub kind, used in some resources|string|
+|spec|An AccessMonitoringRule specification|[Access Monitoring Rule Spec](#access-monitoring-rule-spec)|
+|metadata|Metadata is the rules's metadata.||
+|kind|Kind is a resource kind|string|
+
+## Access Monitoring Rule Spec
+
+The access monitoring rule spec
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules.pb.go*/}
+
+Example:
+
+```yaml
+subjects: 
+  - "string"
+  - "string"
+  - "string"
+states: 
+  - "string"
+  - "string"
+  - "string"
+condition: "string"
+notification: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|subjects|Subjects the rule operates on, can be a resource kind or a particular resource property.|[]string|
+|states|States are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.|[]string|
+|notification|Notification defines the plugin configuration for notifications if rule is triggered.|[Notification](#notification)|
+|condition|Condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.|string|
+
+## Notification
+
+Contains configurations for plugin notification rules.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+recipients: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|recipients|Recipients is the list of recipients the plugin should notify.|[]string|
+|name|Name is the name of the plugin to which this configuration should apply.|string|
+

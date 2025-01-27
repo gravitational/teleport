@@ -1,0 +1,96 @@
+---
+title: Recovery Codes Reference
+description: Provides a reference of fields within the Recovery Codes resource, which you can manage with tctl.
+sidebar_title: Recovery Codes
+---
+
+**Kind**: recovery_codes
+**Version**: v1
+
+RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain access to their account by restoring their lost password or multi-factor. Once a recovery code is successfully verified, the code is mark used (which invalidates it), and lets the user begin the recovery flow. When a user successfully finishes the recovery flow, users will get a new set of codes that will replace all the previous ones.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version.|string|
+|sub_kind|An optional resource subkind. Currently unused for this resource.|string|
+|spec|The resource spec.|[Recovery Codes Spec](#recovery-codes-spec)|
+|metadata|The resource metadata.|[Metadata](#metadata)|
+|kind|The resource kind.|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Recovery Code
+
+Describes a recovery code.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+hashed_code: BASE64_STRING
+is_used: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|is_used|Determines if this recovery code was used.|Boolean|
+|hashed_code|A bcrypt hash of this recovery code.|base64-encoded string|
+
+## Recovery Codes Spec
+
+The recovery codes spec.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+codes: 
+  - # [...]
+  - # [...]
+  - # [...]
+created: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|created|When the set of recovery codes were generated. Updated when a new set of recovery codes are inserted.||
+|codes|Hold a list of numOfRecoveryCodes.|[][Recovery Code](#recovery-code)|
+

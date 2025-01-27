@@ -1,0 +1,113 @@
+---
+title: Lock Reference
+description: Provides a reference of fields within the Lock resource, which you can manage with tctl.
+sidebar_title: Lock
+---
+
+**Kind**: lock
+**Version**: v2
+
+Represents a lock. Locks are used to restrict access to a Teleport environment by disabling interactions involving a user, an RBAC role, a node, etc. See rfd/0009-locking.md for more details.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are: `v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources.|string|
+|spec|A Lock specification.|[Lock Spec](#lock-spec)|
+|metadata|Holds resource metadata.|[Metadata](#metadata)|
+|kind|A resource kind.|string|
+
+## Lock Spec
+
+A Lock specification.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+target: # [...]
+message: "string"
+expires: # See description
+created_at: # See description
+created_by: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|target|Describes the set of interactions that the lock applies to.|[Lock Target](#lock-target)|
+|message|The message displayed to locked-out users.|string|
+|expires|If set specifies when the lock ceases to be in force.||
+|created_by|The username of the author of the lock.|string|
+|created_at|The date time that the lock was created.||
+
+## Lock Target
+
+Lists the attributes of interactions to be disabled.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+user: "string"
+role: "string"
+login: "string"
+node: "string"
+mfa_device: "string"
+windows_desktop: "string"
+access_request: "string"
+device: "string"
+server_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|windows_desktop|Specifies the name of a Windows desktop.|string|
+|user|Specifies the name of a Teleport user.|string|
+|server_id|The host id of the Teleport instance.|string|
+|role|Specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles.|string|
+|node|Specifies the UUID of a Teleport node. A matching node is also prevented from heartbeating to the Auth Service. DEPRECATED: use ServerID instead.|string|
+|mfa_device|Specifies the UUID of a user MFA device.|string|
+|login|Specifies the name of a local UNIX user.|string|
+|device|The device ID of a trusted device. Requires Teleport Enterprise.|string|
+|access_request|Specifies the UUID of an access request.|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+

@@ -1,0 +1,75 @@
+---
+title: Cluster Name Reference
+description: Provides a reference of fields within the Cluster Name resource, which you can manage with tctl.
+sidebar_title: Cluster Name
+---
+
+**Kind**: cluster_name
+**Version**: v2
+
+Implements the ClusterName interface.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A cluster name V2 spec|[Cluster Name Spec](#cluster-name-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Cluster Name Spec
+
+The actual data we care about for ClusterName.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+cluster_name: "string"
+cluster_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_name|The name of the cluster. Changing this value once the cluster is setup can and will cause catastrophic problems.|string|
+|cluster_id|The unique cluster ID that is set once during the first Auth Service startup.|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+

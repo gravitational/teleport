@@ -1,0 +1,73 @@
+---
+title: Installer Reference
+description: Provides a reference of fields within the Installer resource, which you can manage with tctl.
+sidebar_title: Installer
+---
+
+**Kind**: installer
+**Version**: v1
+
+Represents an installer script resource. Used to provide a script to install teleport on discovered nodes.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version.|string|
+|sub_kind|An optional resource subkind. Currently unused for this resource.|string|
+|spec|The resource spec.|[Installer Spec](#installer-spec)|
+|metadata|The resource metadata.|[Metadata](#metadata)|
+|kind|The resource kind.|string|
+
+## Installer Spec
+
+The specification for an Installer
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+script: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|script|Represents the contents of a installer shell script|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+

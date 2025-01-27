@@ -1,0 +1,53 @@
+---
+title: Private Key Reference
+description: Provides a reference of fields within the Private Key resource, which you can manage with tctl.
+sidebar_title: Private Key
+---
+
+The `PrivateKey` message represents a private key entry for a specific local user. It serves as a reference to a private key located on a user's laptop. Note that it *NEVER* contains the private key itself. Instead, it stores metadata related to the key, including the fingerprint of the public key, the device trust identifier, and the public key mode. The Teleport Access Graph uses this metadata to assess whether a particular private key is authorized to access a user on the node without using Teleport.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/accessgraph/v1/private_key.pb.go*/}
+
+Example:
+
+```yaml
+metadata: # See description
+kind: "string"
+sub_kind: "string"
+version: "string"
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is version.|string|
+|sub_kind|Sub_kind is an optional resource sub kind, used in some resources.|string|
+|spec|A PrivateKey specification.|[Private Key Spec](#private-key-spec)|
+|metadata|Metadata is the PrivateKey's metadata.||
+|kind|Kind is a resource kind.|string|
+
+## Private Key Spec
+
+The private key spec.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/accessgraph/v1/private_key.pb.go*/}
+
+Example:
+
+```yaml
+device_id: "string"
+public_key_fingerprint: "string"
+public_key_mode: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key_mode|Public_key_mode is the public key mode.|[Public Key Mode](#public-key-mode)|
+|public_key_fingerprint|Public_key_fingerprint is the SHA256 of the SSH public key corresponding to the private key.|string|
+|device_id|Device_id is the device trust identifier of the device that owns the key.|string|
+
+## Public Key Mode
+
+The mode of the public key. The public key can be derived from the private key, stored in a separate file, or the private key was password protected and we could not extract the public key from it or from the file.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/accessgraph/v1/private_key.pb.go*/}
+

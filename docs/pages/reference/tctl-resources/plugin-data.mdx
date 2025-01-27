@@ -1,0 +1,95 @@
+---
+title: Plugin Data Reference
+description: Provides a reference of fields within the Plugin Data resource, which you can manage with tctl.
+sidebar_title: Plugin Data
+---
+
+**Kind**: plugin_data
+**Version**: v3
+
+PluginData stores a collection of values associated with a specific resource.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A PluginData specification|[Plugin Data Spec](#plugin-data-spec)|
+|metadata|PluginData metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Plugin Data Entry
+
+Wraps a mapping of arbitrary string values used by plugins to store per-resource information.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+data: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|data|A mapping of arbitrary string values.|map[string]string|
+
+## Plugin Data Spec
+
+PluginData stores a collection of values associated with a specific resource.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+entries: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|entries|A collection of PluginData values organized by plugin name.|map[string][Plugin Data Entry](#plugin-data-entry)|
+

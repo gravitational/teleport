@@ -1,0 +1,175 @@
+---
+title: Github Connector Reference
+description: Provides a reference of fields within the Github Connector resource, which you can manage with tctl.
+sidebar_title: Github Connector
+---
+
+**Kind**: github
+**Version**: v3
+
+Represents a Github connector.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are: `v3`.|string|
+|sub_kind|An optional resource sub kind, used in some resources.|string|
+|spec|An Github connector specification.|[Github Connector Spec](#github-connector-spec)|
+|metadata|Holds resource metadata.|[Metadata](#metadata)|
+|kind|A resource kind.|string|
+
+## Github Connector Spec
+
+A Github connector specification.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+client_id: "string"
+client_secret: "string"
+redirect_url: "string"
+teams_to_logins: 
+  - # [...]
+  - # [...]
+  - # [...]
+display: "string"
+teams_to_roles: 
+  - # [...]
+  - # [...]
+  - # [...]
+endpoint_url: "string"
+api_endpoint_url: "string"
+client_redirect_settings: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|teams_to_roles|Maps Github team memberships onto allowed roles.|[][Team Roles Mapping](#team-roles-mapping)|
+|teams_to_logins|Maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead.|[][Team Mapping](#team-mapping)|
+|redirect_url|The authorization callback URL.|string|
+|endpoint_url|The URL of the GitHub instance this connector is for.|string|
+|display|The connector display name.|string|
+|client_secret|The Github OAuth app client secret.|string|
+|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSOClient Redirect Settings](#ssoclient-redirect-settings)|
+|client_id|The Github OAuth app client ID.|string|
+|api_endpoint_url|The URL of the API endpoint of the Github instance this connector is for.|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## SSOClient Redirect Settings
+
+Contains settings to define which additional client redirect URLs should be allowed for non-browser SSO logins.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+allowed_https_hostnames: 
+  - "string"
+  - "string"
+  - "string"
+insecure_allowed_cidr_ranges: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|insecure_allowed_cidr_ranges|A list of CIDRs allowed for HTTP or HTTPS client redirect URLs|[]string|
+|allowed_https_hostnames|A list of hostnames allowed for https client redirect URLs|[]string|
+
+## Team Mapping
+
+Represents a single team membership mapping.  DELETE IN 11.0.0
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+organization: "string"
+team: "string"
+logins: 
+  - "string"
+  - "string"
+  - "string"
+kubernetes_groups: 
+  - "string"
+  - "string"
+  - "string"
+kubernetes_users: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|team|A team within the organization a user belongs to.|string|
+|organization|A Github organization a user belongs to.|string|
+|logins|A list of allowed logins for this org/team.|[]string|
+|kubernetes_users|A list of allowed kubernetes users to impersonate for this org/team.|[]string|
+|kubernetes_groups|A list of allowed kubernetes groups for this org/team.|[]string|
+
+## Team Roles Mapping
+
+Represents a single team membership mapping.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+organization: "string"
+team: "string"
+roles: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|team|A team within the organization a user belongs to.|string|
+|roles|A list of allowed logins for this org/team.|[]string|
+|organization|A Github organization a user belongs to.|string|
+

@@ -1,0 +1,137 @@
+---
+title: Cluster Networking Config Reference
+description: Provides a reference of fields within the Cluster Networking Config resource, which you can manage with tctl.
+sidebar_title: Cluster Networking Config
+---
+
+**Kind**: cluster_networking_config
+**Version**: v2
+
+Contains cluster-wide networking configuration.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are:`v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A ClusterNetworkingConfig specification|[Cluster Networking Config Spec](#cluster-networking-config-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Cluster Networking Config Spec
+
+The actual data we care about for ClusterNetworkingConfig.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+client_idle_timeout: # [...]
+keep_alive_interval: # [...]
+keep_alive_count_max: 1
+session_control_timeout: # [...]
+idle_timeout_message: "string"
+web_idle_timeout: # [...]
+proxy_listener_mode: # [...]
+routing_strategy: # [...]
+tunnel_strategy: # [...]
+proxy_ping_interval: # [...]
+assist_command_execution_workers: 1
+case_insensitive_routing: true
+ssh_dial_timeout: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|web_idle_timeout|Sets global cluster default setting for the web UI idle timeouts.|[Duration](#duration)|
+|tunnel_strategy|V1 determines the tunnel strategy used in the cluster.|[Tunnel Strategy](#tunnel-strategy)|
+|ssh_dial_timeout|A custom dial timeout used when establishing SSH connections. If not set, the default timeout of 30s will be used.|[Duration](#duration)|
+|session_control_timeout|The session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.|[Duration](#duration)|
+|routing_strategy|Determines the strategy used to route to nodes. 0 is "unambiguous_match"; 1 is "most_recent".|[Routing Strategy](#routing-strategy)|
+|proxy_ping_interval|Defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected.|[Duration](#duration)|
+|proxy_listener_mode|Proxy listener mode used by Teleport Proxies. 0 is "separate"; 1 is "multiplex".|[Proxy Listener Mode](#proxy-listener-mode)|
+|keep_alive_interval|The interval at which the server sends keep-alive messages to the client.|[Duration](#duration)|
+|keep_alive_count_max|The number of keep-alive messages that can be missed before the server disconnects the connection to the client.|number|
+|idle_timeout_message|The message sent to the user when a connection times out.|string|
+|client_idle_timeout|Sets global cluster default setting for client idle timeouts.|[Duration](#duration)|
+|case_insensitive_routing|Causes proxies to use case-insensitive hostname matching.|Boolean|
+|assist_command_execution_workers|Determines the number of workers that will execute arbitrary Assist commands on servers in parallel|number|
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+{/*Automatically generated from: ../../../../api/types/duration.go*/}
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Proxy Listener Mode
+
+Represents the cluster proxy listener mode.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Routing Strategy
+
+Determines the strategy used to route to nodes.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+## Tunnel Strategy
+
+Defines possible tunnel strategy types.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Strategy|Types that are valid to be assigned to Strategy:  	*TunnelStrategyV1_AgentMesh 	*TunnelStrategyV1_ProxyPeering|[is Tunnel Strategy V1_Strategy](#is-tunnel-strategy-v1_strategy)|
+
+## is Tunnel Strategy V1_Strategy
+
+
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+

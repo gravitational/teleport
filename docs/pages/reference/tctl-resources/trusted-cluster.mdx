@@ -1,0 +1,110 @@
+---
+title: Trusted Cluster Reference
+description: Provides a reference of fields within the Trusted Cluster resource, which you can manage with tctl.
+sidebar_title: Trusted Cluster
+---
+
+**Kind**: trusted_cluster
+**Version**: v2
+
+Represents a Trusted Cluster.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are: `v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources.|string|
+|spec|A Trusted Cluster specification.|[Trusted Cluster Spec](#trusted-cluster-spec)|
+|metadata|Holds resource metadata.|[Metadata](#metadata)|
+|kind|A resource kind.|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Role Mapping
+
+Provides mapping of remote roles to local roles for trusted clusters
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+remote: "string"
+local: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|remote|Specifies remote role name to map from|string|
+|local|Specifies local roles to map to|[]string|
+
+## Trusted Cluster Spec
+
+A Trusted Cluster specification.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+enabled: true
+roles: 
+  - "string"
+  - "string"
+  - "string"
+token: "string"
+web_proxy_addr: "string"
+tunnel_addr: "string"
+role_map: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|web_proxy_addr|The address of the web proxy server of the cluster to join. If not set, it is derived from `\<metadata.name\>:\<default web proxy server port\>`.|string|
+|tunnel_addr|The address of the SSH proxy server of the cluster to join. If not set, it is derived from `\<metadata.name\>:\<default reverse tunnel port\>`.|string|
+|token|The authorization token provided by another cluster needed by this cluster to join.|string|
+|roles|A list of roles that users will be assuming when connecting to this cluster.|[]string|
+|role_map|Specifies role mappings to remote roles.|[][Role Mapping](#role-mapping)|
+|enabled|A bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).|Boolean|
+

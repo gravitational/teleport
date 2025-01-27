@@ -1,0 +1,250 @@
+---
+title: Web Session Reference
+description: Provides a reference of fields within the Web Session resource, which you can manage with tctl.
+sidebar_title: Web Session
+---
+
+**Kind**: web_session
+**Version**: v2
+
+Represents an application or UI web session.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version.|string|
+|sub_kind|An optional resource sub kind, used in some resources.|string|
+|spec|A tunnel specification.|[Web Session Spec](#web-session-spec)|
+|metadata|A resource metadata.|[Metadata](#metadata)|
+|kind|A resource kind.|string|
+
+## Device Web Token
+
+Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+id: "string"
+token: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|token|Opaque device web token, in plaintext, encoded in base64.RawURLEncoding (so it is inherently safe for URl use).|string|
+|id|Opaque token identifier.|string|
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+{/*Automatically generated from: ../../../../api/types/duration.go*/}
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## SAMLAttribute
+
+Contains an attribute name and associated values. Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+friendly_name: "string"
+name: "string"
+name_format: "string"
+values: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|values|A list of attribute values.|[][SAMLAttribute Value](#samlattribute-value)|
+|name_format|The format of the name.|string|
+|name|A full name for the attribute, typically an OID value.|string|
+|friendly_name|A user readable name for the attribute.|string|
+
+## SAMLAttribute Value
+
+S contains a type, value, and an associated name ID block. Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+type: "string"
+value: "string"
+name_id: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|value|The value of the attribute.|string|
+|type|The type of value this attribute represents.|string|
+|name_id|A more restrictive identifier for the attribute value.|[SAMLName ID](#samlname-id)|
+
+## SAMLName ID
+
+A more restrictive identifier for an object in SAML. Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name_qualifier: "string"
+sp_name_qualifier: "string"
+format: "string"
+sp_provider_id: "string"
+value: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|value|The value of the name ID.|string|
+|sp_provider_id|An identifier established by the service provider.|string|
+|sp_name_qualifier|Qualifies the identifier with the name of the service provider.|string|
+|name_qualifier|The domain that qualifies the identifier.|string|
+|format|The format of the identifier.|string|
+
+## SAMLSession Data
+
+Contains data for a SAML session. Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+id: "string"
+create_time: # See description
+expire_time: # See description
+index: "string"
+name_id: "string"
+name_id_format: "string"
+subject_id: "string"
+groups: 
+  - "string"
+  - "string"
+  - "string"
+user_name: "string"
+user_email: "string"
+user_common_name: "string"
+user_surname: "string"
+user_given_name: "string"
+user_scoped_affiliation: "string"
+custom_attributes: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|user_surname|The user's surname.|string|
+|user_scoped_affiliation|The user's scoped affiliation.|string|
+|user_name|The user's name.|string|
+|user_given_name|The user's given name.|string|
+|user_email|The user's e-mail.|string|
+|user_common_name|The user's common name.|string|
+|subject_id|The identifier for the subject of the session.|string|
+|name_id_format|The format of the Name ID.|string|
+|name_id|An identifier for the session.|string|
+|index|The session index that allows the IdP to uniquely identify a session.|string|
+|id|The identifier for the SAML session.|string|
+|groups|A list of groups that the user has access to.|[]string|
+|expire_time|The time that the session will expire.||
+|custom_attributes|Any custom attributes associated with the request.|[][SAMLAttribute](#samlattribute)|
+|create_time|The time that the session was created.||
+
+## Trusted Device Requirement
+
+Indicates whether access may be hindered by the lack of a trusted device.
+
+{/*Automatically generated from: ../../../../api/types/trusted_device_requirement.pb.go*/}
+
+## Web Session Spec
+
+A specification for web session.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+user: "string"
+pub: BASE64_STRING
+priv: BASE64_STRING
+tls_cert: BASE64_STRING
+bearer_token: "string"
+bearer_token_expires: # See description
+expires: # See description
+login_time: # See description
+idle_timeout: # [...]
+consumed_access_request_id: "string"
+saml_session: # [...]
+device_web_token: # [...]
+has_device_extensions: true
+trusted_device_requirement: # [...]
+tls_priv: BASE64_STRING
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|The identity of the user to which the web session belongs.|string|
+|trusted_device_requirement|Indicates whether access may be hindered by the lack of a trusted device.  If during login a device is required and DeviceWebToken is nil, then it's likely the user needs to enroll their device to avoid impacting access.|[Trusted Device Requirement](#trusted-device-requirement)|
+|tls_priv|The TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8 format. If unset, then Priv is used as both the SSH and TLS private key.|base64-encoded string|
+|tls_cert|The X.509 certificate for the user (PEM-encoded).|base64-encoded string|
+|saml_session|Data associated with a SAML IdP session.|[SAMLSession Data](#samlsession-data)|
+|pub|The SSH certificate for the user, marshaled in the authorized key format.|base64-encoded string|
+|priv|The SSH private key for the user, in PEM-encoded PKCS#1 or PKCS#8 format. If TLSPriv is unset, this is also the TLS private key.|base64-encoded string|
+|login_time|The time this user recently logged in.||
+|idle_timeout|The max time a user can be inactive in a session.|[Duration](#duration)|
+|has_device_extensions|True if the session's TLS and SSH certificates are augmented with device extensions.|Boolean|
+|expires|The absolute time when the session expires.||
+|device_web_token|Device trust web authentication token. May be exchanged for a single on-behalf-of device authentication attempt (typically performed by Connect). Only present if on-behalf-of device authentication is possible.|[Device Web Token](#device-web-token)|
+|consumed_access_request_id|The ID of the access request from which additional roles to assume were obtained.|string|
+|bearer_token_expires|The absolute time when the token expires.||
+|bearer_token|A token that is paired with the session cookie for authentication. It is periodically rotated so a stolen cookie itself is not enough to steal a session. In addition it is used for CSRF mitigation.|string|
+

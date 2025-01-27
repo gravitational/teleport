@@ -1,0 +1,102 @@
+---
+title: Global Notification Reference
+description: Provides a reference of fields within the Global Notification resource, which you can manage with tctl.
+sidebar_title: Global Notification
+---
+
+Represents a global notification.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is the resource version.|string|
+|sub_kind|Sub_kind is the optional resource subkind. This is unused.|string|
+|spec|Spec is the global notification's specification.|[Global Notification Spec](#global-notification-spec)|
+|metadata|Metadata is the user last seen notification object's metadata.||
+|kind|Kind is the resource kind ("global_notification").|string|
+
+## Global Notification Spec
+
+The global notification's specification.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+: # [...]
+match_all_conditions: true
+notification: # [...]
+exclude_users: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|notification|Notification is the notification itself.|[Notification](#notification)|
+|match_all_conditions|Match_all_conditions is whether or not all the conditions specified by the matcher must be met, if false, only one of the conditions needs to be met.|Boolean|
+|exclude_users|Exclude_users is a list of usernames of users who should never match this notification under any circumstances.|[]string|
+|Matcher|For determining the target of this notification.  Types that are valid to be assigned to Matcher:  	*GlobalNotificationSpec_ByPermissions 	*GlobalNotificationSpec_ByRoles 	*GlobalNotificationSpec_All|[is Global Notification Spec_Matcher](#is-global-notification-spec_matcher)|
+
+## Notification
+
+Represents a notification item.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is the resource version.|string|
+|sub_kind|Sub_kind represents the unique kind of notification this is, eg. `access-request-approved`|string|
+|spec|Spec is the notification specification.|[Notification Spec](#notification-spec)|
+|metadata|Metadata is the notification's metadata. This contains the notification's labels, and expiry. All custom notification metadata should be stored in labels.||
+|kind|Kind is the resource kind ("notification").|string|
+
+## Notification Spec
+
+The notification specification.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+created: # See description
+unscoped: true
+username: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|username|Username is the username of the target user if this is a user-specific notification. Requests for global notifications with a username will be rejected.|string|
+|unscoped|Unscoped is whether the notification shouldn't be restricted to a specific audience. This is to prevent the potential future possibility that a user-specific notification contains information that the user should no longer be allowed to see. Default is true.|Boolean|
+|created|Created is when the notification was created, in UNIX time.||
+
+## is Global Notification Spec_Matcher
+
+
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+

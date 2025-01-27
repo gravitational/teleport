@@ -1,0 +1,137 @@
+---
+title: Crown Jewel Reference
+description: Provides a reference of fields within the Crown Jewel resource, which you can manage with tctl.
+sidebar_title: Crown Jewel
+---
+
+Represents a Crown Jewel resource. Crown Jewel is a resource that represents a set of resources that are considered critical to the organization. Access Graph uses Crown Jewel to generate audit events if access to a resource has changed.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/crownjewel/v1/crownjewel.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Mandatory field for all resources. Not populated for this resource type.|string|
+|spec|The crown jewel spec.|[Crown Jewel Spec](#crown-jewel-spec)|
+|metadata|Common metadata that all resources share.||
+|kind|The kind of resource represented.|string|
+
+## AWSMatcher
+
+Represents a matcher for AWS resources. Those matchers are used only by Access Graph. Teleport related matchers are defined in the TeleportMatcher.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/crownjewel/v1/crownjewel.pb.go*/}
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+regions: 
+  - "string"
+  - "string"
+  - "string"
+tags: 
+  - # [...]
+  - # [...]
+  - # [...]
+arns: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|types|AWS database types to match, "ec2", "rds", "s3", etc|[]string|
+|tags|AWS resource Tags to match. labels is a set of labels.|[][AWSTag](#awstag)|
+|regions|AWS regions to query for resources.|[]string|
+|arns|ARNs are AWS resources ARN to match.|[]string|
+
+## AWSTag
+
+A tag that is attached to an AWS resource.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/crownjewel/v1/crownjewel.pb.go*/}
+
+Example:
+
+```yaml
+key: "string"
+values: 
+  - # See description
+  - # See description
+  - # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|values|Value is the value of the tag.|[]|
+|key|The key of the tag.|string|
+
+## Crown Jewel Spec
+
+The specification of a Crown Jewel.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/crownjewel/v1/crownjewel.pb.go*/}
+
+Example:
+
+```yaml
+teleport_matchers: 
+  - # [...]
+  - # [...]
+  - # [...]
+aws_matchers: 
+  - # [...]
+  - # [...]
+  - # [...]
+query: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|teleport_matchers|A list of teleport matchers. DEPRECATED: Use query instead.|[][Teleport Matcher](#teleport-matcher)|
+|query|A Access Graph query to match resources.|string|
+|aws_matchers|AWSMatchers is a list of AWS matchers. DEPRECATED: Use query instead.|[][AWSMatcher](#awsmatcher)|
+
+## Teleport Matcher
+
+Represents a matcher for Teleport resources.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/crownjewel/v1/crownjewel.pb.go*/}
+
+Example:
+
+```yaml
+kinds: 
+  - "string"
+  - "string"
+  - "string"
+labels: 
+  - # See description
+  - # See description
+  - # See description
+names: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|names|The name of resources. When the name is provided, it will match resources with the same name.|[]string|
+|labels|A set of labels.|[]|
+|kinds|Kind is the kind of the resource: ssh, k8s, db, etc Multiple kinds can be provided to match multiple kinds.|[]string|
+

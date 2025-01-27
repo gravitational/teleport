@@ -1,0 +1,43 @@
+---
+title: Unique Notification Identifier Reference
+description: Provides a reference of fields within the Unique Notification Identifier resource, which you can manage with tctl.
+sidebar_title: Unique Notification Identifier
+---
+
+Represents a unique notification identifier. This is a resource whose existence is used to keep track of whether a particular notification has already been created, in order to prevent duplicate notifications. For example, if the unique identifier is "unique_notification_identifier/access_list_30d_reminder/1234", when a caller attempts to create a notification for a 30 day reminder to review access list 1234, it will create this identifier resource as well, and any subsequent times it attempts to create the notification, it will detect that the identifier already exists, and thus know not to create a duplicate. Note that using this system does not always guarantee accuracy/concurrency, so this shouldn't be used for security critical notifications.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is the resource version.|string|
+|spec|Spec is the unique notification identifier spec.|[Unique Notification Identifier Spec](#unique-notification-identifier-spec)|
+|metadata|Metadata is the unique notification identifier metadata.||
+|kind|Kind is the resource kind ("unique_notification_identifier").|string|
+
+## Unique Notification Identifier Spec
+
+The unique notification identifier specification.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+unique_identifier: "string"
+unique_identifier_prefix: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|unique_identifier_prefix|Unique_identifier_prefix is the prefix for this unique notiifcation identifier, this is used to group notification identifiers together, eg. "access_list_30d_reminder"|string|
+|unique_identifier|Unique_identifier is the unique identifier string. This is what is used to keep track of the unique notification and what is used in the resource's backend key.|string|
+

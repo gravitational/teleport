@@ -1,0 +1,90 @@
+---
+title: Principal State Reference
+description: Provides a reference of fields within the Principal State resource, which you can manage with tctl.
+sidebar_title: Principal State
+---
+
+Describes the provisioning state of a Teleport user in a downstream system
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/provisioning/v1/provisioning.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|status||[Principal State Status](#principal-state-status)|
+|spec||[Principal State Spec](#principal-state-spec)|
+|metadata|||
+|kind||string|
+
+## Principal State Spec
+
+Describes the current state of a provisioning operation. It serves as a Teleport-local record of the downstream state.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/provisioning/v1/provisioning.pb.go*/}
+
+Example:
+
+```yaml
+downstream_id: "string"
+principal_type: # [...]
+principal_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|principal_type|Identifies what kind of principal this state applies to, either a User or a Group (i.e. AccessList)|[Principal Type](#principal-type)|
+|principal_id|Identifies the Teleport User or Access List that this state applies to|string|
+|downstream_id|Identifies the downstream service that this state applies to.|string|
+
+## Principal State Status
+
+Contains the runtime-writable status block for the PrincipalState resource
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/provisioning/v1/provisioning.pb.go*/}
+
+Example:
+
+```yaml
+provisioning_state: # [...]
+external_id: "string"
+last_provisioned: # See description
+error: "string"
+provisioned_principal_revision: "string"
+active_locks: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|provisioning_state|Indicates the resource's current state in the provisioning process state machine.|[Provisioning State](#provisioning-state)|
+|provisioned_principal_revision|Revision holds the revision of the principal record provisioned into the downstream system. Used to assert that the latest revision of the principal is provisioned downstream and detect changes in the principal that require re-provisoning.|string|
+|last_provisioned|Records the last time this record was provisioined into the downstream system.||
+|external_id|ExternalID holds the ID used by the downstream system to represent this principal|string|
+|error|Holds a description of the last provisioing error, if any.|string|
+|active_locks|Holds the list of known active locks on the principal. Used to store the lock state across restarts of Teleport in order to detect state changes that may happen while Teleport is not running (e.g. a storage backend deleting an expired lock record while Teleport is offline)|[]string|
+
+## Principal Type
+
+Indicates the type of principal represented by a PrincipalState
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/provisioning/v1/provisioning.pb.go*/}
+
+## Provisioning State
+
+Indicates the current stage of the provisioning pipeline a resource is in.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/provisioning/v1/provisioning.pb.go*/}
+

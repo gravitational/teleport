@@ -1,0 +1,76 @@
+---
+title: Login Rule Reference
+description: Provides a reference of fields within the Login Rule resource, which you can manage with tctl.
+sidebar_title: Login Rule
+---
+
+A resource to configure rules and logic which should run during Teleport user login.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/loginrule/v1/loginrule.pb.go*/}
+
+Example:
+
+```yaml
+metadata: # [...]
+version: "string"
+priority: 1
+traits_map: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+traits_expression: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version.|string|
+|traits_map|A map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.|map[string][String Values](#string-values)|
+|traits_expression|A predicate expression which should return the desired traits for the user upon login.|string|
+|priority|The priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.|number|
+|metadata|Resource metadata.|[Metadata](#metadata)|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## String Values
+
+A list of strings.
+
+{/*Automatically generated from: ../../../../api/types/wrappers/wrappers.pb.go*/}
+
+Example:
+
+```yaml
+Values: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Values||[]string|
+

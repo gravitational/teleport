@@ -1,0 +1,102 @@
+---
+title: Watch Status Reference
+description: Provides a reference of fields within the Watch Status resource, which you can manage with tctl.
+sidebar_title: Watch Status
+---
+
+Intended to be attached to OpInit events and contain information about a successful WatchEvents call.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version.|string|
+|sub_kind|An optional resource subkind. Currently unused for this resource.|string|
+|spec|The resource spec.|[Watch Status Spec](#watch-status-spec)|
+|metadata|The resource metadata.|[Metadata](#metadata)|
+|kind|The resource kind.|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Watch Kind
+
+Specifies resource kind to watch When adding fields to this struct, make sure to review/update WatchKind.Contains method.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+load_secrets: true
+name: "string"
+filter: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+sub_kind: "string"
+version: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|version|Optionally specifies the resource version to watch. Currently this field is ignored.|string|
+|sub_kind|A resource subkind to watch|string|
+|name|An optional specific resource type to watch, if specified only the events with a specific resource name will be sent|string|
+|load_secrets|Specifies whether to load secrets|Boolean|
+|kind|A resource kind to watch|string|
+|filter|An optional mapping of custom filter parameters. Valid values vary by resource kind.|map[string]string|
+
+## Watch Status Spec
+
+Contains resource kinds confirmed by WatchEvents to be included in the event stream.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kinds: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|kinds||[][Watch Kind](#watch-kind)|
+

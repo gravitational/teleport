@@ -1,0 +1,71 @@
+---
+title: Account Assignment Reference
+description: Provides a reference of fields within the Account Assignment resource, which you can manage with tctl.
+sidebar_title: Account Assignment
+---
+
+Captures the relationship between a PermissionSet and an Identity Center Account. It represents two parts of a potential 3-part Identity Center Account Assignment. This is the primary requestable resource for a user and a user having access to an AccountAssignment resource implies that there is a corresponding Account Assignment in AWS Identity Center that grants that user the Permission Set specified in that resource, on the AWS Account specified in that resource.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|spec||[Account Assignment Spec](#account-assignment-spec)|
+|metadata|||
+|kind||string|
+
+## Account Assignment Spec
+
+Holds static information abount an AccountAssignment, linking a Permission Set and an AWS account.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+display: "string"
+permission_set: # [...]
+account_name: "string"
+account_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|permission_set||[Permission Set Info](#permission-set-info)|
+|display||string|
+|account_name||string|
+|account_id||string|
+
+## Permission Set Info
+
+Represents a permission set that is available on a given account. This is not intended to be a complete description of a PermissionSet, but just enough to identify it for cross-referencing when included in an Account record.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/identitycenter/v1/identitycenter.pb.go*/}
+
+Example:
+
+```yaml
+arn: "string"
+name: "string"
+role: "string"
+assignment_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|role|An optional ARN indicating role provisioned to this account. May be empty if the permission set is not provisioned or is not relevant in the|string|
+|name|Title is the human-readable name of the permission set|string|
+|assignment_id|AssignmentID is the name of a Teleport Account Assignment resource representing this permission set assigned to the enclosing Account.|string|
+|arn|The unique ARN for this permission set|string|
+

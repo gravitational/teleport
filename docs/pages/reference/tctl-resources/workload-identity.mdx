@@ -1,0 +1,168 @@
+---
+title: Workload Identity Reference
+description: Provides a reference of fields within the Workload Identity resource, which you can manage with tctl.
+sidebar_title: Workload Identity
+---
+
+Represents a single, or group of similar, workload identities and configures the structure of workload identity credentials and authorization rules. is a resource that represents the configuration of a trust domain federation.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
+|spec|The configured properties of the WorkloadIdentity|[Workload Identity Spec](#workload-identity-spec)|
+|metadata|Common metadata that all resources share.||
+|kind|The kind of resource represented.|string|
+
+## Workload Identity Condition
+
+The individual conditions that make up a rule.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+attribute: "string"
+: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|attribute|The name of the attribute to evaluate the condition against.|string|
+|Operator|Types that are valid to be assigned to Operator:  	*WorkloadIdentityCondition_Eq 	*WorkloadIdentityCondition_NotEq 	*WorkloadIdentityCondition_In 	*WorkloadIdentityCondition_NotIn|[is Workload Identity Condition_Operator](#is-workload-identity-condition_operator)|
+
+## Workload Identity Rule
+
+An individual rule that is evaluated during the issuance of a WorkloadIdentity.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+conditions: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|conditions|The conditions that must be met for this rule to be considered passed.|[][Workload Identity Condition](#workload-identity-condition)|
+
+## Workload Identity Rules
+
+The rules which are evaluated before the WorkloadIdentity can be issued.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of rules used to determine if a WorkloadIdentity can be issued. If none are provided, it will be considered a pass. If any are provided, then at least one must pass for the rules to be considered passed.|[][Workload Identity Rule](#workload-identity-rule)|
+
+## Workload Identity SPIFFE
+
+Configuration pertaining to the issuance of SPIFFE-compatible workload identity credentials.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+id: "string"
+hint: "string"
+x509: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|x509|Configuration specific to X509-SVIDs.|[Workload Identity SPIFFEX509](#workload-identity-spiffex509)|
+|id|The path of the SPIFFE ID that will be issued to the workload.  This should be prefixed with a forward-slash ("/").  This field supports templating using attributes.|string|
+|hint|A freeform text field which is provided to workloads along with a credential produced by this WorkloadIdentity. This can be used to provide additional context that can be used to select between multiple credentials.|string|
+
+## Workload Identity SPIFFEX509
+
+Configuration specific to the issuance of X509-SVIDs.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+dns_sans: 
+  - "string"
+  - "string"
+  - "string"
+subject_template: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|subject_template|Used to configure the Subject Distinguished Name (DN) of the X509-SVID.  In most circumstances, it is recommended to prefer relying on the SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed to support legacy systems designed for X509 and not SPIFFE/WIMSE.  If not provided, the X509-SVID will be issued with an empty Subject DN.|[X509Distinguished Name Template](#x509distinguished-name-template)|
+|dns_sans|The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.|[]string|
+
+## Workload Identity Spec
+
+The spec for the WorkloadIdentity resource.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+rules: # [...]
+spiffe: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|spiffe|Configuration pertaining to the issuance of SPIFFE-compatible workload identity credentials.|[Workload Identity SPIFFE](#workload-identity-spiffe)|
+|rules|The rules which are evaluated before the WorkloadIdentity can be issued.|[Workload Identity Rules](#workload-identity-rules)|
+
+## X509Distinguished Name Template
+
+Template for an X509 Distinguished Name (DN). Each field is optional, and, if provided, supports templating using attributes.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+
+Example:
+
+```yaml
+common_name: "string"
+organization: "string"
+organizational_unit: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|organizational_unit|Organizational Unit (OU) - 2.5.4.11 If empty, the RDN will be omitted from the DN.|string|
+|organization|(O) - 2.5.4.10 If empty, the RDN will be omitted from the DN.|string|
+|common_name|Common Name (CN) - 2.5.4.3 If empty, the RDN will be omitted from the DN.|string|
+
+## is Workload Identity Condition_Operator
+
+
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/workloadidentity/v1/resource.pb.go*/}
+

@@ -1,0 +1,64 @@
+---
+title: Vnet Config Reference
+description: Provides a reference of fields within the Vnet Config resource, which you can manage with tctl.
+sidebar_title: Vnet Config
+---
+
+A resource that holds configuration parameters for Teleport VNet.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/vnet/v1/vnet_config.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version||string|
+|sub_kind||string|
+|spec||[Vnet Config Spec](#vnet-config-spec)|
+|metadata|||
+|kind||string|
+
+## Custom DNSZone
+
+Defines parameters for custom DNS zones.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/vnet/v1/vnet_config.pb.go*/}
+
+Example:
+
+```yaml
+suffix: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|suffix|The hostname suffix that defines this zone.|string|
+
+## Vnet Config Spec
+
+Defines configuration parameters for VNet.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/vnet/v1/vnet_config.pb.go*/}
+
+Example:
+
+```yaml
+ipv4_cidr_range: "string"
+custom_dns_zones: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ipv4_cidr_range|Defines the IPv4 CIDR range that all IPv4 addresses for VNet apps in this cluster will be assigned from. The default is "100.64.0.0/10".|string|
+|custom_dns_zones|Defines a list of DNS zones that VNet should resolve requests for in addition to the cluster's public proxy address.|[][Custom DNSZone](#custom-dnszone)|
+

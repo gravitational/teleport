@@ -1,0 +1,69 @@
+---
+title: User Notification State Reference
+description: Provides a reference of fields within the User Notification State resource, which you can manage with tctl.
+sidebar_title: User Notification State
+---
+
+Represents a notification's state for a user. This is to keep track of whether the user has clicked on or dismissed the notification.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version is the resource version.|string|
+|sub_kind|Sub_kind is the optional resource subkind. This is unused.|string|
+|status|Status is the state of this user notification state, it contains the notification state itself which will be dynamically modified.|[User Notification State Status](#user-notification-state-status)|
+|spec|Spec is the user notification state's specification.|[User Notification State Spec](#user-notification-state-spec)|
+|metadata|Metadata is the user notification state's metadata.||
+|kind|Kind is the resource kind ("user_notification_state").|string|
+
+## Notification State
+
+The state of a notification for a user. This can represent either "clicked" or "dismissed".
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+## User Notification State Spec
+
+The user notification state's specification.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+notification_id: "string"
+username: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|username|Username is the username of the user this notification state is for.|string|
+|notification_id|Notification_id is the ID of the notification this state is for.|string|
+
+## User Notification State Status
+
+The status of this user notification state, it contains the notification state itself which will be dynamically modified.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/notifications/v1/notifications.pb.go*/}
+
+Example:
+
+```yaml
+notification_state: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|notification_state|Notification_state is the state of this notification for the user. This can represent either "clicked" or "dismissed".|[Notification State](#notification-state)|
+

@@ -1,0 +1,105 @@
+---
+title: Static Tokens Reference
+description: Provides a reference of fields within the Static Tokens resource, which you can manage with tctl.
+sidebar_title: Static Tokens
+---
+
+**Kind**: static_tokens
+**Version**: v2
+
+Implements the StaticTokens interface.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|Version|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A provisioning token V2 spec|[Static Tokens Spec](#static-tokens-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Provision Token
+
+A provisioning token V1
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+roles: 
+  - # [...]
+  - # [...]
+  - # [...]
+expires: # See description
+token: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|token|A token name|string|
+|roles|A list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|[][System Role](#system-role)|
+|expires|A global expiry time header can be set on any resource in the system.||
+
+## Static Tokens Spec
+
+The actual data we care about for StaticTokensSpecV2.
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+static_tokens: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|static_tokens|A list of tokens that can be used to add nodes to the cluster.|[][Provision Token](#provision-token)|
+
+## System Role
+
+Identifies the role of an SSH connection. Unlike "user roles" introduced as part of RBAC in Teleport 1.4+ these are built-in roles used for different Teleport components when connecting to each other.
+
+{/*Automatically generated from: ../../../../api/types/system_role.go*/}
+

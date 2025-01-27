@@ -1,0 +1,148 @@
+---
+title: License Reference
+description: Provides a reference of fields within the License resource, which you can manage with tctl.
+sidebar_title: License
+---
+
+**Kind**: license
+**Version**: v3
+
+Represents License resource version V3. When changing this, keep in mind that other consumers of teleport/api (Houston, Sales Center) might still need to generate or parse licenses for older versions of Teleport.
+
+{/*Automatically generated from: ../../../../api/types/license.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|A resource version.|string|
+|sub_kind|A resource sub kind|string|
+|spec|The specification of the resource.|[License Spec](#license-spec)|
+|metadata|Metadata about the resource.|[Metadata](#metadata)|
+|kind|A resource kind - always resource.|string|
+
+## Bool
+
+A wrapper around boolean values
+
+{/*Automatically generated from: ../../../../api/types/role.go*/}
+
+## Entitlement Info
+
+The state and limits of a particular entitlement; Example for feature X: `{ Enabled: true,  Limit: 0 }`   => unlimited access to feature X `{ Enabled: true,  Limit: >0 }`  => limited access to feature X `{ Enabled: false, Limit: >=0 }` => no access to feature X
+
+{/*Automatically generated from: ../../../../api/types/license.go*/}
+
+Example:
+
+```yaml
+: # [...]
+: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Limit|Indicates the allotted amount of use when limited; if 0 use is unlimited|number|
+|Enabled|Indicates the feature is 'on' if true; feature is disabled if false|[Bool](#bool)|
+
+## Feature Source
+
+Defines where the list of features enabled by the license is.
+
+{/*Automatically generated from: ../../../../api/types/license.go*/}
+
+## License Spec
+
+The actual data we care about for LicenseV3. When changing this, keep in mind that other consumers of teleport/api (Houston, Sales Center) might still need to generate or parse licenses for older versions of Teleport.
+
+{/*Automatically generated from: ../../../../api/types/license.go*/}
+
+Example:
+
+```yaml
+account_id: "string"
+aws_pid: "string"
+aws_account: "string"
+k8s: # [...]
+app: # [...]
+db: # [...]
+desktop: # [...]
+usage: # [...]
+reporting: # [...]
+cloud: # [...]
+moderated_sessions: # [...]
+machine_id: # [...]
+resource_access_requests: # [...]
+feature_hiding: # [...]
+trial: # [...]
+feature_source: # [...]
+custom_theme: "string"
+identity_governance_security: # [...]
+usage_based_billing: # [...]
+anonymization_key: "string"
+policy: # [...]
+entitlements: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|usage_based_billing|Determines if the user subscription is usage-based (pay-as-you-go).|[Bool](#bool)|
+|usage|Turns Houston usage reporting on or off|[Bool](#bool)|
+|trial|True for trial licenses|[Bool](#bool)|
+|resource_access_requests|Turns resource access request support on or off|[Bool](#bool)|
+|reporting|Turns Sales Center usage reporting on or off|[Bool](#bool)|
+|policy|Turns Teleport Policy features on or off.|[Bool](#bool)|
+|moderated_sessions|Turns on moderated sessions|[Bool](#bool)|
+|machine_id|Turns MachineID support on or off|[Bool](#bool)|
+|k8s|Turns kubernetes support on or off|[Bool](#bool)|
+|identity_governance_security|Turns IGS features on or off.|[Bool](#bool)|
+|feature_source|The source of the set of enabled feature  Deprecated. FeatureSource was used to differentiate between cloud+team vs cloud+enterprise. cloud+enterprise read from license and cloud+team read from salescenter. With the new EUB product, all cloud+ will read from salescenter.|[Feature Source](#feature-source)|
+|feature_hiding|Turns feature hiding support on or off|[Bool](#bool)|
+|entitlements|Entitlements define a customer’s access to a specific features|map[string][Entitlement Info](#entitlement-info)|
+|desktop|Turns desktop access on or off|[Bool](#bool)|
+|db|Turns database access on or off|[Bool](#bool)|
+|custom_theme|The name of the WebUI custom theme|string|
+|cloud|Turned on when teleport is hosted by Gravitational|[Bool](#bool)|
+|aws_pid|Limits usage to AWS instance with a product ID|string|
+|aws_account|Limits usage to AWS instance within account ID|string|
+|app|Turns application access on or off Note it's a pointer for backward compatibility|[Bool](#bool)|
+|anonymization_key|A key that is used to anonymize usage data when it is set. It should only be set when UsageBasedBilling is true.|string|
+|account_id|A customer account ID|string|
+
+## Metadata
+
+Resource metadata
+
+{/*Automatically generated from: ../../../../api/types/types.pb.go*/}
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+

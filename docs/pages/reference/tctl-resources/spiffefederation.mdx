@@ -1,0 +1,117 @@
+---
+title: SPIFFEFederation Reference
+description: Provides a reference of fields within the SPIFFEFederation resource, which you can manage with tctl.
+sidebar_title: SPIFFEFederation
+---
+
+A resource that represents the configuration of a trust domain federation.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/federation.pb.go*/}
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
+|status|Fields that are set by the server as results of operations. These should not be modified by users.|[SPIFFEFederation Status](#spiffefederation-status)|
+|spec|The configured properties of the trust domain federation|[SPIFFEFederation Spec](#spiffefederation-spec)|
+|metadata|Common metadata that all resources share. Importantly, the name MUST match the name of the trust domain you federate with.||
+|kind|The kind of resource represented.|string|
+
+## SPIFFEFederation Bundle Source
+
+Configures how the federation bundle is sourced. Only one field can be set.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/federation.pb.go*/}
+
+Example:
+
+```yaml
+static: # [...]
+https_web: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|static||[SPIFFEFederation Bundle Source Static](#spiffefederation-bundle-source-static)|
+|https_web||[SPIFFEFederation Bundle Source HTTPSWeb](#spiffefederation-bundle-source-httpsweb)|
+
+## SPIFFEFederation Bundle Source HTTPSWeb
+
+A bundle source that fetches the bundle from a HTTPS endpoint that is protected by a Web PKI certificate.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/federation.pb.go*/}
+
+Example:
+
+```yaml
+bundle_endpoint_url: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|bundle_endpoint_url|The URL of the SPIFFE Bundle Endpoint.|string|
+
+## SPIFFEFederation Bundle Source Static
+
+A static bundle source. It should be an option of last resort, as it requires manual updates.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/federation.pb.go*/}
+
+Example:
+
+```yaml
+bundle: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|bundle|The SPIFFE JWKS bundle.|string|
+
+## SPIFFEFederation Spec
+
+The configuration of a trust domain federation.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/federation.pb.go*/}
+
+Example:
+
+```yaml
+bundle_source: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|bundle_source|The source of the federation bundle.|[SPIFFEFederation Bundle Source](#spiffefederation-bundle-source)|
+
+## SPIFFEFederation Status
+
+FederationStatus is the status of a trust domain federation.
+
+{/*Automatically generated from: ../../../../api/gen/proto/go/teleport/machineid/v1/federation.pb.go*/}
+
+Example:
+
+```yaml
+current_bundle: "string"
+current_bundle_synced_at: # See description
+next_sync_at: # See description
+current_bundle_synced_from: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|next_sync_at|The time that this SPIFFE federation should be synced again. This is usually determined by the refresh hint provided within the current bundle but this can be overridden by the server where the provided refresh hint is not appropriate.  A value of zero indicates that an automatic sync is not scheduled (e.g. because the bundle source is static).||
+|current_bundle_synced_from|The SPIFFEFederationBundleSource that was used for the currently synced bundle. This allows the bundle to be resynced if the source changes.|[SPIFFEFederation Bundle Source](#spiffefederation-bundle-source)|
+|current_bundle_synced_at|The time that the most recently fetched bundle was obtained.||
+|current_bundle|The most recently fetched bundle from the federated trust domain.|string|
+
