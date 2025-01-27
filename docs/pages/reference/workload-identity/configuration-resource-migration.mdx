@@ -1,0 +1,61 @@
+---
+title: WorkloadIdentity Configuration Resource migration
+description: Migrating to the new WorkloadIdentity resource configuration
+---
+
+The way that you configure Teleport Workload Identity is changing. If you are
+currently using Workload Identity, you will need to migrate to the new
+configuration experience by V19.0.0 when support for the old configuration
+will be removed.
+
+## Overview
+
+Previously, the details of the credentials (e.g X509 SVID/JWT SVID) you wished
+to issue were defined directly within `tbot`. Controlling what credentials were
+allowed to be issued was done by configuring the `spec.allow.spiffe` field of
+the role resource.
+
+The new configuration experience introduces a new resource type, `WorkloadIdentity`,
+which allows you to define the structure of an identity credential that can be
+issued to workloads and the rules around what workloads it can be issued to.
+
+This provides the following benefits over the previous configuration experience:
+
+- Centralized control of the structure of the identity credential, which
+  simplifies the configuration of `tbot`.
+- The ability to specify rules based on the attributes of the workload, such as
+  the name of the Kubernetes namespace or service account, that is more fine
+  grained than the previous configuration.
+- The ability to use templating to dynamically generate elements of the identity
+  credential - allowing a single WorkloadIdentity resource to be used to serve
+  multiple workloads.
+
+You can read the full details of the new WorkloadIdentity resource in the
+[WorkloadIdentity Resource](./workload-identity-resource.mdx) reference.
+
+## Migrating `tbot`
+
+The following CLI commands have been replaced:
+
+- `tbot start spiffe-svid` is now `tbot start workload-identity-x509`.
+
+The following new additional CLI commands have been introduced:
+
+- `tbot start workload-identity-api` to start a listener for the Workload
+  Identity API.
+- `tbot start workload-identity-jwt` to issue a JWT SVID.
+
+You can read more about the new CLI commands in the
+[`tbot` CLI reference](../cli/tbot.mdx).
+
+The following service types have been replaced:
+
+- `spiffe-workload-api` is now `workload-identity-api`.
+- `spiffe-x509-svid` is now `workload-identity-x509`.
+
+The following new additional service types have been introduced:
+
+- `workload-identity-jwt` to issue JWT SVIDs.
+
+You can read more about the new service types in the
+[`tbot` configuration reference](../machine-id/configuration.mdx).

@@ -288,6 +288,7 @@
       "permanent": true
     },
     {
+<<<<<<< HEAD
       "source": "/deploy-a-cluster/open-source/",
       "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
       "permanent": true
@@ -380,6 +381,16 @@
     {
       "source": "/reference/introduction/",
       "destination": "/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+       "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/role-templates/",
+      "destination": "/admin-guides/access-controls/guides/role-templates/",
       "permanent": true
     }
   ]
