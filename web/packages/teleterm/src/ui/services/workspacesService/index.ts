@@ -18,4 +18,4 @@
 
 export * from './workspacesService';
 export * from './documentsService';
-export * from './profileColor';
+export * from './color';

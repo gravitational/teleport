@@ -20,9 +20,9 @@ import { z } from 'zod';
 
 import Logger from 'teleterm/logger';
 
-export type ProfileColor = z.infer<typeof profileColors>;
+export type WorkspaceColor = z.infer<typeof workspaceColors>;
 
-export const profileColors = z.enum([
+export const workspaceColors = z.enum([
   'purple',
   'green',
   'yellow',
@@ -33,21 +33,21 @@ export const profileColors = z.enum([
 ]);
 
 // TODO(gzdunek): Parse the entire workspace state read from disk like below.
-export function parseProfileColor(
+export function parseWorkspaceColor(
   color: unknown,
   workspaces: Record<
     string,
     {
-      color: ProfileColor;
+      color: WorkspaceColor;
     }
   >
-): ProfileColor {
-  const getDefault = () => getNextProfileColor(workspaces);
-  return profileColors
+): WorkspaceColor {
+  const getDefault = () => getNextWorkspaceColor(workspaces);
+  return workspaceColors
     .default(getDefault)
     .catch(ctx => {
       new Logger('WorkspacesService').error(
-        'Failed to read profile color preference',
+        'Failed to read workspace color preference',
         ctx.error
       );
       return getDefault();
@@ -59,11 +59,11 @@ export function parseProfileColor(
  * Determines the next available unused color across all workspaces.
  * If all colors are already in use, it defaults to returning purple.
  */
-function getNextProfileColor(
-  workspaces: Record<string, { color: ProfileColor }>
-): ProfileColor {
+function getNextWorkspaceColor(
+  workspaces: Record<string, { color: WorkspaceColor }>
+): WorkspaceColor {
   const takenColors = new Set(Object.values(workspaces).map(w => w.color));
-  const allColors = new Set(profileColors.options);
+  const allColors = new Set(workspaceColors.options);
   const unusedColors = allColors.difference(takenColors);
   return unusedColors.size > 0 ? [...unusedColors][0] : 'purple';
 }
