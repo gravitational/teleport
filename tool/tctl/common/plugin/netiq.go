@@ -261,7 +261,7 @@ func doRequest(url, method string, insecureSkipVerify bool) (*http.Response, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "Teleport")
+	req.Header.Set("User-Agent", fmt.Sprintf("%s/%s", teleport.ComponentTCTL, api.Version))
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
