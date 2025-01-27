@@ -1792,7 +1792,7 @@ export type RawEvents = {
       stable_unix_user: {
         username: string;
         uid: number;
-      }
+      };
     }
   >;
 };
