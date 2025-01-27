@@ -6853,12 +6853,27 @@ message PluginAWSICSettings {
   //
   // NOTE: System users are always filtered out by default and will not be provisioned to AWS IC.
   repeated AWSICUserSyncFilter user_sync_filters = 8 [(gogoproto.jsontag) = "user_sync_filters,omitempty"];
+  // GroupSyncLabelsFilter is used to specify filters that determine which AWS groups
+  // should be included during synchronization.
+  repeated AWSSyncFilter group_sync_filters = 9 [(gogoproto.jsontag) = "group_sync_filters,omitempty"];
 }
 
 // UserSyncFilter is a map of key-value pairs used to filter users based on their metadata labels.
 message AWSICUserSyncFilter {
   option (gogoproto.equal) = true;
   map<string, string> labels = 8 [(gogoproto.jsontag) = "labels,omitempty"];
+}
+
+// AWSSyncFilter represents a filter used to include or exclude AWS resource during sync based on the filter criteria.
+message AWSSyncFilter {
+  option (gogoproto.equal) = true;
+  // Include specifies resources to include during synchronization.
+  oneof include {
+    // Filter by ID.
+    string id = 1;
+    // Filter by Name using a regex.
+    string name = 2;
+  }
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
