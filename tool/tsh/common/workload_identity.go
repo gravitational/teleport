@@ -77,7 +77,7 @@ func newIssueX509Command(parent *kingpin.CmdClause) *issueX509Command {
 		"label-selector",
 		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
 	).StringVar(&cmd.labelSelector)
-	cmd.Flag("ttl", "Sets the time to live for the credential.").
+	cmd.Flag("credential-ttl", "Sets the time to live for the credential.").
 		Default("1h").
 		DurationVar(&cmd.ttl)
 	cmd.Flag("output", "Path to the directory to write the SVID into.").
