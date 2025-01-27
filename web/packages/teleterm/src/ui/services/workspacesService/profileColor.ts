@@ -1,7 +1,3 @@
-import { z } from 'zod';
-
-import Logger from 'teleterm/logger';
-
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
@@ -19,6 +15,10 @@ import Logger from 'teleterm/logger';
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+import { z } from 'zod';
+
+import Logger from 'teleterm/logger';
 
 export type ProfileColor = z.infer<typeof profileColors>;
 
@@ -65,5 +65,5 @@ function getNextProfileColor(
   const takenColors = new Set(Object.values(workspaces).map(w => w.color));
   const allColors = new Set(profileColors.options);
   const unusedColors = allColors.difference(takenColors);
-  return unusedColors.size >= 0 ? [...unusedColors][0] : 'purple';
+  return unusedColors.size > 0 ? [...unusedColors][0] : 'purple';
 }
