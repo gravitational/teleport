@@ -81,7 +81,9 @@ class TextEditor extends Component {
     }
 
     this.editor.setSession(activeSession);
-    this.editor.focus();
+    if (!this.props.readOnly) {
+      this.editor.focus();
+    }
   }
 
   initSessions(data = []) {
@@ -104,7 +106,10 @@ class TextEditor extends Component {
     this.editor.setReadOnly(readOnly);
     this.editor.setTheme({ cssClass: 'ace-teleport' });
     this.initSessions(data);
-    this.editor.focus();
+
+    if (!readOnly) {
+      this.editor.focus();
+    }
   }
 
   componentWillUnmount() {
