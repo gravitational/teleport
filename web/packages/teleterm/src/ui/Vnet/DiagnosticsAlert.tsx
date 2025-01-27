@@ -26,7 +26,9 @@ import {
   CheckReportStatus,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { textSpacing } from './sliderStep';
 import { useVnetContext } from './vnetContext';
@@ -34,6 +36,8 @@ import { useVnetContext } from './vnetContext';
 export const DiagnosticsAlert = () => {
   const { diagnosticsAttempt, runDiagnostics, resetDiagnosticsAttempt } =
     useVnetContext();
+  const { workspacesService } = useAppContext();
+  const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
     'workspacesService',
     useCallback(state => state.rootClusterUri, [])
@@ -69,9 +73,20 @@ export const DiagnosticsAlert = () => {
         title: 'Log in to a cluster to see the full report',
       }
     : {};
-  const openReport = () => {
-    // TODO(ravicious): Open report doc.
-  };
+  const openReport = !rootClusterUri
+    ? () => {}
+    : () => {
+        const docsService =
+          workspacesService.getWorkspaceDocumentService(rootClusterUri);
+        const doc = docsService.createVnetDiagReportDocument({
+          rootClusterUri,
+          report,
+        });
+        // TODO: Check if there's a doc with the same report, maybe add a UUID?
+        docsService.add(doc);
+        docsService.open(doc.uri);
+        closeConnectionsPanel();
+      };
 
   if (
     report.checks.length &&
