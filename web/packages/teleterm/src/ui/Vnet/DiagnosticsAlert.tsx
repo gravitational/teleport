@@ -78,13 +78,27 @@ export const DiagnosticsAlert = () => {
     : () => {
         const docsService =
           workspacesService.getWorkspaceDocumentService(rootClusterUri);
-        const doc = docsService.createVnetDiagReportDocument({
-          rootClusterUri,
-          report,
-        });
-        // TODO: Check if there's a doc with the same report, maybe add a UUID?
-        docsService.add(doc);
-        docsService.open(doc.uri);
+
+        // Check for an existing doc first. It may be present if someone re-runs diagnostics from
+        // within a doc, then opens the VNet panel and clicks "Open Report". The report in the panel
+        // and the report in the doc are equal in that case, as they both come from
+        // diagnosticsAttempt.data.
+        const existingDoc = docsService.getDocuments().find(
+          d =>
+            d.kind === 'doc.vnet_diag_report' &&
+            // Reports don't have IDs, so createdAt is used as a good-enough approximation of an ID.
+            d.report?.createdAt === report.createdAt
+        );
+        if (existingDoc) {
+          docsService.open(existingDoc.uri);
+        } else {
+          const doc = docsService.createVnetDiagReportDocument({
+            rootClusterUri,
+            report,
+          });
+          docsService.add(doc);
+          docsService.open(doc.uri);
+        }
         closeConnectionsPanel();
       };
 
