@@ -32,6 +32,10 @@ import { lighten } from '../utils/colorManipulator';
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
+/**
+ * Used for the user icon in Connect (the top-right one).
+ * In both the light and dark mode, the dark version of dataVisualisationColors is used.
+ */
 export const dataVisualisationColors: DataVisualisationColors = {
   primary: {
     purple: '#9F85FF',
