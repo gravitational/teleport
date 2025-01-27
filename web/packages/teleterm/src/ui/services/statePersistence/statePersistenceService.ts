@@ -39,7 +39,9 @@ interface UsageReportingState {
 export type PersistedWorkspace = Omit<
   Workspace,
   'accessRequests' | 'documentsRestoredOrDiscarded' | 'color'
-> & { color?: ProfileColor };
+> & // TODO(gzdunek) DELETE IN v19.0.0: Make the field required by removing the type below and omitted 'color' above.
+// This expresses that existing persisted state from older versions might not have color defined.
+{ color?: ProfileColor };
 
 export type WorkspacesPersistedState = Omit<
   WorkspacesState,
