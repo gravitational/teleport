@@ -326,20 +326,20 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 				return false, nil, trace.Wrap(err)
 			}
 
-			log.DebugContext(ctx, "Host user does not exist and no UID is configured, obtaining fallback UID")
+			log.DebugContext(ctx, "Host user does not exist and no UID is configured, obtaining UID from control plane")
 			fallbackUID, ok, err := obtainFallbackUID(ctx, identityContext.Login)
 			if err != nil {
-				log.ErrorContext(ctx, "Failed to obtain fallback (stable) UID from control plane", "error", err)
+				log.ErrorContext(ctx, "Failed to obtain UID from control plane", "error", err)
 				return false, nil, trace.Wrap(err)
 			}
 			if ok {
-				log.DebugContext(ctx, "Obtained fallback UID", "fallback_uid", fallbackUID)
+				log.DebugContext(ctx, "Obtained UID from control plane", "uid", fallbackUID)
 				ui.UID = strconv.Itoa(int(fallbackUID))
 				if ui.GID == "" {
 					ui.GID = ui.UID
 				}
 			} else {
-				log.DebugContext(ctx, "No fallback UID configured in the cluster")
+				log.DebugContext(ctx, "No UID configured in the cluster")
 			}
 		}
 	}
