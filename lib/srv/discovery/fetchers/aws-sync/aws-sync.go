@@ -63,26 +63,12 @@ type AssumeRole struct {
 	ExternalID string
 }
 
-// awsFetcher is a fetcher that fetches AWS resources.
-type awsFetcher struct {
+// Fetcher is a fetcher that fetches AWS resources.
+type Fetcher struct {
 	Config
 	lastError               error
 	lastDiscoveredResources uint64
 	lastResult              *Resources
-}
-
-// AWSSync is the interface for fetching AWS resources.
-type AWSSync interface {
-	// Poll polls all AWS resources and returns the result.
-	Poll(context.Context, Features) (*Resources, error)
-	// Status reports the last known status of the fetcher.
-	Status() (uint64, error)
-	// DiscoveryConfigName returns the name of the Discovery Config.
-	DiscoveryConfigName() string
-	// IsFromDiscoveryConfig returns true if the fetcher is associated with a Discovery Config.
-	IsFromDiscoveryConfig() bool
-	// GetAccountID returns the AWS account ID.
-	GetAccountID() string
 }
 
 // Resources is a collection of polled AWS resources.
@@ -175,8 +161,8 @@ func (r *Resources) UsageReport(numberAccounts int) *usageeventsv1.AccessGraphAW
 }
 
 // NewAWSFetcher creates a new AWS fetcher.
-func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
-	a := &awsFetcher{
+func NewAWSFetcher(ctx context.Context, cfg Config) (*Fetcher, error) {
+	a := &Fetcher{
 		Config:     cfg,
 		lastResult: &Resources{},
 	}
@@ -192,14 +178,14 @@ func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 // Poll is a blocking call and will return when all resources have been fetched.
 // It's possible that the call returns Resources and an error at the same time
 // if some resources were fetched successfully and some were not.
-func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
+func (a *Fetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
 	result, err := a.poll(ctx, features)
 	deduplicateResources(result)
 	a.storeReport(result, err)
 	return result, trace.Wrap(err)
 }
 
-func (a *awsFetcher) storeReport(rec *Resources, err error) {
+func (a *Fetcher) storeReport(rec *Resources, err error) {
 	a.lastError = err
 	if rec == nil {
 		return
@@ -208,11 +194,11 @@ func (a *awsFetcher) storeReport(rec *Resources, err error) {
 	a.lastDiscoveredResources = uint64(rec.count())
 }
 
-func (a *awsFetcher) GetAccountID() string {
+func (a *Fetcher) GetAccountID() string {
 	return a.AccountID
 }
 
-func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {
+func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, error) {
 	eGroup, ctx := errgroup.WithContext(ctx)
 	// Set the limit for the number of concurrent pollers running in parallel.
 	// This is to prevent the number of concurrent pollers from growing too large
@@ -293,7 +279,7 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 
 // getAWSOptions returns a list of AWSAssumeRoleOptionFn to be used when
 // creating AWS clients.
-func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
+func (a *Fetcher) getAWSOptions() []cloud.AWSOptionsFn {
 	opts := []cloud.AWSOptionsFn{
 		cloud.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
@@ -318,7 +304,7 @@ func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
 	return opts
 }
 
-func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
+func (a *Fetcher) getAccountId(ctx context.Context) (string, error) {
 	stsClient, err := a.CloudClients.GetAWSSTSClient(
 		ctx,
 		"", /* region is empty because groups are global */
@@ -337,14 +323,14 @@ func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
 	return aws.StringValue(req.Account), nil
 }
 
-func (a *awsFetcher) DiscoveryConfigName() string {
+func (a *Fetcher) DiscoveryConfigName() string {
 	return a.Config.DiscoveryConfigName
 }
 
-func (a *awsFetcher) IsFromDiscoveryConfig() bool {
+func (a *Fetcher) IsFromDiscoveryConfig() bool {
 	return a.Config.DiscoveryConfigName != ""
 }
 
-func (a *awsFetcher) Status() (uint64, error) {
+func (a *Fetcher) Status() (uint64, error) {
 	return a.lastDiscoveredResources, a.lastError
 }
