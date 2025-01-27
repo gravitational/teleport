@@ -55,17 +55,24 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 		return nil, trace.BadParameter("unsupported git server sub kind: %v", req.SubKind)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	userClient, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	gitServiceClient := userClient.GitServerClient()
 
 	if req.Overwrite {
-		upserted, err := clt.GitServerClient().UpsertGitServer(r.Context(), gitServer)
+		// Double-check if current git server exists.
+		_, err := gitServiceClient.GetGitServer(r.Context(), gitServer.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		upserted, err := gitServiceClient.UpsertGitServer(r.Context(), gitServer)
 		return upserted, trace.Wrap(err)
 	}
 
-	created, err := clt.GitServerClient().CreateGitServer(r.Context(), gitServer)
+	created, err := gitServiceClient.CreateGitServer(r.Context(), gitServer)
 	return created, trace.Wrap(err)
 }
 

@@ -169,15 +169,6 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		integration.SetAWSOIDCIssuerS3URI(s3Location)
 		integration.SetAWSOIDCRoleARN(req.AWSOIDC.RoleARN)
 	}
-	if req.GitHub != nil {
-		if integration.GetSubKind() != types.IntegrationSubKindGitHub {
-			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindGitHub, integration.GetSubKind())
-		}
-
-		integration.SetGitHubIntegrationSpec(&types.GitHubIntegrationSpecV1{
-			Organization: req.GitHub.Organization,
-		})
-	}
 	if req.OAuth != nil {
 		if integration.GetSubKind() != types.IntegrationSubKindGitHub {
 			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindGitHub, integration.GetSubKind())
@@ -427,8 +418,8 @@ func collectAutoDiscoveryRules(
 	nextPage string,
 	resourceTypeFilter string,
 	clt interface {
-	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
-},
+		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	},
 ) (ui.IntegrationDiscoveryRules, error) {
 	const (
 		maxPerPage = 100
