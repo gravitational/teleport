@@ -25,6 +25,7 @@ import {
   RequireMFAType,
   ResourceKind,
   Role,
+  RoleVersion,
   Rule,
   SessionRecordingMode,
   SSHPortForwarding,
@@ -33,6 +34,7 @@ import {
 import {
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
+  defaultRoleVersion,
   KubernetesAccess,
   kubernetesResourceKindOptionsMap,
   kubernetesVerbOptionsMap,
@@ -44,6 +46,7 @@ import {
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
+  roleVersionOptionsMap,
   sessionRecordingModeOptionsMap,
   sshPortForwardingModeOptionsMap,
   verbOptionsMap,
@@ -51,10 +54,14 @@ import {
 import { optionsWithDefaults, withDefaults } from './withDefaults';
 
 const minimalRole = () =>
-  withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });
+  withDefaults({ metadata: { name: 'foobar' }, version: defaultRoleVersion });
 
 const minimalRoleModel = (): RoleEditorModel => ({
-  metadata: { name: 'foobar', labels: [] },
+  metadata: {
+    name: 'foobar',
+    labels: [],
+    version: roleVersionOptionsMap.get(defaultRoleVersion),
+  },
   resources: [],
   rules: [],
   requiresReset: false,
@@ -92,6 +99,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         description: 'role-description',
         labels: { foo: 'bar' },
       },
+      version: RoleVersion.V6,
     },
     model: {
       ...minimalRoleModel(),
@@ -99,6 +107,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         name: 'role-name',
         description: 'role-description',
         labels: [{ name: 'foo', value: 'bar' }],
+        version: roleVersionOptionsMap.get(RoleVersion.V6),
       },
     },
   },
@@ -431,6 +440,7 @@ describe('roleToRoleEditorModel', () => {
     groups: [],
     labels: [],
     resources: [],
+    roleVersion: defaultRoleVersion,
   });
 
   test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
@@ -767,8 +777,10 @@ describe('roleToRoleEditorModel', () => {
     }
   );
 
-  test('version change requires reset', () => {
-    expect(roleToRoleEditorModel({ ...minimalRole(), version: 'v1' })).toEqual({
+  test('unsupported version requires reset', () => {
+    expect(
+      roleToRoleEditorModel({ ...minimalRole(), version: 'v1' as RoleVersion })
+    ).toEqual({
       ...minimalRoleModel(),
       requiresReset: true,
     } as RoleEditorModel);
@@ -795,6 +807,7 @@ describe('roleToRoleEditorModel', () => {
         name: 'role-name',
         revision: originalRev,
         labels: [],
+        version: roleVersionOptionsMap.get(defaultRoleVersion),
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -824,6 +837,7 @@ describe('roleToRoleEditorModel', () => {
         name: 'role-name',
         revision: 'e39ea9f1-79b7-4d28-8f0c-af6848f9e655',
         labels: [],
+        version: roleVersionOptionsMap.get(defaultRoleVersion),
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -877,6 +891,7 @@ describe('roleToRoleEditorModel', () => {
                 kubernetesVerbOptionsMap.get('get'),
                 kubernetesVerbOptionsMap.get('update'),
               ],
+              roleVersion: defaultRoleVersion,
             },
             {
               id: expect.any(String),
@@ -884,8 +899,10 @@ describe('roleToRoleEditorModel', () => {
               name: 'some-node',
               namespace: '',
               verbs: [],
+              roleVersion: defaultRoleVersion,
             },
           ],
+          roleVersion: defaultRoleVersion,
         },
       ],
     } as RoleEditorModel);
@@ -974,6 +991,7 @@ describe('roleEditorModelToRole', () => {
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
           labels: [{ name: 'kind', value: 'occupation' }],
+          version: roleVersionOptionsMap.get(RoleVersion.V5),
         },
       })
     ).toEqual({
@@ -984,6 +1002,7 @@ describe('roleEditorModelToRole', () => {
         revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
         labels: { kind: 'occupation' },
       },
+      version: 'v5',
     } as Role);
   });
 
@@ -1012,6 +1031,7 @@ describe('roleEditorModelToRole', () => {
                   kubernetesVerbOptionsMap.get('get'),
                   kubernetesVerbOptionsMap.get('update'),
                 ],
+                roleVersion: defaultRoleVersion,
               },
               {
                 id: 'dummy-id-2',
@@ -1019,8 +1039,10 @@ describe('roleEditorModelToRole', () => {
                 name: 'some-node',
                 namespace: '',
                 verbs: [],
+                roleVersion: defaultRoleVersion,
               },
             ],
+            roleVersion: defaultRoleVersion,
           },
         ],
       })

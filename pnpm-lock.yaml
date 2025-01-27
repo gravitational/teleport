@@ -55,6 +55,9 @@ importers:
       history:
         specifier: ^4.9.0
         version: 4.10.1
+      immer:
+        specifier: ^10.1.1
+        version: 10.1.1
       prop-types:
         specifier: ^15.8.1
         version: 15.8.1
@@ -91,6 +94,9 @@ importers:
       tslib:
         specifier: ^2.7.0
         version: 2.7.0
+      use-immer:
+        specifier: ^0.11.0
+        version: 0.11.0(immer@10.1.1)(react@18.3.1)
       whatwg-fetch:
         specifier: ^3.6.20
         version: 3.6.20
@@ -475,9 +481,6 @@ importers:
       events:
         specifier: 3.3.0
         version: 3.3.0
-      immer:
-        specifier: ^10.1.1
-        version: 10.1.1
       jest-canvas-mock:
         specifier: ^2.5.2
         version: 2.5.2
@@ -6700,6 +6703,12 @@ packages:
 
   url-parse@1.5.10:
     resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
+
+  use-immer@0.11.0:
+    resolution: {integrity: sha512-RNAqi3GqsWJ4bcCd4LMBgdzvPmTABam24DUaFiKfX9s3MSorNRz9RDZYJkllJoMHUxVLMDetwAuCDeyWNrp1yA==}
+    peerDependencies:
+      immer: '>=8.0.0'
+      react: ^16.8.0 || ^17.0.1 || ^18.0.0 || ^19.0.0
 
   use-isomorphic-layout-effect@1.1.2:
     resolution: {integrity: sha512-49L8yCO3iGT/ZF9QttjwLF/ZD9Iwto5LnH5LmEdk/6cFmXddqi2ulF0edxTwjj+7mqvpVVGQWvbXZdn32wRSHA==}
@@ -14669,6 +14678,11 @@ snapshots:
     dependencies:
       querystringify: 2.2.0
       requires-port: 1.0.0
+
+  use-immer@0.11.0(immer@10.1.1)(react@18.3.1):
+    dependencies:
+      immer: 10.1.1
+      react: 18.3.1
 
   use-isomorphic-layout-effect@1.1.2(@types/react@18.3.10)(react@18.3.1):
     dependencies:

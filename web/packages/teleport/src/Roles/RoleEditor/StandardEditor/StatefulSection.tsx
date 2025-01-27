@@ -21,7 +21,7 @@ import React, { useReducer } from 'react';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { SectionProps, SectionPropsWithDispatch } from './sections';
-import { StandardEditorModel } from './standardmodel';
+import { defaultRoleVersion, StandardEditorModel } from './standardmodel';
 import { useStandardModel } from './useStandardModel';
 import { withDefaults } from './withDefaults';
 
@@ -78,7 +78,7 @@ export function StatefulSection<Model, ValidationResult>({
 
 const minimalRole = withDefaults({
   metadata: { name: 'foobar' },
-  version: 'v7',
+  version: defaultRoleVersion,
 });
 
 /** A helper for testing editor section components. */
