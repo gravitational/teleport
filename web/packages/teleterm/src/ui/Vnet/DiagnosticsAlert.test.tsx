@@ -174,7 +174,9 @@ describe('DiagnosticsAlert', () => {
           <ConnectionsContextProvider>
             <VnetContextProvider>
               <RunDiagnostics />
-              <DiagnosticsAlert />
+              <DiagnosticsAlert
+                runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+              />
             </VnetContextProvider>
           </ConnectionsContextProvider>
         </MockAppContextProvider>
@@ -199,17 +201,19 @@ describe('DiagnosticsAlert', () => {
         <ConnectionsContextProvider>
           <VnetContextProvider>
             <RunDiagnostics />
-            <DiagnosticsAlert />
+            <DiagnosticsAlert
+              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+            />
           </VnetContextProvider>
         </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 
-    // Verify that "Open Report" opens a new doc with the report.
+    // Verify that "Open Diag Report" opens a new doc with the report.
     const docsService =
       appContext.workspacesService.getActiveWorkspaceDocumentService();
     expect(docsService.getLocation()).toEqual(otherDoc.uri);
-    await user.click(await screen.findByText('Open Report'));
+    await user.click(await screen.findByText('Open Diag Report'));
     const reportDocUri = docsService.getLocation();
     expect(reportDocUri).not.toEqual(otherDoc.uri);
 
@@ -218,10 +222,50 @@ describe('DiagnosticsAlert', () => {
       docsService.setLocation(otherDoc.uri);
     });
 
-    // Verify that clicking Open Report again opens the original doc rather than adding a new one.
-    await user.click(screen.getByText('Open Report'));
+    // Verify that clicking Open Diag Report again opens the original doc rather than adding a new one.
+    await user.click(screen.getByText('Open Diag Report'));
     expect(docsService.getDocuments()).toHaveLength(2);
     expect(docsService.getLocation()).toEqual(reportDocUri);
+  });
+
+  it('shows nothing after dismissing', async () => {
+    const user = userEvent.setup();
+
+    const appContext = new MockAppContext();
+    const otherDoc = makeDocumentConnectMyComputer();
+    appContext.addRootClusterWithDoc(makeRootCluster(), otherDoc);
+    const report = makeReport({
+      checks: [
+        makeCheckAttempt({
+          checkReport: makeCheckReport({
+            status: CheckReportStatus.ISSUES_FOUND,
+          }),
+        }),
+      ],
+    });
+
+    appContext.vnet.runDiagnostics = () => new MockedUnaryCall({ report });
+
+    render(
+      <MockAppContextProvider appContext={appContext}>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <RunDiagnostics />
+            <DiagnosticsAlert
+              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
+      </MockAppContextProvider>
+    );
+
+    expect(
+      await screen.findByText(new RegExp(otherSoftwareMightInterfere))
+    ).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Dismiss'));
+    expect(
+      screen.queryByText(new RegExp(otherSoftwareMightInterfere))
+    ).not.toBeInTheDocument();
   });
 });
 

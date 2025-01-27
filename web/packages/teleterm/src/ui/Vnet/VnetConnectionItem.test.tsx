@@ -31,7 +31,10 @@ describe('VnetSliderStepHeader', () => {
     render(
       <MockAppContextProvider>
         <VnetContextProvider>
-          <VnetSliderStepHeader goBack={() => {}} />
+          <VnetSliderStepHeader
+            goBack={() => {}}
+            runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+          />
         </VnetContextProvider>
       </MockAppContextProvider>
     );
@@ -68,7 +71,10 @@ describe('VnetSliderStepHeader', () => {
     render(
       <MockAppContextProvider appContext={appContext}>
         <VnetContextProvider>
-          <VnetSliderStepHeader goBack={() => {}} />
+          <VnetSliderStepHeader
+            goBack={() => {}}
+            runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+          />
         </VnetContextProvider>
       </MockAppContextProvider>
     );
