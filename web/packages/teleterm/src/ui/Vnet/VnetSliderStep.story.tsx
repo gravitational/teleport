@@ -19,9 +19,15 @@ import { Meta } from '@storybook/react';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
+import {
+  CheckAttemptStatus,
+  CheckReportStatus,
+} from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { usePromiseRejectedOnUnmount } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { makeReport } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
@@ -38,6 +44,9 @@ type StoryProps = {
     | 'processing'
     | 'processing-with-previous-results';
   vnetDiag: boolean;
+  runDiagnostics: 'success' | 'error' | 'processing';
+  diagReport: 'ok' | 'issues-found' | 'failed-checks';
+  isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
 };
 
@@ -47,7 +56,7 @@ const meta: Meta<StoryProps> = {
   decorators: [
     Story => {
       return (
-        <Box width={324} bg="levels.elevated">
+        <Box width={396} bg="levels.elevated">
           <Story />
         </Box>
       );
@@ -70,6 +79,18 @@ const meta: Meta<StoryProps> = {
         'processing-with-previous-results',
       ],
     },
+    runDiagnostics: {
+      control: { type: 'inline-radio' },
+      options: ['success', 'error', 'processing'],
+    },
+    diagReport: {
+      control: { type: 'inline-radio' },
+      options: ['ok', 'issues-found', 'failed-checks'],
+    },
+    isWorkspacePresent: {
+      description:
+        "If there's no workspace, the button to open the diag report is disabled.",
+    },
   },
   args: {
     startVnet: 'success',
@@ -77,6 +98,9 @@ const meta: Meta<StoryProps> = {
     dnsZones: ['teleport.example.com', 'company.test'],
     listDnsZones: 'success',
     vnetDiag: true,
+    runDiagnostics: 'success',
+    diagReport: 'ok',
+    isWorkspacePresent: true,
     unexpectedShutdown: false,
   },
 };
@@ -84,6 +108,10 @@ export default meta;
 
 export function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext();
+
+  if (props.isWorkspacePresent) {
+    appContext.addRootCluster(makeRootCluster());
+  }
 
   if (props.autoStart) {
     appContext.statePersistenceService.putState({
@@ -141,6 +169,31 @@ export function VnetSliderStep(props: StoryProps) {
           : undefined
       );
     };
+  }
+
+  if (props.runDiagnostics === 'processing') {
+    appContext.vnet.runDiagnostics = () => pendingPromise;
+  } else {
+    const report = makeReport();
+    const checkAttempt = report.checks[0];
+
+    if (props.diagReport === 'issues-found') {
+      checkAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+    }
+
+    if (props.diagReport === 'failed-checks') {
+      checkAttempt.status = CheckAttemptStatus.ERROR;
+      checkAttempt.error = 'something went wrong';
+      checkAttempt.checkReport = undefined;
+    }
+
+    appContext.vnet.runDiagnostics = () =>
+      new MockedUnaryCall(
+        { report },
+        props.runDiagnostics === 'error'
+          ? new Error('something went wrong')
+          : undefined
+      );
   }
 
   return (
