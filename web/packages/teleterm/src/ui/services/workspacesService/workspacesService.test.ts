@@ -135,7 +135,7 @@ describe('restoring workspace', () => {
     expect(workspacesService.getRestoredState().workspaces).toStrictEqual({});
   });
 
-  it('restores profile color from state or assignes if empty', async () => {
+  it('restores profile color from state or assigns if empty', async () => {
     const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
     const workspaceFoo: PersistedWorkspace = {
       color: 'blue',
@@ -155,13 +155,57 @@ describe('restoring workspace', () => {
       documents: [],
       location: undefined,
     };
+    const clusterQux = makeRootCluster({ uri: '/clusters/qux' });
+    const workspaceQux: PersistedWorkspace = {
+      localClusterUri: clusterQux.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterWaldo = makeRootCluster({ uri: '/clusters/waldo' });
+    const workspaceWaldo: PersistedWorkspace = {
+      localClusterUri: clusterWaldo.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterFred = makeRootCluster({ uri: '/clusters/fred' });
+    const workspaceFred: PersistedWorkspace = {
+      localClusterUri: clusterFred.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterGrault = makeRootCluster({ uri: '/clusters/grault' });
+    const workspaceGrault: PersistedWorkspace = {
+      localClusterUri: clusterGrault.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterPlugh = makeRootCluster({ uri: '/clusters/plugh' });
+    const workspacePlugh: PersistedWorkspace = {
+      localClusterUri: clusterPlugh.uri,
+      documents: [],
+      location: undefined,
+    };
 
     const { workspacesService } = getTestSetup({
-      cluster: [clusterFoo, clusterBar, clusterBaz],
+      cluster: [
+        clusterFoo,
+        clusterBar,
+        clusterBaz,
+        clusterQux,
+        clusterWaldo,
+        clusterFred,
+        clusterGrault,
+        clusterPlugh,
+      ],
       persistedWorkspaces: {
         [clusterFoo.uri]: workspaceFoo,
         [clusterBar.uri]: workspaceBar,
         [clusterBaz.uri]: workspaceBaz,
+        [clusterQux.uri]: workspaceQux,
+        [clusterWaldo.uri]: workspaceWaldo,
+        [clusterFred.uri]: workspaceFred,
+        [clusterGrault.uri]: workspaceGrault,
+        [clusterPlugh.uri]: workspacePlugh,
       },
     });
 
@@ -169,7 +213,16 @@ describe('restoring workspace', () => {
 
     expect(workspacesService.getWorkspace(clusterFoo.uri).color).toBe('blue'); // read from disk
     expect(workspacesService.getWorkspace(clusterBar.uri).color).toBe('purple'); // the first unused color
-    expect(workspacesService.getWorkspace(clusterBaz.uri).color).toBe('green'); // the second unused color
+    expect(workspacesService.getWorkspace(clusterBaz.uri).color).toBe('green');
+    expect(workspacesService.getWorkspace(clusterQux.uri).color).toBe('yellow');
+    expect(workspacesService.getWorkspace(clusterWaldo.uri).color).toBe('red');
+    expect(workspacesService.getWorkspace(clusterFred.uri).color).toBe('cyan');
+    expect(workspacesService.getWorkspace(clusterGrault.uri).color).toBe(
+      'pink'
+    );
+    expect(workspacesService.getWorkspace(clusterPlugh.uri).color).toBe(
+      'purple'
+    ); // we have run out of colors, assign the default purple color
   });
 });
 
