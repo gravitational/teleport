@@ -34,6 +34,17 @@ import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connection
 import { textSpacing } from './sliderStep';
 import { useVnetContext } from './vnetContext';
 
+/**
+ * DiagnosticsAlert informs the user about the results of running VNet diagnostics.
+ * If there are no issues found, it shows a subtle text with a button to open the report.
+ * If the diag run found some issues, it shows a prominent alert which should also be reflected in
+ * other elements in the UI, like the warning indicators and a warning notification.
+ *
+ * Since we're worried about false positives, the user is able to dismiss the diagnostics alert. In
+ * that case, the alert disappears together with the warning indicators and the notification.
+ * Further periodic diagnostic runs will not cause those elements to show up again, until the user
+ * manually runs diagnostics from the VNet panel.
+ */
 export const DiagnosticsAlert = (props: {
   runDiagnosticsFromVnetPanel: () => Promise<unknown>;
 }) => {
