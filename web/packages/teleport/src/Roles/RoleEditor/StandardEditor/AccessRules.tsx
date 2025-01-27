@@ -117,10 +117,11 @@ const AccessRule = memo(function AccessRule({
         rule={precomputed(validation.fields.verbs)}
       />
       <FieldInput
-        label="Condition"
+        label="Filter"
         toolTipContent={
           <>
-            Additional condition, expressed using the{' '}
+            Optional condition that further limits the list of resources
+            affected by this rule, expressed using the{' '}
             <Text
               as="a"
               href="https://goteleport.com/docs/reference/predicate-language/"
