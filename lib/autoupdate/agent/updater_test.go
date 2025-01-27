@@ -346,7 +346,7 @@ func TestUpdater_Update(t *testing.T) {
 			},
 			inWindow: true,
 
-			errMatch: "URL must use TLS",
+			errMatch: "must use TLS",
 		},
 		{
 			name: "install error",
@@ -613,7 +613,7 @@ func TestUpdater_Update(t *testing.T) {
 				reloadCalls       int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, rev Revision, template, baseURL string) error {
+				FuncInstall: func(_ context.Context, rev Revision, baseURL string) error {
 					installedRevision = rev
 					installedBaseURL = baseURL
 					return tt.installErr
@@ -1195,7 +1195,7 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			},
 
-			errMatch: "URL must use TLS",
+			errMatch: "must use TLS",
 		},
 		{
 			name: "install error",
@@ -1383,7 +1383,7 @@ func TestUpdater_Install(t *testing.T) {
 				revertSetupCalls  int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, rev Revision, template, baseURL string) error {
+				FuncInstall: func(_ context.Context, rev Revision, baseURL string) error {
 					installedRevision = rev
 					installedBaseURL = baseURL
 					return tt.installErr
@@ -1462,7 +1462,9 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall       func(ctx context.Context, rev Revision, template, baseURL string) error
+	testTemplate string
+
+	FuncInstall       func(ctx context.Context, rev Revision, baseURL string) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
 	FuncLink          func(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
@@ -1473,8 +1475,8 @@ type testInstaller struct {
 	FuncList          func(ctx context.Context) (revs []Revision, err error)
 }
 
-func (ti *testInstaller) Install(ctx context.Context, rev Revision, template, baseURL string) error {
-	return ti.FuncInstall(ctx, rev, template, baseURL)
+func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string) error {
+	return ti.FuncInstall(ctx, rev, baseURL)
 }
 
 func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {

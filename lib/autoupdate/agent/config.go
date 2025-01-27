@@ -213,7 +213,7 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	}
 	if spec.BaseURL != "" &&
 		!strings.HasPrefix(strings.ToLower(spec.BaseURL), "https://") {
-		return trace.Errorf("Teleport download URL must use TLS (https://): %q", spec.BaseURL)
+		return trace.Errorf("Teleport download base URL %s must use TLS (https://)", spec.BaseURL)
 	}
 	if override.Enabled {
 		spec.Enabled = true
