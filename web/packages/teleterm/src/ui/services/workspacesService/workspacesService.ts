@@ -385,6 +385,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       }
     }
     // If we don't have a workspace for this cluster, add it.
+    // TODO(gzdunek): Creating a workspace here might not be necessary
+    // after we started calling workspacesService.addWorkspace in ClusterAdd.
     this.setState(draftState => {
       if (!draftState.workspaces[clusterUri]) {
         draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
