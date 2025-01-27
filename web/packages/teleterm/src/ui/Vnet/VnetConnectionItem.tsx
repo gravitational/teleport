@@ -90,9 +90,12 @@ const VnetConnectionItemBase = forwardRef<
     stopAttempt,
     runDiagnostics,
     diagnosticsAttempt,
+    getDisabledDiagnosticsReason,
   } = useVnetContext();
   const isProcessing =
     startAttempt.status === 'processing' || stopAttempt.status === 'processing';
+  const disabledDiagnosticsReason =
+    getDisabledDiagnosticsReason(diagnosticsAttempt);
   const indicatorStatus =
     startAttempt.status === 'error' ||
     stopAttempt.status === 'error' ||
@@ -186,17 +189,8 @@ const VnetConnectionItemBase = forwardRef<
 
               {isVnetDiagEnabled && (
                 <ButtonIcon
-                  title={
-                    status.value !== 'running'
-                      ? 'VNet must be running to run diagnostics'
-                      : diagnosticsAttempt.status === 'processing'
-                        ? 'Generating diagnostic report…'
-                        : 'Run diagnostics'
-                  }
-                  disabled={
-                    status.value !== 'running' ||
-                    diagnosticsAttempt.status === 'processing'
-                  }
+                  title={disabledDiagnosticsReason || 'Run diagnostics'}
+                  disabled={!!disabledDiagnosticsReason}
                   onClick={e => {
                     e.stopPropagation();
                     runDiagnostics();
