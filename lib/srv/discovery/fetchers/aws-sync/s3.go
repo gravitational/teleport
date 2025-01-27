@@ -49,7 +49,7 @@ type s3Client interface {
 
 // pollAWSS3Buckets is a function that returns a function that fetches
 // AWS s3 buckets and their inline and attached policies.
-func (a *awsFetcher) pollAWSS3Buckets(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSS3Buckets(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		result.S3Buckets, err = a.fetchS3Buckets(ctx)
@@ -62,7 +62,7 @@ func (a *awsFetcher) pollAWSS3Buckets(ctx context.Context, result *Resources, co
 
 // fetchS3Buckets fetches AWS s3 buckets and returns them as a slice of
 // accessgraphv1alpha.AWSS3BucketV1.
-func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWSS3BucketV1, error) {
+func (a *Fetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWSS3BucketV1, error) {
 	var s3s []*accessgraphv1alpha.AWSS3BucketV1
 	var errs []error
 	var mu sync.Mutex
@@ -213,7 +213,7 @@ type s3Details struct {
 	tags         *s3.GetBucketTaggingOutput
 }
 
-func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket s3types.Bucket, bucketRegion string) (s3Details, failedRequests, []error) {
+func (a *Fetcher) getS3BucketDetails(ctx context.Context, bucket s3types.Bucket, bucketRegion string) (s3Details, failedRequests, []error) {
 	var failedReqs failedRequests
 	var errs []error
 	var details s3Details
@@ -293,7 +293,7 @@ func isS3BucketNoTagSet(err error) bool {
 	return isAPIErrorCode(err, "NoSuchTagSet")
 }
 
-func (a *awsFetcher) listS3Buckets(ctx context.Context) ([]s3types.Bucket, func(*string) (string, error), error) {
+func (a *Fetcher) listS3Buckets(ctx context.Context) ([]s3types.Bucket, func(*string) (string, error), error) {
 	region := awsutil.GetKnownRegions()[0]
 	if len(a.Regions) > 0 {
 		region = a.Regions[0]
