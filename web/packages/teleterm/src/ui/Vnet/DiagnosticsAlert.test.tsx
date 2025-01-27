@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import { act, useEffect } from 'react';
 
-import { render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -26,6 +26,7 @@ import {
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
   makeCheckAttempt,
   makeCheckReport,
@@ -33,6 +34,7 @@ import {
 } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { makeDocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { DiagnosticsAlert } from './DiagnosticsAlert';
@@ -183,6 +185,44 @@ describe('DiagnosticsAlert', () => {
       ).toBeInTheDocument();
     }
   );
+
+  it('re-opens an existing document with the report', async () => {
+    const user = userEvent.setup();
+    const appContext = new MockAppContext();
+    const otherDoc = makeDocumentConnectMyComputer();
+    appContext.addRootClusterWithDoc(makeRootCluster(), otherDoc);
+    const report = makeReport();
+    appContext.vnet.runDiagnostics = () => new MockedUnaryCall({ report });
+
+    render(
+      <MockAppContextProvider appContext={appContext}>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <RunDiagnostics />
+            <DiagnosticsAlert />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
+      </MockAppContextProvider>
+    );
+
+    // Verify that "Open Report" opens a new doc with the report.
+    const docsService =
+      appContext.workspacesService.getActiveWorkspaceDocumentService();
+    expect(docsService.getLocation()).toEqual(otherDoc.uri);
+    await user.click(await screen.findByText('Open Report'));
+    const reportDocUri = docsService.getLocation();
+    expect(reportDocUri).not.toEqual(otherDoc.uri);
+
+    // Change the active doc to some other doc.
+    await act(async () => {
+      docsService.setLocation(otherDoc.uri);
+    });
+
+    // Verify that clicking Open Report again opens the original doc rather than adding a new one.
+    await user.click(screen.getByText('Open Report'));
+    expect(docsService.getDocuments()).toHaveLength(2);
+    expect(docsService.getLocation()).toEqual(reportDocUri);
+  });
 });
 
 const RunDiagnostics = () => {
