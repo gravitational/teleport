@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/gravitational/trace"
 )
 
@@ -56,7 +57,10 @@ const (
 
 // MakeURL constructs the package download URL from template, base URL and revision.
 func MakeURL(uriTmpl string, baseURL string, pkg string, version string, flags InstallFlags) (string, error) {
-	tmpl, err := template.New("uri").Parse(uriTmpl)
+	// We add sprig functions to have access to `semver` and be able to change the template in tests based on
+	// the version requested (e.g. pull pre-releases version from the dev repo, and official versions
+	// from the prod one).
+	tmpl, err := template.New("uri").Funcs(sprig.HermeticTxtFuncMap()).Parse(uriTmpl)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
