@@ -111,7 +111,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			ReservedFreeInstallDisk: reservedFreeDisk,
 			TransformService:        ns.replaceTeleportService,
 			ValidateBinary:          validator.IsBinary,
-			template:                autoupdate.DefaultCDNURITemplate,
+			Template:                autoupdate.DefaultCDNURITemplate,
 		},
 		Process: &SystemdService{
 			ServiceName: filepath.Base(ns.serviceFile),
@@ -183,7 +183,7 @@ type Updater struct {
 
 // Installer provides an API for installing Teleport agents.
 type Installer interface {
-	// Install the Teleport agent at revision from the download template.
+	// Install the Teleport agent at revision from the download Template.
 	// Install must be idempotent.
 	Install(ctx context.Context, rev Revision, baseURL string) error
 	// Link the Teleport agent at the specified revision of Teleport into the linking locations.

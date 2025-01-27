@@ -60,7 +60,7 @@ type UpdateSpec struct {
 	Proxy string `yaml:"proxy"`
 	// Group specifies the update group identifier for the agent.
 	Group string `yaml:"group,omitempty"`
-	// BaseURL is CDN base URL used in `url_template` for the Teleport tgz download URL.
+	// BaseURL is CDN base URL used for the Teleport tgz download URL.
 	BaseURL string `yaml:"base_url,omitempty"`
 	// Enabled controls whether auto-updates are enabled.
 	Enabled bool `yaml:"enabled"`

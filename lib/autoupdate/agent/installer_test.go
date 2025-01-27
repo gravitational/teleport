@@ -124,7 +124,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				Log:                     slog.Default(),
 				ReservedFreeTmpDisk:     tt.reservedTmp,
 				ReservedFreeInstallDisk: tt.reservedInstall,
-				template:                "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+				Template:                "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
 			}
 			ctx := context.Background()
 			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL)
@@ -409,7 +409,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 					return []byte("[transform]" + string(b))
 				},
 				ValidateBinary: validator.IsExecutable,
-				template:       autoupdate.DefaultCDNURITemplate,
+				Template:       autoupdate.DefaultCDNURITemplate,
 			}
 			ctx := context.Background()
 			revert, err := installer.Link(ctx, NewRevision(version, 0))

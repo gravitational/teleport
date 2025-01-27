@@ -88,8 +88,8 @@ type LocalInstaller struct {
 	// ValidateBinary returns true if a file is a linkable binary, or
 	// false if a file should not be linked.
 	ValidateBinary func(ctx context.Context, path string) (bool, error)
-	// template is download URI template of Teleport packages.
-	template string
+	// Template is download URI Template of Teleport packages.
+	Template string
 }
 
 // Remove a Teleport version directory from InstallDir.
@@ -135,8 +135,8 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 	}
 	sumPath := filepath.Join(versionDir, checksumType)
 
-	// generate download URI from template
-	uri, err := autoupdate.MakeURL(li.template, baseURL, autoupdate.DefaultPackage, rev.Version, rev.Flags)
+	// generate download URI from Template
+	uri, err := autoupdate.MakeURL(li.Template, baseURL, autoupdate.DefaultPackage, rev.Version, rev.Flags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
