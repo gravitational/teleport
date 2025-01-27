@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -18,8 +19,10 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/entitlements"
+	accesscommon "github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -494,7 +497,7 @@ type tEnv struct {
 	service *Service
 }
 
-func newTEnv(t *testing.T, statusSink *integration.FakeStatusSink) (*tEnv, error) {
+func newTEnv(t *testing.T, statusSink accesscommon.StatusSink) (*tEnv, error) {
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
 		Clock: clock,
@@ -508,6 +511,11 @@ func newTEnv(t *testing.T, statusSink *integration.FakeStatusSink) (*tEnv, error
 	require.NoError(t, err)
 
 	roleService := local.NewAccessService(backend)
+	pluginService := local.NewPluginsService(backend)
+
+	createPluginReq := icfixture.NewPluginV1CreateRequest("test-oidc", "test-saml")
+	initialPlugin := types.NewPluginV1(createPluginReq.GetPlugin().GetMetadata(), createPluginReq.GetPlugin().Spec, nil)
+	require.NoError(t, pluginService.CreatePlugin(context.Background(), initialPlugin))
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -529,6 +537,7 @@ func newTEnv(t *testing.T, statusSink *integration.FakeStatusSink) (*tEnv, error
 			importConfig: ImportConfig{
 				AccessListDefaultOwners: accessListDefaultOwners,
 			},
+			pluginsService:   pluginService,
 			pluginStatusSink: statusSink,
 		},
 	}, nil
@@ -559,4 +568,59 @@ func createUsers(t *testing.T, ctx context.Context, userService UsersService) {
 		_, err = userService.CreateUser(ctx, u)
 		require.NoError(t, err)
 	}
+}
+
+func TestMaybeImportGroupAndGroupMembersPropagatesError(t *testing.T) {
+	ctx := context.Background()
+	statusSink := &integration.FakeStatusSink{}
+	tEnv, err := newTEnv(t, statusSink)
+	require.NoError(t, err)
+	mockedData := icsdk.NewMockedAWSState()
+	sdkClient := icsdk.NewClientMock(&mockedData)
+
+	// test that failed import operation error is propagated.
+	const errorMsg = "invalid credential"
+	// maybeImportGroupAndGroupMembers eventually calls ListPermissionSets method to fetch permission sets.
+	sdkClient.MonkeyPatch.ListPermissionSets = func(context.Context) ([]*icsdk.PermissionSet, error) {
+		return nil, trace.AccessDenied(errorMsg)
+	}
+	tEnv.setICSDKClient(sdkClient)
+
+	err = tEnv.service.maybeImportGroupAndGroupMembers(ctx)
+	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		return statusSink.Get() != nil
+	}, time.Second, time.Second/100)
+	require.Equal(t, types.PluginStatusCode_OTHER_ERROR, statusSink.Get().GetCode())
+	require.NotNil(t, statusSink.Get().GetAwsIc())
+	require.Equal(t, types.AWSICGroupImportStatusCode_FAILED, statusSink.Get().GetAwsIc().GroupImportStatus.StatusCode)
+	require.Contains(t, statusSink.Get().GetAwsIc().GroupImportStatus.ErrorMessage, errorMsg)
+
+	// test that successful import operation and status emission is propagated.
+	sdkClient.MonkeyPatch.ListPermissionSets = nil /* pasing nil makes the sdkClient to use a working ListPermissionSets mock */
+	tEnv.setICSDKClient(sdkClient)
+
+	err = tEnv.service.maybeImportGroupAndGroupMembers(ctx)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return statusSink.Get() != nil
+	}, time.Second, time.Second/100)
+	require.Equal(t, types.PluginStatusCode_RUNNING, statusSink.Get().GetCode())
+	require.NotNil(t, statusSink.Get().GetAwsIc())
+	require.Equal(t, types.AWSICGroupImportStatusCode_DONE, statusSink.Get().GetAwsIc().GroupImportStatus.StatusCode)
+
+	// test for successful import event but failed status event emission error is propagated.
+	failSink := &FailingStatusSink{}
+	tEnv, err = newTEnv(t, failSink)
+	require.NoError(t, err)
+	tEnv.setICSDKClient(sdkClient)
+	err = tEnv.service.maybeImportGroupAndGroupMembers(ctx)
+	require.Error(t, err)
+}
+
+// FailingStatusSink fails to emit status.
+type FailingStatusSink struct{}
+
+func (s *FailingStatusSink) Emit(_ context.Context, status types.PluginStatus) error {
+	return trace.AccessDenied("failed")
 }

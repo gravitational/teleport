@@ -19,7 +19,8 @@ import (
 )
 
 // maybeImportGroupAndGroupMembers checks for plugin group import status and triggers import
-// if the import status is not set to DONE.
+// if the import status is not set to DONE. The identity center service must bail out
+// if this method returns an error. Otherwise it risks provisioning incorrect group data to AWS.
 func (svc *Service) maybeImportGroupAndGroupMembers(ctx context.Context) error {
 	plugin, err := svc.pluginsService.GetPlugin(ctx, types.PluginTypeAWSIdentityCenter, false /* withSecrets */)
 	if err != nil {
@@ -53,19 +54,28 @@ func requiresImport(pluginStatus *types.PluginAWSICStatusV1) bool {
 	return false
 }
 
+// importAndEmitStatus runs group import and reports import status to plugin status sink.
+// Should always return an error if group import fails or if successful plugin status emission fails.
 func (svc *Service) importAndEmitStatus(ctx context.Context) error {
-	if err := svc.startGroupsAndGroupMembersImport(ctx); err != nil {
-		// log error here and let the status emitter return error to the user.
-		svc.log.ErrorContext(ctx, "failed groups or group members imports", "error", err)
-		return svc.emitImportStatus(ctx, &types.AWSICGroupImportStatus{
+	if importErr := svc.startGroupsAndGroupMembersImport(ctx); importErr != nil {
+		svc.log.ErrorContext(ctx, "Failed to import groups or group members", "error", importErr)
+		if err := svc.emitImportStatus(ctx, &types.AWSICGroupImportStatus{
 			StatusCode:   types.AWSICGroupImportStatusCode_FAILED,
-			ErrorMessage: err.Error(),
-		})
+			ErrorMessage: importErr.Error(),
+		}); err != nil {
+			svc.log.ErrorContext(ctx, "Failed to emit group import failed status", "error", err)
+		}
+		return trace.Wrap(importErr)
 	}
 
-	return svc.emitImportStatus(ctx, &types.AWSICGroupImportStatus{
+	if err := svc.emitImportStatus(ctx, &types.AWSICGroupImportStatus{
 		StatusCode: types.AWSICGroupImportStatusCode_DONE,
-	})
+	}); err != nil {
+		svc.log.ErrorContext(ctx, "Group import succeeded but plugin status update failed", "error", err)
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (svc *Service) emitImportStatus(ctx context.Context, importStatus *types.AWSICGroupImportStatus) error {
