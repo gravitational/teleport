@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MouseEvent } from 'react';
+import { MouseEvent, ReactNode } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -30,6 +30,7 @@ export function UserIcon(props: {
   color?: ProfileColor;
   className?: string;
   onClick?(e: MouseEvent<HTMLSpanElement>): void;
+  children?: ReactNode;
 }) {
   return (
     <Circle
@@ -38,11 +39,13 @@ export function UserIcon(props: {
       color={profileColorMapping[props.color]}
     >
       {props.letter.toLocaleUpperCase()}
+      {props.children}
     </Circle>
   );
 }
 
 const Circle = styled.span<{ color?: string }>`
+  position: relative;
   border-radius: 50%;
   color: ${props =>
     props.color ? 'white' : props.theme.colors.interactive.solid.primary};

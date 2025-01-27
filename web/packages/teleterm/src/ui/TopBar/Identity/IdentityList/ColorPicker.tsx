@@ -54,7 +54,9 @@ export function ColorPicker(props: {
         }
       `}
       letter={props.letter}
-    />
+    >
+      {!open && <AbsolutePencilIcon />}
+    </UserIcon>
   );
 
   return (
@@ -64,7 +66,6 @@ export function ColorPicker(props: {
       `}
     >
       {$userIcon}
-      <AbsolutePencilIcon />
       {open && (
         <Flex
           ref={ref}
