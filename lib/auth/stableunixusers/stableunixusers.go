@@ -59,11 +59,33 @@ type Config struct {
 
 // New returns the auth server implementation for the stable UNIX users service,
 // including the gRPC interface, authz enforcement, and business logic.
-func New(params Config) (stableunixusersv1.StableUNIXUsersServiceServer, error) {
+func New(c Config) (stableunixusersv1.StableUNIXUsersServiceServer, error) {
+	if c.Authorizer == nil {
+		return nil, trace.BadParameter("missing Authorizer")
+	}
+	if c.Emitter == nil {
+		return nil, trace.BadParameter("missing Emitter")
+	}
+	if c.Logger == nil {
+		return nil, trace.BadParameter("missing Logger")
+	}
+	if c.Backend == nil {
+		return nil, trace.BadParameter("missing Backend")
+	}
+	if c.ReadOnlyCache == nil {
+		return nil, trace.BadParameter("missing ReadOnlyCache")
+	}
+	if c.StableUNIXUsers == nil {
+		return nil, trace.BadParameter("missing StableUNIXUsers")
+	}
+	if c.ClusterConfiguration == nil {
+		return nil, trace.BadParameter("missing ClusterConfiguration")
+	}
+
 	uidCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:         uidCacheTTL,
-		Clock:       params.CacheClock,
-		Context:     params.CacheContext,
+		Clock:       c.CacheClock,
+		Context:     c.CacheContext,
 		ReloadOnErr: true,
 	})
 	if err != nil {
@@ -71,15 +93,15 @@ func New(params Config) (stableunixusersv1.StableUNIXUsersServiceServer, error) 
 	}
 
 	return &server{
-		authorizer: params.Authorizer,
-		emitter:    params.Emitter,
-		logger:     params.Logger,
+		authorizer: c.Authorizer,
+		emitter:    c.Emitter,
+		logger:     c.Logger,
 
-		backend:       params.Backend,
-		readOnlyCache: params.ReadOnlyCache,
+		backend:       c.Backend,
+		readOnlyCache: c.ReadOnlyCache,
 
-		stableUNIXUsers:      params.StableUNIXUsers,
-		clusterConfiguration: params.ClusterConfiguration,
+		stableUNIXUsers:      c.StableUNIXUsers,
+		clusterConfiguration: c.ClusterConfiguration,
 
 		uidCache: uidCache,
 
@@ -248,20 +270,18 @@ func (s *server) obtainUIDForUsernameUncached(ctx context.Context, username stri
 			return 0, trace.Wrap(err)
 		}
 
-		if s.emitter != nil {
-			if err := s.emitter.EmitAuditEvent(ctx, &apievents.StableUNIXUserCreate{
-				Metadata: apievents.Metadata{
-					Type: events.StableUNIXUserCreateEvent,
-					Code: events.StableUNIXUserCreateCode,
-				},
-				UserMetadata: authz.ClientUserMetadata(ctx),
-				StableUnixUser: &apievents.StableUNIXUser{
-					Username: username,
-					Uid:      uid,
-				},
-			}); err != nil {
-				s.logger.WarnContext(ctx, "Failed to emit stable_unix_user.create", "error", err)
-			}
+		if err := s.emitter.EmitAuditEvent(ctx, &apievents.StableUNIXUserCreate{
+			Metadata: apievents.Metadata{
+				Type: events.StableUNIXUserCreateEvent,
+				Code: events.StableUNIXUserCreateCode,
+			},
+			UserMetadata: authz.ClientUserMetadata(ctx),
+			StableUnixUser: &apievents.StableUNIXUser{
+				Username: username,
+				Uid:      uid,
+			},
+		}); err != nil {
+			s.logger.WarnContext(ctx, "Failed to emit stable_unix_user.create", "error", err)
 		}
 
 		return uid, nil
