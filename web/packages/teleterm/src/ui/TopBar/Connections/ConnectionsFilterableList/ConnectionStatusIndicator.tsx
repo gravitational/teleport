@@ -113,7 +113,8 @@ const StyledStatus = styled(Box)<{
             `
             position: absolute;
             top: -1px;
-            left: -2px;
+            // Visually, -1px seems to be better aligned than -2px.
+            left: -1px;
             line-height: 8px;
             `}
           }

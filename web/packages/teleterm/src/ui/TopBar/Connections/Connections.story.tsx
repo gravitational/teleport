@@ -16,12 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import { useLayoutEffect } from 'react';
 
 import { Flex, Text } from 'design';
+import { CheckReportStatus } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeCheckAttempt,
+  makeCheckReport,
+  makeReport,
+} from 'teleterm/services/vnet/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
@@ -29,7 +36,7 @@ import { VnetContextProvider } from 'teleterm/ui/Vnet';
 import { Connections } from './Connections';
 import { ConnectionsContextProvider } from './connectionsContext';
 
-export default {
+const meta: Meta = {
   title: 'Teleterm/TopBar/Connections',
   decorators: [
     Story => {
@@ -39,6 +46,7 @@ export default {
     },
   ],
 };
+export default meta;
 
 const rootClusterUri = '/clusters/foo';
 
@@ -108,6 +116,42 @@ export function JustVnetWithNoClusters() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
   appContext.connectionTracker.getConnections = () => [];
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function VnetWarning() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.configService.set('unstable.vnetDiag', true);
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.runDiagnostics = () =>
+    new MockedUnaryCall({
+      report: makeReport({
+        checks: [
+          makeCheckAttempt({
+            checkReport: makeCheckReport({
+              status: CheckReportStatus.ISSUES_FOUND,
+            }),
+          }),
+        ],
+      }),
+    });
 
   return (
     <AppContextProvider value={appContext}>

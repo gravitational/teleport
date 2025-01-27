@@ -93,6 +93,11 @@ export type VnetContext = {
    * openReport is undefined if the user is not within any workspace.
    */
   openReport: ((report: Report) => void) | undefined;
+  /**
+   * Whether the connections icon in the top left and the icon for the VNet connection item should
+   * show a warning state.
+   */
+  showDiagWarningIndicator: boolean;
 };
 
 export type VnetStatus =
@@ -272,6 +277,16 @@ export const VnetContextProvider: FC<
     [rootClusterUri, workspacesService, notificationsService]
   );
 
+  const showDiagWarningIndicator: boolean = useMemo(
+    () =>
+      !hasDismissedDiagnosticsAlert &&
+      // Look at data, not status === 'running', otherwise this would briefly swap to false
+      // whenever a diagnostic run would be in progress.
+      diagnosticsAttempt.data &&
+      hasReportFoundIssues(diagnosticsAttempt.data),
+    [hasDismissedDiagnosticsAlert, diagnosticsAttempt]
+  );
+
   useEffect(() => {
     const handleAutoStart = async () => {
       if (
@@ -440,6 +455,7 @@ export const VnetContextProvider: FC<
         hasDismissedDiagnosticsAlert,
         reinstateDiagnosticsAlert,
         openReport: rootClusterUri ? openReport : undefined,
+        showDiagWarningIndicator,
       }}
     >
       {children}
