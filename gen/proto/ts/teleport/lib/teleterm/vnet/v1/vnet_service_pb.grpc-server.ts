@@ -20,6 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { RunDiagnosticsResponse } from "./vnet_service_pb";
+import { RunDiagnosticsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import { ListDNSZonesResponse } from "./vnet_service_pb";
@@ -68,6 +70,12 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
+    /**
+     * TODO: Comment.
+     *
+     * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
+     */
+    runDiagnostics: grpc.handleUnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.vnet.v1.VnetService.
@@ -120,5 +128,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => GetBackgroundItemStatusRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
+    },
+    runDiagnostics: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics",
+        originalName: "RunDiagnostics",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => RunDiagnosticsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => RunDiagnosticsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(RunDiagnosticsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(RunDiagnosticsRequest.toBinary(value))
     }
 };

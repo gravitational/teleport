@@ -39,6 +39,7 @@ const (
 	VnetService_Stop_FullMethodName                    = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
 	VnetService_ListDNSZones_FullMethodName            = "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones"
 	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
+	VnetService_RunDiagnostics_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -64,6 +65,8 @@ type VnetServiceClient interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
+	// TODO: Comment.
+	RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error)
 }
 
 type vnetServiceClient struct {
@@ -114,6 +117,16 @@ func (c *vnetServiceClient) GetBackgroundItemStatus(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *vnetServiceClient) RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunDiagnosticsResponse)
+	err := c.cc.Invoke(ctx, VnetService_RunDiagnostics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VnetServiceServer is the server API for VnetService service.
 // All implementations must embed UnimplementedVnetServiceServer
 // for forward compatibility.
@@ -137,6 +150,8 @@ type VnetServiceServer interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
+	// TODO: Comment.
+	RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }
 
@@ -158,6 +173,9 @@ func (UnimplementedVnetServiceServer) ListDNSZones(context.Context, *ListDNSZone
 }
 func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
+}
+func (UnimplementedVnetServiceServer) RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RunDiagnostics not implemented")
 }
 func (UnimplementedVnetServiceServer) mustEmbedUnimplementedVnetServiceServer() {}
 func (UnimplementedVnetServiceServer) testEmbeddedByValue()                     {}
@@ -252,6 +270,24 @@ func _VnetService_GetBackgroundItemStatus_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VnetService_RunDiagnostics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunDiagnosticsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetServiceServer).RunDiagnostics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetService_RunDiagnostics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetServiceServer).RunDiagnostics(ctx, req.(*RunDiagnosticsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VnetService_ServiceDesc is the grpc.ServiceDesc for VnetService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -274,6 +310,10 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBackgroundItemStatus",
 			Handler:    _VnetService_GetBackgroundItemStatus_Handler,
+		},
+		{
+			MethodName: "RunDiagnostics",
+			Handler:    _VnetService_RunDiagnostics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
