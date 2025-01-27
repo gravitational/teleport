@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { Meta } from '@storybook/react';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
@@ -25,10 +26,24 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { useVnetContext, VnetContextProvider } from './vnetContext';
-import { VnetSliderStep } from './VnetSliderStep';
+import { VnetSliderStep as Component } from './VnetSliderStep';
 
-export default {
+type StoryProps = {
+  startVnet: 'success' | 'error' | 'processing';
+  autoStart: boolean;
+  dnsZones: string[];
+  listDnsZones:
+    | 'success'
+    | 'error'
+    | 'processing'
+    | 'processing-with-previous-results';
+  vnetDiag: boolean;
+  unexpectedShutdown: boolean;
+};
+
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/Vnet/VnetSliderStep',
+  component: VnetSliderStep,
   decorators: [
     Story => {
       return (
@@ -38,75 +53,115 @@ export default {
       );
     },
   ],
+  argTypes: {
+    startVnet: {
+      control: { type: 'inline-radio' },
+      options: ['success', 'error', 'processing'],
+    },
+    dnsZones: {
+      control: { type: 'object' },
+    },
+    listDnsZones: {
+      control: { type: 'inline-radio' },
+      options: [
+        'success',
+        'error',
+        'processing',
+        'processing-with-previous-results',
+      ],
+    },
+  },
+  args: {
+    startVnet: 'success',
+    autoStart: true,
+    dnsZones: ['teleport.example.com', 'company.test'],
+    listDnsZones: 'success',
+    vnetDiag: true,
+    unexpectedShutdown: false,
+  },
 };
+export default meta;
 
-const dnsZones = ['teleport.example.com', 'company.test'];
-
-export function Running() {
+export function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext();
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  appContext.vnet.listDNSZones = () => new MockedUnaryCall({ dnsZones });
+
+  if (props.autoStart) {
+    appContext.statePersistenceService.putState({
+      ...appContext.statePersistenceService.getState(),
+      vnet: { autoStart: true },
+    });
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
+  }
+
+  if (props.vnetDiag) {
+    appContext.configService.set('unstable.vnetDiag', true);
+  }
+
+  const pendingPromise = usePromiseRejectedOnUnmount();
+
+  if (props.startVnet === 'processing') {
+    appContext.vnet.start = () => pendingPromise;
+  } else {
+    appContext.vnet.start = () => {
+      if (props.startVnet === 'success' && props.unexpectedShutdown) {
+        setTimeout(() => {
+          appContext.unexpectedVnetShutdownListener({
+            error: 'lorem ipsum dolor sit amet',
+          });
+        }, 5);
+      }
+      return new MockedUnaryCall(
+        {},
+        props.startVnet === 'error'
+          ? new Error('something went wrong')
+          : undefined
+      );
+    };
+  }
+
+  if (props.listDnsZones === 'processing') {
+    appContext.vnet.listDNSZones = () => pendingPromise;
+  } else {
+    let firstCall = true;
+    appContext.vnet.listDNSZones = () => {
+      if (props.listDnsZones === 'processing-with-previous-results') {
+        if (firstCall) {
+          firstCall = false;
+          return new MockedUnaryCall({ dnsZones: props.dnsZones });
+        }
+        return pendingPromise;
+      }
+
+      return new MockedUnaryCall(
+        { dnsZones: props.dnsZones },
+        props.listDnsZones === 'error'
+          ? new Error('something went wrong')
+          : undefined
+      );
+    };
+  }
 
   return (
-    <MockAppContextProvider appContext={appContext}>
+    <MockAppContextProvider
+      appContext={appContext}
+      // Completely re-mount everything when controls change. This ensures that effects to fetch
+      // data are fired again.
+      key={JSON.stringify(props)}
+    >
       <VnetContextProvider>
-        <Component />
-      </VnetContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-export function UpdatingDnsZones() {
-  const appContext = new MockAppContext();
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  const promise = usePromiseRejectedOnUnmount();
-  appContext.vnet.listDNSZones = () => promise;
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Component />
-      </VnetContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-export function UpdatingDnsZonesWithPreviousResults() {
-  const appContext = new MockAppContext();
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  const promise = usePromiseRejectedOnUnmount();
-  let firstCall = true;
-  appContext.vnet.listDNSZones = () => {
-    if (firstCall) {
-      firstCall = false;
-      return new MockedUnaryCall({ dnsZones });
-    }
-    return promise;
-  };
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <RerequestDNSZones />
-        <Component />
+        {props.listDnsZones === 'processing-with-previous-results' && (
+          <RerequestDNSZones />
+        )}
+        <Component
+          refCallback={noop}
+          next={noop}
+          prev={noop}
+          hasTransitionEnded
+          stepIndex={1}
+          flowLength={2}
+        />
       </VnetContextProvider>
     </MockAppContextProvider>
   );
@@ -123,86 +178,5 @@ const RerequestDNSZones = () => {
 
   return null;
 };
-
-export function DnsZonesError() {
-  const appContext = new MockAppContext();
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  appContext.vnet.listDNSZones = () =>
-    new MockedUnaryCall(undefined, new Error('something went wrong'));
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Component />
-      </VnetContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-export function StartError() {
-  const appContext = new MockAppContext();
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  appContext.vnet.start = () =>
-    new MockedUnaryCall(undefined, new Error('something went wrong'));
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Component />
-      </VnetContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-export function UnexpectedShutdown() {
-  const appContext = new MockAppContext();
-
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  appContext.vnet.start = () => {
-    setTimeout(() => {
-      appContext.unexpectedVnetShutdownListener({
-        error: 'lorem ipsum dolor sit amet',
-      });
-    }, 0);
-    return new MockedUnaryCall({});
-  };
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Component />
-      </VnetContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-const Component = () => (
-  <VnetSliderStep
-    refCallback={noop}
-    next={noop}
-    prev={noop}
-    hasTransitionEnded
-    stepIndex={1}
-    flowLength={2}
-  />
-);
 
 const noop = () => {};
