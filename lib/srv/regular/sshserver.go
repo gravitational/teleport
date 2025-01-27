@@ -1322,7 +1322,7 @@ func (s *Server) obtainFallbackUID(ctx context.Context, username string) (uid in
 	// see https://github.com/systemd/systemd/blob/cc7300fc5868f6d47f3f47076100b574bf54e58d/docs/UIDS-GIDS.md
 	const firstUserUID = 1000
 	if uid < firstUserUID {
-		return 0, false, trace.BadParameter("received a negative or system UID as fallback UID from the control plane (%v)", uid)
+		return 0, false, trace.BadParameter("received a negative or system UID as the new UID from the control plane (%v)", uid)
 	}
 
 	return uid, true, nil
