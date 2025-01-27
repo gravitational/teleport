@@ -23,6 +23,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"os/exec"
 	"regexp"
 	"strings"
 
@@ -182,6 +183,11 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, e
 	}
 
 	return rcs, nil
+}
+
+// Commands returns the accompanying command showing the state of routes in the system.
+func (c *RouteConflictDiag) Commands(ctx context.Context) []*exec.Cmd {
+	return c.commands(ctx)
 }
 
 // RouteDest allows singular treatment of route destinations, no matter if they have a netmask or not.
