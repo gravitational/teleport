@@ -204,6 +204,7 @@ func TestStableUNIXUsers(t *testing.T) {
 	_, err = clusterConfiguration.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
+	emitter.emitted = true
 	eg, ctx := errgroup.WithContext(ctx)
 	for i := range 1000 {
 		eg.Go(func() error {
@@ -219,7 +220,10 @@ type mockEmitter struct {
 }
 
 func (e *mockEmitter) EmitAuditEvent(ctx context.Context, ev apievents.AuditEvent) error {
-	e.emitted = true
+	if !e.emitted {
+		// avoid racing a write if the flag is already set
+		e.emitted = true
+	}
 	return nil
 }
 
