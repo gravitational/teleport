@@ -28,13 +28,18 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/fatih/color"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 var (
@@ -103,16 +108,20 @@ type netIQSettings struct {
 	insecureSkipVerify    bool
 }
 
-func (p *PluginsCommand) netIQSetupGuide() (netIQSettings, error) {
+func (p *PluginsCommand) netIQSetupGuide(ctx context.Context) (netIQSettings, error) {
 	settings := netIQSettings{}
 	var err error
 
-	settings.ospURL, err = promptForURL(os.Stdout, netIQStep1Template, "Please enter the IDM OSP address", p.install.netIQ.insecureSkipVerify, checkNetIQOSPAddress)
+	settings.ospURL, err = promptForURL(ctx, os.Stdout, netIQStep1Template, "Please enter the IDM OSP address", p.install.netIQ.insecureSkipVerify,
+		func(ctx context.Context, s string, b bool) error {
+			_, err := checkNetIQOSPAddress(ctx, s, b)
+			return trace.Wrap(err)
+		})
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	settings.apiURL, err = promptForURL(os.Stdout, netIQStep2Template, "Please enter the IDM API address: ", p.install.netIQ.insecureSkipVerify, checkNetIQAPIAddress)
+	settings.apiURL, err = promptForURL(ctx, os.Stdout, netIQStep2Template, "Please enter the IDM API address ", p.install.netIQ.insecureSkipVerify, checkUnauthenticatedNetIQAPIAddress)
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
@@ -121,32 +130,37 @@ func (p *PluginsCommand) netIQSetupGuide() (netIQSettings, error) {
 		return netIQSettings{}, err
 	}
 
-	settings.oAuthClientID, err = promptForInput(os.Stdout, netIQStep4Template, "Enter the OAuth ClientID: ")
+	settings.oAuthClientID, err = promptForInput(ctx, os.Stdout, netIQStep4Template, "Enter the OAuth ClientID ")
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	settings.oAuthClientSecret, err = promptForInput(os.Stdout, "", "Enter the OAuth Client Secret: ")
+	settings.oAuthClientSecret, err = promptForPassword(ctx, os.Stdout, "Enter the OAuth Client Secret ")
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	settings.identityVaultUser, err = promptForInput(os.Stdout, netIQStep5Template, "Enter the IDM User: ")
+	settings.identityVaultUser, err = promptForInput(ctx, os.Stdout, netIQStep5Template, "Enter the IDM User")
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	settings.identityVaultPassword, err = promptForInput(os.Stdout, "", "Enter the IDM User Password: ")
+	settings.identityVaultPassword, err = promptForPassword(ctx, os.Stdout, "Enter the IDM User Password")
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
 	settings.insecureSkipVerify = p.install.netIQ.insecureSkipVerify
+
+	// Validate the NetIQ settings.
+	if err := checkAuthenticatedNetIQAPIAddress(ctx, settings); err != nil {
+		return netIQSettings{}, trace.Wrap(err)
+	}
 	return settings, nil
 }
 
 func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args installPluginArgs) error {
-	settings, err := p.netIQSetupGuide()
+	settings, err := p.netIQSetupGuide(ctx)
 	if err != nil {
 		if errors.Is(err, errCancel) {
 			return nil
@@ -168,7 +182,7 @@ func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args installPluginArg
 		Plugin:                plugin,
 		StaticCredentialsList: creds,
 		CredentialLabels: map[string]string{
-			"netiq/org": settings.apiURL,
+			netIQOrgURLLabel: settings.apiURL,
 		},
 	}
 
@@ -181,15 +195,15 @@ func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args installPluginArg
 	return nil
 }
 
-func promptForURL(out io.Writer, template, prompt string, insecureSkipVerify bool, checkFunc func(string, bool) error) (string, error) {
-	fmt.Fprint(out, template)
+func promptForURL(ctx context.Context, out io.Writer, template, prompt string, insecureSkipVerify bool, checkFunc func(context.Context, string, bool) error) (string, error) {
+	fmt.Fprintf(out, "\n%s", template)
 	return readData(os.Stdin, out, prompt, func(input string) bool {
 		_, err := url.Parse(input)
 		if err != nil {
 			fmt.Fprintf(out, "Invalid URL: %v\n", err)
 			return false
 		}
-		if err := checkFunc(input, insecureSkipVerify); err != nil {
+		if err := checkFunc(ctx, input, insecureSkipVerify); err != nil {
 			fmt.Fprintf(out, "Invalid address: %v\n", err)
 			return false
 		}
@@ -198,7 +212,7 @@ func promptForURL(out io.Writer, template, prompt string, insecureSkipVerify boo
 }
 
 func promptForContinue(out io.Writer, template string) error {
-	fmt.Fprint(out, template)
+	fmt.Fprintf(out, "\n%s", template)
 	op, err := readData(os.Stdin, out, "Type 'continue' to proceed, 'exit' to quit: ", func(input string) bool {
 		return input == "continue" || input == "exit"
 	}, "Invalid input. Please enter 'continue' or 'exit'.")
@@ -211,63 +225,194 @@ func promptForContinue(out io.Writer, template string) error {
 	return nil
 }
 
-func promptForInput(out io.Writer, template, prompt string) (string, error) {
+func promptForPassword(ctx context.Context, out io.Writer, promptMsg string) (string, error) {
+	return prompt.Password(
+		ctx, out, prompt.Stdin(),
+		promptMsg,
+	)
+}
+
+func promptForInput(_ context.Context, out io.Writer, template, prompt string) (string, error) {
 	if template != "" {
-		fmt.Fprint(out, template)
+		fmt.Fprintf(out, "\n%s", template)
 	}
 	return readData(os.Stdin, out, prompt, func(s string) bool {
 		return s != ""
 	}, "Invalid input.")
 }
 
-func checkNetIQOSPAddress(ospURL string, insecureSkipVerify bool) error {
-	return checkNetIQAddress(ospURL, "/a/idm/auth/oauth2/.well-known/openid-configuration", insecureSkipVerify)
+func checkNetIQOSPAddress(ctx context.Context, ospURL string, insecureSkipVerify bool) (string, error) {
+	var tokenAddr string
+	err := checkNetIQAddress(
+		ctx,
+		ospURL,
+		"/a/idm/auth/oauth2/.well-known/openid-configuration",
+		insecureSkipVerify,
+		func(r *http.Response) error {
+			type openIDConfig struct {
+				Token string `json:"token_endpoint"`
+			}
+			out := openIDConfig{}
+			if err := json.NewDecoder(r.Body).Decode(&out); err != nil || out.Token == "" {
+				return trace.BadParameter("invalid OSP address")
+			}
+			tokenAddr = out.Token
+			return nil
+		},
+	)
+	return tokenAddr, trace.Wrap(err)
 }
 
-func checkNetIQAPIAddress(apiAddr string, insecureSkipVerify bool) error {
-	return checkNetIQAddress(apiAddr, "rest/access/info/version", insecureSkipVerify)
+// checkUnauthenticatedNetIQAPIAddress checks if the NetIQ API address is reachable and serves the expected content.
+func checkUnauthenticatedNetIQAPIAddress(ctx context.Context, apiAddr string, insecureSkipVerify bool) error {
+	return checkNetIQAddress(
+		ctx,
+		apiAddr,
+		"rest/access/info/version",
+		insecureSkipVerify,
+		// API endpoints are protected so we are ensuring that the endpoint
+		// is reachable and doesn't return 404.
+		func(r *http.Response) error {
+			if r.StatusCode != http.StatusUnauthorized {
+				return trace.BadParameter("invalid API address")
+			}
+			return nil
+		},
+	)
 }
 
-func checkNetIQAddress(addr, path string, insecureSkipVerify bool) error {
+func checkAuthenticatedNetIQAPIAddress(ctx context.Context, data netIQSettings) error {
+	tokenUrl, err := checkNetIQOSPAddress(ctx, data.ospURL, data.insecureSkipVerify)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	q := url.Values{}
+	q.Add("grant_type", "password")
+	q.Add("username", data.identityVaultUser)
+	q.Add("password", data.identityVaultPassword)
+
+	// validate API credentials
+	rsp, err := doRequest(
+		ctx,
+		tokenUrl,
+		http.MethodPost,
+		data.insecureSkipVerify,
+		withBody(strings.NewReader(q.Encode())),
+		withBasicAuth(data.oAuthClientID, data.oAuthClientSecret),
+		withHeader("Content-Type", "application/x-www-form-urlencoded"),
+	)
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer rsp.Body.Close()
+	defer io.Copy(io.Discard, rsp.Body)
+
+	// tokenResponse represents the response from the OSP(NetIQ authorization service) token endpoint
+	// when requesting an access token.
+	type tokenResponse struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	var token tokenResponse
+	if err := json.NewDecoder(rsp.Body).Decode(&token); err != nil {
+		return trace.Wrap(err, "failed to decode response")
+	}
+
+	return checkNetIQAddress(
+		ctx,
+		data.apiURL,
+		"rest/access/info/version",
+		data.insecureSkipVerify,
+		// API endpoints are protected so we are ensuring that the endpoint
+		// is reachable and doesn't return 404.
+		func(r *http.Response) error {
+			fmt.Println(r.StatusCode)
+			io.Copy(os.Stdout, r.Body)
+			switch r.StatusCode {
+			case http.StatusUnauthorized:
+				return trace.BadParameter("invalid API credentials")
+			case http.StatusOK:
+				return nil
+			default:
+				return trace.BadParameter("invalid API address")
+			}
+		},
+		withHeader("Authorization", fmt.Sprintf("%s %s", token.TokenType, token.AccessToken)),
+	)
+}
+
+func checkNetIQAddress(ctx context.Context, addr, path string, insecureSkipVerify bool, validation func(*http.Response) error, opts ...doRequestOptions) error {
 	u, err := url.Parse(addr)
 	if err != nil {
 		return trace.Wrap(err, "invalid address")
 	}
 	u = u.JoinPath(path)
-	rsp, err := doRequest(u.String(), http.MethodGet, insecureSkipVerify)
+	rsp, err := doRequest(ctx, u.String(), http.MethodGet, insecureSkipVerify, opts...)
 	if err != nil {
 		return trace.Wrap(err, "failed to check address")
 	}
 	defer rsp.Body.Close()
-	if path == "rest/access/info/version" && rsp.StatusCode != http.StatusUnauthorized {
-		return trace.BadParameter("invalid API address")
+	defer io.Copy(io.Discard, rsp.Body)
+
+	if err := validation(rsp); err != nil {
+		return trace.Wrap(err, "failed to validate address")
 	}
-	if path != "rest/access/info/version" {
-		type openIDConfig struct {
-			Token string `json:"token_endpoint"`
-		}
-		out := openIDConfig{}
-		if err := json.NewDecoder(rsp.Body).Decode(&out); err != nil || out.Token == "" {
-			return trace.BadParameter("invalid OSP address")
-		}
-	}
+
 	return nil
 }
 
-func doRequest(url, method string, insecureSkipVerify bool) (*http.Response, error) {
-	req, err := http.NewRequest(method, url, nil)
+type doRequestOptions func(*http.Request) error
+
+func withBasicAuth(user, password string) doRequestOptions {
+	return func(req *http.Request) error {
+		req.SetBasicAuth(user, password)
+		return nil
+	}
+}
+
+func withBody(body io.Reader) doRequestOptions {
+	return func(req *http.Request) error {
+		req.Body = io.NopCloser(body)
+		return nil
+	}
+}
+
+func withHeader(key, value string) doRequestOptions {
+	return func(req *http.Request) error {
+		req.Header.Set(key, value)
+		return nil
+	}
+}
+
+func doRequest(ctx context.Context, url, method string, insecureSkipVerify bool, opts ...doRequestOptions) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", fmt.Sprintf("%s/%s", teleport.ComponentTCTL, api.Version))
+
+	for _, opt := range opts {
+		if err := opt(req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	transport, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+	transport.TLSClientConfig.InsecureSkipVerify = insecureSkipVerify
 	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: insecureSkipVerify,
-			},
-		},
+		Transport: transport,
 	}
 	return client.Do(req)
 }
@@ -283,12 +428,25 @@ func getNetIQPluginCredentials(req netIQSettings) ([]*types.PluginStaticCredenti
 	return out, nil
 }
 
+const (
+	// netIQOrgURLLabel is the label for which NetIQ instance object belongs to.
+	netIQOrgURLLabel = "netiq/org"
+	// credPurposeLabel is the label for the purpose of the credential.
+	credPurposeLabel = "netiq/purpose"
+	// credPurposeNetIQOauth is the purpose for the NetIQ OAuth client ID and secret.
+	credPurposeNetIQOauth = "oauth-client-id-secret"
+	// credPurposeNetIQAuth is the purpose for the NetIQ Identity Vault user and password.
+	credPurposeNetIQAuth = "netiq-auth"
+)
+
 func buildOAuthCredentials(clientID, clientSecret string) *types.PluginStaticCredentialsV1 {
 	return &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name:   types.PluginTypeNetIQ + "-oauth",
-				Labels: map[string]string{"netiq/purpose": "oauth-client-id-secret"},
+				Name: types.PluginTypeNetIQ + "-oauth",
+				Labels: map[string]string{
+					credPurposeLabel: credPurposeNetIQAuth,
+				},
 			},
 		},
 		Spec: &types.PluginStaticCredentialsSpecV1{
@@ -306,8 +464,10 @@ func buildBasicAuthCredentials(user, password string) *types.PluginStaticCredent
 	return &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name:   types.PluginTypeNetIQ + "-basic-auth",
-				Labels: map[string]string{"netiq/purpose": "oauth-client-id-secret"},
+				Name: types.PluginTypeNetIQ + "-basic-auth",
+				Labels: map[string]string{
+					credPurposeLabel: credPurposeNetIQOauth,
+				},
 			},
 		},
 		Spec: &types.PluginStaticCredentialsSpecV1{
