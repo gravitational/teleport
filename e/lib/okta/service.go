@@ -353,11 +353,20 @@ func New(ctx context.Context, config Config) (*Service, error) {
 
 // newWithClientCreator will create a new Okta service with the given oktaClient.
 func newWithClientCreator(ctx context.Context, config Config, creator api.OktaClientFn) (*Service, error) {
+	oktaStatus := NewPluginOktaStatus(PluginOktaStatusParams{
+		SyncSettings: config.SyncSettings,
+		ScimEnabled:  config.SCIMEnabled,
+	})
+
 	if err := config.CheckAndSetDefaults(); err != nil {
 		ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
 			types.PluginStatusCode_OTHER_ERROR,
-			nil /* no details available yet */)
+			oktaStatus)
 		return nil, trace.Wrap(err)
+	} else {
+		ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
+			types.PluginStatusCode_RUNNING,
+			oktaStatus)
 	}
 
 	s := &Service{
@@ -388,13 +397,10 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		oktaSAMLAppID:           config.SyncSettings.AppId,
 		disableOktaAppGroupSync: config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus: serviceStatus{
-			sink:   config.PluginStatusSink,
-			code:   types.PluginStatusCode_UNKNOWN,
-			logger: config.Logger,
-			details: NewPluginOktaStatus(PluginOktaStatusParams{
-				SyncSettings: config.SyncSettings,
-				ScimEnabled:  config.SCIMEnabled,
-			}),
+			sink:    config.PluginStatusSink,
+			code:    types.PluginStatusCode_UNKNOWN,
+			logger:  config.Logger,
+			details: oktaStatus,
 		},
 	}
 	// TODO(tross) pass in config.Logger once this supports slog. Until then
