@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/grafana/pyroscope-go"
@@ -60,10 +59,10 @@ func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
 	l.l.Error(fmt.Sprintf(format, args...))
 }
 
-// initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
-func (process *TeleportProcess) initPyroscope(address string) {
+// createPyroscopeConfig generates the Pyroscope configuration for the Teleport process.
+func (process *TeleportProcess) createPyroscopeConfig(address string) (pyroscope.Config, error) {
 	if address == "" {
-		return
+		return pyroscope.Config{}, fmt.Errorf("pyroscope address is empty")
 	}
 
 	hostname, err := os.Hostname()
@@ -71,7 +70,6 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		hostname = "unknown"
 	}
 
-	// Build pyroscope config
 	config := pyroscope.Config{
 		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
@@ -111,14 +109,25 @@ func (process *TeleportProcess) initPyroscope(address string) {
 	if value, isSet := os.LookupEnv("TELEPORT_PYROSCOPE_KUBE_COMPONENT"); isSet {
 		config.Tags["component"] = value
 	}
-		
+
 	if value, isSet := os.LookupEnv("TELEPORT_PYROSCOPE_KUBE_NAMESPACE"); isSet {
 		config.Tags["namespace"] = value
 	}
 
+	return config, nil
+}
+
+// initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
+func (process *TeleportProcess) initPyroscope(address string) {
+	config, err := process.createPyroscopeConfig(address)
+	if err != nil {
+		slog.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
+		return
+	}
+
 	profiler, err := pyroscope.Start(config)
 	if err != nil {
-		slog.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "error", err)
+		slog.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "address", address, "error", err)
 	} else {
 		process.OnExit("pyroscope.profiler", func(payload any) {
 			profiler.Flush(payload == nil)
