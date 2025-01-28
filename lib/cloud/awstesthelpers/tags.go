@@ -30,8 +30,8 @@ import (
 )
 
 func LabelsToTags[T any](labels map[string]string, convert func(string, string) T) []T {
-	keys := slices.Collect(maps.Keys(labels))
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(labels))
+
 	ret := make([]T, 0, len(keys))
 	for _, key := range keys {
 		value := labels[key]

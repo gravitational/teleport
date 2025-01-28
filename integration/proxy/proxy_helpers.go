@@ -39,7 +39,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -771,7 +770,7 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 	require.NoError(t, err)
 
 	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
-	require.Contains(t, maps.Keys(config.Clusters), contextName)
+	require.Contains(t, config.Clusters, contextName)
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
 

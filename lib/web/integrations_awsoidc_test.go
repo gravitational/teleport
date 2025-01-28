@@ -1075,11 +1075,15 @@ func TestAWSOIDCAppAccessAppServerCreationWithUserProvidedLabels(t *testing.T) {
 }
 
 type mockDeployedDatabaseServices struct {
+	listErr           error
 	integration       string
 	servicesPerRegion map[string][]*integrationv1.DeployedDatabaseService
 }
 
 func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.Context, in *integrationv1.ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*integrationv1.ListDeployedDatabaseServicesResponse, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	const pageSize = 10
 	ret := &integrationv1.ListDeployedDatabaseServicesResponse{}
 	if in.Integration != m.integration {

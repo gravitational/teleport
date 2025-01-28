@@ -1539,7 +1539,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devCred = "devicecred1"
 
 	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
+		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
 			fc.Advance(d)
 		}
 	}
@@ -2642,7 +2642,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 		mfaVerified:    mfaID,
 		sshPublicKey:   sshPubKey,
 		tlsPublicKey:   tlsPubKey,
-		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
+		activeRequests: []string{requestID},
 		deviceExtensions: DeviceExtensions{
 			DeviceID:     deviceID,
 			AssetTag:     "assettag1",
@@ -3764,15 +3764,15 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		TrustInternal:           local.NewCAService(bk),
-		PresenceInternal:        local.NewPresenceService(bk),
-		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                identityService,
-		Access:                  local.NewAccessService(bk),
-		DynamicAccessExt:        local.NewDynamicAccessService(bk),
-		ClusterConfiguration:    configService,
-		Events:                  local.NewEventsService(bk),
-		AuditLogSessionStreamer: events.NewDiscardAuditLog(),
+		TrustInternal:                local.NewCAService(bk),
+		PresenceInternal:             local.NewPresenceService(bk),
+		Provisioner:                  local.NewProvisioningService(bk),
+		Identity:                     identityService,
+		Access:                       local.NewAccessService(bk),
+		DynamicAccessExt:             local.NewDynamicAccessService(bk),
+		ClusterConfigurationInternal: configService,
+		Events:                       local.NewEventsService(bk),
+		AuditLogSessionStreamer:      events.NewDiscardAuditLog(),
 	}
 }
 

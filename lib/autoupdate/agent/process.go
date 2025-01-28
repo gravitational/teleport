@@ -330,12 +330,28 @@ func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
 
 // checkSystem returns an error if the system is not compatible with this process manager.
 func (s SystemdService) checkSystem(ctx context.Context) error {
-	_, err := os.Stat("/run/systemd/system")
-	if errors.Is(err, os.ErrNotExist) {
+	present, err := hasSystemD()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !present {
 		s.Log.ErrorContext(ctx, "This system does not support systemd, which is required by the updater.")
 		return trace.Wrap(ErrNotSupported)
 	}
-	return trace.Wrap(err)
+	return nil
+
+}
+
+// hasSystemD returns true if the system uses the SystemD process manager.
+func hasSystemD() (bool, error) {
+	_, err := os.Stat("/run/systemd/system")
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return true, nil
 }
 
 // systemctl returns a systemctl subcommand, converting the output to logs.

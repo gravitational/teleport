@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -242,6 +243,61 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 				ResourcesFound:             4,
 				ResourcesEnrollmentFailed:  0,
 				ResourcesEnrollmentSuccess: 0,
+				DiscoverLastSync:           &syncTime,
+			},
+		}
+		require.Equal(t, expectedSummary, gotSummary)
+	})
+	t.Run("returns 0 ECS DatabaseServices if listing deployed database services returns AccessDenied", func(t *testing.T) {
+		syncTime := time.Now()
+		dcForRDS := &discoveryconfig.DiscoveryConfig{
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"rds"},
+				Regions:     []string{"us-east-1", "us-east-2", "us-west-2"},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime:        syncTime,
+				DiscoveredResources: 2,
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					integrationName: {
+						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
+					},
+				},
+			},
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{
+				dcForRDS,
+			},
+			databaseServices: &proto.ListResourcesResponse{},
+			databases:        make([]types.Database, 0),
+		}
+
+		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
+			listErr: trace.AccessDenied("AccessDenied to ECS:ListServices"),
+		}
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
+		require.NoError(t, err)
+		expectedSummary := &ui.IntegrationWithSummary{
+			Integration: &ui.Integration{
+				Name:    integrationName,
+				SubKind: "aws-oidc",
+				AWSOIDC: &ui.IntegrationAWSOIDCSpec{RoleARN: "arn:role"},
+			},
+			AWSRDS: ui.ResourceTypeSummary{
+				RulesCount:                 3,
+				ResourcesFound:             2,
+				ResourcesEnrollmentFailed:  1,
+				ResourcesEnrollmentSuccess: 1,
+				ECSDatabaseServiceCount:    0,
 				DiscoverLastSync:           &syncTime,
 			},
 		}

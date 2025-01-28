@@ -2631,7 +2631,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
 	cfg.Apps = services.Apps
-	cfg.ClusterConfig = services.ClusterConfiguration
+	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
 	cfg.DatabaseServices = services.DatabaseServices
@@ -3480,6 +3480,10 @@ type promHTTPLogAdapter struct {
 
 // Println implements the promhttp.Logger interface.
 func (l promHTTPLogAdapter) Println(v ...interface{}) {
+	if !l.Handler().Enabled(l.ctx, slog.LevelError) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.ErrorContext(l.ctx, fmt.Sprint(v...))
 }

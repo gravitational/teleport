@@ -1473,6 +1473,27 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
+				"stable_unix_user_config": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"enabled": {
+							Description: "Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from the control plane if they're about to provision a host user with no other configured UID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"first_uid": {
+							Description: "FirstUid is the start of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"last_uid": {
+							Description: "LastUid is the end of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Description: "StableUnixUserConfig contains the cluster-wide configuration for stable UNIX users.",
+					Optional:    true,
+				},
 				"type": {
 					Computed:      true,
 					Description:   "Type is the type of authentication.",
@@ -15032,6 +15053,75 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["stable_unix_user_config"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.StableUnixUserConfig = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.StableUnixUserConfig = &github_com_gravitational_teleport_api_types.StableUNIXUserConfig{}
+									obj := obj.StableUnixUserConfig
+									{
+										a, ok := tf.Attrs["enabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Enabled = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["first_uid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t int32
+												if !v.Null && !v.Unknown {
+													t = int32(v.Value)
+												}
+												obj.FirstUid = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["last_uid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t int32
+												if !v.Null && !v.Unknown {
+													t = int32(v.Value)
+												}
+												obj.LastUid = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -16278,6 +16368,104 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								}
 								c.Unknown = false
 								tf.Attrs["second_factors"] = c
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["stable_unix_user_config"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["stable_unix_user_config"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.StableUnixUserConfig == nil {
+									v.Null = true
+								} else {
+									obj := obj.StableUnixUserConfig
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["enabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled"})
+										} else {
+											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Enabled) == false
+											}
+											v.Value = bool(obj.Enabled)
+											v.Unknown = false
+											tf.Attrs["enabled"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["first_uid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid"})
+										} else {
+											v, ok := tf.Attrs["first_uid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.FirstUid) == 0
+											}
+											v.Value = int64(obj.FirstUid)
+											v.Unknown = false
+											tf.Attrs["first_uid"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["last_uid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid"})
+										} else {
+											v, ok := tf.Attrs["last_uid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.LastUid) == 0
+											}
+											v.Value = int64(obj.LastUid)
+											v.Unknown = false
+											tf.Attrs["last_uid"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["stable_unix_user_config"] = v
 							}
 						}
 					}

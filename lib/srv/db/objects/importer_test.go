@@ -19,13 +19,14 @@ package objects
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -184,7 +185,7 @@ func TestCalculateUpdates(t *testing.T) {
 
 			result := calculateUpdates(context.Background(), cfg, initialState, freshObjects)
 
-			require.ElementsMatch(t, maps.Keys(expectedState), maps.Keys(result))
+			require.ElementsMatch(t, slices.Collect(maps.Keys(expectedState)), slices.Collect(maps.Keys(result)))
 			for key, elem := range expectedState {
 				require.Equal(t, elem.expiry, result[key].expiry)
 				require.Empty(t, cmp.Diff(elem.obj, result[key].obj, protocmp.Transform()))

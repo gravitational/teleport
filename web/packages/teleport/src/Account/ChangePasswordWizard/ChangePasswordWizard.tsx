@@ -64,7 +64,7 @@ export function ChangePasswordWizard({
   const reauthState = useReAuthenticate({
     challengeScope: MfaChallengeScope.CHANGE_PASSWORD,
     onMfaResponse: async mfaResponse =>
-      setWebauthnResponse(mfaResponse?.webauthn_response),
+      setWebauthnResponse(mfaResponse.webauthn_response),
   });
 
   const [reauthMethod, setReauthMethod] = useState<ReauthenticationMethod>();
