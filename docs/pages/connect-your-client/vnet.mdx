@@ -108,7 +108,8 @@ From /var/log/vnet.log:
 INFO  Setting an IP route for the VNet. netmask:100.64.0.0/10 vnet/osconfig_darwin.go:47
 ```
 
-Send a query for a TCP app available in your cluster:
+Send a query for a TCP app available in your cluster, replacing <Var
+name="tcp-app.teleport.example.com" /> with the name of your app:
 
 ```code
 $ dscacheutil -q host -a name <Var name="tcp-app.teleport.example.com" />

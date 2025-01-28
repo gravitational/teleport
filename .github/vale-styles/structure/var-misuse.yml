@@ -1,0 +1,47 @@
+extends: script
+level: warning
+message: This Var is the only one with its name on this page. Var components only make sense when there are more than one with the same name.
+scope: raw
+script: |
+  text := import("text")
+
+  getMatches := func() {
+    // Find all uses of the Var component
+    varMatches := text.re_find(`<\s*Var[^>]+name=["']([^"']+)["']`, scope, -1)
+    if varMatches == undefined {
+      return []
+    }
+
+    // Assemble a map of Var names to their counts and first instances
+    varsToData := {}
+    for i, match in varMatches {
+      matchText := match[1].text
+
+      if varsToData[matchText] != undefined {
+        val := varsToData[matchText]
+        val.count++
+        varsToData[matchText] = val
+        continue
+      }
+
+      varsToData[match[1].text] = {
+        begin: match[1].begin,
+        end: match[1].end,
+        count: 1
+      }
+    }
+
+    // Find Var names that correspond to a single instance
+    matches := []
+    for k, v in varsToData {
+      if v.count == 1 {
+        matches = append(matches, {
+          begin: v.begin,
+          end: v.end
+        })
+      }
+    }
+    return matches
+  }
+
+  matches := getMatches()

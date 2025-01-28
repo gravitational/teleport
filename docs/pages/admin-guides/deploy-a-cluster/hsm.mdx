@@ -32,7 +32,9 @@ to use.
 
 1. Wait for the newly created cluster to enter the "Uninitialized" state.
 
-1. Add an HSM to the new cluster, using the AWS Console or the AWS CLI:
+1. Add an HSM to the new cluster, using the AWS Console or the AWS CLI,
+   assigning <Var name="region"/> to your AWS region and <Var name="availability zone"/>
+   to your availability zone:
 
    ```code
    $ aws --region <Var name="region"/> cloudhsmv2 create-hsm --cluster-id <Var name="cluster ID"/> --availability-zone <Var name="availability zone"/>
