@@ -2806,8 +2806,8 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 		},
 		{
 			desc:                   "role max_duration is respected when requestedMaxDuration is not set",
-			requestor:              "alice",
-			roles:                  []string{"requestedRole"}, // role max_duration capped to 1 day
+			requestor:              "alice",                   // has shortMaxDurationReqRole role assigned
+			roles:                  []string{"requestedRole"}, // caps max_duration to 3 days
 			expectedAccessDuration: 3 * day,
 			expectedPendingTTL:     3 * day,
 			expectedSessionTTL:     8 * time.Hour,
