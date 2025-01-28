@@ -926,6 +926,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.7 h1:Hi0KGbrnr57bEH
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.7/go.mod h1:wKNgWgExdjjrm4qvfbTorkvocEstaoDl4WCvGfeCy9c=
 github.com/aws/aws-sdk-go-v2/service/kms v1.37.8 h1:KbLZjYqhQ9hyB4HwXiheiflTlYQa0+Fz0Ms/rh5f3mk=
 github.com/aws/aws-sdk-go-v2/service/kms v1.37.8/go.mod h1:ANs9kBhK4Ghj9z1W+bsr3WsNaPF71qkgd6eE6Ekol/Y=
+github.com/aws/aws-sdk-go-v2/service/memorydb v1.25.2 h1:Tfb2AAJ+GHU/RdBX7BPw6c7jTaL5SuDcCbGItCYOVeU=
+github.com/aws/aws-sdk-go-v2/service/memorydb v1.25.2/go.mod h1:IIpB6tUlFZLx7n/cqlfJGAAABXxx0YQ+fR1Aa4m5Czk=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.37.0 h1:VlfFFYSLuS7MPNyF7wf1gANoLQLhEj+Kq7ifVzl7gog=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.37.0/go.mod h1:5ThtlWQYo2b4sghzFmzDelaJtsW7hOct5MnpbaG8ZeU=
 github.com/aws/aws-sdk-go-v2/service/rds v1.93.2 h1:Fv2//DyCH9n6LqEOvpeIFYYRfIhvjhrLk5qhrYMjDGE=
@@ -1549,6 +1551,10 @@ github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aN
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gosuri/uitable v0.0.4 h1:IG2xLKRvErL3uhY6e1BylFzG+aJiwQviDDTfOKeKTpY=
 github.com/gosuri/uitable v0.0.4/go.mod h1:tKR86bXuXPZazfOTG1FIzvjIdXzd0mo4Vtn16vt0PJo=
+github.com/grafana/pyroscope-go v1.2.0 h1:aILLKjTj8CS8f/24OPMGPewQSYlhmdQMBmol1d3KGj8=
+github.com/grafana/pyroscope-go v1.2.0/go.mod h1:2GHr28Nr05bg2pElS+dDsc98f3JTUh2f6Fz1hWXrqwk=
+github.com/grafana/pyroscope-go/godeltaprof v0.1.8 h1:iwOtYXeeVSAeYefJNaxDytgjKtUuKQbJqgAIjlnicKg=
+github.com/grafana/pyroscope-go/godeltaprof v0.1.8/go.mod h1:2+l7K7twW49Ct4wFluZD3tZ6e0SjanjcUUBPVD/UuGU=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1 h1:zGsdDzqXSuXI+1t+2TRRzdYiv+B3M4IgOPA8W/raFOA=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1/go.mod h1:6FzirJfdffakAVqmHjwVfFkpru/gNbIazUOK5rIhndc=
 github.com/gravitational/go-libfido2 v1.5.3-teleport.1 h1:nPfxiTH2Sr3J6zan280fbHOkWE7gRF/lMqvhcXKh2ek=
@@ -1737,8 +1743,8 @@ github.com/johannesboyne/gofakes3 v0.0.0-20240217095638-c55a48f17be6 h1:W8heH5NR
 github.com/johannesboyne/gofakes3 v0.0.0-20240217095638-c55a48f17be6/go.mod h1:AxgWC4DDX54O2WDoQO1Ceabtn6IbktjU/7bigor+66g=
 github.com/jonboulle/clockwork v0.2.2/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
 github.com/jonboulle/clockwork v0.3.0/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
-github.com/jonboulle/clockwork v0.4.0 h1:p4Cf1aMWXnXAUh8lVfewRBx1zaTSYKrKMF2g3ST4RZ4=
-github.com/jonboulle/clockwork v0.4.0/go.mod h1:xgRqUGwRcjKCO1vbZUEtSLrqKoPSsUpK7fnezOII0kc=
+github.com/jonboulle/clockwork v0.5.0 h1:Hyh9A8u51kptdkR+cqRpT1EebBwTn1oK9YfGYbdFz6I=
+github.com/jonboulle/clockwork v0.5.0/go.mod h1:3mZlmanh0g2NDKO5TWZVJAfofYk64M7XN3SzBPjZF60=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
 github.com/josharian/native v1.1.0 h1:uuaP0hAbW7Y4l0ZRQ6C9zfb7Mg1mbFKry/xzDAfmtLA=
@@ -3138,8 +3144,8 @@ google.golang.org/protobuf v1.28.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqw
 google.golang.org/protobuf v1.29.1/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.30.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
 google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
-google.golang.org/protobuf v1.36.3 h1:82DV7MYdb8anAVi3qge1wSnMDrnKK7ebr+I0hHRN1BU=
-google.golang.org/protobuf v1.36.3/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
+google.golang.org/protobuf v1.36.4 h1:6A3ZDJHn/eNqc1i+IdefRzy/9PokBTPvcqMySR7NNIM=
+google.golang.org/protobuf v1.36.4/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
 gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc h1:2gGKlE2+asNV9m7xrywl36YYNnBG5ZQ0r/BOOxqPpmk=
 gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc/go.mod h1:m7x9LTH6d71AHyAX77c9yqWCCa3UKHcVEj9y7hAtKDk=

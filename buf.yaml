@@ -88,3 +88,7 @@ breaking:
     RESERVED_ENUM_NO_DELETE:
       - api/proto/teleport/legacy/types/types.proto
       - proto/teleport/legacy/types/types.proto
+    # TODO(tcsc): remove once AWSICResourceFilter.filter -> include rename complete
+    FIELD_SAME_ONEOF:
+      - api/proto/teleport/legacy/types/types.proto
+      - proto/teleport/legacy/types/types.proto

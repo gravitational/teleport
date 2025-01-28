@@ -114,6 +114,12 @@ func (a *gkeFetcher) getGKEClusters(ctx context.Context, projectID string) (type
 	var clusters types.KubeClusters
 
 	gkeClusters, err := a.GKEClient.ListClusters(ctx, projectID, a.Location)
+	if trace.IsAccessDenied(err) {
+		a.Logger.WarnContext(ctx, "Access denied to list GKE clusters", "project_id", projectID, "location", a.Location)
+		return nil, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, gkeCluster := range gkeClusters {
 		cluster, err := a.getMatchingKubeCluster(gkeCluster)
 		// trace.CompareFailed is returned if the cluster did not match the matcher filtering labels

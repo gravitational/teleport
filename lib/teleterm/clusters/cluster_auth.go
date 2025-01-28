@@ -19,6 +19,7 @@
 package clusters
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -136,15 +137,7 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 		return nil, trace.Wrap(err)
 	}
 
-	if c.clusterClient.KeyTTL == 0 {
-		c.clusterClient.KeyTTL = pingResp.Auth.DefaultSessionTTL.Duration()
-	}
-	// todo(lxea): DELETE IN v15 where the auth is guaranteed to
-	// send us a valid MaxSessionTTL or the auth is guaranteed to
-	// interpret 0 duration as the auth's default
-	if c.clusterClient.KeyTTL == 0 {
-		c.clusterClient.KeyTTL = defaults.CertDuration
-	}
+	c.clusterClient.KeyTTL = cmp.Or(c.clusterClient.KeyTTL, pingResp.Auth.DefaultSessionTTL.Duration(), defaults.CertDuration)
 
 	return pingResp, nil
 }

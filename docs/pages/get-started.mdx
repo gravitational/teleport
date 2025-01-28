@@ -34,7 +34,7 @@ sessions, so you can review them later.
   Use this account to authenticate your identity when you access the Teleport
   Enterprise (Cloud) cluster.
 
-- Docker installed on your workstation. 
+- For following this guide, Docker installed on your workstation. 
 
   This guide illustrates how to register a server with Teleport Enterprise Cloud
   using a Docker container and the Teleport SSH Service. Docker is only required
@@ -44,27 +44,28 @@ sessions, so you can review them later.
   in Teleport without using Docker, see the getting started guide for
   [server access](enroll-resources/server-access/getting-started.mdx).
 
-- The `tsh` client tool. 
+- The `tsh` client tool. `tsh` is included in the same packages and archives as
+  the `teleport` binary. See the [Installation Guide](installation.mdx) for how
+  to install Teleport on your operating system.
   
-  The `tsh` client tool is only required to access the server from a terminal.
-  For installation instructions, see [Installation Guide](installation.mdx).
-  If you don't install the `tsh` client tool, you can access the server in
-  Teleport Enterprise (Cloud) using the Web UI through your browser.
+  This guide only requires the `tsh` client tool to access a server from a
+  terminal. If you don't install the `tsh` client tool, you can access the
+  server in Teleport Enterprise (Cloud) using the Web UI through your browser.
 
 ## Step 1/5. Spin up a server
 
 To spin up a new server using Docker:
 
-1. Open a terminal shell on your workstation.
+1. Open a terminal on your workstation.
 
 1. Start a Docker container on your workstation to prepare a server that you want enroll 
 as a resource in your Teleport Enterprise (Cloud) cluster:
    
    ```code
-   $ docker run --interactive --tty ubuntu:22.04 /bin/bash
+   $ docker run --interactive --tty ubuntu:24.04 /bin/bash
    ```
    
-   This command starts a new shell session in the `ubuntu:22.04` container. 
+   This command starts a new shell session in a container running Ubuntu 24.04.
 
 1. Run the following command to install `curl` and `telnet` from the package management repository:
    
@@ -83,7 +84,7 @@ To install the Teleport SSH Service on your server:
 1. Open a browser and go to the address for your Teleport cluster. For example,
    if your Teleport account is `example`, open `https://example.teleport.sh`.
 
-1. Sign in with the account credentials you used to activate your Teleport account.
+1. Sign in with the credentials you used to activate your Teleport account.
    
    The first time you sign in, you are prompted to add your first resource: 
    
@@ -96,11 +97,11 @@ To install the Teleport SSH Service on your server:
    
    ![Select resource type](../img/cloud/getting-started/choose-resource@2x.png)
 
-1. Click *Ubuntu 14.04+* to register the server in the Docker container.
+1. Click **Ubuntu 18.04+** to register the server in the Docker container.
    
-   After you select *Ubuntu 14.04+* as the resource type, the Web UI prompts you
-   for your multi-factor authentication device, then displays a script to
-   install and configure the Teleport SSH Service. For example:
+   After you select the resource type, the Web UI prompts you for your
+   multi-factor authentication device, then displays a script to install and
+   configure the Teleport SSH Service. For example:
    
    ![Configure resource](../img/cloud/getting-started/paste-script@2x.png)
    
@@ -166,7 +167,7 @@ back later to investigate issues.
 
 To play back a session in the Teleport Web UI:
 
-1. Click the **Access Management** tab at the top of the window.
+1. Find the left sidebar and navigate to **Audit > Session Recordings**.
 
 1. In the sidebar, under **Activity**, click **Session Recordings**.
    
@@ -216,7 +217,7 @@ of your cluster and the name of your Teleport user:
    ```code
    Node Name    Address    Labels
    ------------ ---------  ----------------------------------------------------------------------------------------
-   b6c1072b5af5 ⟵ Tunnel  hostname=b6c1072b5af5
+   b6c1072b5af5 ⟵ Tunnel  
    ```
 
 1. Access your server as the `root` user:
@@ -232,7 +233,7 @@ infrastructure by demonstrating how to register a server with your Teleport
 cluster. 
 
 You can provide secure access to more of your infrastructure through Teleport by
-deploying one or more Teleport **agents** and configuring role-based access
+deploying one or more Teleport **Agents** and configuring role-based access
 control for users. 
 
 Agents proxy traffic to all of your infrastructure resources—including servers,

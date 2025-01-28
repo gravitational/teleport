@@ -19,7 +19,7 @@
 import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonSecondary, Flex, H2, P3, Subtitle2 } from 'design';
-import { ArrowRight, CircleCheck, Password } from 'design/Icon';
+import { ArrowRight, CircleCheck, Password, Pencil, Trash } from 'design/Icon';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { AuthType } from 'shared/services';
 
@@ -36,6 +36,7 @@ export function AuthConnectorTile({
   customDesc,
   onEdit,
   onDelete,
+  onSetAsDefault,
 }: {
   name: string;
   id: string;
@@ -50,6 +51,7 @@ export function AuthConnectorTile({
   customDesc?: string;
   onEdit?: ResourceState['edit'];
   onDelete?: ResourceState['remove'];
+  onSetAsDefault?: () => void;
 }) {
   const theme = useTheme();
   const onClickEdit = () => onEdit(id);
@@ -81,8 +83,8 @@ export function AuthConnectorTile({
       >
         <Icon />
         <Flex flexDirection="column" alignItems="flex-start" gap={1}>
-          <Flex alignItems="center" gap={2}>
-            <H2>{name}</H2>
+          <Flex alignItems="center" gap={2} height="28px" maxWidth="290px">
+            <H2 title={name}>{name}</H2>
             {isDefault && <DefaultIndicator />}
           </Flex>
           <Subtitle2
@@ -108,14 +110,42 @@ export function AuthConnectorTile({
             Set Up <ArrowRight size="small" ml={2} />
           </ButtonSecondary>
         )}
-        {!isPlaceholder && !!onEdit && !!onDelete && (
-          <MenuIcon
-            buttonIconProps={{ style: { borderRadius: `${theme.radii[2]}px` } }}
-          >
-            <MenuItem onClick={onClickEdit}>Edit</MenuItem>
-            <MenuItem onClick={onClickDelete}>Delete</MenuItem>
-          </MenuIcon>
-        )}
+        {!isPlaceholder &&
+          (!!onEdit || !!onDelete || (!!onSetAsDefault && !isDefault)) && (
+            <MenuIcon
+              buttonIconProps={{
+                style: { borderRadius: `${theme.radii[2]}px` },
+              }}
+            >
+              {!!onEdit && (
+                <MenuItem onClick={onClickEdit}>
+                  <Pencil size="small" mr={2} />
+                  Edit
+                </MenuItem>
+              )}
+              {!!onSetAsDefault && !isDefault && (
+                <MenuItem onClick={onSetAsDefault}>
+                  <CircleCheck size="small" mr={2} />
+                  Set as default
+                </MenuItem>
+              )}
+              {!!onDelete && (
+                <MenuItem
+                  onClick={onClickDelete}
+                  color="interactive.solid.danger.default"
+                  css={`
+                    &:hover,
+                    &:focus {
+                      color: ${theme.colors.interactive.solid.danger.hover};
+                    }
+                  `}
+                >
+                  <Trash size="small" mr={2} />
+                  Delete
+                </MenuItem>
+              )}
+            </MenuIcon>
+          )}
       </Flex>
     </ConnectorBox>
   );
@@ -124,7 +154,13 @@ export function AuthConnectorTile({
 /**
  * LocalConnectorTile is a hardcoded "auth connector" which represents local auth.
  */
-export function LocalConnectorTile() {
+export function LocalConnectorTile({
+  isDefault = false,
+  setAsDefault,
+}: {
+  isDefault?: boolean;
+  setAsDefault?: () => void;
+}) {
   return (
     <AuthConnectorTile
       key="local-auth-tile"
@@ -147,7 +183,8 @@ export function LocalConnectorTile() {
           <Password size="extra-large" />
         </Flex>
       )}
-      isDefault={true}
+      isDefault={isDefault}
+      onSetAsDefault={setAsDefault}
       isPlaceholder={false}
       name="Local Connector"
       customDesc="Manual auth w/ users local to Teleport"

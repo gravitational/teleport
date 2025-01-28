@@ -54,7 +54,7 @@ export function DocumentGateway(props: {
 
   const runCliCommand = () => {
     const command = getCliCommandArgv0(gateway.gatewayCliCommand);
-    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+    const title = `${command} · ${doc.targetName} (${doc.targetUser})`;
 
     const cliDoc = documentsService.createGatewayCliDocument({
       title,

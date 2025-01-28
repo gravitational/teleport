@@ -1539,7 +1539,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devCred = "devicecred1"
 
 	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
+		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
 			fc.Advance(d)
 		}
 	}
@@ -2642,7 +2642,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 		mfaVerified:    mfaID,
 		sshPublicKey:   sshPubKey,
 		tlsPublicKey:   tlsPubKey,
-		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
+		activeRequests: []string{requestID},
 		deviceExtensions: DeviceExtensions{
 			DeviceID:     deviceID,
 			AssetTag:     "assettag1",

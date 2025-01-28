@@ -25,16 +25,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 )
 
@@ -45,6 +45,14 @@ func TestPollAWSS3(t *testing.T) {
 		})
 	}
 
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "integration-test"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
+		},
+	)
+	require.NoError(t, err)
+
 	const (
 		accountID       = "12345678"
 		bucketName      = "bucket1"
@@ -52,20 +60,20 @@ func TestPollAWSS3(t *testing.T) {
 		missingBucket   = "missing_perm_bucket"
 	)
 	var (
-		regions       = []string{"eu-west-1"}
-		mockedClients = &cloud.TestCloudClients{
-			S3: &mocks.S3Mock{
+		regions      = []string{"eu-west-1"}
+		fakedClients = fakeAWSClients{
+			s3Client: &mocks.S3Client{
 				Buckets: s3Buckets(bucketName, otherBucketName, missingBucket),
-				BucketLocations: map[string]string{
-					bucketName:      "eu-west-1",
-					otherBucketName: "eu-west-1",
-					missingBucket:   "eu-west-1",
+				BucketLocations: map[string]s3types.BucketLocationConstraint{
+					bucketName:      s3types.BucketLocationConstraintEuWest1,
+					otherBucketName: s3types.BucketLocationConstraintEuWest1,
+					missingBucket:   s3types.BucketLocationConstraintEuWest1,
 				},
 				BucketPolicy: map[string]string{
 					bucketName:      "policy",
 					otherBucketName: "otherPolicy",
 				},
-				BucketPolicyStatus: map[string]*s3.PolicyStatus{
+				BucketPolicyStatus: map[string]s3types.PolicyStatus{
 					bucketName: {
 						IsPublic: aws.Bool(true),
 					},
@@ -73,25 +81,25 @@ func TestPollAWSS3(t *testing.T) {
 						IsPublic: aws.Bool(false),
 					},
 				},
-				BucketACL: map[string][]*s3.Grant{
+				BucketACL: map[string][]s3types.Grant{
 					bucketName: {
 						{
-							Grantee: &s3.Grantee{
+							Grantee: &s3types.Grantee{
 								ID: aws.String("id"),
 							},
-							Permission: aws.String("READ"),
+							Permission: s3types.PermissionRead,
 						},
 					},
 					otherBucketName: {
 						{
-							Grantee: &s3.Grantee{
+							Grantee: &s3types.Grantee{
 								ID: aws.String("id"),
 							},
-							Permission: aws.String("READ"),
+							Permission: s3types.PermissionRead,
 						},
 					},
 				},
-				BucketTags: map[string][]*s3.Tag{
+				BucketTags: map[string][]s3types.Tag{
 					bucketName: {
 						{
 							Key:   aws.String("tag"),
@@ -166,12 +174,18 @@ func TestPollAWSS3(t *testing.T) {
 				defer mu.Unlock()
 				errs = append(errs, err)
 			}
-			a := &awsFetcher{
+			a := &Fetcher{
 				Config: Config{
-					AccountID:    accountID,
-					CloudClients: mockedClients,
-					Regions:      regions,
-					Integration:  accountID,
+					AWSConfigProvider: &mocks.AWSConfigProvider{
+						OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
+							Integration: awsOIDCIntegration,
+							Token:       "fake-oidc-token",
+						},
+					},
+					AccountID:   accountID,
+					Regions:     regions,
+					Integration: awsOIDCIntegration.GetName(),
+					awsClients:  fakedClients,
 				},
 				lastResult: &Resources{},
 			}
@@ -200,10 +214,10 @@ func TestPollAWSS3(t *testing.T) {
 	}
 }
 
-func s3Buckets(bucketNames ...string) []*s3.Bucket {
-	var output []*s3.Bucket
+func s3Buckets(bucketNames ...string) []s3types.Bucket {
+	var output []s3types.Bucket
 	for _, name := range bucketNames {
-		output = append(output, &s3.Bucket{
+		output = append(output, s3types.Bucket{
 			Name:         aws.String(name),
 			CreationDate: aws.Time(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)),
 		})

@@ -387,6 +387,21 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
+		case *config.KubernetesV2Output:
+			svc := &KubernetesV2OutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+				executablePath:    os.Executable,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		case *config.SPIFFESVIDOutput:
 			svc := &SPIFFESVIDOutputService{
 				botAuthClient:  b.botIdentitySvc.GetClient(),

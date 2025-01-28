@@ -524,6 +524,24 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
+	// KindNamespace is being removed but v17 agents will still try to include
+	// it in their cache and they will occasionally do a GetNamespace, so we
+	// pretend to support it as a resource kind here; it's sound to do so
+	// because there will never be any events coming, and the GetNamespace and
+	// GetNamespaces APIs return static data
+	//
+	// TODO(espadolini): remove in v19
+	var removedNamespaceWatch bool
+	filteredKinds := watch.Kinds[:0]
+	for _, k := range watch.Kinds {
+		if k.Kind == types.KindNamespace {
+			removedNamespaceWatch = true
+			continue
+		}
+		filteredKinds = append(filteredKinds, k)
+	}
+	watch.Kinds = filteredKinds
+
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -538,6 +556,16 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 
 	for events.Next() {
 		event := events.Item()
+		// TODO(espadolini): remove in v19
+		if removedNamespaceWatch {
+			if status, ok := event.Resource.(*types.WatchStatusV1); ok {
+				status.Spec.Kinds = append(status.Spec.Kinds, types.WatchKind{Kind: types.KindNamespace})
+			}
+			// there's only exactly one event of type OpInit and WatchStatus
+			// meta-resource (at the beginning of the stream), so we don't need
+			// to keep checking
+			removedNamespaceWatch = false
+		}
 		if role, ok := event.Resource.(*types.RoleV6); ok {
 			downgraded, err := maybeDowngradeRole(stream.Context(), role)
 			if err != nil {
