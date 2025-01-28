@@ -39,6 +39,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
 )
 
 func TestLocalInstaller_Install(t *testing.T) {
@@ -52,7 +54,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 		reservedTmp     uint64
 		reservedInstall uint64
 		existingSum     string
-		flags           InstallFlags
+		flags           autoupdate.InstallFlags
 
 		errMatch string
 	}{
@@ -122,9 +124,10 @@ func TestLocalInstaller_Install(t *testing.T) {
 				Log:                     slog.Default(),
 				ReservedFreeTmpDisk:     tt.reservedTmp,
 				ReservedFreeInstallDisk: tt.reservedInstall,
+				Template:                "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
 			}
 			ctx := context.Background()
-			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL+"/{{.OS}}/{{.Arch}}/{{.Version}}")
+			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -132,7 +135,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			const expectedPath = "/" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
+			const expectedPath = "/teleport-" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
 
@@ -406,6 +409,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 					return []byte("[transform]" + string(b))
 				},
 				ValidateBinary: validator.IsExecutable,
+				Template:       autoupdate.DefaultCDNURITemplate,
 			}
 			ctx := context.Background()
 			revert, err := installer.Link(ctx, NewRevision(version, 0))
