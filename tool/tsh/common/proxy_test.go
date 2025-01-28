@@ -821,7 +821,7 @@ func TestEnvVarCommand(t *testing.T) {
 			inputFormat:  envVarFormatUnix,
 			inputKey:     "key",
 			inputValue:   "value",
-			expectOutput: "export key=value",
+			expectOutput: `export key="value"`,
 		},
 		{
 			inputFormat:  envVarFormatWindowsCommandPrompt,
@@ -833,7 +833,7 @@ func TestEnvVarCommand(t *testing.T) {
 			inputFormat:  envVarFormatWindowsPowershell,
 			inputKey:     "key",
 			inputValue:   "value",
-			expectOutput: "$Env:key=\"value\"",
+			expectOutput: `$Env:key="value"`,
 		},
 		{
 			inputFormat: "unknown",
