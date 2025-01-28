@@ -114,7 +114,7 @@ type sshTestFixture struct {
 	up      *upack
 	signer  ssh.Signer
 	user    string
-	clock   clockwork.FakeClock
+	clock   *clockwork.FakeClock
 	testSrv *auth.TestServer
 }
 

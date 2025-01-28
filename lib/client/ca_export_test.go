@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 type mockAuthClient struct {
@@ -126,19 +127,8 @@ func TestExportAuthorities(t *testing.T) {
 		require.NotNil(t, privKey, "x509.ParsePKCS8PrivateKey returned a nil key")
 	}
 
-	validateGitHubCAFunc := func(t *testing.T, s string) {
-		require.Contains(t, s, fixtures.SSHCAPublicKey)
-	}
-
 	mockedAuthClient := &mockAuthClient{
 		server: testAuth.AuthServer,
-		integrationsClient: mockIntegrationsClient{
-			caKeySet: &types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PublicKey: []byte(fixtures.SSHCAPublicKey),
-				}},
-			},
-		},
 	}
 
 	for _, tt := range []struct {
@@ -287,23 +277,6 @@ func TestExportAuthorities(t *testing.T) {
 			errorCheck:      require.NoError,
 			assertNoSecrets: validateTLSCertificateDERFunc,
 			assertSecrets:   validateRSAPrivateKeyDERFunc,
-		},
-		{
-			name: "github missing integration",
-			req: ExportAuthoritiesRequest{
-				AuthType: "github",
-			},
-			errorCheck: require.Error,
-		},
-		{
-			name: "github",
-			req: ExportAuthoritiesRequest{
-				AuthType:    "github",
-				Integration: "my-github",
-			},
-			errorCheck:      require.NoError,
-			assertNoSecrets: validateGitHubCAFunc,
-			skipSecrets:     true, // not supported for GitHub
 		},
 	} {
 		runTest := func(
@@ -527,4 +500,94 @@ func (m *multiCAAuthClient) PerformMFACeremony(
 ) (*clientpb.MFAAuthenticateResponse, error) {
 	// Skip MFA ceremonies.
 	return nil, &mfa.ErrMFANotRequired
+}
+
+func TestExportIntegrationAuthorities(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testAuth, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		ClusterName: "localcluster",
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	fingerprint, err := sshutils.AuthorizedKeyFingerprint([]byte(fixtures.SSHCAPublicKey))
+	require.NoError(t, err)
+
+	mockedAuthClient := &mockAuthClient{
+		server: testAuth.AuthServer,
+		integrationsClient: mockIntegrationsClient{
+			caKeySet: &types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PublicKey: []byte(fixtures.SSHCAPublicKey),
+				}},
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		name        string
+		req         ExportIntegrationAuthoritiesRequest
+		checkError  require.ErrorAssertionFunc
+		checkOutput func(*testing.T, []*ExportedAuthority)
+	}{
+		{
+			name: "missing integration",
+			req: ExportIntegrationAuthoritiesRequest{
+				AuthType: "github",
+			},
+			checkError: require.Error,
+		},
+		{
+			name: "unknown type",
+			req: ExportIntegrationAuthoritiesRequest{
+				AuthType:    "unknown",
+				Integration: "integration",
+			},
+			checkError: require.Error,
+		},
+		{
+			name: "github",
+			req: ExportIntegrationAuthoritiesRequest{
+				AuthType:    "github",
+				Integration: "integration",
+			},
+			checkError: require.NoError,
+			checkOutput: func(t *testing.T, authorities []*ExportedAuthority) {
+				require.Len(t, authorities, 1)
+				require.Contains(t, string(authorities[0].Data), fixtures.SSHCAPublicKey)
+			},
+		},
+		{
+			name: "matching fingerprint",
+			req: ExportIntegrationAuthoritiesRequest{
+				AuthType:         "github",
+				Integration:      "integration",
+				MatchFingerprint: fingerprint,
+			},
+			checkError: require.NoError,
+			checkOutput: func(t *testing.T, authorities []*ExportedAuthority) {
+				require.Len(t, authorities, 1)
+				require.Contains(t, string(authorities[0].Data), fixtures.SSHCAPublicKey)
+			},
+		},
+		{
+			name: "no matching fingerprint",
+			req: ExportIntegrationAuthoritiesRequest{
+				AuthType:         "github",
+				Integration:      "integration",
+				MatchFingerprint: "something-does-not-match",
+			},
+			checkError: require.Error,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			authorities, err := ExportIntegrationAuthorities(ctx, mockedAuthClient, tc.req)
+			tc.checkError(t, err)
+			if tc.checkOutput != nil {
+				tc.checkOutput(t, authorities)
+			}
+		})
+	}
 }

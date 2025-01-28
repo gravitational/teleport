@@ -57,6 +57,7 @@ const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
       spellCheck,
       readonly = false,
       toolTipContent = null,
+      tooltipSticky = false,
       disabled = false,
       markAsError = false,
       required = false,
@@ -114,7 +115,10 @@ const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
                   >
                     {label}
                   </span>
-                  <IconTooltip children={toolTipContent} />
+                  <IconTooltip
+                    sticky={tooltipSticky}
+                    children={toolTipContent}
+                  />
                 </>
               ) : (
                 <>{label}</>
@@ -242,6 +246,7 @@ export type FieldInputProps = BoxProps & {
   min?: number;
   max?: number;
   toolTipContent?: React.ReactNode;
+  tooltipSticky?: boolean;
   disabled?: boolean;
   // markAsError is a flag to highlight an
   // input box as error color before validator
