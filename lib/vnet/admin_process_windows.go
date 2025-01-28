@@ -26,6 +26,8 @@ import (
 )
 
 type windowsAdminProcessConfig struct {
+	// clientApplicationServiceAddr is the local TCP address of the client
+	// application gRPC service.
 	clientApplicationServiceAddr string
 }
 

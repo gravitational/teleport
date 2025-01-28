@@ -159,7 +159,7 @@ loop:
 
 func (s *windowsService) run(ctx context.Context, args []string) error {
 	var clientApplicationServiceAddr string
-	app := kingpin.New(serviceName, "Teleport Windows Service")
+	app := kingpin.New(serviceName, "Teleport VNet Windows Service")
 	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
 	serviceCmd.Flag("addr", "client application service address").Required().StringVar(&clientApplicationServiceAddr)
 	cmd, err := app.Parse(args[1:])
