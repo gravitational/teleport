@@ -431,6 +431,23 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		log.Warnf("Unexpected cert type: %v", cert.CertType)
 	}
 
+	// the git forwarding component currently only supports an authorization model that makes sense
+	// for local identities. reject all non-local identities explicitly.
+	if h.c.Component == teleport.ComponentForwardingGit {
+		ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
+		if err != nil {
+			log.Errorf("Permission denied: %+v", err)
+			recordFailedLogin(err)
+			return nil, trace.Wrap(err)
+		}
+
+		if clusterName.GetClusterName() != ca.GetClusterName() {
+			log.Errorf("Cross-cluster git forwarding is not supported, local_cluster=%s remote_cluster=%s", clusterName.GetClusterName(), ca.GetClusterName())
+			recordFailedLogin(trace.AccessDenied("cross-cluster git forwarding is not supported"))
+			return nil, trace.AccessDenied("cross-cluster git forwarding is not supported")
+		}
+	}
+
 	// Skip RBAC check for proxy or git servers. RBAC check on git servers are
 	// performed outside this handler.
 	if h.isProxy() || h.c.Component == teleport.ComponentForwardingGit {
