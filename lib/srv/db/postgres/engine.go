@@ -505,9 +505,9 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 
 func (e *Engine) newConnector(sessionCtx *common.Session) *connector {
 	conn := &connector{
-		auth:         e.Auth,
-		cloudClients: e.CloudClients,
-		log:          e.Log,
+		auth:       e.Auth,
+		gcpClients: e.GCPClients,
+		log:        e.Log,
 
 		certExpiry:    sessionCtx.GetExpiry(),
 		database:      sessionCtx.Database,
@@ -533,9 +533,6 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	// Instead, use the pgconn config string parser for convenience and dial
 	// db host:port ourselves.
 	network, address := pgconn.NetworkAddress(config.Host, config.Port)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	dialer := net.Dialer{Timeout: defaults.DefaultIOTimeout}
 	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {

@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
@@ -48,8 +47,6 @@ type IAMConfig struct {
 	AccessPoint authclient.DatabaseAccessPoint
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
 	// HostID is the host identified where this agent is running.
 	// DELETE IN 11.0.
 	HostID string
@@ -69,13 +66,6 @@ func (c *IAMConfig) Check() error {
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
-	}
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
@@ -245,7 +235,6 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 	}
 	return newAWS(ctx, awsConfig{
 		awsConfigProvider: c.cfg.AWSConfigProvider,
-		clients:           c.cfg.Clients,
 		database:          database,
 		identity:          identity,
 		policyName:        policyName,

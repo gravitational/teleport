@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -71,8 +70,6 @@ type Engine struct {
 	// RoundTrippers is a cache of RoundTrippers, mapped by service endpoint.
 	// It is not guarded by a mutex, since requests are processed serially.
 	RoundTrippers map[string]http.RoundTripper
-	// CredentialsGetter is used to obtain STS credentials.
-	CredentialsGetter libaws.CredentialsGetter
 	// UseFIPS will ensure FIPS endpoint resolution.
 	UseFIPS bool
 }
@@ -141,18 +138,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
-	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
 		Clock:             e.Clock,
-		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
-		CredentialsGetter: e.CredentialsGetter,
+		AWSConfigProvider: e.AWSConfigProvider,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -223,12 +211,14 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 		return trace.Wrap(err)
 	}
 	signingCtx := &libaws.SigningCtx{
-		SigningName:   re.SigningName,
-		SigningRegion: re.SigningRegion,
-		Expiry:        e.sessionCtx.Identity.Expires,
-		SessionName:   e.sessionCtx.Identity.Username,
-		AWSRoleArn:    roleArn,
-		SessionTags:   e.sessionCtx.Database.GetAWS().SessionTags,
+		SigningName:       re.SigningName,
+		SigningRegion:     re.SigningRegion,
+		Expiry:            e.sessionCtx.Identity.Expires,
+		SessionName:       e.sessionCtx.Identity.Username,
+		BaseAWSRoleARN:    meta.AssumeRoleARN,
+		BaseAWSExternalID: meta.ExternalID,
+		AWSRoleArn:        roleArn,
+		SessionTags:       e.sessionCtx.Database.GetAWS().SessionTags,
 	}
 	if meta.AssumeRoleARN == "" {
 		signingCtx.AWSExternalID = meta.ExternalID

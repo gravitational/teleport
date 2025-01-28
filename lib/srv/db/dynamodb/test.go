@@ -101,7 +101,9 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		err := awsutils.VerifyAWSSignatureV2(r, credentials.NewStaticCredentialsProvider("AKIDl", "SECRET", "SESSION"))
+		err := awsutils.VerifyAWSSignatureV2(r,
+			credentials.NewStaticCredentialsProvider("FAKEACCESSKEYID", "secret", "token"),
+		)
 		if err != nil {
 			code := trace.ErrorToCode(err)
 			body, _ := json.Marshal(jsonErr{

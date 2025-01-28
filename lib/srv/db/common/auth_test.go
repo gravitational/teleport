@@ -609,9 +609,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		Clock:       clock,
 		AuthClient:  new(authClientMock),
 		AccessPoint: new(accessPointMock),
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
+		Clients:     &cloud.TestCloudClients{},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -701,10 +699,10 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				Clock:       clock,
 				AuthClient:  new(authClientMock),
 				AccessPoint: new(accessPointMock),
-				Clients: &cloud.TestCloudClients{
-					STS: &tt.stsMock.STSClientV1,
+				Clients:     &cloud.TestCloudClients{},
+				AWSConfigProvider: &mocks.AWSConfigProvider{
+					STSClient: tt.stsMock,
 				},
-				AWSConfigProvider: &mocks.AWSConfigProvider{},
 				awsClients: fakeAWSClients{
 					stsClient: tt.stsMock,
 				},

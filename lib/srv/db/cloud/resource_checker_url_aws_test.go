@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -119,26 +118,16 @@ func TestURLChecker_AWS(t *testing.T) {
 	require.Len(t, docdbClusterDBs, 2) // Primary, reader.
 	testCases = append(testCases, docdbClusterDBs...)
 
-	// Mock cloud clients.
-	mockClients := &cloud.TestCloudClients{
-		STS: &mocks.STSClientV1{},
-	}
-	mockClientsUnauth := &cloud.TestCloudClients{
-		STS: &mocks.STSClientV1{},
-	}
-
 	// Test both check methods.
 	// Note that "No permissions" logs should only be printed during the second
 	// group ("basic endpoint check").
 	methods := []struct {
 		name              string
-		clients           cloud.Clients
 		awsConfigProvider awsconfig.Provider
 		awsClients        awsClientProvider
 	}{
 		{
 			name:              "API check",
-			clients:           mockClients,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
 			awsClients: fakeAWSClients{
 				ecClient: &mocks.ElastiCacheClient{
@@ -167,7 +156,6 @@ func TestURLChecker_AWS(t *testing.T) {
 		},
 		{
 			name:              "basic endpoint check",
-			clients:           mockClientsUnauth,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
 			awsClients: fakeAWSClients{
 				ecClient:         &mocks.ElastiCacheClient{Unauth: true},
@@ -183,7 +171,6 @@ func TestURLChecker_AWS(t *testing.T) {
 	for _, method := range methods {
 		t.Run(method.name, func(t *testing.T) {
 			c := newURLChecker(DiscoveryResourceCheckerConfig{
-				Clients:           method.clients,
 				AWSConfigProvider: method.awsConfigProvider,
 				Logger:            utils.NewSlogLoggerForTests(),
 			})
