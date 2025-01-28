@@ -92,20 +92,31 @@ export type Notification = {
 export enum NotificationSubKind {
   DefaultInformational = 'default-informational',
   DefaultWarning = 'default-warning',
+
   UserCreatedInformational = 'user-created-informational',
   UserCreatedWarning = 'user-created-warning',
+
   AccessRequestPending = 'access-request-pending',
   AccessRequestApproved = 'access-request-approved',
   AccessRequestDenied = 'access-request-denied',
   AccessRequestPromoted = 'access-request-promoted',
+
+  NotificationAccessListReviewDue30d = 'access-list-review-due-30d',
+  NotificationAccessListReviewDue14d = 'access-list-review-due-14d',
+  NotificationAccessListReviewDue7d = 'access-list-review-due-7d',
+  NotificationAccessListReviewDue3d = 'access-list-review-due-3d',
+  NotificationAccessListReviewOverdue3d = 'access-list-review-overdue-3d',
+  NotificationAccessListReviewOverdue7d = 'access-list-review-overdue-7d',
 }
 
+//TODO(rudream): Delete local notifications
 /** LocalNotificationKind is the kind of local notifications which are generated on the frontend and not stored in the backend. These do not need to be kept in sync with the backend. */
 export enum LocalNotificationKind {
   /** AccessList is a notification for an access list reminder. */
   AccessList = 'access-list',
 }
 
+//TODO(rudream): Delete local notifications
 /** LocalNotificationGroupedKind is the kind of groupings of local notifications. These do not need to be kept in sync with the backend. */
 export enum LocalNotificationGroupedKind {
   /** AccessListGrouping is a notification which combines the notifications for multiple access list reminders into one to reduce clutter. */
