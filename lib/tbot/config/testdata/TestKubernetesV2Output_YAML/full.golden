@@ -1,0 +1,8 @@
+type: kubernetes/v2
+destination:
+  type: memory
+disable_exec_plugin: true
+selectors:
+  - name: foo
+  - labels:
+      foo: bar

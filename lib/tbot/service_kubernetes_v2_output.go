@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,9 +21,9 @@ package tbot
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"net"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -43,17 +44,15 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-const defaultKubeconfigPath = "kubeconfig.yaml"
-
 // KubernetesOutputService produces credentials which can be used to connect to
 // a Kubernetes Cluster through teleport.
-type KubernetesOutputService struct {
+type KubernetesV2OutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
 	botAuthClient     *authclient.Client
 	botCfg            *config.BotConfig
-	cfg               *config.KubernetesOutput
+	cfg               *config.KubernetesV2Output
 	getBotIdentity    getBotIdentityFn
 	log               *slog.Logger
 	proxyPingCache    *proxyPingCache
@@ -64,33 +63,32 @@ type KubernetesOutputService struct {
 	executablePath func() (string, error)
 }
 
-func (s *KubernetesOutputService) String() string {
-	return fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String())
+func (s *KubernetesV2OutputService) String() string {
+	return fmt.Sprintf("kubernetes-v2-output (%s)", s.cfg.Destination.String())
 }
 
-func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
+func (s *KubernetesV2OutputService) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
-func (s *KubernetesOutputService) Run(ctx context.Context) error {
+func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
+	return trace.Wrap(runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
 		interval:   s.botCfg.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
-	})
-	return trace.Wrap(err)
+	}))
 }
 
-func (s *KubernetesOutputService) generate(ctx context.Context) error {
+func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"KubernetesOutputService/generate",
+		"KubernetesV2OutputService/generate",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
@@ -107,13 +105,9 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	var err error
-	roles := s.cfg.Roles
-	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-		if err != nil {
-			return trace.Wrap(err, "fetching default roles")
-		}
+	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	if err != nil {
+		return trace.Wrap(err, "fetching default roles")
 	}
 
 	id, err := generateIdentity(
@@ -136,37 +130,23 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	}
 	defer impersonatedClient.Close()
 
-	kc, err := getKubeCluster(ctx, impersonatedClient, s.cfg.KubernetesCluster)
+	clusters, err := fetchAllMatchingKubeClusters(ctx, impersonatedClient, s.cfg.Selectors)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// make sure the output matches the fully resolved kube cluster name,
-	// since it may have been just a "discovered name".
-	kubeClusterName := kc.GetName()
-	// Note: the Teleport server does attempt to verify k8s cluster names
-	// and will fail to generate certs if the cluster doesn't exist or is
-	// offline.
 
-	routedIdentity, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		id,
-		roles,
-		s.botCfg.CertificateTTL,
-		func(req *proto.UserCertsRequest) {
-			req.KubernetesCluster = kubeClusterName
-		},
-	)
-	if err != nil {
-		return trace.Wrap(err)
+	var clusterNames []string
+	for _, c := range clusters {
+		clusterNames = append(clusterNames, c.GetName())
 	}
+
+	clusterNames = utils.Deduplicate(clusterNames)
 
 	s.log.InfoContext(
 		ctx,
-		"Generated identity for Kubernetes cluster",
-		"kubernetes_cluster",
-		kubeClusterName,
-		"identity", describeTLSIdentity(ctx, s.log, routedIdentity),
+		"Generated identity for Kubernetes access",
+		"matched_cluster_count", len(clusterNames),
+		"identity", describeTLSIdentity(ctx, s.log, id),
 	)
 
 	// Ping the proxy to resolve connection addresses.
@@ -183,39 +163,97 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(noah): It's likely the Kubernetes output does not really need to
-	// output these CAs - but - for backwards compat reasons, we output them.
-	// Revisit this at a later date and make a call.
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+
+	keyRing, err := NewClientKeyRing(id, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
-	if err != nil {
-		return trace.Wrap(err)
+	status := &kubernetesStatusV2{
+		clusterAddr:            clusterAddr,
+		tlsServerName:          tlsServerName,
+		credentials:            keyRing,
+		teleportClusterName:    proxyPong.ClusterName,
+		kubernetesClusterNames: clusterNames,
 	}
 
-	status := &kubernetesStatus{
-		clusterAddr:           clusterAddr,
-		tlsServerName:         tlsServerName,
-		credentials:           keyRing,
-		teleportClusterName:   proxyPong.ClusterName,
-		kubernetesClusterName: kubeClusterName,
-	}
-
-	return s.render(ctx, status, routedIdentity, hostCAs, userCAs, databaseCAs)
+	return trace.Wrap(s.render(ctx, status, id, hostCAs))
 }
 
-func (s *KubernetesOutputService) render(
+// kubernetesStatus holds teleport client information necessary to populate a
+// kubeconfig.
+type kubernetesStatusV2 struct {
+	clusterAddr            string
+	teleportClusterName    string
+	tlsServerName          string
+	credentials            *client.KeyRing
+	kubernetesClusterNames []string
+}
+
+// queryKubeClustersByLabels fetches a list of Kubernetes clusters matching the
+// given label selector.
+func queryKubeClustersByLabels(ctx context.Context, clt apiclient.GetResourcesClient, labels map[string]string) ([]types.KubeCluster, error) {
+	ctx, span := tracer.Start(ctx, "queryKubeClustersByLabels")
+	defer span.End()
+
+	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		ResourceType: types.KindKubeServer,
+		Labels:       labels,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clusters []types.KubeCluster
+	for _, server := range servers {
+		clusters = append(clusters, server.GetCluster())
+	}
+
+	return clusters, nil
+}
+
+// fetchAllMatchingKubeClusters returns a list of all clusters matching the
+// given selectors.
+func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResourcesClient, selectors []*config.KubernetesSelector) ([]types.KubeCluster, error) {
+	ctx, span := tracer.Start(ctx, "findAllMatchingKubeClusters")
+	defer span.End()
+
+	clusters := []types.KubeCluster{}
+	for _, selector := range selectors {
+		if selector.Name != "" {
+			cluster, err := getKubeCluster(ctx, clt, selector.Name)
+			if err != nil {
+				// Clusters explicitly named should be a hard fail.
+				return nil, trace.Wrap(err, "unable to fetch cluster %q by name", selector.Name)
+			}
+
+			clusters = append(clusters, cluster)
+			continue
+		}
+
+		labeledClusters, err := queryKubeClustersByLabels(ctx, clt, selector.Labels)
+		if err != nil {
+			// TODO: should this be a hard error, or should we log it and
+			// attempt to fetch all clusters? (Or should users be able to
+			// select hard fail behavior with a config option?)
+			// (Hard fail may be more relevant to named clusters.)
+			// (There may be some value in a configurable hard fail if 0
+			// clusters are returned.)
+			return nil, trace.Wrap(err, "unable to fetch clusters with labels %v", selector.Labels)
+		}
+
+		clusters = append(clusters, labeledClusters...)
+	}
+
+	return clusters, nil
+}
+
+func (s *KubernetesV2OutputService) render(
 	ctx context.Context,
-	status *kubernetesStatus,
+	status *kubernetesStatusV2,
 	routedIdentity *identity.Identity,
-	hostCAs, userCAs, databaseCAs []types.CertAuthority,
+	hostCAs []types.CertAuthority,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -231,6 +269,7 @@ func (s *KubernetesOutputService) render(
 	); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}
+
 	// In exec plugin mode, we write the credentials to disk and write a
 	// kubeconfig that execs `tbot` to load those credentials.
 
@@ -253,7 +292,7 @@ func (s *KubernetesOutputService) render(
 	if s.cfg.DisableExecPlugin {
 		// If they've disabled the exec plugin, we just write the credentials
 		// directly into the kubeconfig.
-		kubeCfg, err = generateKubeConfigWithoutPlugin(status)
+		kubeCfg, err = generateKubeConfigV2WithoutPlugin(status)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -263,7 +302,7 @@ func (s *KubernetesOutputService) render(
 			return trace.Wrap(err)
 		}
 
-		kubeCfg, err = generateKubeConfigWithPlugin(status, destinationDir.Path, executablePath)
+		kubeCfg, err = generateKubeConfigV2WithPlugin(status, destinationDir.Path, executablePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -278,56 +317,23 @@ func (s *KubernetesOutputService) render(
 		return trace.Wrap(err, "writing kubeconfig")
 	}
 
-	return trace.Wrap(writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs))
+	if err := s.cfg.Destination.Write(ctx, config.HostCAPath, concatCACerts(hostCAs)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
-// kubernetesStatus holds teleport client information necessary to populate a
-// kubeconfig.
-type kubernetesStatus struct {
-	clusterAddr           string
-	teleportClusterName   string
-	kubernetesClusterName string
-	tlsServerName         string
-	credentials           *client.KeyRing
+// encodePathComponent appropriate base64 encodes an input string for path-based
+// routing use.
+func encodePathComponent(input string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(input))
 }
 
-func generateKubeConfigWithoutPlugin(ks *kubernetesStatus) (*clientcmdapi.Config, error) {
-	config := clientcmdapi.NewConfig()
-
-	contextName := kubeconfig.ContextName(ks.teleportClusterName, ks.kubernetesClusterName)
-	// Configure the cluster.
-	clusterCAs, err := ks.credentials.RootClusterCAs()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cas := bytes.Join(clusterCAs, []byte("\n"))
-	if len(cas) == 0 {
-		return nil, trace.BadParameter("TLS trusted CAs missing in provided credentials")
-	}
-	config.Clusters[contextName] = &clientcmdapi.Cluster{
-		Server:                   ks.clusterAddr,
-		CertificateAuthorityData: cas,
-		TLSServerName:            ks.tlsServerName,
-	}
-
-	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
-		ClientCertificateData: ks.credentials.TLSCert,
-		ClientKeyData:         ks.credentials.TLSPrivateKey.PrivateKeyPEM(),
-	}
-
-	// Last, create a context linking the cluster to the auth info.
-	config.Contexts[contextName] = &clientcmdapi.Context{
-		Cluster:  contextName,
-		AuthInfo: contextName,
-	}
-	config.CurrentContext = contextName
-
-	return config, nil
-}
-
-// generateKubeConfigWithPlugin creates a Kubernetes config object with the given cluster
-// config.
-func generateKubeConfigWithPlugin(ks *kubernetesStatus, destPath string, executablePath string) (*clientcmdapi.Config, error) {
+// generateKubeConfigWithPlugin creates a Kubernetes config object with the
+// given cluster config, using the `tbot kube credentials` auth helper plugin to
+// fetch refreshed certificate data at runtime.
+func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, executablePath string) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Implementation note: tsh/kube.go generates a kubeconfig with all
@@ -341,7 +347,67 @@ func generateKubeConfigWithPlugin(ks *kubernetesStatus, destPath string, executa
 	// We do still implement `tbot kube credentials` to help client apps
 	// take better advantage of certificate renewals.
 
-	contextName := kubeconfig.ContextName(ks.teleportClusterName, ks.kubernetesClusterName)
+	// Configure the cluster.
+	clusterCAs, err := ks.credentials.RootClusterCAs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cas := bytes.Join(clusterCAs, []byte("\n"))
+	if len(cas) == 0 {
+		return nil, trace.BadParameter("TLS trusted CAs missing in provided credentials")
+	}
+
+	absDestPath, err := filepath.Abs(destPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "determining absolute path for destination")
+	}
+
+	// Configure primary user/AuthInfo.
+	execArgs := []string{"kube", "credentials",
+		fmt.Sprintf("--destination-dir=%s", absDestPath),
+	}
+	config.AuthInfos[ks.teleportClusterName] = &clientcmdapi.AuthInfo{
+		Exec: &clientcmdapi.ExecConfig{
+			APIVersion: "client.authentication.k8s.io/v1beta1",
+			Command:    executablePath,
+			Args:       execArgs,
+		},
+	}
+
+	for i, cluster := range ks.kubernetesClusterNames {
+		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
+
+		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
+		config.Clusters[contextName] = &clientcmdapi.Cluster{
+			Server:        ks.clusterAddr + suffix,
+			TLSServerName: ks.tlsServerName,
+
+			// TODO: consider using CertificateAuthority (path) here to avoid
+			// duplication. This branch (with plugin) already requires a file
+			// destination so we can assume the CA is available.
+			CertificateAuthorityData: cas,
+		}
+
+		// Link the context to the main user.
+		config.Contexts[contextName] = &clientcmdapi.Context{
+			Cluster:  contextName,
+			AuthInfo: ks.teleportClusterName,
+		}
+
+		// Always set the current context to the first-matched cluster. This
+		// won't be perfectly consistent if the first selector uses labels, so
+		// we may want to consider some way to flag an explicitly default
+		// context.
+		if i == 0 {
+			config.CurrentContext = contextName
+		}
+	}
+
+	return config, nil
+}
+
+func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Config, error) {
+	config := clientcmdapi.NewConfig()
 
 	// Configure the cluster.
 	clusterCAs, err := ks.credentials.RootClusterCAs()
@@ -352,112 +418,33 @@ func generateKubeConfigWithPlugin(ks *kubernetesStatus, destPath string, executa
 	if len(cas) == 0 {
 		return nil, trace.BadParameter("TLS trusted CAs missing in provided credentials")
 	}
-	config.Clusters[contextName] = &clientcmdapi.Cluster{
-		Server:                   ks.clusterAddr,
-		CertificateAuthorityData: cas,
-		TLSServerName:            ks.tlsServerName,
+
+	// Create a global AuthInfo for this cluster.
+	config.AuthInfos[ks.teleportClusterName] = &clientcmdapi.AuthInfo{
+		ClientCertificateData: ks.credentials.TLSCert,
+		ClientKeyData:         ks.credentials.TLSPrivateKey.PrivateKeyPEM(),
 	}
 
-	absDestPath, err := filepath.Abs(destPath)
-	if err != nil {
-		return nil, trace.Wrap(err, "determining absolute path for destination")
-	}
+	for i, cluster := range ks.kubernetesClusterNames {
+		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
 
-	// Configure the auth info.
-	execArgs := []string{"kube", "credentials",
-		fmt.Sprintf("--destination-dir=%s", absDestPath),
-	}
-	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
-		Exec: &clientcmdapi.ExecConfig{
-			APIVersion: "client.authentication.k8s.io/v1beta1",
-			Command:    executablePath,
-			Args:       execArgs,
-		},
-	}
+		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
+		config.Clusters[contextName] = &clientcmdapi.Cluster{
+			Server:                   ks.clusterAddr + suffix,
+			TLSServerName:            ks.tlsServerName,
+			CertificateAuthorityData: cas,
+		}
 
-	// Last, create a context linking the cluster to the auth info.
-	config.Contexts[contextName] = &clientcmdapi.Context{
-		Cluster:  contextName,
-		AuthInfo: contextName,
+		// Link the context to the main AuthInfo/user.
+		config.Contexts[contextName] = &clientcmdapi.Context{
+			Cluster:  contextName,
+			AuthInfo: ks.teleportClusterName,
+		}
+
+		if i == 0 {
+			config.CurrentContext = contextName
+		}
 	}
-	config.CurrentContext = contextName
 
 	return config, nil
-}
-
-// chooseOneKubeCluster chooses one matched kube cluster by name, or tries to
-// choose one kube cluster by unambiguous "discovered name".
-func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.KubeCluster, error) {
-	return chooseOneResource(clusters, name, "kubernetes cluster")
-}
-
-func getKubeCluster(ctx context.Context, clt apiclient.GetResourcesClient, name string) (types.KubeCluster, error) {
-	ctx, span := tracer.Start(ctx, "getKubeCluster")
-	defer span.End()
-
-	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindKubeServer,
-		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
-		Limit:               int32(defaults.DefaultChunkSize),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var clusters []types.KubeCluster
-	for _, server := range servers {
-		clusters = append(clusters, server.GetCluster())
-	}
-
-	clusters = types.DeduplicateKubeClusters(clusters)
-	cluster, err := chooseOneKubeCluster(clusters, name)
-	return cluster, trace.Wrap(err)
-}
-
-// selectKubeConnectionMethod determines the address and SNI that should be
-// put into the kubeconfig file.
-func selectKubeConnectionMethod(proxyPong *proxyPingResponse) (
-	clusterAddr string, sni string, err error,
-) {
-	// First we check for TLS routing. If this is enabled, we use the Proxy's
-	// PublicAddr, and we must also specify a special SNI.
-	//
-	// Even if KubePublicAddr is specified, we still use the general
-	// PublicAddr when using TLS routing.
-	if proxyPong.Proxy.TLSRoutingEnabled {
-		addr, err := proxyPong.proxyWebAddr()
-		if err != nil {
-			return "", "", trace.Wrap(err)
-		}
-		host, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			return "", "", trace.Wrap(err, "parsing proxy public_addr")
-		}
-
-		return fmt.Sprintf("https://%s", addr), client.GetKubeTLSServerName(host), nil
-	}
-
-	// Next, we try to use the KubePublicAddr.
-	if proxyPong.Proxy.Kube.PublicAddr != "" {
-		return fmt.Sprintf("https://%s", proxyPong.Proxy.Kube.PublicAddr), "", nil
-	}
-
-	// Finally, we fall back to the main proxy PublicAddr with the port from
-	// KubeListenAddr.
-	if proxyPong.Proxy.Kube.ListenAddr != "" {
-		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
-		if err != nil {
-			return "", "", trace.Wrap(err, "parsing proxy public_addr")
-		}
-
-		_, port, err := net.SplitHostPort(proxyPong.Proxy.Kube.ListenAddr)
-		if err != nil {
-			return "", "", trace.Wrap(err, "parsing proxy kube_listen_addr")
-		}
-
-		return fmt.Sprintf("https://%s:%s", host, port), "", nil
-	}
-
-	return "", "", trace.BadParameter("unable to determine kubernetes address")
 }
