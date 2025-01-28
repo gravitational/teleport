@@ -241,6 +241,9 @@ func (e *Engine) getSignedRequest(signer *libaws.SigningService, reqCopy *http.R
 		BaseAWSRoleARN:    meta.AssumeRoleARN,
 		BaseAWSExternalID: meta.ExternalID,
 		AWSRoleArn:        roleArn,
+		// OpenSearch uses meta.ExternalID for both the base role and the
+		// assumed role.
+		AWSExternalID: meta.ExternalID,
 	}
 
 	if meta.AssumeRoleARN == "" {
