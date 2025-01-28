@@ -3430,6 +3430,10 @@ type promHTTPLogAdapter struct {
 
 // Println implements the promhttp.Logger interface.
 func (l promHTTPLogAdapter) Println(v ...interface{}) {
+	if !l.Handler().Enabled(l.ctx, slog.LevelError) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.ErrorContext(l.ctx, fmt.Sprint(v...))
 }

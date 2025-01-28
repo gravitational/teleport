@@ -17,6 +17,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -33,16 +34,27 @@ type pyroscopeLogger struct {
 }
 
 func (l pyroscopeLogger) Infof(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
+		return
+	}
 	//nolint:sloglint // msg cannot be constant
 	l.l.Info(fmt.Sprintf(format, args...))
 }
 
 func (l pyroscopeLogger) Debugf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.Debug(fmt.Sprintf(format, args...))
 }
 
 func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelError) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.Error(fmt.Sprintf(format, args...))
 }
