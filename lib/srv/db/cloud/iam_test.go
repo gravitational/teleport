@@ -156,16 +156,15 @@ func TestAWSIAM(t *testing.T) {
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: stsClient,
 		},
-		Clients: &clients.TestCloudClients{
-			STS: &stsClient.STSClientV1,
-		},
-		HostID: "host-id",
+		Clients: &clients.TestCloudClients{},
+		HostID:  "host-id",
 		onProcessedTask: func(iamTask, error) {
 			taskChan <- struct{}{}
 		},
 		awsClients: fakeAWSClients{
 			iamClient: iamClient,
 			rdsClient: clt,
+			stsClient: stsClient,
 		},
 	})
 	require.NoError(t, err)
@@ -291,8 +290,10 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create unauthorized mocks for AWS services.
-	stsClient := &mocks.STSClientV1{
-		ARN: "arn:aws:iam::123456789012:role/test-role",
+	stsClient := &mocks.STSClient{
+		STSClientV1: mocks.STSClientV1{
+			ARN: "arn:aws:iam::123456789012:role/test-role",
+		},
 	}
 	tests := []struct {
 		name       string
@@ -301,70 +302,64 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		awsClients awsClientProvider
 	}{
 		{
-			name: "RDS database",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
-			clients: &clients.TestCloudClients{
-				STS: stsClient,
-			},
+			name:    "RDS database",
+			meta:    types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+			clients: &clients.TestCloudClients{},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				rdsClient: &mocks.RDSClient{Unauth: true},
+				stsClient: stsClient,
 			},
 		},
 		{
-			name: "Aurora cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
-			clients: &clients.TestCloudClients{
-				STS: stsClient,
-			},
+			name:    "Aurora cluster",
+			meta:    types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+			clients: &clients.TestCloudClients{},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				rdsClient: &mocks.RDSClient{Unauth: true},
+				stsClient: stsClient,
 			},
 		},
 		{
-			name: "RDS database missing metadata",
-			meta: types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
-			clients: &clients.TestCloudClients{
-				STS: stsClient,
-			},
+			name:    "RDS database missing metadata",
+			meta:    types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
+			clients: &clients.TestCloudClients{},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				rdsClient: &mocks.RDSClient{Unauth: true},
+				stsClient: stsClient,
 			},
 		},
 		{
-			name: "Redshift cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
-			clients: &clients.TestCloudClients{
-				STS: stsClient,
-			},
+			name:    "Redshift cluster",
+			meta:    types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			clients: &clients.TestCloudClients{},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
+				stsClient: stsClient,
 			},
 		},
 		{
-			name: "ElastiCache",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
-			clients: &clients.TestCloudClients{
-				STS: stsClient,
-			},
+			name:    "ElastiCache",
+			meta:    types.AWS{Region: "localhost", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
+			clients: &clients.TestCloudClients{},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
+				stsClient: stsClient,
 			},
 		},
 		{
-			name: "IAM UnmodifiableEntityException",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
-			clients: &clients.TestCloudClients{
-				STS: stsClient,
-			},
+			name:    "IAM UnmodifiableEntityException",
+			meta:    types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			clients: &clients.TestCloudClients{},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{
 					Error: &iamtypes.UnmodifiableEntityException{
 						Message: aws.String("Cannot perform the operation on the protected role"),
 					},
 				},
+				stsClient: stsClient,
 			},
 		},
 	}
@@ -377,11 +372,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 				Clients:     test.clients,
 				HostID:      "host-id",
 				AWSConfigProvider: &mocks.AWSConfigProvider{
-					STSClient: &mocks.STSClient{
-						STSClientV1: mocks.STSClientV1{
-							ARN: "arn:aws:iam::123456789012:role/test-role",
-						},
-					},
+					STSClient: stsClient,
 				},
 				awsClients: test.awsClients,
 			})

@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -221,6 +222,7 @@ type fakeAWSClients struct {
 	iamClient iamClient
 	rdsClient rdsClient
 	s3Client  s3Client
+	stsClient stsClient
 }
 
 func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
@@ -233,4 +235,8 @@ func (f fakeAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options
 
 func (f fakeAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
 	return f.s3Client
+}
+
+func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return f.stsClient
 }

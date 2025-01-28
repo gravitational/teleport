@@ -46,6 +46,7 @@ import (
 type STSClient struct {
 	STSClientV1
 
+	Unauth bool
 	// credentialProvider is only set when a chain of assumed roles is used.
 	credentialProvider aws.CredentialsProvider
 	// recordFn records the role and external ID when a role is assumed.
@@ -55,17 +56,25 @@ type STSClient struct {
 }
 
 func (m *STSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
 	return &sts.GetCallerIdentityOutput{
 		Arn: aws.String(m.ARN),
 	}, nil
 }
 
 func (m *STSClient) AssumeRoleWithWebIdentity(ctx context.Context, in *sts.AssumeRoleWithWebIdentityInput, _ ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
 	m.record(aws.ToString(in.RoleArn), "")
 	expiry := time.Now().Add(60 * time.Minute)
 	return &sts.AssumeRoleWithWebIdentityOutput{
 		Credentials: &ststypes.Credentials{
-			AccessKeyId:     in.RoleArn,
+			AccessKeyId:     aws.String("WEBIDENTITYFAKEACCESSKEYID"),
 			SecretAccessKey: aws.String("secret"),
 			SessionToken:    aws.String("token"),
 			Expiration:      &expiry,
@@ -74,6 +83,10 @@ func (m *STSClient) AssumeRoleWithWebIdentity(ctx context.Context, in *sts.Assum
 }
 
 func (m *STSClient) AssumeRole(ctx context.Context, in *sts.AssumeRoleInput, _ ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
 	// Retrieve credentials if we have a credential provider, so that all
 	// assume-role providers in a role chain are triggered to call AssumeRole.
 	if m.credentialProvider != nil {
@@ -87,7 +100,7 @@ func (m *STSClient) AssumeRole(ctx context.Context, in *sts.AssumeRoleInput, _ .
 	expiry := time.Now().Add(60 * time.Minute)
 	return &sts.AssumeRoleOutput{
 		Credentials: &ststypes.Credentials{
-			AccessKeyId:     in.RoleArn,
+			AccessKeyId:     aws.String("FAKEACCESSKEYID"),
 			SecretAccessKey: aws.String("secret"),
 			SessionToken:    aws.String("token"),
 			Expiration:      &expiry,

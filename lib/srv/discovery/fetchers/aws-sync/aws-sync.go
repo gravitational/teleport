@@ -29,8 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -106,6 +105,11 @@ type iamClient interface {
 	ListSAMLProviders(context.Context, *iam.ListSAMLProvidersInput, ...func(*iam.Options)) (*iam.ListSAMLProvidersOutput, error)
 }
 
+// stsClient defines a subset of the AWS STS client API.
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
 // awsClientProvider provides AWS service API clients.
 type awsClientProvider interface {
 	// getIAMClient provides an [iamClient].
@@ -114,6 +118,8 @@ type awsClientProvider interface {
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
 	// getS3Client provides an [s3Client].
 	getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client
+	// getSTSClient provides an [stsClient].
+	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 }
 
 type defaultAWSClients struct{}
@@ -128,6 +134,10 @@ func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Option
 
 func (defaultAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
 	return s3.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return sts.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
@@ -355,36 +365,9 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 	return result, trace.NewAggregate(errs...)
 }
 
-// getAWSOptions returns a list of AWSAssumeRoleOptionFn to be used when
-// creating AWS clients.
-func (a *Fetcher) getAWSOptions() []cloud.AWSOptionsFn {
-	opts := []cloud.AWSOptionsFn{
-		cloud.WithCredentialsMaybeIntegration(a.Config.Integration),
-	}
-
-	if a.Config.AssumeRole != nil {
-		opts = append(opts, cloud.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
-	}
-	const maxRetries = 10
-	opts = append(opts,
-		cloud.WithMaxRetries(maxRetries),
-		cloud.WithRetryer(
-			client.DefaultRetryer{
-				NumMaxRetries:    maxRetries,
-				MinRetryDelay:    time.Second,
-				MinThrottleDelay: time.Second,
-				MaxRetryDelay:    300 * time.Second,
-				MaxThrottleDelay: 300 * time.Second,
-			},
-		),
-	)
-
-	return opts
-}
-
-// getAWSV2Options returns a list of options to be used when
+// getAWSOptions returns a list of options to be used when
 // creating AWS clients with the v2 sdk.
-func (a *Fetcher) getAWSV2Options() []awsconfig.OptionsFn {
+func (a *Fetcher) getAWSOptions() []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
@@ -404,7 +387,7 @@ func (a *Fetcher) getAWSV2Options() []awsconfig.OptionsFn {
 }
 
 func (a *Fetcher) getAccountId(ctx context.Context) (string, error) {
-	stsClient, err := a.CloudClients.GetAWSSTSClient(
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because groups are global */
 		a.getAWSOptions()...,
@@ -412,9 +395,10 @@ func (a *Fetcher) getAccountId(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	stsClient := a.awsClients.getSTSClient(awsCfg)
 
 	input := &sts.GetCallerIdentityInput{}
-	req, err := stsClient.GetCallerIdentityWithContext(ctx, input)
+	req, err := stsClient.GetCallerIdentity(ctx, input)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

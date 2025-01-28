@@ -269,11 +269,13 @@ func (c *IAM) getAWSIdentity(ctx context.Context, database types.Database) (awsl
 		return c.agentIdentity, nil
 	}
 	c.mu.RUnlock()
-	sts, err := c.cfg.Clients.GetAWSSTSClient(ctx, meta.Region, cloud.WithAmbientCredentials())
+
+	awsCfg, err := c.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region, awsconfig.WithAmbientCredentials())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	awsIdentity, err := awslib.GetIdentityWithClient(ctx, sts)
+	clt := c.cfg.awsClients.getSTSClient(awsCfg)
+	awsIdentity, err := awslib.GetIdentityWithClientV2(ctx, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

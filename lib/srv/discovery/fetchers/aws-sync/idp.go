@@ -37,7 +37,7 @@ func (a *Fetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources, c
 		awsCfg, err := a.AWSConfigProvider.GetConfig(
 			ctx,
 			"", /* region is empty because saml providers are global */
-			a.getAWSV2Options()...,
+			a.getAWSOptions()...,
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
@@ -138,7 +138,7 @@ func (a *Fetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, c
 		awsCfg, err := a.AWSConfigProvider.GetConfig(
 			ctx,
 			"", /* region is empty because oidc providers are global */
-			a.getAWSV2Options()...,
+			a.getAWSOptions()...,
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
