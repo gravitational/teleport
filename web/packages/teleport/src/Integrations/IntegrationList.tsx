@@ -37,6 +37,7 @@ import {
   getStatusCodeDescription,
   getStatusCodeTitle,
   Integration,
+  IntegrationGitHub,
   IntegrationKind,
   IntegrationStatusCode,
   Plugin,
@@ -50,7 +51,7 @@ type Props<IntegrationLike> = {
   onDeletePlugin?(p: Plugin): void;
   integrationOps?: {
     onDeleteIntegration(i: Integration): void;
-    onEditIntegration(i: Integration): void;
+    onEditIntegration(i: Integration | IntegrationGitHub): void;
   };
   onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
@@ -154,24 +155,22 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                   <MenuButton>
                     {/* Currently, only AWS OIDC supports editing & status dash */}
                     {item.kind === IntegrationKind.AwsOidc && (
-                      <>
-                        <MenuItem
-                          as={InternalRouteLink}
-                          to={cfg.getIntegrationStatusRoute(
-                            item.kind,
-                            item.name
-                          )}
-                        >
-                          View Status
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() =>
-                            props.integrationOps.onEditIntegration(item)
-                          }
-                        >
-                          Edit...
-                        </MenuItem>
-                      </>
+                      <MenuItem
+                        as={InternalRouteLink}
+                        to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
+                      >
+                        View Status
+                      </MenuItem>
+                    )}
+                    {(item.kind === IntegrationKind.GitHub ||
+                      item.kind === IntegrationKind.AwsOidc) && (
+                      <MenuItem
+                        onClick={() =>
+                          props.integrationOps.onEditIntegration(item)
+                        }
+                      >
+                        Edit...
+                      </MenuItem>
                     )}
                     <MenuItem
                       onClick={() =>

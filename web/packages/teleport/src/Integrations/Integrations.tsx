@@ -35,7 +35,10 @@ import useTeleport from 'teleport/useTeleport';
 import { IntegrationList } from './IntegrationList';
 import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationOperations, useIntegrationOperation } from './Operations';
-import type { EditableIntegrationFields } from './Operations/useIntegrationOperation';
+import type {
+  EditableIntegration,
+  EditableIntegrationFields,
+} from './Operations/useIntegrationOperation';
 
 export function Integrations() {
   const integrationOps = useIntegrationOperation();
@@ -63,7 +66,7 @@ export function Integrations() {
   }
 
   function editIntegration(
-    integration: Integration,
+    integration: EditableIntegration,
     req: EditableIntegrationFields
   ) {
     return integrationOps.edit(integration, req).then(updatedIntegration => {
@@ -110,7 +113,7 @@ export function Integrations() {
       </FeatureBox>
       <IntegrationOperations
         operation={integrationOps.type}
-        integration={integrationOps.item as Integration}
+        integration={integrationOps.item as EditableIntegration}
         close={integrationOps.clear}
         remove={removeIntegration}
         edit={editIntegration}

@@ -34,8 +34,10 @@ import {
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
+  ExportedIntegrationCaResponse,
   Integration,
   IntegrationCreateRequest,
+  IntegrationKind,
   IntegrationListResponse,
   IntegrationStatusCode,
   IntegrationUpdateRequest,
@@ -56,6 +58,13 @@ import {
 } from './types';
 
 export const integrationService = {
+  fetchExportedIntegrationCA(
+    clusterId: string,
+    integrationName: string
+  ): Promise<ExportedIntegrationCaResponse> {
+    return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
+  },
+
   fetchIntegration(name: string): Promise<Integration> {
     return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
   },
@@ -89,6 +98,15 @@ export const integrationService = {
     req: IntegrationUpdateRequest
   ): Promise<Integration> {
     return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
+  },
+
+  updateIntegrationOAuthSecret(
+    name: string,
+    secret: string
+  ): Promise<Integration> {
+    return api
+      .put(cfg.getIntegrationsUrl(name), { oauth: { secret } })
+      .then(makeIntegration);
   },
 
   deleteIntegration(name: string): Promise<void> {
@@ -421,25 +439,47 @@ export function makeIntegrations(json: any): Integration[] {
 function makeIntegration(json: any): Integration {
   json = json || {};
   const { name, subKind, awsoidc, github } = json;
-  return {
-    resourceType: 'integration',
+
+  const commonFields = {
     name,
     kind: subKind,
-    spec: {
-      roleArn: awsoidc?.roleArn,
-      issuerS3Bucket: awsoidc?.issuerS3Bucket,
-      issuerS3Prefix: awsoidc?.issuerS3Prefix,
-      audience: awsoidc?.audience,
-    },
-    details: github
-      ? `GitHub Organization "${github.organization}"`
-      : undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+  };
+
+  if (subKind === IntegrationKind.AwsOidc) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details:
+        'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
+      spec: {
+        roleArn: awsoidc?.roleArn,
+        issuerS3Bucket: awsoidc?.issuerS3Bucket,
+        issuerS3Prefix: awsoidc?.issuerS3Prefix,
+        audience: awsoidc?.audience,
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.GitHub) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details: `GitHub Organization "${github.organization}"`,
+      spec: {
+        organization: github.organization,
+      },
+    };
+  }
+
+  return {
+    ...commonFields,
+    resourceType: 'integration',
   };
 }
 

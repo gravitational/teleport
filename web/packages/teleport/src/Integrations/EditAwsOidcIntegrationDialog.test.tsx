@@ -23,7 +23,7 @@ import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import {
-  Integration,
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
   IntegrationStatusCode,
@@ -252,11 +252,12 @@ test('edit submit called with proper fields', async () => {
   await waitFor(() => expect(mockEditFn).toHaveBeenCalledTimes(1));
 
   expect(mockEditFn).toHaveBeenCalledWith(integration, {
+    kind: IntegrationKind.AwsOidc,
     roleArn: 'arn:aws:iam::123456789011:role/other',
   });
 });
 
-const integration: Integration = {
+const integration: IntegrationAwsOidc = {
   resourceType: 'integration',
   kind: IntegrationKind.AwsOidc,
   name: 'some-integration-name',

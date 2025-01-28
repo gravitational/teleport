@@ -19,6 +19,8 @@
 import { useState } from 'react';
 
 import {
+  IntegrationAwsOidc,
+  IntegrationGitHub,
   IntegrationKind,
   integrationService,
   type Integration,
@@ -42,12 +44,12 @@ export function useIntegrationOperation() {
   }
 
   async function edit(
-    integration: Integration,
+    integration: EditableIntegration,
     req: EditableIntegrationFields
   ) {
     // Health check with the new roleArn to validate that
     // connection still works.
-    if (integration.kind === IntegrationKind.AwsOidc) {
+    if (req.kind === IntegrationKind.AwsOidc) {
       try {
         await integrationService.pingAwsOidcIntegration(
           {
@@ -56,22 +58,28 @@ export function useIntegrationOperation() {
           },
           { roleArn: req.roleArn }
         );
+        return integrationService.updateIntegration(operation.item.name, {
+          kind: IntegrationKind.AwsOidc,
+          awsoidc: {
+            roleArn: req.roleArn,
+          },
+        });
       } catch (err) {
         throw new Error(`Health check failed: ${err}`);
       }
+    } else if (req.kind === IntegrationKind.GitHub) {
+      return integrationService.updateIntegrationOAuthSecret(
+        operation.item.name,
+        req.secret
+      );
     }
-    return integrationService.updateIntegration(operation.item.name, {
-      awsoidc: {
-        roleArn: req.roleArn,
-      },
-    });
   }
 
   function onRemove(item: Integration) {
     setOperation({ type: 'delete', item });
   }
 
-  function onEdit(item: Integration) {
+  function onEdit(item: EditableIntegration) {
     setOperation({ type: 'edit', item });
   }
 
@@ -85,12 +93,22 @@ export function useIntegrationOperation() {
   };
 }
 
+export type AwsOidcIntegrationEditableFields = {
+  kind: IntegrationKind.AwsOidc;
+  roleArn: string;
+};
+
+export type GitHubIntegrationEditableFields = {
+  kind: IntegrationKind.GitHub;
+  secret: string;
+};
+
 /**
  * Currently only integration updateable is aws oidc.
  */
-export type EditableIntegrationFields = {
-  roleArn: string;
-};
+export type EditableIntegrationFields =
+  | AwsOidcIntegrationEditableFields
+  | GitHubIntegrationEditableFields;
 
 export type OperationType = 'create' | 'edit' | 'delete' | 'reset' | 'none';
 
@@ -100,3 +118,5 @@ export type Operation = {
   type: OperationType;
   item?: Plugin | Integration | { name: ExternalAuditStorageOpType };
 };
+
+export type EditableIntegration = IntegrationAwsOidc | IntegrationGitHub;

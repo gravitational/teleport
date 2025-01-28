@@ -31,7 +31,7 @@ import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { ApiError } from 'teleport/services/api/parseError';
 import {
   AwsOidcPolicyPreset,
-  Integration,
+  IntegrationAwsOidc,
   IntegrationCreateRequest,
   IntegrationKind,
   integrationService,
@@ -59,7 +59,8 @@ export function useAwsOidcIntegration() {
     }
   );
   const [scriptUrl, setScriptUrl] = useState('');
-  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
+  const [createdIntegration, setCreatedIntegration] =
+    useState<IntegrationAwsOidc>();
   const { clusterId } = useStickyClusterId();
 
   const location = useLocation<DiscoverUrlLocationState>();
@@ -94,7 +95,7 @@ export function useAwsOidcIntegration() {
     setCreateIntegrationAttempt,
   ] = useAsync(async (req: IntegrationCreateRequest) => {
     const resp = await integrationService.createIntegration(req);
-    setCreatedIntegration(resp);
+    setCreatedIntegration(resp as IntegrationAwsOidc);
     return resp;
   });
 
