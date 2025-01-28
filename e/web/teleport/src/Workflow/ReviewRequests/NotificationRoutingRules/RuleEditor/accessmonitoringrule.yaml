@@ -9,7 +9,7 @@ spec:
   # should be met to trigger a notification to the list of recipients.
   condition: {{rule.condition}}
   notification:
-    # name of integraiton eg: slack or mattermost
+    # name of integration eg: slack or mattermost
     name: {{rule.notification.name}}
     recipients: {{rule.notification.recipients}}
 version: v1
