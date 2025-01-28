@@ -1049,7 +1049,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "env.prod", "aws-app-access")
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "Invalid integration name for enabling AWS Access")
+		require.ErrorContains(t, err, `Invalid integration name ("env.prod") for enabling AWS Access.`)
 	})
 }
 

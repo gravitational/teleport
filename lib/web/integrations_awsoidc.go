@@ -1074,7 +1074,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 	if strings.Contains(integrationName, ".") {
 		// Teleport Cloud only provides certificates for *.<tenant>.teleport.sh, so this would generate an invalid address.
 		if h.GetClusterFeatures().Cloud {
-			return nil, trace.BadParameter(`Invalid integration name for enabling AWS Access. Please re-create the integration without the "."`)
+			return nil, trace.BadParameter(`Invalid integration name (%q) for enabling AWS Access. Please re-create the integration without the "."`, integrationName)
 		}
 
 		// Typically, self-hosted clusters will also have a single wildcard for the name.
