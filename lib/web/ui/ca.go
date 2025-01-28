@@ -27,27 +27,39 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
+// SSHKey represents a SSH key.
 type SSHKey struct {
-	PublicKey   string `json:"publicKey"`
+	// PublicKey is the SSH public key.
+	PublicKey string `json:"publicKey"`
+	// Fingerprint is the SHA256 fingerprint of the key.
 	Fingerprint string `json:"fingerprint"`
 }
 
+// TLSKey represents a TLS key.
 type TLSKey struct {
+	// Cert is a PEM encoded TLS cert
 	Cert string `json:"cert"`
 }
 
+// JWTKey represents a JWT key.
 type JWTKey struct {
+	// PublicKey is public key.
 	PublicKey string `json:"publicKey"`
 }
 
+// CAKeySet is the web app representation of types.CAKeySet which describes a
+// set of CA keys owned by a certificate authority type.
 type CAKeySet struct {
+	// SSH contains SSH CA keys.
 	SSH []SSHKey `json:"ssh"`
+	// TLS contains TLS CA keys.
 	TLS []TLSKey `json:"tls"`
+	// JWT contains JWT CA keys.
 	JWT []JWTKey `json:"jwt"`
 }
 
 // MakeCAKeySet creates a CAKeySet object for the web ui. SSH key fingerprints
-// are exported but private keys are excluded.
+// are exported alongside of SSH public keys. All privates are excluded.
 func MakeCAKeySet(cas *types.CAKeySet) (*CAKeySet, error) {
 	ret := CAKeySet{}
 	for _, ssh := range cas.SSH {

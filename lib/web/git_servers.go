@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -62,12 +62,6 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 	gitServiceClient := userClient.GitServerClient()
 
 	if req.Overwrite {
-		// Double-check if current git server exists.
-		_, err := gitServiceClient.GetGitServer(r.Context(), gitServer.GetName())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		upserted, err := gitServiceClient.UpsertGitServer(r.Context(), gitServer)
 		return upserted, trace.Wrap(err)
 	}
