@@ -410,6 +410,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.StableUNIXUsers == nil {
+		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
+			Backend: cfg.Backend,
+		}
+	}
+
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -463,52 +469,53 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		TrustInternal:             cfg.Trust,
-		PresenceInternal:          cfg.Presence,
-		Provisioner:               cfg.Provisioner,
-		Identity:                  cfg.Identity,
-		Access:                    cfg.Access,
-		DynamicAccessExt:          cfg.DynamicAccessExt,
-		ClusterConfiguration:      cfg.ClusterConfiguration,
-		AutoUpdateService:         cfg.AutoUpdateService,
-		Restrictions:              cfg.Restrictions,
-		Apps:                      cfg.Apps,
-		Kubernetes:                cfg.Kubernetes,
-		Databases:                 cfg.Databases,
-		DatabaseServices:          cfg.DatabaseServices,
-		AuditLogSessionStreamer:   cfg.AuditLog,
-		Events:                    cfg.Events,
-		WindowsDesktops:           cfg.WindowsDesktops,
-		DynamicWindowsDesktops:    cfg.DynamicWindowsDesktops,
-		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
-		UserGroups:                cfg.UserGroups,
-		SessionTrackerService:     cfg.SessionTrackerService,
-		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
-		Integrations:              cfg.Integrations,
-		UserTasks:                 cfg.UserTasks,
-		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Okta:                      cfg.Okta,
-		AccessLists:               cfg.AccessLists,
-		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
-		DatabaseObjects:           cfg.DatabaseObjects,
-		SecReports:                cfg.SecReports,
-		UserLoginStates:           cfg.UserLoginState,
-		StatusInternal:            cfg.Status,
-		UsageReporter:             cfg.UsageReporter,
-		UserPreferences:           cfg.UserPreferences,
-		PluginData:                cfg.PluginData,
-		KubeWaitingContainer:      cfg.KubeWaitingContainers,
-		Notifications:             cfg.Notifications,
-		AccessMonitoringRules:     cfg.AccessMonitoringRules,
-		CrownJewels:               cfg.CrownJewels,
-		BotInstance:               cfg.BotInstance,
-		SPIFFEFederations:         cfg.SPIFFEFederations,
-		StaticHostUser:            cfg.StaticHostUsers,
-		ProvisioningStates:        cfg.ProvisioningStates,
-		IdentityCenter:            cfg.IdentityCenter,
-		PluginStaticCredentials:   cfg.PluginStaticCredentials,
-		GitServers:                cfg.GitServers,
-		WorkloadIdentities:        cfg.WorkloadIdentity,
+		TrustInternal:                cfg.Trust,
+		PresenceInternal:             cfg.Presence,
+		Provisioner:                  cfg.Provisioner,
+		Identity:                     cfg.Identity,
+		Access:                       cfg.Access,
+		DynamicAccessExt:             cfg.DynamicAccessExt,
+		ClusterConfigurationInternal: cfg.ClusterConfiguration,
+		AutoUpdateService:            cfg.AutoUpdateService,
+		Restrictions:                 cfg.Restrictions,
+		Apps:                         cfg.Apps,
+		Kubernetes:                   cfg.Kubernetes,
+		Databases:                    cfg.Databases,
+		DatabaseServices:             cfg.DatabaseServices,
+		AuditLogSessionStreamer:      cfg.AuditLog,
+		Events:                       cfg.Events,
+		WindowsDesktops:              cfg.WindowsDesktops,
+		DynamicWindowsDesktops:       cfg.DynamicWindowsDesktops,
+		SAMLIdPServiceProviders:      cfg.SAMLIdPServiceProviders,
+		UserGroups:                   cfg.UserGroups,
+		SessionTrackerService:        cfg.SessionTrackerService,
+		ConnectionsDiagnostic:        cfg.ConnectionsDiagnostic,
+		Integrations:                 cfg.Integrations,
+		UserTasks:                    cfg.UserTasks,
+		DiscoveryConfigs:             cfg.DiscoveryConfigs,
+		Okta:                         cfg.Okta,
+		AccessLists:                  cfg.AccessLists,
+		DatabaseObjectImportRules:    cfg.DatabaseObjectImportRules,
+		DatabaseObjects:              cfg.DatabaseObjects,
+		SecReports:                   cfg.SecReports,
+		UserLoginStates:              cfg.UserLoginState,
+		StatusInternal:               cfg.Status,
+		UsageReporter:                cfg.UsageReporter,
+		UserPreferences:              cfg.UserPreferences,
+		PluginData:                   cfg.PluginData,
+		KubeWaitingContainer:         cfg.KubeWaitingContainers,
+		Notifications:                cfg.Notifications,
+		AccessMonitoringRules:        cfg.AccessMonitoringRules,
+		CrownJewels:                  cfg.CrownJewels,
+		BotInstance:                  cfg.BotInstance,
+		SPIFFEFederations:            cfg.SPIFFEFederations,
+		StaticHostUser:               cfg.StaticHostUsers,
+		ProvisioningStates:           cfg.ProvisioningStates,
+		IdentityCenter:               cfg.IdentityCenter,
+		PluginStaticCredentials:      cfg.PluginStaticCredentials,
+		GitServers:                   cfg.GitServers,
+		WorkloadIdentities:           cfg.WorkloadIdentity,
+		StableUNIXUsersInternal:      cfg.StableUNIXUsers,
 	}
 
 	as := Server{
@@ -686,7 +693,7 @@ type Services struct {
 	services.Identity
 	services.Access
 	services.DynamicAccessExt
-	services.ClusterConfiguration
+	services.ClusterConfigurationInternal
 	services.Restrictions
 	services.Apps
 	services.Kubernetes
@@ -730,6 +737,7 @@ type Services struct {
 	services.PluginStaticCredentials
 	services.GitServers
 	services.WorkloadIdentities
+	services.StableUNIXUsersInternal
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1585,7 +1593,7 @@ func (a *Server) runPeriodicOperations() {
 }
 
 func (a *Server) tallyRoles(ctx context.Context) {
-	var count = 0
+	count := 0
 	a.logger.DebugContext(ctx, "tallying roles")
 	defer func() {
 		a.logger.DebugContext(ctx, "tallying roles completed", "role_count", count)
