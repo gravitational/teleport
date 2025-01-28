@@ -1422,8 +1422,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 			}
 		}
 
-		if !roleDurationSet || maxDurationForRole < minAdjDuration {
-			roleDurationSet = true
+		if minAdjDuration == 0 || maxDurationForRole < minAdjDuration {
 			minAdjDuration = maxDurationForRole
 		}
 	}
