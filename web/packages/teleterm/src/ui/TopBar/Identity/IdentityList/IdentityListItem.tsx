@@ -113,7 +113,7 @@ const StyledListItem = styled(ListItem)`
   gap: ${props => props.theme.space[1]}px;
   border-radius: 0;
   height: 100%;
-  :hover .logout {
+  &:hover .logout {
     visibility: visible;
   }
 `;
