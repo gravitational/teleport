@@ -47,8 +47,6 @@ import {
   NavTitle,
   type FeatureFlags,
   type TeleportFeature,
-  type TeleportFeatureNavigationItem,
-  type TeleportFeatureRoute,
 } from 'teleport/types';
 
 import { RolesE } from './Roles/RolesE';
@@ -75,33 +73,6 @@ class FeatureRoles extends OSS.FeatureRoles {
   };
 }
 
-class FeatureAccessRequests implements TeleportFeature {
-  category = NavigationCategory.Identity;
-
-  route: TeleportFeatureRoute; // intentionally undefined
-
-  navigationItem: TeleportFeatureNavigationItem = {
-    isSelected: (clusterId: string, pathname: string) => {
-      return (
-        pathname === cfg.getAccessRequestRoute() ||
-        pathname === cfg.getNewAccessRequestRoute(clusterId)
-      );
-    },
-    title: NavTitle.AccessRequests,
-    icon: ListAddCheck,
-    getLink() {
-      return cfg.getAccessRequestRoute();
-    },
-    searchableTags: ['access requests'],
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.accessRequests;
-  }
-
-  topMenuItem = this.navigationItem;
-}
-
 class FeatureNewAccessRequest implements TeleportFeature {
   category = NavigationCategory.Identity;
 
@@ -126,13 +97,11 @@ class FeatureNewAccessRequest implements TeleportFeature {
   };
 }
 
-class FeatureReviewAccessRequests implements TeleportFeature {
+class FeatureAccessRequests implements TeleportFeature {
   category = NavigationCategory.Identity;
 
-  parent = FeatureAccessRequests;
-
   route = {
-    title: 'Review Requests',
+    title: 'Access Requests',
     path: cfg.routes.requests,
     component: ReviewRequests,
   };
@@ -142,11 +111,12 @@ class FeatureReviewAccessRequests implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.ReviewRequests,
+    title: NavTitle.AccessRequests,
     icon: ListAddCheck,
     getLink() {
       return cfg.getAccessRequestRoute();
     },
+    searchableTags: ['access requests', 'requests', 'review'],
   };
 }
 
@@ -636,7 +606,6 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Identity
     new FeatureAccessRequests(),
     new FeatureNewAccessRequest(),
-    new FeatureReviewAccessRequests(),
     new FeatureAccessListManagement(),
     new OSS.FeatureLocks(),
     new FeatureNewLock(),
