@@ -109,44 +109,40 @@ export function LabelsInput({
 
   const width = `${inputWidth}px`;
   return (
-    <Fieldset gap={labels.length > 0 ? 2 : 1}>
-      <Stack gap={1}>
-        {legend && (
-          <Legend>
-            {tooltipContent ? (
-              <>
-                <span
-                  css={{
-                    marginRight: '4px',
-                    verticalAlign: 'middle',
-                  }}
-                >
-                  {legend}
-                </span>
-                <ToolTipInfo children={tooltipContent} />
-              </>
-            ) : (
-              legend
-            )}
-          </Legend>
-        )}
-        {labels.length > 0 && (
-          <Flex>
-            <Box width={width} mr="3">
-              <Text typography="body2">
-                {labelKey.fieldName} (required field)
-              </Text>
-            </Box>
+    <Fieldset>
+      {legend && (
+        <Legend>
+          {tooltipContent ? (
+            <>
+              <span
+                css={{
+                  marginRight: '4px',
+                  verticalAlign: 'middle',
+                }}
+              >
+                {legend}
+              </span>
+              <ToolTipInfo children={tooltipContent} />
+            </>
+          ) : (
+            legend
+          )}
+        </Legend>
+      )}
+      {labels.length > 0 && (
+        <Flex mt={legend ? 1 : 0} mb={1}>
+          <Box width={width} mr="3">
             <Text typography="body2">
-              {labelVal.fieldName} (required field)
+              {labelKey.fieldName} (required field)
             </Text>
-          </Flex>
-        )}
-      </Stack>
-      <Stack gap={2}>
+          </Box>
+          <Text typography="body2">{labelVal.fieldName} (required field)</Text>
+        </Flex>
+      )}
+      <Box>
         {labels.map((label, index) => {
           return (
-            <Box key={index}>
+            <Box mb={2} key={index}>
               <Flex alignItems="center">
                 <FieldInput
                   Input
@@ -188,7 +184,7 @@ export function LabelsInput({
             </Box>
           );
         })}
-      </Stack>
+      </Box>
       <ButtonSecondary
         onClick={e => {
           e.preventDefault();
@@ -216,21 +212,14 @@ export function LabelsInput({
   );
 }
 
-const Stack = styled(Flex).attrs({
-  flexDirection: 'column',
-  alignItems: 'start',
-})``;
-
-const Fieldset = styled(Stack).attrs({
-  as: 'fieldset',
-})`
+const Fieldset = styled.fieldset`
   border: none;
   margin: 0;
   padding: 0;
 `;
 
 const Legend = styled.legend`
-  margin: 0;
+  margin: 0 0 ${props => props.theme.space[1]}px 0;
   padding: 0;
   ${props => props.theme.typography.body2}
 `;
