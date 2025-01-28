@@ -9,17 +9,21 @@ exports[`render dialog with instructions to connect to database 1`] = `
 
 .c7 {
   box-sizing: border-box;
+}
+
+.c11 {
+  box-sizing: border-box;
   margin-bottom: 32px;
   min-height: 240px;
   flex: 0 0 auto;
 }
 
-.c9 {
+.c13 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c11 {
+.c15 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -28,21 +32,17 @@ exports[`render dialog with instructions to connect to database 1`] = `
   border-radius: 4px;
 }
 
-.c13 {
+.c17 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c15 {
+.c19 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c17 {
-  box-sizing: border-box;
-}
-
-.c16 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -68,22 +68,22 @@ exports[`render dialog with instructions to connect to database 1`] = `
   padding: 0px 24px;
 }
 
-.c16:hover,
-.c16:focus {
+.c20:hover,
+.c20:focus {
   background: #B29DFF;
 }
 
-.c16:active {
+.c20:active {
   background: #C5B6FF;
 }
 
-.c16:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c19 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -109,16 +109,16 @@ exports[`render dialog with instructions to connect to database 1`] = `
   padding: 0px 24px;
 }
 
-.c19:hover,
-.c19:focus {
+.c22:hover,
+.c22:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active {
+.c22:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c19:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -135,7 +135,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
   color: #FFFFFF;
 }
 
-.c10 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -149,20 +149,37 @@ exports[`render dialog with instructions to connect to database 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
+  gap: 8px;
+}
+
+.c9 {
+  display: flex;
+  gap: 4px;
 }
 
 .c12 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c16 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c14 {
+.c18 {
   display: flex;
 }
 
-.c18 {
+.c10 {
+  display: block;
+  outline: none;
+  width: 24px;
+  height: 24px;
+}
+
+.c21 {
   color: #009EFF;
   background: none;
   text-decoration: underline;
@@ -241,31 +258,47 @@ exports[`render dialog with instructions to connect to database 1`] = `
           class="c6"
           color="text.main"
         >
-          Connect To Database
+          <div
+            class="c7 c8"
+          >
+            Connect to:
+            <div
+              class="c7 c9"
+            >
+              <img
+                class="c10"
+                data-testid="res-icon-postgres"
+                height="24px"
+                src="file_stub"
+                width="24px"
+              />
+              aurora
+            </div>
+          </div>
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c11 c12"
       >
         <div
-          class="c9"
+          class="c13"
         >
           <span
-            class="c10"
+            class="c14"
           >
             Step 1
           </span>
            - Login to Teleport
           <div
-            class="c11 c12"
+            class="c15 c16"
             color="light"
           >
             <div
-              class="c13 c14"
+              class="c17 c18"
               style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               <div
-                class="c15"
+                class="c19"
                 style="user-select: none;"
               >
                 $
@@ -275,7 +308,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
               </div>
             </div>
             <button
-              class="c16"
+              class="c20"
               kind="primary"
               style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
@@ -284,24 +317,24 @@ exports[`render dialog with instructions to connect to database 1`] = `
           </div>
         </div>
         <div
-          class="c9"
+          class="c13"
         >
           <span
-            class="c10"
+            class="c14"
           >
             Step 2
           </span>
            - Connect to the database
           <div
-            class="c11 c12"
+            class="c15 c16"
             color="light"
           >
             <div
-              class="c13 c14"
+              class="c17 c18"
               style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               <div
-                class="c15"
+                class="c19"
                 style="user-select: none;"
               >
                 $
@@ -311,7 +344,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
               </div>
             </div>
             <button
-              class="c16"
+              class="c20"
               kind="primary"
               style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
@@ -320,11 +353,11 @@ exports[`render dialog with instructions to connect to database 1`] = `
           </div>
         </div>
         <div
-          class="c17"
+          class="c7"
         >
           * Note: To connect with a GUI database client, see our 
           <a
-            class="c18"
+            class="c21"
             href="https://goteleport.com/docs/connect-your-client/gui-clients/"
             rel="noreferrer"
             target="_blank"
@@ -335,10 +368,10 @@ exports[`render dialog with instructions to connect to database 1`] = `
         </div>
       </div>
       <div
-        class="c17"
+        class="c7"
       >
         <button
-          class="c19"
+          class="c22"
           kind="secondary"
         >
           Close
@@ -358,17 +391,21 @@ exports[`render dialog with instructions to connect to database with requestId 1
 
 .c7 {
   box-sizing: border-box;
+}
+
+.c11 {
+  box-sizing: border-box;
   margin-bottom: 32px;
   min-height: 240px;
   flex: 0 0 auto;
 }
 
-.c9 {
+.c13 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c11 {
+.c15 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -377,21 +414,17 @@ exports[`render dialog with instructions to connect to database with requestId 1
   border-radius: 4px;
 }
 
-.c13 {
+.c17 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c15 {
+.c19 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c17 {
-  box-sizing: border-box;
-}
-
-.c16 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -417,22 +450,22 @@ exports[`render dialog with instructions to connect to database with requestId 1
   padding: 0px 24px;
 }
 
-.c16:hover,
-.c16:focus {
+.c20:hover,
+.c20:focus {
   background: #B29DFF;
 }
 
-.c16:active {
+.c20:active {
   background: #C5B6FF;
 }
 
-.c16:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c19 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -458,16 +491,16 @@ exports[`render dialog with instructions to connect to database with requestId 1
   padding: 0px 24px;
 }
 
-.c19:hover,
-.c19:focus {
+.c22:hover,
+.c22:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active {
+.c22:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c19:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -484,7 +517,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
   color: #FFFFFF;
 }
 
-.c10 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -498,20 +531,37 @@ exports[`render dialog with instructions to connect to database with requestId 1
 
 .c8 {
   display: flex;
-  flex-direction: column;
+  gap: 8px;
+}
+
+.c9 {
+  display: flex;
+  gap: 4px;
 }
 
 .c12 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c16 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c14 {
+.c18 {
   display: flex;
 }
 
-.c18 {
+.c10 {
+  display: block;
+  outline: none;
+  width: 24px;
+  height: 24px;
+}
+
+.c21 {
   color: #009EFF;
   background: none;
   text-decoration: underline;
@@ -592,31 +642,47 @@ exports[`render dialog with instructions to connect to database with requestId 1
             class="c6"
             color="text.main"
           >
-            Connect To Database
+            <div
+              class="c7 c8"
+            >
+              Connect to:
+              <div
+                class="c7 c9"
+              >
+                <img
+                  class="c10"
+                  data-testid="res-icon-postgres"
+                  height="24px"
+                  src="file_stub"
+                  width="24px"
+                />
+                aurora
+              </div>
+            </div>
           </div>
         </div>
         <div
-          class="c7 c8"
+          class="c11 c12"
         >
           <div
-            class="c9"
+            class="c13"
           >
             <span
-              class="c10"
+              class="c14"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c11 c12"
+              class="c15 c16"
               color="light"
             >
               <div
-                class="c13 c14"
+                class="c17 c18"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c15"
+                  class="c19"
                   style="user-select: none;"
                 >
                   $
@@ -626,7 +692,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
                 </div>
               </div>
               <button
-                class="c16"
+                class="c20"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -635,24 +701,24 @@ exports[`render dialog with instructions to connect to database with requestId 1
             </div>
           </div>
           <div
-            class="c9"
+            class="c13"
           >
             <span
-              class="c10"
+              class="c14"
             >
               Step 2
             </span>
              - Connect to the database
             <div
-              class="c11 c12"
+              class="c15 c16"
               color="light"
             >
               <div
-                class="c13 c14"
+                class="c17 c18"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c15"
+                  class="c19"
                   style="user-select: none;"
                 >
                   $
@@ -662,7 +728,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
                 </div>
               </div>
               <button
-                class="c16"
+                class="c20"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -671,24 +737,24 @@ exports[`render dialog with instructions to connect to database with requestId 1
             </div>
           </div>
           <div
-            class="c9"
+            class="c13"
           >
             <span
-              class="c10"
+              class="c14"
             >
               Step 3 (Optional)
             </span>
              - When finished, drop the assumed role
             <div
-              class="c11 c12"
+              class="c15 c16"
               color="light"
             >
               <div
-                class="c13 c14"
+                class="c17 c18"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c15"
+                  class="c19"
                   style="user-select: none;"
                 >
                   $
@@ -698,7 +764,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
                 </div>
               </div>
               <button
-                class="c16"
+                class="c20"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -707,11 +773,11 @@ exports[`render dialog with instructions to connect to database with requestId 1
             </div>
           </div>
           <div
-            class="c17"
+            class="c7"
           >
             * Note: To connect with a GUI database client, see our 
             <a
-              class="c18"
+              class="c21"
               href="https://goteleport.com/docs/connect-your-client/gui-clients/"
               rel="noreferrer"
               target="_blank"
@@ -722,10 +788,10 @@ exports[`render dialog with instructions to connect to database with requestId 1
           </div>
         </div>
         <div
-          class="c17"
+          class="c7"
         >
           <button
-            class="c19"
+            class="c22"
             kind="secondary"
           >
             Close
