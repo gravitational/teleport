@@ -121,7 +121,7 @@ export function ClusterList(props: {
           }
         />
       ))}
-      <AddClusterItem index={props.clusters.length + 1} onClick={props.onAdd} />
+      <AddClusterItem index={props.clusters.length} onClick={props.onAdd} />
     </>
   );
 }
