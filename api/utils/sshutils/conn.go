@@ -75,10 +75,10 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *
 	}
 
 	if exclusive {
-		return NewExclusiveChConn(sconn, channel), false, nil
+		return NewExclusiveChConn(sconn, channel.(ssh.ChannelWithDeadlines)), false, nil
 	}
 
-	return NewChConn(sconn, channel), false, nil
+	return NewChConn(sconn, channel.(ssh.ChannelWithDeadlines)), false, nil
 }
 
 // DialReq is a request for the address to connect to. Supports special

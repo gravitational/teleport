@@ -66,7 +66,7 @@ type AgentStateCallback func(AgentState)
 // transportHandler handles the creation of new transports over ssh.
 type transportHandler interface {
 	// handleTransport runs the receiver of a teleport-transport channel.
-	handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn)
+	handleTransport(context.Context, ssh.ChannelWithDeadlines, <-chan *ssh.Request, sshutils.Conn)
 }
 
 // sshDialer is an ssh dialer that returns an SSHClient
@@ -587,7 +587,7 @@ func (a *agent) handleDrainChannels() error {
 			a.drainWG.Add(1)
 			go func() {
 				defer a.drainWG.Done()
-				a.transportHandler.handleTransport(a.ctx, ch, req, a.client)
+				a.transportHandler.handleTransport(a.ctx, ch.(ssh.ChannelWithDeadlines), req, a.client)
 			}()
 
 		}

@@ -137,12 +137,16 @@ func (m *mockSSHChannel) Stderr() io.ReadWriter {
 	return fakeReaderWriter{}
 }
 
+func (*mockSSHChannel) SetDeadline(time.Time) error      { return nil }
+func (*mockSSHChannel) SetReadDeadline(time.Time) error  { return nil }
+func (*mockSSHChannel) SetWriteDeadline(time.Time) error { return nil }
+
 // mockAgentInjection implements several interfaces for injecting into an agent.
 type mockAgentInjection struct {
 	client SSHClient
 }
 
-func (m *mockAgentInjection) handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) {
+func (m *mockAgentInjection) handleTransport(context.Context, ssh.ChannelWithDeadlines, <-chan *ssh.Request, sshutils.Conn) {
 }
 
 func (m *mockAgentInjection) DialContext(context.Context, utils.NetAddr) (SSHClient, error) {

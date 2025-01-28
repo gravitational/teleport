@@ -939,7 +939,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 	}
 	go ssh.DiscardRequests(requests)
 	go io.Copy(io.Discard, ch.Stderr())
-	ch = scx.TrackActivity(ch)
+	ch = scx.TrackActivity(ch.(ssh.ChannelWithDeadlines))
 
 	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(ctx, &event); err != nil {
@@ -1070,7 +1070,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 			return
 		}
 		go ssh.DiscardRequests(reqC)
-		go s.handleDirectTCPIPRequest(ctx, ch, req)
+		go s.handleDirectTCPIPRequest(ctx, ch.(ssh.ChannelWithDeadlines), req)
 	default:
 		if err := nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType)); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reject unknown channel", "channel", channelType, "error", err)
@@ -1079,7 +1079,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 }
 
 // handleDirectTCPIPRequest handles local port forwarding requests.
-func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.ChannelWithDeadlines, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
 	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
@@ -1186,7 +1186,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	}
 	scx.AddCloser(ch)
 
-	ch = scx.TrackActivity(ch)
+	ch = scx.TrackActivity(ch.(ssh.ChannelWithDeadlines))
 
 	s.logger.DebugContext(ctx, "Opening session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
@@ -1401,14 +1401,14 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	defer cancel()
 
 	go func() {
-		err := sshutils.ForwardRequests(ctx, cin, tracessh.NewTraceChannel(sch, tracing.WithTracerProvider(s.tracerProvider)))
+		err := sshutils.ForwardRequests(ctx, cin, tracessh.NewTraceChannel(sch.(ssh.ChannelWithDeadlines), tracing.WithTracerProvider(s.tracerProvider)))
 		if err != nil {
 			s.logger.DebugContext(ctx, "Failed to forward ssh request from client during X11 forwarding", "error", err)
 		}
 	}()
 
 	go func() {
-		err := sshutils.ForwardRequests(ctx, sin, tracessh.NewTraceChannel(cch, tracing.WithTracerProvider(s.tracerProvider)))
+		err := sshutils.ForwardRequests(ctx, sin, tracessh.NewTraceChannel(cch.(ssh.ChannelWithDeadlines), tracing.WithTracerProvider(s.tracerProvider)))
 		if err != nil {
 			s.logger.DebugContext(ctx, "Failed to forward ssh request from server during X11 forwarding", "error", err)
 		}
