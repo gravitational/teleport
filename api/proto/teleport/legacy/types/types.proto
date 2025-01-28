@@ -6483,6 +6483,8 @@ message PluginSpecV1 {
     PluginMSTeamsSettings msteams = 18;
     // Settings for the OpenTex NetIQ plugin.
     PluginNetIQSettings net_iq = 19;
+    // Settings for the Azure plugin
+    PluginAzureSettings azure = 20;
   }
 
   // generation contains a unique ID that should:
@@ -6769,6 +6771,35 @@ message PluginEntraIDAppSSOSettings {
   bytes federated_sso_v2 = 2;
 }
 
+message PluginAzureSettings {
+  option (gogoproto.equal) = true;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin.
+  string sso_connector_id = 2;
+
+  // credentials_source specifies the source of the credentials used for authentication with Azure.
+  EntraIDCredentialsSource credentials_source = 3;
+
+  // tenant_id refers to the Azure Directory that this plugin synchronizes with.
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the Entra integration when utilized.
+  string tenant_id = 4;
+
+  // entra_app_id refers to the Entra Application ID that supports the SSO for "sso_connector_id".
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the entity descriptor url when utilized.
+  string entra_app_id = 5;
+
+  // AppSsoSettingsCache is an array of single sign-on settings for Entra enterprise applications.
+  //
+  // This data is stored here because it is not available through traditional methods (MS Graph API).
+  // Instead, it is fetched once during the plugin's set up using the user's credentials to connect to Azure's private API.
+  repeated PluginEntraIDAppSSOSettings app_sso_settings_cache = 6;
+}
+
 // PluginSCIMSettings defines the settings for a SCIM integration plugin
 message PluginSCIMSettings {
   option (gogoproto.equal) = true;
@@ -7030,6 +7061,8 @@ message PluginStatusV1 {
     PluginAWSICStatusV1 aws_ic = 8;
     // NetIQ holds status details for the NetIQ plugin.
     PluginNetIQStatusV1 net_iq = 9;
+    // Azure holds status details for the Azure plugin.
+    PluginAzureStatusV1 azure = 10;
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
@@ -7049,6 +7082,18 @@ message PluginNetIQStatusV1 {
   uint32 imported_roles = 3;
   // imported_resources is the number of resources imported from NetIQ eDirectory.
   uint32 imported_resources = 4;
+}
+
+// PluginAzureStatusV1 is the status details for the Azure plugin.
+message PluginAzureStatusV1 {
+  // imported_principals is the number of principals imported from the Azure subscription.
+  uint32 imported_principals = 1;
+  // imported_role_definitions is the number of role definitions imported from the Azure subscription.
+  uint32 imported_role_definitions = 2;
+  // imported_role_assignments is the number of role assignments imported from the Azure subscription.
+  uint32 imported_role_assignments = 3;
+  // imported_virtual_machines is the number of virtual machines imported from the Azure subscription.
+  uint32 imported_virtual_machines = 4;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.

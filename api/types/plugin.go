@@ -86,6 +86,8 @@ const (
 	PluginTypeMSTeams = "msteams"
 	// PluginTypeNetIQ indicates a NetIQ integration
 	PluginTypeNetIQ = "netiq"
+	// PluginTypeAzure indicates an Azure integration
+	PluginTypeAzure = "azure"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -135,6 +137,7 @@ type PluginStatus interface {
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
 	GetNetIq() *PluginNetIQStatusV1
+	GetAzure() *PluginAzureStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -395,6 +398,20 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_Azure:
+		if settings.Azure == nil {
+			return trace.BadParameter("missing Azure settings")
+		}
+		if err := settings.Azure.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("NetIQ plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	default:
 		return nil
 	}
@@ -567,6 +584,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeMSTeams
 	case *PluginSpecV1_NetIq:
 		return PluginTypeNetIQ
+	case *PluginSpecV1_Azure:
+		return PluginTypeAzure
 	default:
 		return PluginTypeUnknown
 	}
@@ -880,5 +899,9 @@ func (c *PluginNetIQSettings) Validate() error {
 		return trace.BadParameter("api_endpoint endpoint must be a valid URL")
 	}
 
+	return nil
+}
+
+func (c *PluginAzureSettings) Validate() error {
 	return nil
 }

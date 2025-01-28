@@ -125,11 +125,11 @@ func TestAccessGraphAzureConfigOutput(t *testing.T) {
 	} {
 		var buf bytes.Buffer
 		req := AccessGraphAzureConfigureRequest{
-			ManagedIdentity: "foo",
-			RoleName:        "bar",
-			SubscriptionID:  "1234567890",
-			AutoConfirm:     true,
-			stdout:          &buf,
+			PrincipalID:    "foo",
+			RoleName:       "bar",
+			SubscriptionID: "1234567890",
+			AutoConfirm:    true,
+			stdout:         &buf,
 		}
 		clt := &mockAzureConfigClient{
 			cfg: tt.clientCfg,

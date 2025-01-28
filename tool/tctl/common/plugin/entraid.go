@@ -72,7 +72,7 @@ To rerun the script, type 'exit' to close and then restart the process.
 With the output of Step 1, please copy and paste the following information:
 `
 
-	manualConfigurationTemplate = `
+	manualConfigTemplate = `
 
 ` + bold("Step 1: Input Tenant ID and Client ID") + `
 
@@ -141,9 +141,15 @@ type entraSettings struct {
 
 var errCancel = trace.BadParameter("operation canceled")
 
-func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSetup bool) (entraSettings, error) {
+type entraSetupTemplates struct {
+	step1        string
+	step2        string
+	manualConfig string
+}
+
+func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSetup bool, templates entraSetupTemplates) (entraSettings, error) {
 	if manualEntraIDSetup {
-		fmt.Fprint(os.Stdout, manualConfigurationTemplate)
+		fmt.Fprint(os.Stdout, templates.manualConfig)
 		settings, err := readAzureInputs(p.install.entraID.accessGraph)
 		return settings, trace.Wrap(err)
 	}
@@ -173,7 +179,7 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 	}
 	fileLoc := f.Name()
 
-	fmt.Fprintf(os.Stdout, step1Template, fileLoc, filepath.Base(fileLoc))
+	fmt.Fprintf(os.Stdout, templates.step1, fileLoc, filepath.Base(fileLoc))
 
 	op, err := readData(os.Stdin, os.Stdout,
 		`Once the script completes, type 'continue' to proceed, 'exit' to quit`,
@@ -187,8 +193,7 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 		return entraSettings{}, errCancel
 	}
 
-	fmt.Fprint(os.Stdout, step2Template)
-
+	fmt.Fprint(os.Stdout, templates.step2)
 	settings, err := readAzureInputs(p.install.entraID.accessGraph)
 	return settings, trace.Wrap(err)
 }
@@ -247,7 +252,12 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 		return trace.Wrap(err)
 	}
 
-	settings, err := p.entraSetupGuide(proxyPublicAddr, inputs.entraID.manualEntraIDSetup)
+	templates := entraSetupTemplates{
+		step1:        step1Template,
+		step2:        step2Template,
+		manualConfig: manualConfigTemplate,
+	}
+	settings, err := p.entraSetupGuide(proxyPublicAddr, inputs.entraID.manualEntraIDSetup, templates)
 	if err != nil {
 		if errors.Is(err, errCancel) {
 			return nil

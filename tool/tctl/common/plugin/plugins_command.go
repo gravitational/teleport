@@ -56,6 +56,7 @@ type pluginInstallArgs struct {
 	okta    oktaArgs
 	scim    scimArgs
 	entraID entraArgs
+	azure   azureArgs
 }
 
 type scimArgs struct {
@@ -326,6 +327,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallSCIM
 	case p.install.entraID.cmd.FullCommand():
 		commandFunc = p.InstallEntra
+	case p.install.azure.cmd.FullCommand():
+		commandFunc = p.InstallAzure
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	default:

@@ -277,8 +277,8 @@ type IntegrationConfAccessGraphAWSSync struct {
 // IntegrationConfAccessGraphAzureSync contains the arguments of
 // `teleport integration configure access-graph azure` command.
 type IntegrationConfAccessGraphAzureSync struct {
-	// ManagedIdentity is the principal performing the discovery
-	ManagedIdentity string
+	// PrincipalID is the principal performing the discovery
+	PrincipalID string
 	// RoleName is the name of the Azure Role to create and assign to the managed identity
 	RoleName string
 	// SubscriptionID is the Azure subscription containing resources for sync

@@ -227,10 +227,10 @@ func onIntegrationConfAccessGraphAzureSync(ctx context.Context, params config.In
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 	confReq := azureoidc.AccessGraphAzureConfigureRequest{
-		ManagedIdentity: params.ManagedIdentity,
-		RoleName:        params.RoleName,
-		SubscriptionID:  params.SubscriptionID,
-		AutoConfirm:     params.AutoConfirm,
+		PrincipalID:    params.PrincipalID,
+		RoleName:       params.RoleName,
+		SubscriptionID: params.SubscriptionID,
+		AutoConfirm:    params.AutoConfirm,
 	}
 	clt, err := azureoidc.NewAzureConfigClient(params.SubscriptionID)
 	if err != nil {

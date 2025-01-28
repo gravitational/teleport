@@ -161,8 +161,8 @@ func (c *azureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, 
 
 // AccessGraphAzureConfigureRequest is a request to configure the required Policies to use the TAG AWS Sync.
 type AccessGraphAzureConfigureRequest struct {
-	// ManagedIdentity is the principal performing the discovery
-	ManagedIdentity string
+	// PrincipalID is the principal performing the discovery
+	PrincipalID string
 	// RoleName is the name of the Azure Role to create and assign to the managed identity
 	RoleName string
 	// SubscriptionID is the Azure subscription containing resources for sync
@@ -260,14 +260,14 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 // ConfigureAccessGraphSyncAzure sets up the managed identity and role required for Teleport to be able to pull
 // Azure resources into Teleport.
 func ConfigureAccessGraphSyncAzure(ctx context.Context, clt AccessGraphAzureConfigureClient, req AccessGraphAzureConfigureRequest) error {
-	managedIDAction, err := roleAssignmentAction(clt, req.SubscriptionID, req.ManagedIdentity, req.RoleName)
+	roleAssignAction, err := roleAssignmentAction(clt, req.SubscriptionID, req.PrincipalID, req.RoleName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	opCfg := provisioning.OperationConfig{
 		Name: "access-graph-azure-sync",
 		Actions: []provisioning.Action{
-			*managedIDAction,
+			*roleAssignAction,
 		},
 		AutoConfirm: req.AutoConfirm,
 		Output:      req.stdout,
