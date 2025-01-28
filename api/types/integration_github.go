@@ -16,8 +16,9 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/trace"
 	"regexp"
+
+	"github.com/gravitational/trace"
 )
 
 // validGitHubOrganizationName filters the allowed characters in GitHub

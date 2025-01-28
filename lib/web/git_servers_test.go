@@ -57,8 +57,33 @@ func TestGitServers(t *testing.T) {
 				SubKind: types.SubKindGitHub,
 				GitHub: &ui.GitHubServerMetadata{
 					Integration:  integrationName,
+					Organization: "old-org-before-overwrite",
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, 200, createResp.Code())
+		})
+		t.Run("already exists", func(t *testing.T) {
+			_, err := authPack.clt.PutJSON(ctx, endpoint, ui.CreateGitServerRequest{
+				Name:    gitServerName,
+				SubKind: types.SubKindGitHub,
+				GitHub: &ui.GitHubServerMetadata{
+					Integration:  integrationName,
 					Organization: orgName,
 				},
+			})
+			require.Error(t, err)
+			require.True(t, trace.IsAlreadyExists(err))
+		})
+		t.Run("overwrite", func(t *testing.T) {
+			createResp, err := authPack.clt.PutJSON(ctx, endpoint, ui.CreateGitServerRequest{
+				Name:    gitServerName,
+				SubKind: types.SubKindGitHub,
+				GitHub: &ui.GitHubServerMetadata{
+					Integration:  integrationName,
+					Organization: orgName,
+				},
+				Overwrite: true,
 			})
 			require.NoError(t, err)
 			require.Equal(t, 200, createResp.Code())
