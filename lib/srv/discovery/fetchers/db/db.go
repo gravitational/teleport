@@ -21,6 +21,8 @@ package db
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
@@ -29,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -157,7 +158,9 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAWSFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v", matcherType, maps.Keys(makeAWSFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAWSFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {
@@ -190,7 +193,9 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v", matcherType, maps.Keys(makeAzureFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAzureFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {

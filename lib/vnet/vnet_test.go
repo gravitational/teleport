@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math/big"
 	"net"
 	"os"
@@ -42,7 +43,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
@@ -282,7 +282,7 @@ func newFakeClientApp(
 
 // ListProfiles lists the names of all profiles saved for the user.
 func (p *fakeClientApp) ListProfiles() ([]string, error) {
-	return maps.Keys(p.clusters), nil
+	return slices.Collect(maps.Keys(p.clusters)), nil
 }
 
 // GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.

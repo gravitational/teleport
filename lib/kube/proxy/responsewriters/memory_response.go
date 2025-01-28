@@ -20,11 +20,11 @@ package responsewriters
 
 import (
 	"bytes"
+	"maps"
 	"net/http"
 	"strconv"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
