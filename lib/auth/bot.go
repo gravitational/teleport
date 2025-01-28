@@ -525,15 +525,16 @@ func (a *Server) generateInitialBotCerts(
 
 	// Generate certificate
 	certReq := certRequest{
-		user:          userState,
-		ttl:           expires.Sub(a.GetClock().Now()),
-		publicKey:     pubKey,
-		checker:       checker,
-		traits:        accessInfo.Traits,
-		renewable:     renewable,
-		includeHostCA: true,
-		loginIP:       loginIP,
-		botName:       botName,
+		user:           userState,
+		ttl:            expires.Sub(a.GetClock().Now()),
+		publicKey:      pubKey,
+		checker:        checker,
+		traits:         accessInfo.Traits,
+		renewable:      renewable,
+		includeHostCA:  true,
+		loginIP:        loginIP,
+		botName:        botName,
+		joinAttributes: joinAttrs,
 	}
 
 	if existingInstanceID == "" {
