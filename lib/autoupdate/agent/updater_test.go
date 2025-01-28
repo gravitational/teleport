@@ -1462,8 +1462,6 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	testTemplate string
-
 	FuncInstall       func(ctx context.Context, rev Revision, baseURL string) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
 	FuncLink          func(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error)
