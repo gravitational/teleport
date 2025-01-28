@@ -17,129 +17,86 @@
 package service
 
 import (
-	"os"
+	"log/slog"
 	"testing"
 
 	"github.com/grafana/pyroscope-go"
-	"github.com/stretchr/testify/assert"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/stretchr/testify/require"
 )
 
-func TestGetPyroscopeProfileTypesFromEnv(t *testing.T) {
-	tests := []struct {
-		name    string
-		envVars map[string]string
-		want    []pyroscope.ProfileType
-	}{
-		{
-			name:    "No profiles enabled",
-			envVars: map[string]string{},
-			want:    []pyroscope.ProfileType{},
-		},
-		{
-			name: "Memory profiles enabled",
-			envVars: map[string]string{
-				"TELEPORT_PYROSCOPE_PROFILE_MEMORY_ENABLED": "true",
-			},
-			want: []pyroscope.ProfileType{
-				pyroscope.ProfileAllocObjects,
-				pyroscope.ProfileAllocSpace,
-				pyroscope.ProfileInuseObjects,
-				pyroscope.ProfileInuseSpace,
-			},
-		},
-		{
-			name: "CPU profiles enabled",
-			envVars: map[string]string{
-				"TELEPORT_PYROSCOPE_PROFILE_CPU_ENABLED": "true",
-			},
-			want: []pyroscope.ProfileType{
-				pyroscope.ProfileCPU,
-			},
-		},
-		{
-			name: "Goroutine profiles enabled",
-			envVars: map[string]string{
-				"TELEPORT_PYROSCOPE_PROFILE_GOROUTINES_ENABLED": "true",
-			},
-			want: []pyroscope.ProfileType{
-				pyroscope.ProfileGoroutines,
-			},
-		},
-		{
-			name: "Multiple profiles enabled",
-			envVars: map[string]string{
-				"TELEPORT_PYROSCOPE_PROFILE_MEMORY_ENABLED":     "true",
-				"TELEPORT_PYROSCOPE_PROFILE_CPU_ENABLED":        "true",
-				"TELEPORT_PYROSCOPE_PROFILE_GOROUTINES_ENABLED": "true",
-			},
-			want: []pyroscope.ProfileType{
-				pyroscope.ProfileAllocObjects,
-				pyroscope.ProfileAllocSpace,
-				pyroscope.ProfileInuseObjects,
-				pyroscope.ProfileInuseSpace,
-				pyroscope.ProfileCPU,
-				pyroscope.ProfileGoroutines,
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			for k, v := range tc.envVars {
-				os.Setenv(k, v)
-			}
-			defer func() {
-				for k := range tc.envVars {
-					os.Unsetenv(k)
-				}
-			}()
-
-			got := getPyroscopeProfileTypesFromEnv()
-			assert.ElementsMatch(t, tc.want, got)
-		})
-	}
-}
-
-func TestAddKubeTagsFromEnv(t *testing.T) {
+func TestPyroscopeConfig(t *testing.T) {
 	tests := []struct {
 		name        string
 		envVars     map[string]string
 		initialTags map[string]string
-		wantTags    map[string]string
+		want        pyroscope.Config
 	}{
 		{
-			name:        "No Kubernetes env variables set",
-			envVars:     map[string]string{},
-			initialTags: map[string]string{},
-			wantTags:    map[string]string{},
+			name:    "No environment vars configured",
+			envVars: map[string]string{},
+			initialTags: map[string]string{
+				"host":    "unknown",
+				"version": "17.0.0",
+				"git_ref": "17.0.0-dev",
+			},
+			want: pyroscope.Config{
+				Tags: map[string]string{
+					"host":    "unknown",
+					"version": "17.0.0",
+					"git_ref": "17.0.0-dev",
+				},
+			},
 		},
 		{
-			name: "Kubernetes env variables set",
+			name: "Environment vars configured",
 			envVars: map[string]string{
-				"TELEPORT_PYROSCOPE_KUBE_COMPONENT": "auth",
-				"TELEPORT_PYROSCOPE_KUBE_NAMESPACE": "test-namespace",
+				"TELEPORT_PYROSCOPE_PROFILE_CPU_ENABLED":        "true",
+				"TELEPORT_PYROSCOPE_PROFILE_GOROUTINES_ENABLED": "true",
+				"TELEPORT_PYROSCOPE_PROFILE_MEMORY_ENABLED":     "true",
+				"TELEPORT_PYROSCOPE_KUBE_COMPONENT":             "auth",
+				"TELEPORT_PYROSCOPE_KUBE_NAMESPACE":             "test-namespace",
 			},
-			initialTags: map[string]string{},
-			wantTags: map[string]string{
-				"component": "auth",
-				"namespace": "test-namespace",
+			initialTags: map[string]string{
+				"host":    "host123",
+				"version": "17.0.0",
+				"git_ref": "17.0.0-dev",
+			},
+			want: pyroscope.Config{
+				ProfileTypes: []pyroscope.ProfileType{
+					pyroscope.ProfileCPU,
+					pyroscope.ProfileGoroutines,
+					pyroscope.ProfileAllocObjects,
+					pyroscope.ProfileAllocSpace,
+					pyroscope.ProfileInuseObjects,
+					pyroscope.ProfileInuseSpace,
+				},
+				Tags: map[string]string{
+					"host":      "host123",
+					"version":   "17.0.0",
+					"git_ref":   "17.0.0-dev",
+					"component": "auth",
+					"namespace": "test-namespace",
+				},
 			},
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			for k, v := range tc.envVars {
-				os.Setenv(k, v)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
 			}
-			defer func() {
-				for k := range tc.envVars {
-					os.Unsetenv(k)
-				}
-			}()
+			cfg := &servicecfg.Config{
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+				Logger: slog.Default(),
+			}
+			p, _ := NewTeleport(cfg)
+			got, _ := p.createPyroscopeConfig("127.0.0.1")
 
-			gotTags := addKubeTagsFromEnv(tc.initialTags)
-			assert.Equal(t, tc.wantTags, gotTags)
+			require.Equal(t, tt.want.ProfileTypes, got.ProfileTypes)
 		})
 	}
 }
