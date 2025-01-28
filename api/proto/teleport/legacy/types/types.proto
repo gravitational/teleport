@@ -6866,13 +6866,13 @@ message PluginAWSICSettings {
 message AWSICResourceFilter {
   option (gogoproto.equal) = true;
 
-  // Filter describes the AWS Account filter to apply
+  // Filter describes the AWS Resource filter to apply
   oneof filter {
-    // Id indicates that the account should be filtered by ID
+    // Id indicates that the resource should be filtered by ID
     string id = 1;
 
-    // NameRegex indicates that the account should be included if it matches the
-    // supplied regex.
+    // NameRegex indicates that the resource should be included its name matches
+    // the supplied regex.
     string name_regex = 2;
   }
 }

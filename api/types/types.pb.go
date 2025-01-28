@@ -17584,7 +17584,7 @@ var xxx_messageInfo_PluginAWSICSettings proto.InternalMessageInfo
 // resources to import. The filter can specify inclusion either by account ID or
 // regex on the resource name.
 type AWSICResourceFilter struct {
-	// Filter describes the AWS Account filter to apply
+	// Filter describes the AWS Resource filter to apply
 	//
 	// Types that are valid to be assigned to Filter:
 	//
