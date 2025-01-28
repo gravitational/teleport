@@ -6858,6 +6858,10 @@ message PluginAWSICSettings {
   // manage. An empty list implies that all accounts managed by the Identity Center
   // instance will be imported and managed.
   repeated AWSICResourceFilter aws_accounts_filters = 9;
+
+  // GroupSyncLabelsFilter is used to specify filters that determine which AWS groups
+  // should be included during synchronization.
+  repeated AWSICResourceFilter group_sync_filters = 10 [(gogoproto.jsontag) = "group_sync_filters,omitempty"];
 }
 
 // AWSICResourceFilter is an entry in the AWS IC plugin settings' allow-list of
@@ -6866,14 +6870,14 @@ message PluginAWSICSettings {
 message AWSICResourceFilter {
   option (gogoproto.equal) = true;
 
-  // Filter describes the AWS Resource filter to apply
-  oneof filter {
+  // Include describes the AWS Resource filter to apply
+  oneof include {
     // Id indicates that the resource should be filtered by ID
-    string id = 1;
+    string id = 1 [(gogoproto.jsontag) = "id,omitempty"];
 
     // NameRegex indicates that the resource should be included its name matches
     // the supplied regex.
-    string name_regex = 2;
+    string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
   }
 }
 
