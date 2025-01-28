@@ -16,10 +16,6 @@ Introduce Teleport Key Agent to provide the ability for one Teleport client
 to handle private key storage and operations for one or more other local
 Teleport clients.
 
-The client running the Teleport Key Agent will be referred to as the "agent"
-client. Any client interfacing with the agent will be called a "dependent"
-client.
-
 ## Why
 
 Teleport Key Agent will enable multiple use cases, including:
@@ -40,47 +36,60 @@ implemented in the future. I'll note these features below as *future work*.
 
 ## Details
 
+The client running the Teleport Key Agent will be referred to as the "agent"
+client. Any client interfacing with the agent will be called a "dependent"
+client.
+
 ### UX
 
-In order to utilize the Teleport Key Agent, users will need to launch a Teleport
-Key Agent and login. See the [running the agent](#running-the-agent-ux-continued)
-section for more details on running the agent.
+In order to utilize the Teleport Key Agent, users will need to launch an agent
+client and login. See [running the agent](#running-the-agent-ux-continued)
+for more details on running the agent.
 
 So long as the agent remains running, dependent client commands will interface
 with the agent for some or all login information, depending on the
 [agent mode](#modes).
 
-Whatever login information dependent clients retrieve from the agent, it should
-be done seamlessly so that there is no UX degradation when compared to a client
-solely using file storage.
+Dependent clients should retrieve login information seamlessly from the agent
+so that there is no UX degradation when compared to a client solely using file
+storage.
 
 #### Running the Agent
 
 ##### Teleport Connect
 
-Teleport Connect is an ideal runner for the key agent since it:
+Teleport Connect is an ideal runner for an agent client since it:
 
 1. Is a long-lived process
 2. Provides a UI for login state (login status, current cluster, etc.)
-3. Provides a UI for Hardware Key Support touch/pin prompts
+3. Provides a UI for touch/pin prompts (Hardware Key Support)
 4. Has the ability to foreground itself for prompts (relogin, touch/pin prompts)
 
-However, by default Teleport Connect uses different login storage from `tsh`.
-While we don't support this directly, the Teleport Connect developers have
-tested with linking login storage with a [symlink](https://github.com/gravitational/teleport/issues/25806).
-However this does not work seamlessly out of the box. It can lead to state drift
-and other errors.
+By default Teleport Connect uses a different Teleport home directory from `tsh`,
+so we need to add a way to use the same Teleport home.
 
-For now, we will introduce two new config options:
+We will introduce two new config options:
 
 | Property | Default | Description |
 |----------|---------|-------------|
 | `teleport.home` | `~/Library/Application\ Support/Teleport\ Connect/tsh` | Sets home directory for login data |
 | `teleport.agent` | `false` | Runs the Teleport Key Agent |
 
-**future work**: Once we develop a reliable framework for login state syncing, whether
+**future work**
+
+The Teleport Connect developers have tested with linking login storage with
+a [symlink](https://github.com/gravitational/teleport/issues/25806), which is
+essentially the same as changing Connect's Teleport home directory. Without any
+additional changes, this testing resulted in some state drift and other errors.
+
+These issues are expected to impact [signing mode](#signing-mode) which won't
+offer sophisticated login syncing logic. [Login sync mode](#login-sync-mode-future-work),
+which is detailed as *future work*, could be used instead to mitigate state drift
+issues in Teleport Connect.
+
+Furthermore, once we develop a reliable framework for login state syncing, whether
 it's with [the login sync agent mode](#login-sync-mode) or otherwise, we may consider
-setting these values by default.
+defaulting the config values above to `~/.tsh` and `true` respectively.
 
 ##### `tsh agent`
 
@@ -93,8 +102,10 @@ where running Teleport Connect is not an option. Therefore we will make
 The Teleport Key Agent can be launched explicitly with `tsh agent`. This
 command will prompt the user to login and remain running to serve the agent.
 
-Note: `tsh agent` will fail to start if it finds that there is another instance
-of the Teleport Key Agent already running within the same Teleport home directory.
+Note: `tsh agent` will also be a lightweight command useful for setting the
+groundwork with the slightly more extensive Teleport Connect implementation.
+It will definitely speed up my testing of the feature, so at the very least
+we could make this a hidden command.
 
 #### Agent already running
 
@@ -123,7 +134,7 @@ client can just change sources and continue without the need to re-login.
 
 #### Prompts
 
-Teleport Key Agent is responsible for any prompts that occur within the key
+The agent client is responsible for any prompts that occur within the key
 storage and signing interface. Currently, this is limited to Hardware Key
 pin/touch prompts, but there are some additional use cases we can explore.
 
@@ -196,6 +207,30 @@ redirection prompt with additional context:
 Go to your Teleport Key Agent and enter your PIV PIN to continue.
 ```
 
+##### Confirmation prompt (*future work*)
+
+We can add a confirmation layer between the agent server and dependent clients.
+In order to utilize the agent to query certs or sign with keys, the user would
+need to confirm the dependent client's connection with one or more of the following:
+
+* basic confirmation prompt in the key agent, similar to what we use for headless
+* password prompt in the dependent client
+  * like with ssh-agent, this would be a temporary password provided on agent
+  startup
+* touch prompt with temporary local MFA registration
+
+Once the connection is authenticated through the local confirmation mechanism,
+the dependent client could perform any queries or signatures until client is
+closed. In practice, this means that each `tsh` command would require a single
+confirmation prompt to complete.
+
+Note: once again, we run into the issue of prompting on every `tsh` command
+that we ran into with `hardware_key_pin`. Therefore we would only want to
+enable this confirmation layer when the tradeoff of better security for worse
+UX is justified. See the sections on [the risk of key agent forwarding](#key-agent-forwarding)
+and [safely supporting key agent forwarding](#support-teleport-key-agent-forwarding-future-work)
+for more details on how and why this confirmation layer would be included.
+
 ### Modes
 
 The Teleport Key Agent can work in two different modes; `signing` and `login sync`.
@@ -227,6 +262,13 @@ Connect was trying to do at the time of the login, it might accidentally load
 the new certs with the old key, leading to a new confusing error and in the
 best case, another prompt to re-login.
 
+Note: in signing mode, dependent clients can perform any login operations as
+usual (e.g. `tsh login`, `tsh app login`) adding or removing certs directly in
+file storage. The dependent client will not generate new private keys in file
+storage and instead continue to use the same private keys offered by the agent
+via its sign method. This will prevent the agent from becoming out of sync
+with dependent clients.
+
 #### Login sync mode (*future work*)
 
 In login sync mode, the agent will be responsible for all login information.
@@ -256,6 +298,14 @@ or public certs touch file storage.
 Note: this mode is a stretch goal and is not scheduled to be completed, but
 this RFD would be incomplete if it did not at least consider this future work.
 
+### Client interface
+
+In order to utilize the Teleport Key Agent, dependent clients will need to
+interface with the agent as opposed to file storage or in-memory storage. Agent
+storage will be added as a new type of storage, with a `Keystore` implementation
+for [signing mode](#signing-mode) and a `ProfileStore` and `TrustedCertsStore`
+implementation for [login sync mode](#login-sync-mode-future-work).
+
 ### Security
 
 #### Local key agent
@@ -284,15 +334,10 @@ Teleport Key Agent will be largely mitigated:
 * Per-session MFA or Hardware Key Support (pin/touch)
 * MFA for Admin Actions
 
-If deemed necessary, we could lock the agent behind an additional confirmation
-layer, at least for `login sync` mode. This confirmation layer would include
-one or more of the following:
-
-* basic confirmation prompt in the key agent, similar to what we use for headless
-* password prompt in the dependent client
-  * like with ssh-agent, this would be a temporary password provided on agent
-  startup
-* touch prompt with temporary local MFA registration
+If deemed necessary, we could put the agent behind an extra
+[confirmation layer](#confirmation-prompt-future-work). This confirmation layer
+would require dependent clients to perform a confirmation action (y/N, pin, or
+touch) to allow the dependent client to utilize the agent.
 
 ### Configuration
 
@@ -300,7 +345,7 @@ N/A
 
 ### Proto specification
 
-TODO: Teleport Key Agent will be a new gRPC server/client with methods to query
+TODO: Teleport Key Agent will be a new gRPC server with methods to query
 available (public) keys, certs, profiles, and cas. It will also implement a
 signing method in a similar way to `ssh-agent`.
 
@@ -340,7 +385,15 @@ have been addressed:
 * The addition of MFA for Admin Actions to protect sensitive admin actions
 * The additional requirement of Per-session MFA or Hardware Key support
 
-Note that in order to support Per-session MFA remotely, the agent will also
+Note: the confirmation layer is very similar to headless. In both cases, the user's
+local client is used to approve a remote connection. The main differences are:
+
+* The user's local agent client is responsible for issuing the confirmation
+request rather than the Teleport Auth and Proxy servers
+* The user's local agent client decides the confirmation mechanism (e.g. temporary
+registered local mfa) rather than Auth registered MFA
+
+Note: In order to support Per-session MFA remotely, the agent will also
 need to support issuing mfa verified certs. The MFA prompt would occur locally
 and the cert would be shared with the remote client over TLS, where it would
 be kept securely in memory (similar to headless). Meanwhile, admin actions,
