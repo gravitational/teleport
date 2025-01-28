@@ -38,7 +38,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -526,20 +525,16 @@ func (a *Server) generateInitialBotCerts(
 
 	// Generate certificate
 	certReq := certRequest{
-		user:          userState,
-		ttl:           expires.Sub(a.GetClock().Now()),
-		publicKey:     pubKey,
-		checker:       checker,
-		traits:        accessInfo.Traits,
-		renewable:     renewable,
-		includeHostCA: true,
-		loginIP:       loginIP,
-		botName:       botName,
-	}
-	// Feature flag with workload id experiment env var to allow us to test this
-	// in master/v18 without enabling it for everyone.
-	if experiment.Enabled() {
-		certReq.joinAttributes = joinAttrs
+		user:           userState,
+		ttl:            expires.Sub(a.GetClock().Now()),
+		publicKey:      pubKey,
+		checker:        checker,
+		traits:         accessInfo.Traits,
+		renewable:      renewable,
+		includeHostCA:  true,
+		loginIP:        loginIP,
+		botName:        botName,
+		joinAttributes: joinAttrs,
 	}
 
 	if existingInstanceID == "" {

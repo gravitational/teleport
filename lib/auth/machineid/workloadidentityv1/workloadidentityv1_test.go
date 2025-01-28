@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -154,9 +153,7 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 // APIs necessary for a bot to join and then issue a workload identity are
 // functioning correctly.
 func TestIssueWorkloadIdentityE2E(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	tp := newIssuanceTestPack(t, ctx)
@@ -342,9 +339,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 }
 
 func TestIssueWorkloadIdentity(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	tp := newIssuanceTestPack(t, ctx)
@@ -868,9 +863,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 }
 
 func TestIssueWorkloadIdentities(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	tp := newIssuanceTestPack(t, ctx)
