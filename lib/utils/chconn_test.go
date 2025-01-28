@@ -81,10 +81,10 @@ func TestChConn(t *testing.T) {
 
 type sshConn struct {
 	conn ssh.Conn
-	ch   ssh.Channel
+	ch   ssh.ChannelWithDeadlines
 }
 
-func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshConn) {
+func startSSHServer(t testing.TB, listener net.Listener, sshConnCh chan<- sshConn) {
 	nConn, err := listener.Accept()
 	require.NoError(t, err)
 	t.Cleanup(func() { nConn.Close() })
@@ -109,8 +109,35 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 
 			sshConnCh <- sshConn{
 				conn: conn,
-				ch:   ch,
+				ch:   ch.(ssh.ChannelWithDeadlines),
 			}
 		}
 	}()
+}
+
+func BenchmarkChConn(b *testing.B) {
+	nc, err := net.Dial("tcp", "127.0.0.1:4444")
+	require.NoError(b, err)
+	defer nc.Close()
+
+	cc, _, _, err := ssh.NewClientConn(nc, nc.RemoteAddr().String(), &ssh.ClientConfig{
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	require.NoError(b, err)
+	defer cc.Close()
+
+	clientCh, _, err := cc.OpenChannel("zero", nil)
+	require.NoError(b, err)
+	defer clientCh.Close()
+
+	defer b.StopTimer()
+
+	readBuf := make([]byte, 1024*1024)
+	b.SetBytes(int64(len(readBuf)))
+
+	b.ResetTimer()
+	for range b.N {
+		_, err := io.ReadFull(clientCh, readBuf)
+		require.NoError(b, err)
+	}
 }

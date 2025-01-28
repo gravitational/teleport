@@ -21,6 +21,7 @@ package sshutils
 import (
 	"errors"
 	"io"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/ssh"
@@ -61,6 +62,10 @@ func (mc *mockChannel) Stderr() io.ReadWriter {
 	return fakeReaderWriter{}
 }
 
+func (*mockChannel) SetDeadline(time.Time) error      { return nil }
+func (*mockChannel) SetReadDeadline(time.Time) error  { return nil }
+func (*mockChannel) SetWriteDeadline(time.Time) error { return nil }
+
 type mockSSHNewChannel struct {
 	mock.Mock
 	ssh.NewChannel
@@ -84,7 +89,7 @@ func (m *mockSSHNewChannel) Reject(reason ssh.RejectionReason, message string) e
 
 type mockSSHChannel struct {
 	mock.Mock
-	ssh.Channel
+	ssh.ChannelWithDeadlines
 }
 
 func newMockSSHChannel() *mockSSHChannel {

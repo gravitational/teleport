@@ -65,7 +65,7 @@ type transport struct {
 	closeContext context.Context
 	authClient   authclient.ProxyAccessPoint
 	authServers  []string
-	channel      ssh.Channel
+	channel      ssh.ChannelWithDeadlines
 	requestCh    <-chan *ssh.Request
 
 	// localClusterName is the name of the cluster that the transport code is
