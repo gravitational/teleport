@@ -62,6 +62,10 @@ type ImportConfig struct {
 	// AccessListDefaultOwners is a list of Teleport users name that will be used
 	// as default owners of Access List created for Identity Center groups.
 	AccessListDefaultOwners []string
+
+	// GroupSyncFilter is a filter that is used to filter groups that are
+	// synchronized from Identity Center to Teleport.
+	GroupSyncFilter identitycentercommon.Filters
 }
 
 func (cfg *ImportConfig) CheckAndSetDefaults() error {

@@ -2,9 +2,9 @@ package identitycenter
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
+	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -54,6 +55,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 		existingList []listWithMembersAndRoles
 		icData       icData
 		expectedList []listWithMembersAndRoles
+		groupFilters identitycentercommon.Filters
 	}{
 		{
 			name: "new integration with a fresh Access List from group and group member imports",
@@ -86,18 +88,21 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 					title:   "alist1",
 					members: teleportUsers,
 					roles:   []string{"admin-on-account1-1111111111", "readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 				{
 					name:    "alist2",
 					title:   "alist2",
 					members: []string{"user1", "user2", "user3"},
 					roles:   []string{"admin-on-account1-1111111111"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 				{
 					name:    "alist3",
 					title:   "alist3",
 					members: []string{"user3"},
 					roles:   []string{"readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 			},
 		},
@@ -155,18 +160,21 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 					title:   "alist1",
 					members: teleportUsers,
 					roles:   []string{"admin-on-account1-1111111111", "readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 				{
 					name:    "alist2",
 					title:   "alist2",
 					members: []string{"user1", "user2", "user3"},
 					roles:   []string{"admin-on-account1-1111111111"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 				{
 					name:    "alist3",
 					title:   "alist3",
 					members: []string{"user3"},
 					roles:   []string{"readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 			},
 		},
@@ -212,6 +220,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 					title:   "alist1",
 					members: teleportUsers,
 					roles:   []string{"admin-on-account1-1111111111", "readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 			},
 		},
@@ -243,6 +252,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 					title:   "alist1",
 					members: []string{"user3", "user4"},
 					roles:   []string{"admin-on-account1-1111111111", "readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 			},
 		},
@@ -263,8 +273,9 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 				{
 					name:    "group2",
 					title:   "alist2",
-					members: []string{"user3", "user4", "external1", "external2"},
+					members: []string{"external1", "external2", "user3", "user4"},
 					roles:   []string{"admin-on-account1-1111111111", "readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 			},
 		},
@@ -287,6 +298,54 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 					title:   "alist2",
 					members: []string{"user3", "user4"},
 					roles:   nil,
+					origin:  common.OriginAWSIdentityCenter,
+				},
+			},
+		},
+		{
+			name: "groups import with filters",
+			groupFilters: identitycentercommon.Filters{
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "id2"}},
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl3"}},
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl7"}},
+			},
+			icData: icData{
+				Accounts: []*icsdk.Account{account1, account2},
+				Groups: []groupWithMemberAndAssignment{
+					{
+						name:        "acl1",
+						id:          "id1",
+						members:     teleportUsers,
+						assignments: []*icsdk.Assignment{assignment1, assignment2},
+					},
+					{
+						name:        "acl2",
+						id:          "id2",
+						members:     []string{"user1", "user2", "user3"},
+						assignments: []*icsdk.Assignment{assignment1},
+					},
+					{
+						name:        "acl3",
+						id:          "id3",
+						members:     []string{"user3"},
+						assignments: []*icsdk.Assignment{assignment2},
+					},
+				},
+			},
+			expectedList: []listWithMembersAndRoles{
+				{
+					name:    "id2",
+					title:   "acl2",
+					members: []string{"user1", "user2", "user3"},
+					roles:   []string{"admin-on-account1-1111111111"},
+					origin:  common.OriginAWSIdentityCenter,
+				},
+				{
+					name:    "id3",
+					title:   "acl3",
+					members: []string{"user3"},
+					roles:   []string{"readonly-on-account2-2222222222"},
+					origin:  common.OriginAWSIdentityCenter,
 				},
 			},
 		},
@@ -294,6 +353,12 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				// the tEnv is persisted across tests, so we need to make sure
+				// that any pollution is cleaned up
+				require.NoError(t, tEnv.service.accessListSvc.DeleteAllAccessLists(ctx))
+			})
+
 			mockState := icsdk.NewMockedAWSState()
 			mockState.Accounts = tc.icData.Accounts
 			mockState.PermissionSets = sdkPermSets(t)
@@ -302,6 +367,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			mockState.GroupMemberships = sdkGroupMembers(t, tc.icData.Groups)
 			mockState.GroupAssignments = sdkGroupAssignments(t, tc.icData.Groups)
 			tEnv.setICSDKClient(icsdk.NewClientMock(&mockState))
+			tEnv.service.importConfig.GroupSyncFilter = tc.groupFilters
 
 			createAccessLists(t, ctx, tc.existingList, tEnv.service.accessListSvc)
 			createAccessListMembers(t, ctx, tc.existingList, tEnv.service.accessListSvc)
@@ -323,16 +389,21 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 
 func compareAccessLists(t *testing.T, ctx context.Context, expected []listWithMembersAndRoles, service services.AccessLists) {
 	t.Helper()
-	for _, e := range expected {
-		list, err := service.GetAccessList(ctx, e.name)
-		require.NoError(t, err, "compareAccessLists: GetAccessList")
-		require.Equal(t, e.name, list.GetName())
-		require.Equal(t, e.title, list.Spec.Title)
-		require.Equal(t, e.roles, list.Spec.Grants.Roles, fmt.Sprintf("access list %q", e.name))
+	accessLists, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
 
-		membersFromBackend := listMembers(t, ctx, e.name, service)
-		require.ElementsMatch(t, e.members, membersFromBackend, "access list members")
+	var actual []listWithMembersAndRoles
+	for _, e := range accessLists {
+		membersFromBackend := listMembers(t, ctx, e.GetName(), service)
+		actual = append(actual, listWithMembersAndRoles{
+			name:    e.GetName(),
+			title:   e.Spec.Title,
+			roles:   e.Spec.Grants.Roles,
+			members: membersFromBackend,
+			origin:  e.Origin(),
+		})
 	}
+	require.ElementsMatch(t, expected, actual)
 }
 
 func listMembers(t *testing.T, ctx context.Context, accesListName string, service services.AccessLists) []string {
@@ -341,10 +412,13 @@ func listMembers(t *testing.T, ctx context.Context, accesListName string, servic
 
 	var members []*accesslist.AccessListMember
 	var pageToken string
-	var err error
 	for {
-		members, pageToken, err = service.ListAccessListMembers(ctx, accesListName, 0 /* use the default page size */, pageToken)
+		var err error
+		var page []*accesslist.AccessListMember
+
+		page, pageToken, err = service.ListAccessListMembers(ctx, accesListName, 0 /* use the default page size */, pageToken)
 		require.NoError(t, err, "listMembersForACL: ListAccessListMembers")
+		members = append(members, page...)
 		if pageToken == "" {
 			break
 		}
@@ -358,7 +432,7 @@ func listMembers(t *testing.T, ctx context.Context, accesListName string, servic
 
 		out = append(out, m.GetName())
 	}
-
+	slices.Sort(out)
 	return out
 }
 

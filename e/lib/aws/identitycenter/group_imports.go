@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
+	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/lib/services"
@@ -162,6 +163,8 @@ func (s *Service) accessListFromICGroups(ctx context.Context, defaultOwners []ac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	filterableItems := toFilterableGroupWithAssignment(groupsWithAssignments)
+	groupsWithAssignments = identitycentercommon.Filter(s.importConfig.GroupSyncFilter, filterableItems)
 
 	permSets, err := s.icClient.ListPermissionSets(ctx)
 	if err != nil {
@@ -208,6 +211,21 @@ func (s *Service) accessListFromICGroups(ctx context.Context, defaultOwners []ac
 	}
 
 	return out, nil
+}
+
+func toFilterableGroupWithAssignment(items []*icsdk.GroupWithAssignment) identitycentercommon.FilterParams[*icsdk.GroupWithAssignment] {
+	return identitycentercommon.FilterParams[*icsdk.GroupWithAssignment]{
+		Items:   items,
+		GetName: func(item *icsdk.GroupWithAssignment) string { return item.DisplayName },
+		GetID:   func(item *icsdk.GroupWithAssignment) string { return item.ID }}
+}
+
+func toFilterableGroupWithMembers(items []*icsdk.GroupWithMembers) identitycentercommon.FilterParams[*icsdk.GroupWithMembers] {
+	return identitycentercommon.FilterParams[*icsdk.GroupWithMembers]{
+		Items:   items,
+		GetName: func(item *icsdk.GroupWithMembers) string { return item.DisplayName },
+		GetID:   func(item *icsdk.GroupWithMembers) string { return item.ID },
+	}
 }
 
 // groupWithAccountAndPermAssignment represents Identity Center group with
@@ -292,7 +310,7 @@ func (s *Service) accessListMembersFromIC(ctx context.Context) (map[string]*acce
 		return nil, trace.Wrap(err, "listing teleport user to filter Access List members.")
 	}
 
-	groupMembersFromIC, err := listGroupMembersFromIC(ctx, s.icClient)
+	groupMembersFromIC, err := listGroupMembersFromIC(ctx, s.icClient, s.importConfig.GroupSyncFilter)
 	if err != nil {
 		return nil, trace.Wrap(err, "listing group members from identity center")
 	}
@@ -315,7 +333,7 @@ func (s *Service) accessListMembersFromIC(ctx context.Context) (map[string]*acce
 }
 
 // listGroupMembersFromIC returns Identity Center group members with their respective username.
-func listGroupMembersFromIC(ctx context.Context, icClient icsdk.Client) ([]groupMembersWithIDAndUserName, error) {
+func listGroupMembersFromIC(ctx context.Context, icClient icsdk.Client, filters identitycentercommon.Filters) ([]groupMembersWithIDAndUserName, error) {
 	icUsers, err := icClient.ListUsers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -326,8 +344,11 @@ func listGroupMembersFromIC(ctx context.Context, icClient icsdk.Client) ([]group
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	out := make([]groupMembersWithIDAndUserName, 0, len(groupWithMembers))
-	for _, g := range groupWithMembers {
+
+	filterableItems := toFilterableGroupWithMembers(groupWithMembers)
+	for _, g := range identitycentercommon.Filter(filters, filterableItems) {
 		out = append(out, groupMembersWithIDAndUserName{
 			GroupID: g.ID,
 			Members: memberWithIDAndUsername(g.Members, icUsersMap),

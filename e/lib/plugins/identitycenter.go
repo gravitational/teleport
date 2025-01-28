@@ -80,6 +80,11 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err, "creating Identity Center client")
 		}
 
+		groupsFilters, err := identitycentercommon.NewFilters(settings.GroupSyncFilters)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		svc, err := identitycenter.NewService(identitycenter.ServiceConfig{
 			Provisioning: identitycenter.ProvisioningConfig{
 				SCIMClient:          scimClient,
@@ -101,6 +106,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			RolesSvc:                   authServer.Services,
 			ImportConfig: identitycenter.ImportConfig{
 				AccessListDefaultOwners: settings.AccessListDefaultOwners,
+				GroupSyncFilter:         groupsFilters,
 			},
 			PluginStatusSink: deps.statusSink,
 			PluginsService:   deps.pluginsService,
