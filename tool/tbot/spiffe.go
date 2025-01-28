@@ -21,14 +21,55 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
+
+// TODO(tross/noah): Remove once go-spiff has a slog<->workloadapi.Logger adapter.
+// https://github.com/spiffe/go-spiffe/issues/281
+type logger struct {
+	l *slog.Logger
+}
+
+func (l logger) Debugf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+
+	//nolint:sloglint // msg cannot be constant
+	l.l.DebugContext(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l logger) Infof(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
+		return
+	}
+
+	//nolint:sloglint // msg cannot be constant
+	l.l.InfoContext(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l logger) Warnf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelWarn) {
+		return
+	}
+
+	//nolint:sloglint // msg cannot be constant
+	l.l.WarnContext(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l logger) Errorf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelError) {
+		return
+	}
+
+	//nolint:sloglint // msg cannot be constant
+	l.l.ErrorContext(context.Background(), fmt.Sprintf(format, args...))
+}
 
 func onSPIFFEInspect(ctx context.Context, path string) error {
 	log.InfoContext(ctx, "Inspecting SPIFFE Workload API Endpoint", "path", path)
@@ -36,7 +77,8 @@ func onSPIFFEInspect(ctx context.Context, path string) error {
 	source, err := workloadapi.New(
 		ctx,
 		// TODO(noah): Upstream PR to add slog<->workloadapi.Logger adapter.
-		workloadapi.WithLogger(utils.NewLogger()),
+		// https://github.com/spiffe/go-spiffe/issues/281
+		workloadapi.WithLogger(logger{l: slog.Default()}),
 		workloadapi.WithAddr(path),
 	)
 	if err != nil {
