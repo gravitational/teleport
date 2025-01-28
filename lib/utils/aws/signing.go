@@ -100,6 +100,8 @@ type SigningCtx struct {
 	SessionName string
 	// BaseAWSRoleARN is the AWS ARN of the role as a base to the assumed roles.
 	BaseAWSRoleARN string
+	// BaseAWSRoleARN is an optional external ID used on base assumed role.
+	BaseAWSExternalID string
 	// AWSRoleArn is the AWS ARN of the role to assume for signing requests,
 	// chained with BaseAWSRoleARN.
 	AWSRoleArn string
@@ -191,7 +193,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 func (s *SigningService) newSigner(ctx context.Context, signCtx *SigningCtx) (*v4.Signer, error) {
 	if s.AWSConfigProvider != nil {
 		awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, signCtx.SigningRegion,
-			awsconfig.WithAssumeRole(signCtx.BaseAWSRoleARN, signCtx.AWSExternalID),
+			awsconfig.WithAssumeRole(signCtx.BaseAWSRoleARN, signCtx.BaseAWSExternalID),
 			awsconfig.WithAssumeRole(signCtx.AWSRoleArn, signCtx.AWSExternalID),
 			awsconfig.WithCredentialsMaybeIntegration(signCtx.Integration),
 		)
