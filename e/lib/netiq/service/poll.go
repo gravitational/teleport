@@ -307,8 +307,8 @@ func convertRoleParentRoles(roleID string, roleParentRoles []netiqclient.RoleRef
 	out := make([]*accessgraphv1alpha.NetIQRoleRef, 0)
 	for _, role := range roleParentRoles {
 		out = append(out, &accessgraphv1alpha.NetIQRoleRef{
-			ChildRoleId:        role.ID,
-			ParentRoleId:       roleID,
+			ChildRoleId:        roleID,
+			ParentRoleId:       role.ID,
 			Level:              int32(role.Level),
 			RequestDescription: role.RequestDescription,
 		})
