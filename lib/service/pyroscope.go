@@ -108,9 +108,12 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		config.UploadRate = *uploadRate
 	}
 
-	if isKubeEnvVarSet() {
-		config.Tags = addKubeTagsFromEnv(config.Tags)
-		slog.InfoContext(process.ExitContext(), "Configuring additional tags for Kubernetes if set.")
+	if value, isSet := os.LookupEnv("TELEPORT_PYROSCOPE_KUBE_COMPONENT"); isSet {
+		config.Tags["component"] = value
+	}
+		
+	if value, isSet := os.LookupEnv("TELEPORT_PYROSCOPE_KUBE_NAMESPACE"); isSet {
+		config.Tags["namespace"] = value
 	}
 
 	profiler, err := pyroscope.Start(config)
