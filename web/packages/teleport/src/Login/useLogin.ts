@@ -203,7 +203,6 @@ export type State = ReturnType<typeof useLogin> & {
  * moveToFront returns a copy of an array with the element that matches the condition to the front of it.
  */
 function moveToFront<T>(arr: T[], condition: (item: T) => boolean): T[] {
-  console.log(arr);
   const copy = [...arr];
   const index = copy.findIndex(condition);
 
