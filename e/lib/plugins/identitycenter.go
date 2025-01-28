@@ -169,9 +169,7 @@ func makeAWSConfig(ctx context.Context, settings *types.PluginAWSICSettings, aut
 		return &cfg, nil
 
 	default:
-		//nolint:sloglint // sloglint incorrectly treats the word "source" as a forbidden field key
-		logger.ErrorContext(ctx, "Invalid CredentialsSource value",
-			slog.Any("source", settings.CredentialsSource))
+		logger.ErrorContext(ctx, "Invalid CredentialsSource value", "credentials_source", settings.CredentialsSource)
 		return nil, trace.BadParameter("invalid CredentialsSource value: %v", settings.CredentialsSource)
 	}
 }
