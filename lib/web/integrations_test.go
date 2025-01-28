@@ -21,14 +21,12 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"github.com/gravitational/teleport/lib/auth/integration/credentials"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
