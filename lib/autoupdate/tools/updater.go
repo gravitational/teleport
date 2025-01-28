@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
@@ -49,8 +50,6 @@ import (
 const (
 	// teleportToolsVersionEnv is environment name for requesting specific version for update.
 	teleportToolsVersionEnv = "TELEPORT_TOOLS_VERSION"
-	// defaultBaseURL is CDN URL for downloading official Teleport packages.
-	defaultBaseURL = "https://cdn.teleport.dev"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -75,6 +74,13 @@ func WithBaseURL(baseURL string) Option {
 	}
 }
 
+// WithURITemplate defines custom URI template for the updater.
+func WithURITemplate(uriTemplate string) Option {
+	return func(u *Updater) {
+		u.uriTemplate = uriTemplate
+	}
+}
+
 // WithClient defines custom http client for the Updater.
 func WithClient(client *http.Client) Option {
 	return func(u *Updater) {
@@ -94,9 +100,10 @@ type Updater struct {
 	toolsDir     string
 	localVersion string
 	tools        []string
+	uriTemplate  string
+	baseURL      string
 
-	baseURL string
-	client  *http.Client
+	client *http.Client
 }
 
 // NewUpdater initializes the updater for client tools auto updates. We need to specify the tools directory
@@ -109,7 +116,8 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 		tools:        DefaultClientTools(),
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
-		baseURL:      defaultBaseURL,
+		uriTemplate:  autoupdate.DefaultCDNURITemplate,
+		baseURL:      autoupdate.DefaultBaseURL,
 		client:       http.DefaultClient,
 	}
 	for _, option := range options {
@@ -255,7 +263,7 @@ func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string)
 // with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 	// Get platform specific download URLs.
-	packages, err := teleportPackageURLs(u.baseURL, toolsVersion)
+	packages, err := teleportPackageURLs(u.uriTemplate, u.baseURL, toolsVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
