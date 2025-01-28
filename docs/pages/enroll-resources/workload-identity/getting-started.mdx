@@ -26,18 +26,18 @@ receive SPIFFE SVID-compatible workload identity credentials.
 
 ## Step 1/4. Configure Workload Identity
 
-First, you will need to create a WorkloadIdentity resource.
+First, you will need to create a Workload Identity resource.
 
 This resource is the primary way that Teleport Workload Identity is configured.
-Each WorkloadIdentity resource represents the configuration of an identity for a
+Each Workload Identity resource represents the configuration of an identity for a
 specific workload or a template to be used when representing the identity of a
-group of workloads. The WorkloadIdentity resource specifies a number of key
+group of workloads. The Workload Identity resource specifies a number of key
 things, including:
 
-- The name of the WorkloadIdentity, which will be needed when issuing it.
+- The name of the Workload Identity, which will be needed when issuing it.
 - The SPIFFE ID that will be included in credentials issued for this
   WorkloadIdentity.
-- Any rules around when this WorkloadIdentity can be used to issue credentials.
+- Any rules around when this Workload Identity can be used to issue credentials.
 
 Before proceeding, you'll want to determine the SPIFFE ID path that your
 workload will use. In our example, we'll use `/svc/foo`. We provide more
@@ -63,15 +63,15 @@ Replace:
 - `example-workload-identity` with a name that describes your use-case.
 - `/svc/foo` with the SPIFFE ID path you have decided on issuing.
 
-Use `tctl create -f ./workload-identity.yaml` to create the WorkloadIdentity.
+Use `tctl create -f ./workload-identity.yaml` to create the Workload Identity.
 
-Now, you'll need to create a role that will grant access to the WorkloadIdentity
+Now, you'll need to create a role that will grant access to the Workload Identity
 that you have just created. As with other Teleport resources, access is granted
 by specifying label matchers on the role that will match the labels on the
 resource itself.
 
 In addition to granting access to the resource, we will also need to grant the
-ability to read and list the WorkloadIdentity resource type.
+ability to read and list the Workload Identity resource type.
 
 Create `workload-identity-issuer-role.yaml`:
 
@@ -155,7 +155,7 @@ services:
 Replace:
 
 - `/opt/machine-id/workload.sock` with the path to the socket you wish to create.
-- `example-workload-identity` with the name of the WorkloadIdentity resource you
+- `example-workload-identity` with the name of the Workload Identity resource you
   created earlier.
 
 Start or restart your `tbot` instance to apply the new configuration
@@ -174,12 +174,12 @@ three characteristics of the workload process:
 - `gid`: The primary GID of the user that the workload process is running as.
 - `pid`: The PID of the workload process.
 
-Within a WorkloadIdentity, you can configure rules based on the attributes
+Within a Workload Identity, you can configure rules based on the attributes
 determined via workload attestation. Each rule contains a number of tests and
 all tests must pass for the rule to pass. At least one rule must pass for the
-WorkloadIdentity to be allowed to issue a credential.
+Workload Identity to be allowed to issue a credential.
 
-For example, to configure a WorkloadIdentity to be issued only to workloads that
+For example, to configure a Workload Identity to be issued only to workloads that
 are running as the user with ID 1000 or running as a user with a primary group
 ID of 50:
 
@@ -247,7 +247,7 @@ integrating SPIFFE with your workloads.
 Workload Identity.
 - [Best Practices](./best-practices.mdx): Best practices for using Workload
 Identity in Production.
-- Read the [WorkloadIdentity reference](../../reference/workload-identity/workload-identity-resource.mdx)
-to explore the configuration of the WorkloadIdentity resource.
+- Read the [Workload Identity reference](../../reference/workload-identity/workload-identity-resource.mdx)
+to explore the configuration of the Workload Identity resource.
 - Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
 all the available configuration options for `tbot`.
