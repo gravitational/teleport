@@ -6854,16 +6854,16 @@ message PluginAWSICSettings {
   // NOTE: System users are always filtered out by default and will not be provisioned to AWS IC.
   repeated AWSICUserSyncFilter user_sync_filters = 8 [(gogoproto.jsontag) = "user_sync_filters,omitempty"];
 
-  // AwsAccounts is an optional allow-list of AWS accounts to import and manage.
-  // An empty list implies that all accounts managed by the Identity Center
+  // AwsAccountFilters is an optional allow-list of AWS accounts to import and
+  // manage. An empty list implies that all accounts managed by the Identity Center
   // instance will be imported and managed.
-  repeated AWSICAccountFilter aws_accounts_filters = 9;
+  repeated AWSICResourceFilter aws_accounts_filters = 9;
 }
 
-// AWSICAccountFilter is an entry in the AWS IC plugin settings' allow-list of
-// accounts to import. The filter can specify inclusion either by account ID or
-// regex on the account name.
-message AWSICAccountFilter {
+// AWSICResourceFilter is an entry in the AWS IC plugin settings' allow-list of
+// resources to import. The filter can specify inclusion either by account ID or
+// regex on the resource name.
+message AWSICResourceFilter {
   option (gogoproto.equal) = true;
 
   // Filter describes the AWS Account filter to apply
@@ -6871,9 +6871,9 @@ message AWSICAccountFilter {
     // Id indicates that the account should be filtered by ID
     string id = 1;
 
-    // Name indicates that the account should be included if it matches the
+    // NameRegex indicates that the account should be included if it matches the
     // supplied regex.
-    string name = 2;
+    string name_regex = 2;
   }
 }
 
