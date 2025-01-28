@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -503,12 +504,13 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 }
 
 type fakeAWSClients struct {
-	ecClient       elasticacheClient
-	iamClient      iamClient
-	mdbClient      memoryDBClient
-	rdsClient      rdsClient
-	redshiftClient redshiftClient
-	rssClient      rssClient
+	ecClient         elasticacheClient
+	iamClient        iamClient
+	mdbClient        memoryDBClient
+	openSearchClient openSearchClient
+	rdsClient        rdsClient
+	redshiftClient   redshiftClient
+	rssClient        rssClient
 }
 
 func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
@@ -521,6 +523,10 @@ func (f fakeAWSClients) getIAMClient(aws.Config, ...func(*iam.Options)) iamClien
 
 func (f fakeAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
 	return f.mdbClient
+}
+
+func (f fakeAWSClients) getOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) openSearchClient {
+	return f.openSearchClient
 }
 
 func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClient {
