@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -51,8 +52,6 @@ const (
 const (
 	// defaultSystemDir is the location where packaged Teleport binaries and services are installed.
 	defaultSystemDir = "/opt/teleport/system"
-	// cdnURITemplate is the default template for the Teleport tgz download.
-	cdnURITemplate = "https://cdn.teleport.dev/teleport{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
@@ -112,6 +111,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			ReservedFreeInstallDisk: reservedFreeDisk,
 			TransformService:        ns.replaceTeleportService,
 			ValidateBinary:          validator.IsBinary,
+			Template:                autoupdate.DefaultCDNURITemplate,
 		},
 		Process: &SystemdService{
 			ServiceName: filepath.Base(ns.serviceFile),
@@ -183,9 +183,9 @@ type Updater struct {
 
 // Installer provides an API for installing Teleport agents.
 type Installer interface {
-	// Install the Teleport agent at revision from the download template.
+	// Install the Teleport agent at revision from the download Template.
 	// Install must be idempotent.
-	Install(ctx context.Context, rev Revision, template string) error
+	Install(ctx context.Context, rev Revision, baseURL string) error
 	// Link the Teleport agent at the specified revision of Teleport into the linking locations.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// Link must be idempotent. Link's revert function must be idempotent.
@@ -262,7 +262,7 @@ type OverrideConfig struct {
 	// ForceVersion to the specified version.
 	ForceVersion string
 	// ForceFlags in installed Teleport.
-	ForceFlags InstallFlags
+	ForceFlags autoupdate.InstallFlags
 }
 
 func deref[T any](ptr *T) T {
@@ -604,16 +604,16 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to request version from proxy")
 	}
-	var flags InstallFlags
+	var flags autoupdate.InstallFlags
 	switch resp.Edition {
 	case modules.BuildEnterprise:
-		flags |= FlagEnterprise
+		flags |= autoupdate.FlagEnterprise
 	case modules.BuildOSS, modules.BuildCommunity:
 	default:
 		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
 	}
 	if resp.FIPS {
-		flags |= FlagFIPS
+		flags |= autoupdate.FlagFIPS
 	}
 	jitterSec := resp.AutoUpdate.AgentUpdateJitterSeconds
 	return FindResp{
@@ -642,11 +642,11 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 
 	// Install and link the desired version (or validate existing installation)
 
-	template := cfg.Spec.URLTemplate
-	if template == "" {
-		template = cdnURITemplate
+	baseURL := cfg.Spec.BaseURL
+	if baseURL == "" {
+		baseURL = autoupdate.DefaultBaseURL
 	}
-	err := u.Installer.Install(ctx, target, template)
+	err := u.Installer.Install(ctx, target, baseURL)
 	if err != nil {
 		return trace.Wrap(err, "failed to install")
 	}
