@@ -151,30 +151,3 @@ func getPyroscopeProfileTypesFromEnv() []pyroscope.ProfileType {
 
 	return profileTypes
 }
-
-// isKubeEnvVarSet checks if metadata tags should be processed.
-func isKubeEnvVarSet() bool {
-	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, "TELEPORT_PYROSCOPE_KUBE_") {
-			return true
-		}
-	}
-	return false
-}
-
-// getTagsFromKubeEnv extracts Kubernetes metadata passed from downward API and returns them if set.
-func addKubeTagsFromEnv(tags map[string]string) map[string]string {
-
-	env := map[string]string{
-		"component": "TELEPORT_PYROSCOPE_KUBE_COMPONENT",
-		"namespace": "TELEPORT_PYROSCOPE_KUBE_NAMESPACE",
-	}
-
-	for k, v := range env {
-		if value, isSet := os.LookupEnv(v); isSet {
-			tags[k] = value
-		}
-	}
-
-	return tags
-}
