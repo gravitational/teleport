@@ -137,7 +137,7 @@ export function IdentityContainer() {
 
 const Container = styled(Box)`
   background: ${props => props.theme.colors.levels.elevated};
-  min-width: 200px;
+  min-width: 300px;
   width: 100%;
 `;
 

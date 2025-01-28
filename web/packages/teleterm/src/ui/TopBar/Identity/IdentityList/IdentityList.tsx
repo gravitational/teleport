@@ -47,64 +47,55 @@ export function ActiveCluster(props: {
 }) {
   return (
     <>
-      <Flex p={3} pb={2} justifyContent="space-between">
-        <Flex flexWrap="nowrap" gap={2} flexDirection="column">
-          <Flex gap={4}>
-            <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
-              <ColorPicker
-                letter={getClusterLetter(props.activeCluster)}
-                color={props.activeColor}
-                setColor={props.onChangeColor}
-              />
-              <TitleAndSubtitle
-                title={props.activeCluster.name}
-                subtitle={props.activeCluster.loggedInUser?.name}
-              />
-            </Flex>
-
-            <Flex
-              justifyContent="space-between"
-              flexDirection="row"
-              alignItems="flex-start"
-              gap={1}
-            >
-              <ButtonText
-                title="Refresh Session"
-                size="small"
-                onClick={() => props.onRefresh()}
-              >
-                <Refresh size="small" />
-              </ButtonText>
-              <ButtonText
-                onClick={() => props.onLogout()}
-                intent="danger"
-                size="small"
-              >
-                Log Out
-                <Logout ml="6px" size="small" />
-              </ButtonText>
-            </Flex>
-          </Flex>
-          <Flex flexWrap="wrap" gap={1} mt={1}>
-            {props.activeCluster.loggedInUser?.roles.map(role => (
-              <Label
-                css={`
-                  line-height: 20px;
-                `}
-                key={role}
-                kind="secondary"
-              >
-                {role}
-              </Label>
-            ))}
-          </Flex>
-          {props.activeCluster.profileStatusError && (
-            <ProfileStatusError
-              error={props.activeCluster.profileStatusError}
+      <Flex p={3} pb={2} flexWrap="nowrap" gap={2} flexDirection="column">
+        <Flex gap={4} justifyContent="space-between">
+          <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
+            <ColorPicker
+              letter={getClusterLetter(props.activeCluster)}
+              color={props.activeColor}
+              setColor={props.onChangeColor}
             />
-          )}
-          <DeviceTrustMessage status={props.deviceTrustStatus} />
+            <TitleAndSubtitle
+              title={props.activeCluster.name}
+              subtitle={props.activeCluster.loggedInUser?.name}
+            />
+          </Flex>
+
+          <Flex flexDirection="row" alignItems="flex-start" gap={1}>
+            <ButtonText
+              title="Refresh Session"
+              size="small"
+              onClick={() => props.onRefresh()}
+            >
+              <Refresh size="small" />
+            </ButtonText>
+            <ButtonText
+              onClick={() => props.onLogout()}
+              intent="danger"
+              size="small"
+            >
+              Log Out
+              <Logout ml="6px" size="small" />
+            </ButtonText>
+          </Flex>
         </Flex>
+        <Flex flexWrap="wrap" gap={1} mt={1}>
+          {props.activeCluster.loggedInUser?.roles.map(role => (
+            <Label
+              css={`
+                line-height: 20px;
+              `}
+              key={role}
+              kind="secondary"
+            >
+              {role}
+            </Label>
+          ))}
+        </Flex>
+        {props.activeCluster.profileStatusError && (
+          <ProfileStatusError error={props.activeCluster.profileStatusError} />
+        )}
+        <DeviceTrustMessage status={props.deviceTrustStatus} />
       </Flex>
       <Separator />
     </>
