@@ -35,10 +35,25 @@ commands in short succession, especially when:
 
 ## Details
 
+### UX
+
+Pin caching will significantly improve the UX of Hardware Key pin support by
+reducing the frequency of cumbersome pin prompts in the middle of active usage.
+Specifically, a user will be prompted at most once per configured timeout
+duration, rather than the the worst case scenario of being prompted every few
+seconds.
+
+Note that the Teleport client caching the pin will not prompt for pin
+immediately after the cache times out. Instead, it will prompt for pin the next
+time the user performs an action that would require pin.
+
+UX implications of the Teleport Key Agent will be covered in the Teleport Key
+Agent RFD.
+
 ### Single Process Solution
 
 Caching the pin for a single process is not complicated. For example, we can
-easily enabled pin caching to make commands like `tsh proxy db` cache the pin
+easily enable pin caching to make commands like `tsh proxy db` cache the pin
 for any incoming db connections coming through the local proxy:
 
 ```console
@@ -62,20 +77,21 @@ Enter your YubiKey PIV PIN:
 
 In order to cache the pin across multiple Teleport client processes (`tsh`,
 `tctl`, Teleport Connect), we can use the new [Teleport Key Agent](./0199-teleport-key-agent).
-When used with the `hardware_key_pin` requirement, the Teleport Key Agent will
-act as the pin handler for all other Teleport clients performing private key
-operations through the agent. This means that the Teleport Key Agent will be
-solely responsible for both prompting the pin and caching it.
 
-This solution will have by far the best UX when paired with Teleport Connect
+Teleport Key Agent is responsible for providing an interface to signing with
+the user's private keys. When `hardware_key_pin` is required, the the user's
+PIV pin must be entered in order to perform a signature. Therefore, the agent
+is responsible for prompting and caching the pin.
+
+Any clients depending on the agent will share the benefits of the agent client's
+pin prompts and pin cache. For example, if one dependent client requests a
+signature and the user enters their pin into the agent, all dependent clients
+can continue with the cached pin for their signatures, until the pin cache
+times out.
+
+This solution will have far better UX when paired with Teleport Connect
 because Teleport Connect has the ability to pop into the foreground when the
 user needs to enter their PIV pin.
-
-### UX
-
-Pin caching should not on its own introduce any significant UX impacts, other
-than prompting for pin less often, as needed. UX implications of the Teleport
-Key Agent will be covered in the Teleport Key Agent RFD.
 
 ### Security
 
