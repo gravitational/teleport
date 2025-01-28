@@ -616,6 +616,10 @@ const (
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
 	SubKindGitHub = "github"
 
+	// KindStableUNIXUser is the RBAC-only kind to refer to interactions with
+	// stable UNIX users.
+	KindStableUNIXUser = "stable_unix_user"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"

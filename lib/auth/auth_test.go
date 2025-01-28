@@ -3875,15 +3875,15 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		TrustInternal:           local.NewCAService(bk),
-		PresenceInternal:        local.NewPresenceService(bk),
-		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                identityService,
-		Access:                  local.NewAccessService(bk),
-		DynamicAccessExt:        local.NewDynamicAccessService(bk),
-		ClusterConfiguration:    configService,
-		Events:                  local.NewEventsService(bk),
-		AuditLogSessionStreamer: events.NewDiscardAuditLog(),
+		TrustInternal:                local.NewCAService(bk),
+		PresenceInternal:             local.NewPresenceService(bk),
+		Provisioner:                  local.NewProvisioningService(bk),
+		Identity:                     identityService,
+		Access:                       local.NewAccessService(bk),
+		DynamicAccessExt:             local.NewDynamicAccessService(bk),
+		ClusterConfigurationInternal: configService,
+		Events:                       local.NewEventsService(bk),
+		AuditLogSessionStreamer:      events.NewDiscardAuditLog(),
 	}
 }
 

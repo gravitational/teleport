@@ -516,7 +516,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
 		Apps:                    p.AuthServer.Services.Apps,
-		ClusterConfig:           p.AuthServer.Services.ClusterConfiguration,
+		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
 		DatabaseServices:        p.AuthServer.Services.DatabaseServices,

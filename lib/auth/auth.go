@@ -416,6 +416,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
 		}
 	}
+	if cfg.StableUNIXUsers == nil {
+		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
+			Backend: cfg.Backend,
+		}
+	}
+
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -475,7 +481,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Identity:                        cfg.Identity,
 		Access:                          cfg.Access,
 		DynamicAccessExt:                cfg.DynamicAccessExt,
-		ClusterConfiguration:            cfg.ClusterConfiguration,
+		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
 		Apps:                            cfg.Apps,
@@ -516,6 +522,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		PluginStaticCredentials:         cfg.PluginStaticCredentials,
 		GitServers:                      cfg.GitServers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
+		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 	}
 
 	as := Server{
@@ -692,7 +699,7 @@ type Services struct {
 	services.Identity
 	services.Access
 	services.DynamicAccessExt
-	services.ClusterConfiguration
+	services.ClusterConfigurationInternal
 	services.Restrictions
 	services.Apps
 	services.Kubernetes
@@ -737,6 +744,7 @@ type Services struct {
 	services.PluginStaticCredentials
 	services.GitServers
 	services.WorkloadIdentityX509Revocations
+	services.StableUNIXUsersInternal
 }
 
 // GetWebSession returns existing web session described by req.
