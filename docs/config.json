@@ -29,13 +29,17 @@
               "slug": "/upgrading/overview/"
             },
             {
-              "title": "Set up Automatic Agent Updates",
-              "slug": "/upgrading/automatic-agent-updates/"
+              "title": "Cluster Upgrading Reference",
+              "slug": "/upgrading/upgrading-reference/"
             },
             {
-              "title": "Upgrading Reference",
-              "slug": "/upgrading/upgrading-reference/"
-	        },
+              "title": "Managed Updates for Agent (v1)",
+              "slug": "/upgrading/agent-managed-updates-v1/"
+            },
+            {
+              "title": "Managed Updates for Agents (v2)",
+              "slug": "/upgrading/agent-managed-updates/"
+            },
             {
               "title": "Client Tool Automatic Updates",
               "slug": "/upgrading/client-tools-autoupdate/"
