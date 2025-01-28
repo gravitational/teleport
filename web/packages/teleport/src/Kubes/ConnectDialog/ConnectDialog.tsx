@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H3, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { NewTab as NewTabIcon } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
@@ -57,14 +57,31 @@ function ConnectDialog(props: Props) {
       onClose={onClose}
       open={true}
     >
-      <DialogHeader>
-        <DialogTitle>connect to kubernetes cluster</DialogTitle>
+      <DialogHeader mb={4}>
+        <DialogTitle>
+          <Flex gap={2}>
+            Connect to:
+            <Flex gap={1}>
+              <ResourceIcon name="kube" width="24px" height="24px" />
+              {kubeConnectName}
+            </Flex>
+          </Flex>
+        </DialogTitle>
       </DialogHeader>
-      <DialogContent>
-        <Box mb={4}>
-          <Text mt={1} mb={2} bold>
-            Connect in the CLI using tsh and kubectl
+      <DialogContent minHeight="240px" flex="0 0 auto">
+        <Box borderBottom={1} mb={4} pb={4}>
+          <Text mb={3} bold>
+            Open Teleport-authenticated session in the browser:
           </Text>
+          <ButtonPrimary size="large" gap={2} onClick={startKubeExecSession}>
+            Exec in the browser
+            <NewTabIcon />
+          </ButtonPrimary>
+        </Box>
+        <Box mb={4}>
+          <H3 mt={1} mb={2}>
+            Or connect in the CLI using tsh and kubectl:
+          </H3>
           <Text bold as="span">
             Step 1
           </Text>
@@ -113,14 +130,6 @@ function ConnectDialog(props: Props) {
             <TextSelectCopy mt="2" text={`tsh request drop`} />
           </Box>
         )}
-        <Box borderTop={1} mb={4} mt={4}>
-          <Flex mt={4} flex-direction="row" justifyContent="space-between">
-            <Text mt={1} bold>
-              Or exec into a pod on this Kubernetes cluster in Web UI
-            </Text>
-            <ButtonPrimary onClick={startKubeExecSession}>Exec</ButtonPrimary>
-          </Flex>
-        </Box>
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>

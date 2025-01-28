@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Box, ButtonSecondary, Link, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { ResourceIcon } from 'design/ResourceIcon';
+import { getDatabaseIconName } from 'shared/components/UnifiedResources/shared/viewItemsFactory';
 import { DbProtocol } from 'shared/services/databases';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
@@ -84,7 +84,19 @@ export default function ConnectDialog({
       open={true}
     >
       <DialogHeader mb={4}>
-        <DialogTitle>Connect To Database</DialogTitle>
+        <DialogTitle>
+          <Flex gap={2}>
+            Connect to:
+            <Flex gap={1}>
+              <ResourceIcon
+                name={getDatabaseIconName(dbProtocol)}
+                width="24px"
+                height="24px"
+              />
+              {dbName}
+            </Flex>
+          </Flex>
+        </DialogTitle>
       </DialogHeader>
       <DialogContent minHeight="240px" flex="0 0 auto">
         <Box mb={4}>
