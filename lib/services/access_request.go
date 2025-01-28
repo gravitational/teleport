@@ -1407,7 +1407,6 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 	}
 
 	var minAdjDuration time.Duration
-	roleDurationSet := false
 	// Adjust the expiration time if the max_duration value is set on the request role.
 	for _, roleName := range req.GetRoles() {
 		var maxDurationForRole time.Duration

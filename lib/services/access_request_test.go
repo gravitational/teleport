@@ -2673,6 +2673,14 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 				},
 			},
 		},
+		"shortMaxDurationReqRole3": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole"},
+					MaxDuration: types.Duration(day),
+				},
+			},
+		},
 	}
 
 	// describes a collection of users with various roles
@@ -2681,6 +2689,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 		"bob":   {"defaultRole"},
 		"carol": {"shortMaxDurationReqRole", "shortMaxDurationReqRole2"},
 		"david": {"maxDurationReqRole"},
+		"erin":  {"shortMaxDurationReqRole", "shortMaxDurationReqRole3", "maxDurationReqRole"},
 	}
 
 	defaultSessionTTL := 8 * time.Hour
@@ -2810,6 +2819,17 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			roles:                  []string{"requestedRole"}, // caps max_duration to 3 days
 			expectedAccessDuration: 3 * day,
 			expectedPendingTTL:     3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc: "multiple roles with different max durations assigned",
+			// erin has the maxDurationReqRole (7 days) role assigned
+			// along with 2 other roles with shorter durations
+			// shortMaxDurationReqRole (3 days) and shortMaxDurationReqRole3 (1 day)
+			requestor:              "erin",
+			roles:                  []string{"requestedRole"}, // caps max_duration to 7 days
+			expectedAccessDuration: 7 * day,
+			expectedPendingTTL:     7 * day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 	}
