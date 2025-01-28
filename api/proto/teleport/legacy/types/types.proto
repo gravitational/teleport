@@ -6871,7 +6871,7 @@ message AWSICResourceFilter {
   option (gogoproto.equal) = true;
 
   // Include describes the AWS Resource filter to apply
-  oneof incude {
+  oneof include {
     // Id indicates that the resource should be filtered by ID
     string id = 1 [(gogoproto.jsontag) = "id,omitempty"];
 
