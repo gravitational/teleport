@@ -80,6 +80,7 @@
     "d3-time-format": "^4.1.0",
     "date-fns": "^2.28.0",
     "history": "^4.9.0",
+    "immer": "^10.1.1",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
@@ -92,6 +93,7 @@
     "react-transition-group": "^4.4.5",
     "styled-components": "^6.1.13",
     "tslib": "^2.7.0",
+    "use-immer": "^0.11.0",
     "whatwg-fetch": "^3.6.20"
   },
   "msw": {
@@ -101,4 +103,3 @@
   },
   "packageManager": "pnpm@9.9.0"
 }
-

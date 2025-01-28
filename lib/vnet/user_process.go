@@ -28,19 +28,17 @@ import (
 
 // UserProcessConfig provides the necessary configuration to run VNet.
 type UserProcessConfig struct {
-	// AppProvider is a required field providing an interface implementation for [AppProvider].
-	AppProvider AppProvider
-	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
-	// will be created.
-	ClusterConfigCache *ClusterConfigCache
+	// ClientApplication is a required field providing an interface implementation for
+	// [ClientApplication].
+	ClientApplication ClientApplication
 	// HomePath is the tsh home used for Teleport clients created by VNet. Resolved using the same
 	// rules as HomeDir in tsh.
 	HomePath string
 }
 
 func (c *UserProcessConfig) checkAndSetDefaults() error {
-	if c.AppProvider == nil {
-		return trace.BadParameter("missing AppProvider")
+	if c.ClientApplication == nil {
+		return trace.BadParameter("missing ClientApplication")
 	}
 	if c.HomePath == "" {
 		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))

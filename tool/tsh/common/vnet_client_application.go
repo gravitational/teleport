@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"net"
@@ -29,27 +28,26 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
-// vnetAppProvider implements [vnet.AppProvider] in order to provide the
-// necessary methods to log in to apps and get clients able to list apps in all
-// clusters in all current profiles.
-type vnetAppProvider struct {
+// vnetClientApplication implements [vnet.ClientApplication] in order to provide
+// the necessary methods to list and log in to apps.
+type vnetClientApplication struct {
 	cf          *CLIConf
 	clientStore *client.Store
 	clientCache *clientcache.Cache
 	loginMu     sync.Mutex
 }
 
-func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
+func newVnetClientApplication(cf *CLIConf) (*vnetClientApplication, error) {
 	clientStore := client.NewFSClientStore(cf.HomePath)
 
-	p := &vnetAppProvider{
+	p := &vnetClientApplication{
 		cf:          cf,
 		clientStore: clientStore,
 	}
@@ -68,13 +66,13 @@ func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
 }
 
 // ListProfiles lists the names of all profiles saved for the user.
-func (p *vnetAppProvider) ListProfiles() ([]string, error) {
+func (p *vnetClientApplication) ListProfiles() ([]string, error) {
 	return p.clientStore.ListProfiles()
 }
 
 // GetCachedClient returns a cached [*client.ClusterClient] for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster.
-func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
+func (p *vnetClientApplication) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
 	return p.clientCache.Get(ctx, profileName, leafClusterName)
 }
 
@@ -83,34 +81,36 @@ func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 // was shorter than the cluster cert lifetime, or if the user has already re-logged in to the cluster.
 // If a cluster relogin is completed, the cluster client cache will be cleared for the root cluster and all
 // leaf clusters of that root.
-func (p *vnetAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
-	tc, err := p.newTeleportClient(ctx, profileName, leafClusterName)
+func (p *vnetClientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
+	appKey := appInfo.GetAppKey()
+	tc, err := p.newTeleportClient(ctx, appKey.GetProfile(), appKey.GetLeafCluster())
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
+	routeToApp := vnet.RouteToApp(appInfo, targetPort)
 
 	var cert tls.Certificate
 	err = p.retryWithRelogin(ctx, tc, func() error {
 		var err error
-		cert, err = p.reissueAppCert(ctx, tc, profileName, leafClusterName, routeToApp)
+		cert, err = p.reissueAppCert(ctx, tc, appKey.GetProfile(), appKey.GetLeafCluster(), routeToApp)
 		return trace.Wrap(err, "reissuing app cert")
 	})
 	return cert, trace.Wrap(err)
 }
 
 // GetDialOptions returns ALPN dial options for the profile.
-func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string) (*vnet.DialOptions, error) {
+func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error) {
 	profile, err := p.clientStore.GetProfile(profileName)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading user profile")
 	}
-	dialOpts := &vnet.DialOptions{
+	dialOpts := &vnetv1.DialOptions{
 		WebProxyAddr:            profile.WebProxyAddr,
-		ALPNConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
+		AlpnConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
 	}
-	if dialOpts.ALPNConnUpgradeRequired {
-		dialOpts.RootClusterCACertPool, err = p.getRootClusterCACertPool(ctx, profileName)
+	if dialOpts.AlpnConnUpgradeRequired {
+		dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -120,16 +120,17 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 
 // OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do
 // anything extra here.
-func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
+func (p *vnetClientApplication) OnNewConnection(_ context.Context, _ *vnetv1.AppKey) error {
 	return nil
 }
 
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 // because the provided port does not match any of the TCP ports in the app spec.
-func (p *vnetAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
+func (p *vnetClientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) {
 	msg := fmt.Sprintf("%s: Connection refused, port not included in target ports of app %q.",
-		net.JoinHostPort(routeToApp.PublicAddr, strconv.Itoa(int(routeToApp.TargetPort))), routeToApp.Name)
+		net.JoinHostPort(appInfo.GetApp().GetPublicAddr(), strconv.Itoa(int(targetPort))), appInfo.GetAppKey().GetName())
 
+	tcpPorts := appInfo.GetApp().GetTCPPorts()
 	if len(tcpPorts) <= 10 {
 		msg = fmt.Sprintf("%s Valid ports: %s.", msg, tcpPorts)
 	}
@@ -138,19 +139,19 @@ func (p *vnetAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, l
 }
 
 // getRootClusterCACertPool returns a certificate pool for the root cluster of the given profile.
-func (p *vnetAppProvider) getRootClusterCACertPool(ctx context.Context, profileName string) (*x509.CertPool, error) {
+func (p *vnetClientApplication) getRootClusterCACertPoolPEM(ctx context.Context, profileName string) ([]byte, error) {
 	tc, err := p.newTeleportClient(ctx, profileName, "")
 	if err != nil {
 		return nil, trace.Wrap(err, "creating new client")
 	}
-	certPool, err := tc.RootClusterCACertPool(ctx)
+	certPool, err := tc.RootClusterCACertPoolPEM(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading root cluster CA cert pool")
 	}
 	return certPool, nil
 }
 
-func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
+func (p *vnetClientApplication) retryWithRelogin(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
 	profileName, err := utils.Host(tc.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -186,7 +187,7 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 	return client.RetryWithRelogin(ctx, tc, fn, opts...)
 }
 
-func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
+func (p *vnetClientApplication) reissueAppCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, routeToApp *proto.RouteToApp) (tls.Certificate, error) {
 	slog.InfoContext(ctx, "Reissuing cert for app.", "app_name", routeToApp.Name, "profile", profileName, "leaf_cluster", leafClusterName)
 
 	profile, err := tc.ProfileStatus()
@@ -195,11 +196,10 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 	}
 
 	appCertParams := client.ReissueParams{
-		RouteToCluster: tc.SiteName,
-		RouteToApp:     routeToApp,
+		RouteToCluster: leafClusterName,
+		RouteToApp:     *routeToApp,
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
-		TTL:            tc.KeyTTL,
 	}
 
 	// leafClusterName cannot be replaced with routeToApp.ClusterName here. That's because when
@@ -214,7 +214,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		return tls.Certificate{}, trace.Wrap(err, "getting cached root client")
 	}
 
-	keyRing, err := appLogin(ctx, tc, clusterClient, rootClient.AuthClient, appCertParams)
+	keyRing, err := appLogin(ctx, clusterClient, rootClient.AuthClient, appCertParams)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "logging in to app")
 	}
@@ -227,7 +227,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 	return cert, nil
 }
 
-func (p *vnetAppProvider) newTeleportClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+func (p *vnetClientApplication) newTeleportClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
 	cfg := &client.Config{
 		ClientStore: p.clientStore,
 	}

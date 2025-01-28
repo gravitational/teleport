@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -157,7 +158,7 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		return nil, trace.ConnectionProblem(trace.BadParameter("missing connection"), "missing connection")
 	}
 
-	conn.SetIdleTimeout(req.idleTimeout)
+	conn.SetIdleTimeout(adjustIdleTimeoutForConn(req.idleTimeout))
 
 	var handler protocolHandler
 	switch protocol {
@@ -445,7 +446,7 @@ func waitStreamReply(ctx context.Context, replySent <-chan struct{}, notify chan
 // v4WriteStatusFunc returns a WriteStatusFunc that marshals a given api Status
 // as json in the error channel.
 func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
-	return func(status *apierrors.StatusError) error {
+	return writeStatusOnceFunc(func(status *apierrors.StatusError) error {
 		st := status.Status()
 		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &st)
 		if err != nil {
@@ -453,15 +454,27 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 		}
 		_, err = stream.Write(data)
 		return err
-	}
+	})
 }
 
 func v1WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
-	return func(status *apierrors.StatusError) error {
+	return writeStatusOnceFunc(func(status *apierrors.StatusError) error {
 		if status.Status().Status == metav1.StatusSuccess {
 			return nil // send error messages
 		}
 		_, err := stream.Write([]byte(status.Error()))
 		return err
+	})
+}
+
+// writeStatusOnceFunc returns a function that only calls f once, and returns the result of the first call.
+func writeStatusOnceFunc(f func(status *apierrors.StatusError) error) func(status *apierrors.StatusError) error {
+	var once sync.Once
+	var err error
+	return func(status *apierrors.StatusError) error {
+		once.Do(func() {
+			err = f(status)
+		})
+		return trace.Wrap(err)
 	}
 }

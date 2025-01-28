@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -147,10 +146,6 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.IssueWorkloadIdentityResponse, error) {
-	if !experiment.Enabled() {
-		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
-	}
-
 	switch {
 	case req.GetName() == "":
 		return nil, trace.BadParameter("name: is required")
@@ -240,10 +235,6 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
 ) (*workloadidentityv1pb.IssueWorkloadIdentitiesResponse, error) {
-	if !experiment.Enabled() {
-		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
-	}
-
 	switch {
 	case len(req.LabelSelectors) == 0:
 		return nil, trace.BadParameter("label_selectors: at least one label selector must be specified")
