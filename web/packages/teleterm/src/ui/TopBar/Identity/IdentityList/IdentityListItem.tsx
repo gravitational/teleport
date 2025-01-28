@@ -56,7 +56,7 @@ export function IdentityListItem(props: {
         (e.key === 'Enter' || e.key === 'Space') && props.onSelect()
       }
       isActive={isActive}
-      title="Activate Cluster"
+      title={`Switch to ${props.cluster.name}`}
     >
       <Flex width="100%" justifyContent="space-between">
         <WithIconItem

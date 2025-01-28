@@ -63,19 +63,19 @@ export function ActiveCluster(props: {
 
           <Flex flexDirection="row" alignItems="flex-start" gap={1}>
             <ButtonText
-              title="Refresh Session"
+              title={`Refresh session in ${props.activeCluster.name}`}
               size="small"
               onClick={() => props.onRefresh()}
             >
               <Refresh size="small" />
             </ButtonText>
             <ButtonText
+              title={`Log out from ${props.activeCluster.name}`}
               onClick={() => props.onLogout()}
               intent="danger"
               size="small"
             >
-              Log Out
-              <Logout ml="6px" size="small" />
+              <Logout size="small" />
             </ButtonText>
           </Flex>
         </Flex>
