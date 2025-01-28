@@ -110,7 +110,7 @@ type tcpHandlerResolver interface {
 //
 // Avoid using [trace.Wrap] on errNoTCPHandler where possible, this isn't an
 // unexpected error that should require the overhead of collecting a stack trace.
-var errNoTCPHandler = errors.New("no handler for address")
+var errNoTCPHandler = &trace.NotFoundError{Message: "no handler for address"}
 
 // tcpHandlerSpec specifies a VNet TCP handler.
 type tcpHandlerSpec struct {
