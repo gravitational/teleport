@@ -20,7 +20,9 @@ package mocks
 
 import (
 	"context"
+	"net/url"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,19 +34,13 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
-// STSClient mocks the AWS STS API for AWS SDK v1 and v2.
-// Callers can use it in tests for both the v1 and v2 interfaces.
-// This is useful when some services still use SDK v1 while others use v2 SDK,
-// so that all assumed roles can be recorded in one place.
-// For example:
-//
-// clt := &STSClient{}
-// a.stsClientV1 = &clt.STSClientV1
-// b.stsClientV2 = clt
-// ...
-// gotRoles := clt.GetAssumedRoleARNs() // returns roles that were assumed with either v1 or v2 client.
+// STSClient mocks the AWS STS API for AWS SDK v2.
 type STSClient struct {
-	STSClientV1
+	ARN                    string
+	URL                    *url.URL
+	assumedRoleARNs        []string
+	assumedRoleExternalIDs []string
+	mu                     sync.Mutex
 
 	Unauth bool
 	// credentialProvider is only set when a chain of assumed roles is used.
@@ -117,8 +113,8 @@ func (m *STSClient) record(roleARN, externalID string) {
 		m.recordFn(roleARN, externalID)
 		return
 	}
-	m.STSClientV1.mu.Lock()
-	defer m.STSClientV1.mu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if !slices.Contains(m.assumedRoleARNs, roleARN) {
 		m.assumedRoleARNs = append(m.assumedRoleARNs, roleARN)
 		m.assumedRoleExternalIDs = append(m.assumedRoleExternalIDs, externalID)
@@ -140,4 +136,23 @@ func newAssumeRoleClientProviderFunc(base *STSClient) awsconfig.STSClientProvide
 		}
 		return base
 	}
+}
+
+func (m *STSClient) GetAssumedRoleARNs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.assumedRoleARNs
+}
+
+func (m *STSClient) GetAssumedRoleExternalIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.assumedRoleExternalIDs
+}
+
+func (m *STSClient) ResetAssumeRoleHistory() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.assumedRoleARNs = nil
+	m.assumedRoleExternalIDs = nil
 }

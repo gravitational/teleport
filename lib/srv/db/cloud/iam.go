@@ -20,12 +20,11 @@ package cloud
 
 import (
 	"context"
-	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -264,7 +263,11 @@ func (c *IAM) getAWSIdentity(ctx context.Context, database types.Database) (awsl
 		return nil, trace.Wrap(err)
 	}
 	clt := c.cfg.awsClients.getSTSClient(awsCfg)
-	awsIdentity, err := awslib.GetIdentityWithClientV2(ctx, clt)
+	_, err = awsCfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to retrieve credentials")
+	}
+	awsIdentity, err := awslib.GetIdentityWithClient(ctx, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,9 +301,10 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
 		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
-		if errors.Is(trace.Unwrap(err), credentials.ErrNoValidProvidersFoundInChain) {
-			c.logger.WarnContext(ctx, "No AWS credentials provider, Skipping IAM task for database",
+		if strings.Contains(err.Error(), "failed to retrieve credentials") {
+			c.logger.WarnContext(ctx, "Failed to load AWS IAM configurator, skipping IAM task for database",
 				"database", task.database.GetName(),
+				"error", err,
 			)
 			return nil
 		}

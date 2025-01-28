@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
@@ -44,13 +44,13 @@ func (m RedshiftServerlessClient) GetWorkgroup(_ context.Context, input *rss.Get
 	}
 
 	for _, workgroup := range m.Workgroups {
-		if aws.StringValue(workgroup.WorkgroupName) == aws.StringValue(input.WorkgroupName) {
+		if aws.ToString(workgroup.WorkgroupName) == aws.ToString(input.WorkgroupName) {
 			return &rss.GetWorkgroupOutput{
 				Workgroup: &workgroup,
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("workgroup %q not found", aws.StringValue(input.WorkgroupName))
+	return nil, trace.NotFound("workgroup %q not found", aws.ToString(input.WorkgroupName))
 }
 
 func (m RedshiftServerlessClient) GetEndpointAccess(_ context.Context, input *rss.GetEndpointAccessInput, _ ...func(*rss.Options)) (*rss.GetEndpointAccessOutput, error) {
@@ -58,13 +58,13 @@ func (m RedshiftServerlessClient) GetEndpointAccess(_ context.Context, input *rs
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	for _, endpoint := range m.Endpoints {
-		if aws.StringValue(endpoint.EndpointName) == aws.StringValue(input.EndpointName) {
+		if aws.ToString(endpoint.EndpointName) == aws.ToString(input.EndpointName) {
 			return &rss.GetEndpointAccessOutput{
 				Endpoint: &endpoint,
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("endpoint %q not found", aws.StringValue(input.EndpointName))
+	return nil, trace.NotFound("endpoint %q not found", aws.ToString(input.EndpointName))
 }
 
 func (m RedshiftServerlessClient) ListWorkgroups(_ context.Context, input *rss.ListWorkgroupsInput, _ ...func(*rss.Options)) (*rss.ListWorkgroupsOutput, error) {
@@ -93,7 +93,7 @@ func (m RedshiftServerlessClient) ListTagsForResource(_ context.Context, input *
 		return &rss.ListTagsForResourceOutput{}, nil
 	}
 	return &rss.ListTagsForResourceOutput{
-		Tags: m.TagsByARN[aws.StringValue(input.ResourceArn)],
+		Tags: m.TagsByARN[aws.ToString(input.ResourceArn)],
 	}, nil
 }
 

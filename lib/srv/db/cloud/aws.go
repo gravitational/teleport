@@ -351,7 +351,7 @@ func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertRequestFailureErrorV2(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
 	if meta.RDS.InstanceID != "" {
 		_, err = clt.ModifyDBInstance(ctx, &rds.ModifyDBInstanceInput{
@@ -359,7 +359,7 @@ func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertRequestFailureErrorV2(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
 	return nil
 }

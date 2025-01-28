@@ -164,7 +164,7 @@ func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region strin
 		for pager.HasMorePages() {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+				return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 			}
 			users = append(users, page.Users...)
 		}
@@ -185,7 +185,7 @@ func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *ectypes.User
 			ResourceName: user.ARN,
 		})
 		if err != nil {
-			return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 		}
 		return output.TagList, nil
 	}
@@ -256,7 +256,7 @@ func (r *elastiCacheUserResource) ModifyUserPassword(ctx context.Context, oldPas
 		NoPasswordRequired: aws.Bool(len(passwords) == 0),
 	}
 	if _, err := r.client.ModifyUser(ctx, input); err != nil {
-		return trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	return nil
 }

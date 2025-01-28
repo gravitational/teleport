@@ -21,8 +21,8 @@ package db
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -39,8 +39,8 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 	endpointProd, endpointProdDB := makeRedshiftServerlessEndpoint(t, workgroupProd, "endpoint1", "us-east-1", envProdLabels)
 	endpointDev, endpointProdDev := makeRedshiftServerlessEndpoint(t, workgroupDev, "endpoint2", "us-east-1", envDevLabels)
 	tagsByARN := map[string][]rsstypes.Tag{
-		aws.StringValue(workgroupProd.WorkgroupArn): awstesthelpers.LabelsToRedshiftServerlessTags(envProdLabels),
-		aws.StringValue(workgroupDev.WorkgroupArn):  awstesthelpers.LabelsToRedshiftServerlessTags(envDevLabels),
+		aws.ToString(workgroupProd.WorkgroupArn): awstesthelpers.LabelsToRedshiftServerlessTags(envProdLabels),
+		aws.ToString(workgroupDev.WorkgroupArn):  awstesthelpers.LabelsToRedshiftServerlessTags(envDevLabels),
 	}
 
 	workgroupNotAvailable := mocks.RedshiftServerlessWorkgroup("wg-creating", "us-east-1")

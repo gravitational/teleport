@@ -325,7 +325,7 @@ func convertSecretsManagerError(err error) error {
 	}
 
 	// Match by status code.
-	return trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+	return trace.Wrap(libaws.ConvertRequestFailureError(err))
 }
 
 const (

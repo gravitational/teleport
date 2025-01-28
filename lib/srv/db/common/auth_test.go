@@ -659,10 +659,8 @@ func TestGetAWSIAMCreds(t *testing.T) {
 		"username is partial role ARN": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
 			stsMock: &mocks.STSClient{
-				STSClientV1: mocks.STSClientV1{
-					// This is the role returned by the STS GetCallerIdentity.
-					ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
-				},
+				// This is the role returned by the STS GetCallerIdentity.
+				ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
 			},
 			username:             "role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::222222222222:role/role-name"},
@@ -682,9 +680,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				AssumeRoleARN: "arn:aws:iam::222222222222:role/teleport-service-role-external",
 			}),
 			stsMock: &mocks.STSClient{
-				STSClientV1: mocks.STSClientV1{
-					ARN: "arn:aws:iam::111111111111:role/teleport-service-role",
-				},
+				ARN: "arn:aws:iam::111111111111:role/teleport-service-role",
 			},
 			username: "role/role-name",
 			expectedAssumedRoles: []string{

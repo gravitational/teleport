@@ -111,7 +111,7 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 func getOpenSearchDomains(ctx context.Context, client OpenSearchClient) ([]opensearchtypes.DomainStatus, error) {
 	names, err := client.ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
 	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
 	req := &opensearch.DescribeDomainsInput{}
@@ -132,7 +132,7 @@ func getOpenSearchDomains(ctx context.Context, client OpenSearchClient) ([]opens
 func getOpenSearchResourceTags(ctx context.Context, client OpenSearchClient, resourceARN *string) ([]opensearchtypes.Tag, error) {
 	output, err := client.ListTags(ctx, &opensearch.ListTagsInput{ARN: resourceARN})
 	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
 	return output.TagList, nil
