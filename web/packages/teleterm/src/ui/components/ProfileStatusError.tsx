@@ -19,9 +19,12 @@
 import { Flex, P3 } from 'design';
 import { Warning } from 'design/Icon';
 
-export function ProfileStatusError(props: { error: string }) {
+export function ProfileStatusError(props: {
+  error: string;
+  className?: string;
+}): JSX.Element {
   return (
-    <Flex>
+    <Flex className={props.className}>
       <Warning color="error.main" size="small" mr={1} />
       <P3
         color="text.slightlyMuted"

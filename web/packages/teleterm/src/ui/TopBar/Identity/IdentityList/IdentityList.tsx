@@ -79,6 +79,16 @@ export function ActiveCluster(props: {
             </ButtonText>
           </Flex>
         </Flex>
+        {props.activeCluster.profileStatusError && (
+          <ProfileStatusError
+            error={props.activeCluster.profileStatusError}
+            // Align the error with the user icon.
+            css={`
+              margin-left: ${props => props.theme.space[2]}px;
+              gap: 14px;
+            `}
+          />
+        )}
         <Flex flexWrap="wrap" gap={1} mt={1}>
           {props.activeCluster.loggedInUser?.roles.map(role => (
             <Label
@@ -92,9 +102,6 @@ export function ActiveCluster(props: {
             </Label>
           ))}
         </Flex>
-        {props.activeCluster.profileStatusError && (
-          <ProfileStatusError error={props.activeCluster.profileStatusError} />
-        )}
         <DeviceTrustMessage status={props.deviceTrustStatus} />
       </Flex>
       <Separator />

@@ -87,7 +87,14 @@ export function IdentityListItem(props: {
         )}
       </Flex>
       {props.cluster.profileStatusError && (
-        <ProfileStatusError error={props.cluster.profileStatusError} />
+        <ProfileStatusError
+          error={props.cluster.profileStatusError}
+          // Align the error with the user icon.
+          css={`
+            margin-left: ${props => props.theme.space[2]}px;
+            gap: 11px;
+          `}
+        />
       )}
     </StyledListItem>
   );
