@@ -18,16 +18,36 @@ package vnet
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.zx2c4.com/wireguard/tun"
 )
+
+type windowsAdminProcessConfig struct {
+	// clientApplicationServiceAddr is the local TCP address of the client
+	// application gRPC service.
+	clientApplicationServiceAddr string
+}
 
 // runWindowsAdminProcess must run as administrator. It creates and sets up a TUN
 // device, runs the VNet networking stack, and handles OS configuration. It will
 // continue to run until [ctx] is canceled or encountering an unrecoverable
 // error.
-func runWindowsAdminProcess(ctx context.Context) error {
+func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig) error {
+	log.InfoContext(ctx, "Running VNet admin process")
+
+	clt, err := newClientApplicationServiceClient(ctx, cfg.clientApplicationServiceAddr)
+	if err != nil {
+		return trace.Wrap(err, "creating user process client")
+	}
+	defer clt.close()
+
+	if err := authenticateUserProcess(ctx, clt); err != nil {
+		return trace.Wrap(err, "authenticating user process")
+	}
+
 	device, err := tun.CreateTUN("TeleportVNet", mtu)
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
@@ -38,8 +58,58 @@ func runWindowsAdminProcess(ctx context.Context) error {
 		return trace.Wrap(err, "getting TUN device name")
 	}
 	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
-	// TODO(nklaassen): actually run VNet. For now, just stay alive until the
-	// context is canceled.
-	<-ctx.Done()
-	return trace.Wrap(ctx.Err())
+
+	networkStackConfig, err := newWindowsNetworkStackConfig(device, clt)
+	if err != nil {
+		return trace.Wrap(err, "creating network stack config")
+	}
+	networkStack, err := newNetworkStack(networkStackConfig)
+	if err != nil {
+		return trace.Wrap(err, "creating network stack")
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	errCh := make(chan error)
+	go func() {
+		errCh <- trace.Wrap(networkStack.run(ctx), "running network stack")
+	}()
+loop:
+	for {
+		select {
+		case <-time.After(time.Second):
+			if err := clt.Ping(ctx); err != nil {
+				log.InfoContext(ctx, "Failed to ping client application, it may have exited, shutting down", "error", err)
+				break loop
+			}
+		case <-ctx.Done():
+			log.InfoContext(ctx, "Context canceled, shutting down", "error", err)
+			break loop
+		}
+	}
+	// Cancel the context and wait for networkStack.run to terminate.
+	cancel()
+	err = <-errCh
+	return trace.Wrap(err, "running VNet network stack")
+}
+
+func newWindowsNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
+	appProvider := newRemoteAppProvider(clt)
+	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
+	ipv6Prefix, err := NewIPv6Prefix()
+	if err != nil {
+		return nil, trace.Wrap(err, "creating new IPv6 prefix")
+	}
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
+	return &networkStackConfig{
+		tunDevice:          tun,
+		ipv6Prefix:         ipv6Prefix,
+		dnsIPv6:            dnsIPv6,
+		tcpHandlerResolver: appResolver,
+	}, nil
+}
+
+func authenticateUserProcess(ctx context.Context, clt *clientApplicationServiceClient) error {
+	// TODO(nklaassen): implement process authentication.
+	return nil
 }
