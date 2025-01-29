@@ -612,6 +612,10 @@ func (l *Log) deriveSessionID(ctx context.Context, sessionID string) uuid.UUID {
 	// To avoid dropping the event while conforming to the existing schema we
 	// deterministically derive an UUID from the session ID.
 	//
+	// Note that derived IDs are UUIDv5 (instead of the usual UUIDv4 from
+	// uuid.Parse), so that could be used as a hint to which UUIDs are original or
+	// derived.
+	//
 	// * https://github.com/gravitational/teleport/blob/63537e3da5a22b61d9218863f1ed535a31d229ea/lib/auth/sessions.go#L521
 	derived := uuid.NewSHA1(sessionIDBase, []byte(sessionID))
 
