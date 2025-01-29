@@ -78,6 +78,16 @@ func TestGetReadiness(t *testing.T) {
 		require.Equal(t, "BAD", msg)
 		require.False(t, ready)
 	})
+
+	t.Run("Not found", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusNotFound, []byte(`{"status": "MISSING"}`))
+		clt := NewClient(socketPath)
+
+		ready, msg, err := clt.GetReadiness(ctx)
+		require.True(t, trace.IsNotFound(err))
+		require.Equal(t, "MISSING", msg)
+		require.False(t, ready)
+	})
 }
 
 func TestCollectProfile(t *testing.T) {

@@ -146,6 +146,7 @@ func (c *Client) GetReadiness(ctx context.Context) (ready bool, msg string, err 
 		return false, " ", trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+
 	ready = resp.StatusCode == http.StatusOK
 	var status struct {
 		Status string `json:"status"`
@@ -153,6 +154,9 @@ func (c *Client) GetReadiness(ctx context.Context) (ready bool, msg string, err 
 	err = json.NewDecoder(resp.Body).Decode(&status)
 	if err != nil {
 		return ready, "", trace.Wrap(err)
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return ready, status.Status, trace.NotFound("readiness endpoint not found")
 	}
 	return ready, status.Status, nil
 }
